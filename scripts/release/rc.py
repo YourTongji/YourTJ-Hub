@@ -32,7 +32,10 @@ def artifact_name(identity, name):
 
 
 def validate_identity(identity, expected):
-    require(all(identity.get(k) == expected.get(k) for k in IDENTITY_KEYS)
+    if expected.get('operation') == 'promote-ios':
+        expected = expected | {'candidateId': expected['existingRelease']['candidateId']}
+    keys = IDENTITY_KEYS + tuple(k for k in ['displayBuild', 'iosBuildNumber'] if k in expected)
+    require(all(identity.get(k) == expected.get(k) for k in keys)
             and identity.get('environment') == 'production' and identity.get('preview') is False,
             'RC source/version/build/config differs from the selected release request')
 
@@ -45,8 +48,7 @@ def trusted_run(github, run_id, completed=False):
             and run.get('head_repository', {}).get('full_name', '').lower() == github.repository.lower(),
             'RC must come from the trusted-main RC workflow')
     if completed:
-        require(run.get('status') == 'completed' and run.get('conclusion') == 'success',
-                'Selected RC did not finish successfully')
+        require(run.get('status') == 'completed', 'Selected RC is still running')
     return run
 
 
@@ -66,13 +68,19 @@ def read_record(github, run_id, manifest):
     result = read_json_artifact(github, run_id, f"rc-record-{run['run_attempt']}", 'rc-record.json')
     identity = result['identity']
     validate_identity(identity, manifest)
+    if manifest.get('operation') == 'promote-ios':
+        require(result.get('platforms', {}).get('ios', {}).get('buildId') == manifest['existingRelease']['buildId'],
+                'Store promotion must use the original RC Apple build')
     require(identity['run'] == str(run_id) and identity['controllerSha'] == run['head_sha'],
             'RC record run/controller mismatch')
-    require(result.get('platforms') and set(result['platforms']) <= set(identity['platforms']),
+    # Collection seals only successful platform results. A later request-attachment
+    # failure must not invalidate those original bytes or force another build.
+    require(result.get('platforms') and set(result['platforms']) == set(identity['platforms']),
             'RC platform record mismatch')
     for name, details in result['platforms'].items():
         require(name in {'web', 'android', 'ios'} and details.get('buildRunId') == str(run_id)
                 and details.get('artifact') == artifact_name(identity, name), 'RC artifact identity mismatch')
+        reusable(result, name)
     return result
 
 
@@ -103,8 +111,8 @@ def resolve(github, candidate, folder, linked_run=None):
             and pr['head']['ref'] == f'codex/release/{candidate}', 'Untrusted RC request')
     git('fetch', 'origin', 'main', f"refs/pull/{pr['number']}/head", '--tags')
     manifest, folder = load_candidate(candidate, pr['head']['sha'], folder, draft=True)
-    require(manifest['schemaVersion'] == 3 and manifest['operation'] == 'release'
-            and manifest['rcRun'] in {None, linked_run},
+    require(manifest['schemaVersion'] in {3, 4} and (manifest['operation'] == 'promote-ios'
+            or manifest['rcRun'] in {None, linked_run}),
             'Build a fresh schema-3 request; promotion requests cannot create another RC')
     require(pr.get('state') == 'open' or manifest['rcRun'] is not None,
             'Start RC before merging the request so its final head can select the artifacts')
@@ -150,6 +158,10 @@ def prepare_build(github, candidate, folder):
     identity = current_identity(github, manifest)
     for env, key in [('SOURCE_SHA', 'sourceSha'), ('MOBILE_VERSION', 'version'), ('MOBILE_BUILD_NUMBER', 'buildNumber')]:
         require(env not in os.environ or os.environ[env] == str(identity[key] or ''), 'RC builder inputs changed')
+    require(not os.environ.get('MOBILE_BUILD_ID') or os.environ['MOBILE_BUILD_ID'] == identity.get('displayBuild'),
+            'RC display build ID changed')
+    require(not os.environ.get('IOS_BUILD_NUMBER') or os.environ['IOS_BUILD_NUMBER'] ==
+            str(identity.get('iosBuildNumber') or identity['buildNumber']), 'RC native iOS number changed')
     # RC distribution uses deterministic build-identification notes. These never
     # replace the release request's human-editable final platform notes.
     text = f"Release candidate {manifest['version']}. Build {manifest['buildNumber']}. Source {manifest['sourceSha']}."
@@ -245,10 +257,19 @@ def main():
         run = trusted_run(github, run_id)
         with tempfile.TemporaryDirectory() as temp:
             manifest, _ = resolve(github, args.candidate, Path(temp), linked_run=run_id)
+        if manifest['operation'] == 'promote-ios':
+            require(manifest['schemaVersion'] == 4 and manifest['rcRun'],
+                    'Legacy existing-build promotion uses its existing recovery entry')
+            read_record(github, manifest['rcRun'], manifest)
+            output({'candidate': args.candidate, 'platforms': '[]', 'metadata_only': 'true', 'new_identity': 'false'})
+            return
         platforms = sorted({platform(c) for c in manifest['channels']})
         value = {k: manifest[k] for k in IDENTITY_KEYS} | {
             'environment': 'production', 'preview': False, 'run': run_id,
             'controllerSha': run['head_sha'], 'platforms': platforms}
+        if 'displayBuild' in manifest:
+            value['displayBuild'] = manifest['displayBuild']
+            value['iosBuildNumber'] = manifest['iosBuildNumber']
         # A candidate owns one RC run; adding a new build uses a new request/number.
         prefix = f"rc-{args.candidate}-"
         refs = github.pages('git/matching-refs/tags/' + prefix)
@@ -266,6 +287,8 @@ def main():
         output({'candidate': args.candidate, 'source': value['sourceSha'], 'version': value['version'],
                 'number': value['buildNumber'] or '', 'tag': manifest['tag'],
                 'channels': json.dumps(manifest['channels']), 'platforms': json.dumps(platforms),
+                'display_build': manifest.get('displayBuild', ''),
+                'ios_number': manifest.get('iosBuildNumber') or str(manifest['buildNumber'] or ''),
                 'new_identity': str(not existing).lower()})
     else:
         identity = read_json_artifact(github, os.environ['GITHUB_RUN_ID'], 'rc-identity', 'rc-identity.json')

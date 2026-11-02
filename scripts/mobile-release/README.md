@@ -1,7 +1,7 @@
 # Platform release tooling
 
 The public entry is [scripts/release/cli.py](../release/cli.py); the
-[release runbook](../../docs/operations/releases.md) owns preparation, final human approval and recovery.
+[release runbook](../../docs/operations/releases.md) owns production RC, explicit Confirm and original-artifact recovery.
 These helpers are invoked by trusted reusable platform publishers, with source under `RELEASE_SOURCE_ROOT`
 when it differs from the controller checkout. They never select a version or promote dev.
 
@@ -22,7 +22,7 @@ before upload. Signing secrets and review credentials never enter Git, model inp
 See [mobile signing/push operations](../../docs/operations/mobile-releases.md) for credentials and
 physical-device acceptance. Successful script tests do not establish actual Apple review approval.
 
-Production RC and direct Release call the same platform builders. RC has production configuration
+Production RC calls the platform builders once. Confirm promotes those original artifacts. RC has production configuration
 and final version/build identity; it is not `MOBILE_PREVIEW=true`. The RC internal TestFlight
 publisher is `publish_preview_ios.py` with `RC_BUILD=true`. An explicitly selected RC is restored
 by the normal publisher without another build. Source tests stay in CI, not release jobs.

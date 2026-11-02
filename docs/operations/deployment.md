@@ -10,9 +10,8 @@
 
 ## Deployment shape
 
-`Current`: an active [release cycle](release-cycles.md) pauses ordinary automatic dev deployment.
-The controlled prerelease deploy explicitly selects the frozen SHA and uses the same instance lock
-and database snapshot/reset procedure. It does not create another server site.
+`Current`: every dev merge automatically requests same-SHA Web and native developer delivery through
+[the dev distributor](release-cycles.md). Web does not wait for mobile builds or an extra source-CI gate.
 
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
@@ -263,15 +262,14 @@ Dev 同步成功后，`snapshots/dev-prev` 仅保留最近 5 个时间戳组的�
 
 ## Branch model & CI/CD
 
-- `dev` is the default development branch. [CI / Verify](../../.github/workflows/ci.yml) selects
-  affected domains and requires their complete results. Deploy dev accepts only a successful,
-  current, same-repository dev push run; its CI plan must select forum deployment inputs.
-  Mobile, status and release-note-only changes do not sync the forum database or deploy it.
-  The workflow builds the binary/image, checks staleness again before mutation, syncs a consistent
-  main DB snapshot, and deploys with health checks. It keeps three recent instance image tags.
+- `dev` is the default development branch. Normal CI validates the affected domains independently.
+  Every merged push requests the trusted-main dev distributor with that SHA. Web and native branches
+  run independently; Web checks current dev head before instance mutation, syncs a consistent main DB
+  snapshot and deploys with health checks. The latest pending Web transaction replaces older pending
+  work without cancelling an active transaction. It keeps three recent instance image tags.
 - Production release preparation and approval are owned by the [release runbook](releases.md).
   A source SHA already in main is built once by GoReleaser. The same Linux binary is used in GHCR;
-  production consumes `main-vX.Y.Z@sha256:<digest>`, backs up the DB, applies configuration and
+  production consumes the selected version/RC image by its original SHA-256 digest, backs up the DB, applies configuration and
   waits for health plus exact running binary/image identity. The deployment is a reusable job,
   not an arbitrary tag-dispatch entry. It keeps five recent instance tags and the previous image.
 - Source merges alone do not deploy production. The reviewed release-data PR authorizes its frozen

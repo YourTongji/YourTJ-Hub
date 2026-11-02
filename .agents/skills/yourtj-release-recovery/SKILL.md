@@ -10,6 +10,9 @@ Read [the release runbook](../../../docs/operations/releases.md) and the relevan
 `python3 scripts/release/cli.py status --candidate <id> --json` and inspect the linked Actions run,
 GitHub Release and Apple state when applicable. Query failures mean unknown, not absence/success.
 
+Schema-4 authority is the exact immutable Confirm seal; legacy requests retain their human review.
+Never replace either with a mutable receipt or fabricated GitHub approval.
+
 Use `retry --candidate <id> --channel <channel> --dry-run` to review the exact action. Existing
 release authority permits an idempotent retry of the same approved channel; use `--apply` within
 that scope. Successful channels remain intact. Do not expand TestFlight approval to App Store,

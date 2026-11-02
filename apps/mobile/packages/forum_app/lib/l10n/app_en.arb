@@ -2087,10 +2087,10 @@
   "settingsPasskeyRevoked": "Passkey removed",
   "settingsPasskeyEmpty": "No passkeys are registered.",
   "settingsPasskeyUnavailable": "Passkeys are not enabled on this server.",
-  "previewUpdateInstructions": "This is a testing build. Get updates from the release issue’s Android link or the assigned TestFlight group.",
-  "previewStale": "This preview is no longer the current candidate. Check the release status for the current build or return to production.",
-  "previewStatusUnknown": "Cannot verify this preview’s status. Check with the release owner before testing.",
-  "previewStatusLink": "Preview status",
+  "previewUpdateInstructions": "Development builds follow dev automatically. Get the latest build from dev distribution or internal testing.",
+  "previewStale": "A newer development build is available. Check dev distribution for the latest version.",
+  "previewStatusUnknown": "Cannot read dev distribution status. You can keep using this development build.",
+  "previewStatusLink": "Dev builds",
   "timetableOptions": "Timetable options",
   "timetableWeekPicker": "Choose a week",
   "timetableDateRange": "{start} – {end}",
@@ -2421,5 +2421,6 @@
   "unreadStyleTitle": "Unread indicators",
   "unreadStyleNumbers": "Show unread counts",
   "unreadStyleHint": "Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.",
-  "unreadStyleSaving": "Saving indicator style…"
+  "unreadStyleSaving": "Saving indicator style…",
+  "previewBuildPending": "A newer dev build is in progress. This is still the latest available build for this platform."
 }

@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import time
 from model import (CHANGELOG, FILES, ID, SHA, NOTES_FORMAT_VERSION, REPOSITORY, ReleaseError, require, digest, channels_for,
-                   next_identity, validate_candidate, validate_approval)
+                   next_identity, validate_candidate, validate_approval, validate_request_paths)
 from github import GitHub, git, run
 from collect import collect
 from state import reservations, baselines, latest_receipt, record
@@ -119,7 +119,8 @@ def plan(scope, bump, source, destination, github, apple=None, version=None):
     candidate_id = f"{product}-{version}" + (f"-{number}" if number else "")
     if product == 'web' and os.environ.get('GITHUB_RUN_ID'):
         candidate_id += '-' + os.environ['GITHUB_RUN_ID']
-    return {"schemaVersion": 3, "candidateId": candidate_id, "sourceSha": sha, "rcRun": None,
+    return {"schemaVersion": 4, "candidateId": candidate_id, "sourceSha": sha, "rcRun": None,
+            'displayBuild': None, 'iosBuildNumber': None,
             "product": product, "version": version, "tag": ("v" if product == "web" else "mobile-v") + version,
             "buildNumber": number, "channels": channels, "operation": "release", "existingRelease": None,
             "baselines": baselines(github, channels, tags, apple), "notes": {c: FILES[c] for c in channels},
@@ -139,6 +140,7 @@ def prepare(manifest, github, folder):
         (folder / filename).write_text("[DRAFT: human review required — complete from evidence.json]\n", encoding='utf-8')
     if manifest["product"] == "mobile":
         write_json(folder / CHANGELOG, {"schemaVersion": 1, "notesFormatVersion": NOTES_FORMAT_VERSION, "version": manifest["version"],
+                   **({'displayBuild': manifest['displayBuild']} if manifest.get('displayBuild') else {}),
                    "buildNumber": manifest["buildNumber"], "highlights": [], "breaking": [],
                    "requiredActions": [], "evidence": {}, "testflightNotes": []})
     return request
@@ -188,14 +190,28 @@ def create_pr(manifest, folder, github, notes_status=None, cycle=None):
     previews = "\n\n".join(f"### {channel}\n\n{(Path(folder) / filename).read_text(encoding='utf-8')}" for channel, filename in manifest["notes"].items())
     body = (f"Release request `{candidate_id}`\n\n{notes_banner(manifest, notes_status)}\n\nSource: `{manifest['sourceSha']}`\n\n"
             f"Targets: {', '.join(manifest['channels'])}\n\n"
-            "A release maintainer must review the final head. For schema 2/3 mobile requests, edit changelog.json, attach evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive platform files; review TestFlight English separately. Verify platform scope, disclosures and server prerequisites, then approve and merge. Bots cannot approve. The publisher independently rechecks approval.\n\n"
+            "Edit changelog.json with evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive separate platform files. Review TestFlight English, disclosures and server prerequisites. "
+            + ("After the RC finishes and final notes are ready, run `python3 scripts/release/cli.py confirm --candidate " + candidate_id + " --apply`. Confirm seals this exact head and RC, merges this request and promotes original artifacts. It does not compile again.\n\n"
+               if manifest['schemaVersion'] == 4 else
+               "An eligible human must approve the final head before merge. The publisher independently verifies that GitHub review.\n\n") +
             f"Baselines:\n```json\n{json.dumps(manifest['baselines'], indent=2)}\n```\n\n{previews}\n\n"
-            "Evidence and uncertainties: `evidence.json`. Source, targets and note edits require fresh approval.")
+            "Evidence and uncertainties: `evidence.json`. Source, targets and note edits invalidate the previous confirmation.")
     if cycle:
         body += (f"\n\nRelease tracking: #{cycle['issue']} · cycle `{cycle['id']}` · "
                  f"owner at preparation: @{cycle['owner']}.\n"
                  "The tracking issue owns device QA and channel follow-up; it is not release approval.")
     return github.api("pulls", method="POST", data={"title": f"chore: release {candidate_id}", "head": branch, "base": "main", "body": body})
+
+
+def candidate_binding(manifest, folder, binding):
+    return binding | {"sourceSha": manifest["sourceSha"],
+                    "notesDigests": {name: hashlib.sha256((folder / name).read_bytes()).hexdigest() for name in manifest['notes'].values()},
+                    "changelogDigest": hashlib.sha256((folder / CHANGELOG).read_bytes()).hexdigest()
+                    if manifest['product'] == 'mobile' and manifest['schemaVersion'] >= 2 else None,
+                    "evidenceDigest": hashlib.sha256((folder / 'evidence.json').read_bytes()).hexdigest()
+                    if manifest['product'] == 'mobile' and manifest['schemaVersion'] >= 2 else None,
+                    "contentDigest": digest({p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(folder.iterdir())}),
+                    "controllerSha": git("rev-parse", "HEAD")}
 
 
 def authorize(candidate_id, github, folder, require_merged=True):
@@ -204,12 +220,18 @@ def authorize(candidate_id, github, folder, require_merged=True):
     require(len(prs) == 1, "Expected exactly one reviewed Release PR; direct pushes cannot publish")
     pr = github.api(f"pulls/{prs[0]['number']}")
     require(pr["head"]["repo"]["full_name"].lower() == github.repository.lower(), "Release PR must belong to this repository")
-    reviews = github.pages(f"pulls/{pr['number']}/reviews")
-    binding = validate_approval(pr, reviews, github.files(pr["number"], pr["changed_files"]), candidate_id,
-                                github.maintainers(reviews), require_merged)
     git("fetch", "origin", "main", f"refs/pull/{pr['number']}/head", "--tags")
     head = pr["head"]["sha"]
     manifest, folder = load_candidate(candidate_id, head, folder)
+    paths = github.files(pr['number'], pr['changed_files'])
+    if manifest['schemaVersion'] == 4:
+        from confirmation import read_confirmation
+        validate_request_paths(pr, paths, candidate_id, require_merged)
+        snapshot = candidate_binding(manifest, folder, {})
+        binding = read_confirmation(github, manifest, pr, snapshot['contentDigest'])
+    else:
+        reviews = github.pages(f"pulls/{pr['number']}/reviews")
+        binding = validate_approval(pr, reviews, paths, candidate_id, github.maintainers(reviews), require_merged)
     git("merge-base", "--is-ancestor", manifest["sourceSha"], "origin/main")
     if require_merged:
         merge = pr["merge_commit_sha"]
@@ -218,14 +240,7 @@ def authorize(candidate_id, github, folder, require_merged=True):
     checks = github.pages(f"commits/{head}/check-runs", "check_runs")
     required = [c for c in checks if c["name"] == "ci-required" and c.get("app", {}).get("slug") == "github-actions"]
     require(required and max(required, key=lambda c: c["id"])["conclusion"] == "success", "Release PR needs successful ci-required on its final head")
-    binding.update({"pr": pr["number"], "sourceSha": manifest["sourceSha"],
-                    "notesDigests": {name: hashlib.sha256((folder / name).read_bytes()).hexdigest() for name in manifest['notes'].values()},
-                    "changelogDigest": hashlib.sha256((folder / CHANGELOG).read_bytes()).hexdigest()
-                    if manifest['product'] == 'mobile' and manifest['schemaVersion'] >= 2 else None,
-                    "evidenceDigest": hashlib.sha256((folder / 'evidence.json').read_bytes()).hexdigest()
-                    if manifest['product'] == 'mobile' and manifest['schemaVersion'] >= 2 else None,
-                    "contentDigest": digest({p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(folder.iterdir())}),
-                    "controllerSha": git("rev-parse", "HEAD")})
+    binding = candidate_binding(manifest, folder, binding | {'pr': pr['number']})
     dependency = manifest["serverRequirement"]
     if dependency:
         deployed = baselines(github, ["web"], reservations())["web"]["sourceSha"]
@@ -258,6 +273,8 @@ def reserve(manifest, binding, github):
     require(manifest["operation"] == "release", "Promotion requires its original immutable tag")
     metadata = {"schema": 1, "version": manifest["version"], "buildNumber": manifest["buildNumber"],
                 "candidateId": manifest["candidateId"], "contentDigest": binding["contentDigest"]}
+    if manifest['schemaVersion'] >= 4:
+        metadata.update({k: manifest[k] for k in ['displayBuild', 'iosBuildNumber']})
     annotated = github.api("git/tags", method="POST", data={"tag": tag, "message": json.dumps(metadata),
                             "object": manifest["sourceSha"], "type": "commit"})
     github.api("git/refs", method="POST", data={"ref": f"refs/tags/{tag}", "sha": annotated["sha"]})
@@ -271,6 +288,8 @@ def emit_outputs(manifest, binding):
                "changelog_digest": binding.get('changelogDigest') or '',
                "evidence_digest": binding.get('evidenceDigest') or '',
                "promotion": str(manifest["operation"] == "promote-ios" or bool(manifest.get('rcRun'))).lower()}
+    outputs['display_build'] = manifest.get('displayBuild') or ''
+    outputs['ios_number'] = manifest.get('iosBuildNumber') or str(manifest['buildNumber'] or '')
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:
             for k, v in outputs.items():

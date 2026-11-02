@@ -1,6 +1,9 @@
-name: Release / Prepare
+name: Release / Prepare RC data
 on:
-  workflow_dispatch:
+  workflow_call:
+    outputs:
+      candidate:
+        value: ${{ jobs.prepare.outputs.candidate }}
     inputs:
       version:
         description: Optional final X.Y.Z; replacement RCs may retain an unpublished version
@@ -11,13 +14,11 @@ on:
         default: false
       scope:
         description: 'Release targets (select main branch)'
-        type: choice
-        options: [web, android, ios, mobile]
-        default: web
+        type: string
+        default: mobile
       bump:
         description: Version increment
-        type: choice
-        options: [patch, minor, major]
+        type: string
         default: patch
       source:
         description: Fixed main-history SHA; main is resolved once during preparation
@@ -25,9 +26,8 @@ on:
         default: main
       ios_destination:
         description: iOS destination; TestFlight does not authorize App Store submission
-        type: choice
-        options: [testflight, app-store]
-        default: testflight
+        type: string
+        default: app-store
       existing_release:
         description: Optional existing candidate ID to promote its exact Apple build to App Store
         type: string
@@ -48,6 +48,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: mobile-release
     timeout-minutes: 70
+    outputs:
+      candidate: ${{ steps.candidate.outputs.candidate }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

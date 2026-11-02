@@ -46,7 +46,7 @@ class CycleIntegrationTests(unittest.TestCase):
 
     def test_operator_commands_are_dry_run_without_remote_calls(self):
         remote = Mock()
-        for argv in [['prerelease', '--source', SHA, '--issue', '1240'],
+        for argv in [['dev', '--source', SHA],
                      ['control', '--action', 'cancel', '--cycle', '42', '--note', 'Blocked'],
                      ['control', '--action', 'complete', '--release-run', '500', '--note', 'Retry completion']]:
             result = execute(parser().parse_args(argv), remote)

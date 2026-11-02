@@ -161,15 +161,15 @@ docs/        Docs center (product/architecture/development/operations)
   [`docs/development/pull-requests.md`](docs/development/pull-requests.md). Product context supplements
   the existing PR summary, behavior change, verification, docs/contract impact and known gaps.
 - `dev` is the main development line: create `feat/<topic>` / `fix/<topic>` / `docs/<topic>` from
-  `origin/dev`, open PRs against `dev`; CI builds and auto-deploys `dev` to the test instance.
-- `main` is the production source line: changes reach it through PR + CI. `Release / Prepare`
-  opens a release-data PR on fixed main-history source; human approval and merge trigger selected
-  platform publication (see `docs/operations/releases.md`). Never develop directly on `main` or `dev`.
+  `origin/dev`, open PRs against `dev`; each merge automatically requests same-SHA dev Web and mobile delivery; normal CI runs independently.
+- `main` is the production source line: changes reach it through PR + CI. `Release / RC`
+  opens a release-data PR on fixed main-history source and builds production artifacts; explicit
+  `Release / Confirm` seals the final head and promotes those original artifacts (see `docs/operations/releases.md`). Never develop directly on `main` or `dev`.
 - The dev instance syncs a consistent snapshot of the main database on each deploy (see
   `docs/operations/deployment.md`), so DB migrations are rehearsed on dev before reaching main.
 - Release-data branches are the explicit exception: `codex/release/<id>` starts from main and
   targets main, changing only `releases/requests/<id>/`. Use `$yourtj-release`,
-  `$yourtj-release-notes`, and `$yourtj-release-recovery`; final-head human review cannot be supplied by an agent.
+  `$yourtj-release-notes`, and `$yourtj-release-recovery`; schema-4 requests require an exact operator Confirm seal. An agent may execute it within explicit user publication authority; it must never fabricate a GitHub review. Legacy requests retain their human-review requirement.
 - Stage only files this task owns; leave unrelated dirty/untracked files alone.
 - Commit/push/open a PR only when the user explicitly asks.
 - Never push to protected branches; releases go through PR + CI.

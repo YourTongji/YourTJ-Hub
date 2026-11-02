@@ -78,7 +78,7 @@ def successful_channels(github, store_version=None, verified_store_builds=()):
                 continue
             if channel == "ios-app-store" and availability not in {"READY_FOR_SALE", "READY_FOR_DISTRIBUTION", "REPLACED_WITH_NEW_VERSION"}:
                 # App Store Connect submission receipts are not proof of public availability.
-                build = details.get("buildNumber") if isinstance(details, dict) else None
+                build = payload.get('catalogBuildNumber', details.get("buildNumber")) if isinstance(details, dict) else None
                 build = int(build) if isinstance(build, (int, str)) and str(build).isdigit() else None
                 identity = (payload.get("tag", "").removeprefix("mobile-v"), build)
                 if identity not in verified_store_builds and (not store_version or identity[0] != store_version):
@@ -149,6 +149,11 @@ def build_catalog(github, published_at=None, verified_store_builds=()):
                         and binding.get("sourceSha") == manifest["sourceSha"]
                         and binding.get("contentDigest") == candidate_content_digest(folder),
                         "Successful receipt does not match merged reviewed candidate bytes")
+                if manifest['schemaVersion'] >= 4:
+                    require(payload.get('catalogBuildNumber') == manifest['buildNumber'], 'Receipt catalog counter differs')
+                    if channel.startswith('ios-'):
+                        require(str(payload.get('details', {}).get('buildNumber')) == manifest['iosBuildNumber'],
+                                'Receipt native iOS number differs')
                 if manifest.get("operation") == "promote-ios":
                     require((payload.get("details") or {}).get("buildId") == manifest["existingRelease"]["buildId"],
                             "Promotion receipt does not match the reviewed Apple build")
@@ -175,7 +180,11 @@ def build_catalog(github, published_at=None, verified_store_builds=()):
         output = {"version": version, "buildNumber": build_number,
                   "channels": sorted(structured_channels), "highlights": [], "breaking": [],
                   "requiredActions": [], "testflightNotes": []}
-        for channel, (_, changelog) in sorted(channel_candidates.items()):
+        for channel, (manifest, changelog) in sorted(channel_candidates.items()):
+            if manifest.get('displayBuild'):
+                require(output.get('displayBuild', manifest['displayBuild']) == manifest['displayBuild'],
+                        'Conflicting display build IDs for the same release')
+                output['displayBuild'] = manifest['displayBuild']
             if changelog is None:
                 continue
             allowed = CHANNEL_PLATFORMS[channel]

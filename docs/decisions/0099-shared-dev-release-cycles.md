@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Superseded by [0124](0124-continuous-dev-and-confirmed-rc.md)
 Class: process
 
 ## Context and Problem Statement

@@ -43,6 +43,10 @@ def check_package(badging, signatures, version, number, certificate, package=and
 
 
 def preview_notes(environment, source):
+    if os.environ.get('DEV_AUTOMATIC') == 'true':
+        return (f"Dev build {os.environ['MOBILE_BUILD_ID']}. Source {source}.\n\n"
+                "Connects to dev.yourtj.de and installs alongside the stable app.\n\n"
+                "Latest development builds: https://github.com/YourTongji/YourTJ-Hub/releases/tag/dev-latest")
     # Dev previews have their own package; production rehearsals share the stable one.
     install = ("Installs alongside the stable app" if environment == 'dev'
                else "Replaces the installed app")
@@ -80,7 +84,11 @@ def main():
     tag = os.environ["RELEASE_TAG"]
     preview = os.environ.get('MOBILE_PREVIEW') == 'true'
     rc = os.environ.get('RC_BUILD') == 'true'
+    automatic = os.environ.get('DEV_AUTOMATIC') == 'true'
+    if automatic and (not preview or os.environ.get('MOBILE_ENVIRONMENT') != 'dev'):
+        raise ValueError('Automatic development packages require isolated dev configuration')
     expected_tag = (tag == f"rc-{os.environ.get('CANDIDATE')}-{os.environ.get('GITHUB_RUN_ID')}") if rc else (
+        tag == 'dev-' + os.environ['MOBILE_BUILD_ID'] if automatic else
         bool(re.fullmatch(r'preview-\d+-\d+-\d+-(dev|production)', tag)) if preview else tag == f'mobile-v{version}')
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[1-9]\d*", number) or not expected_tag:
         raise ValueError("Invalid mobile release identity")
@@ -126,7 +134,8 @@ def main():
         notes.write_text(approved_notes + "\n", encoding='utf-8')
         gh("release", "create", tag, "--repo", REPOSITORY, "--verify-tag", "--draft", "--latest=false",
            *(['--prerelease'] if preview or rc else []),
-           "--title", f"YourTJ {'PREVIEW ' if preview else ''}{version}", "--notes-file", str(notes))
+           "--title", f"YourTJ {'DEV ' if automatic else 'PREVIEW ' if preview else ''}{version}" +
+           (f" ({os.environ['MOBILE_BUILD_ID']})" if os.environ.get('MOBILE_BUILD_ID') else ''), "--notes-file", str(notes))
         release = find_release(tag)
         if release is None:
             raise RuntimeError("Created release is not discoverable yet; retry to resume its draft")

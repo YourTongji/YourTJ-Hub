@@ -11,11 +11,11 @@ import '../../l10n/app_localizations.dart';
 import '../app_config.dart';
 
 const previewStatusUrl =
-    'https://github.com/YourTongji/YourTJ-Hub/releases/tag/preview-status';
+    'https://github.com/YourTongji/YourTJ-Hub/releases/tag/dev-latest';
 const _previewIndexUrl =
-    'https://github.com/YourTongji/YourTJ-Hub/releases/download/preview-status/preview-status.json';
+    'https://github.com/YourTongji/YourTJ-Hub/releases/download/dev-latest/dev-status.json';
 
-enum PreviewValidity { current, stale, unknown }
+enum PreviewValidity { current, building, stale, unknown }
 
 /// Informational only: validity follows the source, never binary identity or QA.
 PreviewValidity previewValidity(
@@ -25,6 +25,28 @@ PreviewValidity previewValidity(
   required String artifact,
   required DateTime now,
 }) {
+  if (data is Map && data['schema'] == 2) {
+    final latest = data['source'];
+    final platforms = data['platforms'];
+    if (purpose != 'dev' ||
+        data['updatedAt'] is! int ||
+        latest is! String ||
+        !RegExp(r'^[0-9a-f]{40}$').hasMatch(latest) ||
+        !RegExp(r'^[0-9a-f]{40}$').hasMatch(source) ||
+        platforms is! Map) {
+      return PreviewValidity.unknown;
+    }
+    final ready = platforms[artifact];
+    if (ready is! Map ||
+        ready['source'] is! String ||
+        !RegExp(r'^[0-9a-f]{40}$').hasMatch(ready['source'] as String)) {
+      return PreviewValidity.unknown;
+    }
+    if (ready['source'] != source) return PreviewValidity.stale;
+    return latest == source
+        ? PreviewValidity.current
+        : PreviewValidity.building;
+  }
   if (data is! Map ||
       data['schema'] != 1 ||
       data['updatedAt'] is! int ||
@@ -141,43 +163,74 @@ class _PreviewStatusHostState extends State<PreviewStatusHost>
 
   @override
   Widget build(BuildContext context) {
-    if (_validity == PreviewValidity.current) return widget.child;
     final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         Material(
-          color: Theme.of(context).colorScheme.errorContainer,
+          color: Theme.of(context).colorScheme.surfaceContainer,
           child: SafeArea(
             bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GfText(
-                      _validity == PreviewValidity.stale
-                          ? l10n.previewStale
-                          : l10n.previewStatusUnknown,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      try {
-                        await launchUrl(
-                          Uri.parse(previewStatusUrl),
-                          mode: LaunchMode.externalApplication,
-                        );
-                      } catch (_) {
-                        // Keep the notice and app available when no browser can open.
-                      }
-                    },
-                    child: GfText(l10n.previewStatusLink),
-                  ),
-                ],
+            child: SizedBox(
+              width: double.infinity,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                child: GfText(
+                  AppConfig.previewLabel,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
               ),
             ),
           ),
         ),
+        if (_validity != PreviewValidity.current)
+          Material(
+            color: Theme.of(context).colorScheme.secondaryContainer,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final stacked =
+                      constraints.maxWidth < 600 ||
+                      MediaQuery.textScalerOf(context).scale(14) > 21;
+                  final message = GfText(
+                    _validity == PreviewValidity.building
+                        ? l10n.previewBuildPending
+                        : _validity == PreviewValidity.stale
+                        ? l10n.previewStale
+                        : l10n.previewStatusUnknown,
+                  );
+                  return Flex(
+                    direction: stacked ? Axis.vertical : Axis.horizontal,
+                    crossAxisAlignment: stacked
+                        ? CrossAxisAlignment.stretch
+                        : CrossAxisAlignment.center,
+                    children: [
+                      if (stacked) message else Expanded(child: message),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () async {
+                            try {
+                              await launchUrl(
+                                Uri.parse(previewStatusUrl),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } catch (_) {
+                              // Keep the notice and app available when no browser can open.
+                            }
+                          },
+                          child: GfText(l10n.previewStatusLink),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
         Expanded(child: widget.child),
       ],
     );

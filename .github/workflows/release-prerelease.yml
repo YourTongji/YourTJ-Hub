@@ -1,6 +1,6 @@
-name: Release / Prerelease
+name: Legacy / Frozen preview builder
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       cycle: {description: 'Existing cycle ID; empty starts a new dev freeze', type: string}
       source: {description: 'Full current dev SHA for a new cycle', type: string}
@@ -10,8 +10,7 @@ on:
       source_review_bypass_reason: {description: 'Optional admin-only source-review exception for this dev preview run; audited with source SHA and actor', type: string}
       purpose:
         description: 'Dev configuration preview; production RCs use Release / RC'
-        type: choice
-        options: [dev]
+        type: string
         default: dev
 permissions:
   contents: read

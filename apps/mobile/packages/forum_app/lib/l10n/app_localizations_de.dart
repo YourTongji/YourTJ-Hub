@@ -4269,18 +4269,18 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get previewUpdateInstructions =>
-      'Dies ist ein Testbuild. Updates gibt es über den Android-Link im Release-Issue oder die zugewiesene TestFlight-Gruppe.';
+      'Entwicklungsbuilds folgen dev automatisch. Neue Builds sind über die Dev-Verteilung oder interne Tests verfügbar.';
 
   @override
   String get previewStale =>
-      'Diese Vorschau ist nicht mehr der aktuelle Kandidat. Prüfe den Release-Status für die aktuelle Testversion oder die Rückkehr zur Produktivversion.';
+      'Ein neuerer Entwicklungsbuild ist verfügbar. Sieh in der Dev-Verteilung nach.';
 
   @override
   String get previewStatusUnknown =>
-      'Der Vorschau-Status kann nicht geprüft werden. Frage vor dem Testen die verantwortliche Person.';
+      'Der Dev-Verteilungsstatus ist nicht erreichbar. Du kannst diesen Build weiter verwenden.';
 
   @override
-  String get previewStatusLink => 'Vorschau-Status';
+  String get previewStatusLink => 'Dev-Builds';
 
   @override
   String get timetableOptions => 'Stundenplan-Optionen';
@@ -4866,4 +4866,8 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get unreadStyleSaving => 'Anzeige wird gespeichert…';
+
+  @override
+  String get previewBuildPending =>
+      'Ein neuer Dev-Build wird erstellt. Dies ist noch der neueste verfügbare Build für diese Plattform.';
 }

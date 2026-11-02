@@ -14,10 +14,12 @@ abstract final class AppConfig {
   );
   static const sourceSha = String.fromEnvironment('YOURTJ_SOURCE_SHA');
   static const preview = bool.fromEnvironment('YOURTJ_PREVIEW');
+  static const buildId = String.fromEnvironment('YOURTJ_BUILD_ID');
+  static const catalogBuildNumber = int.fromEnvironment('YOURTJ_BUILD_NUMBER');
   static bool get isDev => environment == 'dev';
   static String get sessionNamespace => isDev ? 'https://dev.yourtj.de' : '';
   static String get previewLabel =>
-      '${isDev ? 'DEV' : 'PROD TEST'} ${sourceSha.length >= 7 ? sourceSha.substring(0, 7) : 'local'}';
+      '${isDev ? 'DEV' : 'PROD TEST'} ${buildId.isEmpty ? '' : '$buildId · '}${sourceSha.length >= 7 ? sourceSha.substring(0, 7) : 'local'}';
 
   static void validate() {
     validateValues(

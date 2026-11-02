@@ -8,10 +8,12 @@ on:
       version: {type: string, required: true}
       number: {type: string, required: true}
       tag: {type: string, required: true}
+      automatic: {type: boolean, default: false}
+      display_build: {type: string, default: ''}
 permissions:
   contents: write
   actions: read
-  deployments: read
+  deployments: write
   pull-requests: read
 concurrency:
   group: release-android
@@ -30,6 +32,8 @@ jobs:
       PREVIEW_ARTIFACT: android
       MOBILE_ENVIRONMENT: ${{ inputs.purpose }}
       MOBILE_PREVIEW: 'true'
+      DEV_AUTOMATIC: ${{ inputs.automatic && 'true' || 'false' }}
+      MOBILE_BUILD_ID: ${{ inputs.display_build }}
       RELEASE_SOURCE_ROOT: ${{ github.workspace }}/.source
       MOBILE_VERSION: ${{ inputs.version }}
       MOBILE_BUILD_NUMBER: ${{ inputs.number }}
@@ -39,6 +43,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Restore the original dev build identity on retry
+        id: start
+        if: inputs.automatic
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/dev_delivery.py start
       - name: Recheck preview authorization
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,10 +59,12 @@ jobs:
           path: .source
           persist-credentials: false
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         with:
           distribution: temurin
           java-version: "17"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         with:
           flutter-version: "3.44.9"
           channel: stable
@@ -60,16 +72,18 @@ jobs:
       - name: Prepare Android OEM push configuration
         # Dev previews use their own package (tj.yourtj.forum_app.dev) and never
         # register for push (client and dev server both disable it), so they skip it.
-        if: inputs.purpose != 'dev'
+        if: inputs.purpose != 'dev' && (!inputs.automatic || steps.start.outputs.build_required == 'true')
         env:
           ANDROID_PUSH_JSON: ${{ secrets.ANDROID_PUSH_JSON }}
           HUAWEI_AGCONNECT_JSON: ${{ secrets.HUAWEI_AGCONNECT_JSON }}
           FCM_GOOGLE_SERVICES_JSON: ${{ secrets.FCM_GOOGLE_SERVICES_JSON }}
         run: python3 scripts/mobile-release/prepare_push.py
       - name: Bootstrap
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         working-directory: .source/apps/mobile
         run: dart pub get
       - name: Install private Android signing inputs
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -90,14 +104,16 @@ jobs:
           Path('.source/apps/mobile/packages/forum_app/android/key.properties').write_text(''.join(k + '=' + prop(v) + '\n' for k, v in fields.items()))
           PY
       - name: Build signed APKs
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         working-directory: .source/apps/mobile/packages/forum_app
         run: |
           mapfile -t defines < <(python3 "$GITHUB_WORKSPACE/scripts/mobile-release/build_environment.py")
-          test "${#defines[@]}" -eq 6
+          test "${#defines[@]}" -eq 8
           flutter build apk --release --split-per-abi \
             --build-name="$MOBILE_VERSION" --build-number="$MOBILE_BUILD_NUMBER" \
             "${defines[@]}"
       - name: Preserve signed APKs for recovery
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: preview-android-${{ inputs.version }}-${{ inputs.number }}
@@ -105,6 +121,14 @@ jobs:
           include-hidden-files: true
           retention-days: 30
           if-no-files-found: error
+      - name: Restore original signed dev APKs
+        if: inputs.automatic && steps.start.outputs.build_required != 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: preview-android-${{ inputs.version }}-${{ inputs.number }}
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+          path: .source/apps/mobile/packages/forum_app/build/app/outputs/flutter-apk
       - name: Publish only the isolated testing download
         env:
           GH_TOKEN: ${{ github.token }}
@@ -117,3 +141,9 @@ jobs:
           rm -f "$RUNNER_TEMP/yourtj-release.jks" .source/apps/mobile/packages/forum_app/android/key.properties \
             .source/apps/mobile/packages/forum_app/android/push.properties .source/apps/mobile/packages/forum_app/android/app/agconnect-services.json \
             .source/apps/mobile/packages/forum_app/android/app/google-services.json
+      - name: Record successful development distribution
+        if: inputs.automatic && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEV_PLATFORM: android
+        run: python3 scripts/release/dev_delivery.py record

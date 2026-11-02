@@ -1,0 +1,50 @@
+name: Release / Confirm
+on:
+  workflow_dispatch:
+    inputs:
+      candidate: {description: 'Completed RC request ID; promotes its exact artifacts', type: string, required: true}
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+  pull-requests: read
+  checks: write
+concurrency:
+  group: release-confirm-${{ inputs.candidate }}
+  cancel-in-progress: false
+  queue: max
+jobs:
+  confirm:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {fetch-depth: 0, persist-credentials: false}
+      - name: Seal the operator's exact RC and final notes
+        id: confirmation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE: ${{ inputs.candidate }}
+        run: python3 scripts/release/confirmation.py seal
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-confirmation-${{ github.run_attempt }}
+          path: confirmation.json
+          retention-days: 90
+          if-no-files-found: error
+      - name: Record the sealed confirmation pointer
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python3 scripts/release/confirmation.py record
+      - name: Recompute the publication check from the sealed confirmation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.confirmation.outputs.pr }}
+        run: python3 scripts/release/workflow.py review-check --pr "$PR"
+      - name: Merge only this confirmed release-data head to start artifact promotion
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ steps.confirmation.outputs.pr }}
+          HEAD: ${{ steps.confirmation.outputs.head }}
+        run: gh pr merge "$PR" --merge --admin --match-head-commit "$HEAD"

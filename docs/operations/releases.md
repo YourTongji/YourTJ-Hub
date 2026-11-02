@@ -1,145 +1,122 @@
-# Reviewed releases
+# RC and confirmed releases
 
-> Doc type: operations runbook
+> Doc type: operations reference
 >
 > Status: Active
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-11-02
+> Last verified: 2026-11-03
 
-`Current`: release requests freeze source, platform notes and distribution targets; a live final-head
-human review is required by the publisher. `Partial`: distribution also requires configured GitHub
-App/tag permissions, environment secrets and successful platform runs. Apple review is external.
-The source of truth is [the CLI](../../scripts/release/cli.py), [protocol validator](../../scripts/release/model.py)
-and [controller](../../scripts/release/controller.py). See [decision 0055](../decisions/0055-reviewed-release-pipeline.md).
+`Current`: new releases build a production RC, then an explicit operator Confirm seals the exact
+source, final notes, targets and original artifacts. Confirm promotes those artifacts without another
+compile, source test matrix or dev QA gate. Normal development CI runs independently. Apple review,
+configured credentials and physical-device acceptance remain separate outcomes.
 
 ## Entrypoints
 
-New schema-3 requests resolve a fixed main-history SHA once and do not depend on a dev freeze,
-preview QA or production-configuration rehearsal. Development CI remains independent; release
-workflows do not invoke backend, frontend/browser, contract, vulnerability, Flutter or simulator test
-suites. Build/signature/identity checks remain part of producing and transferring the actual artifact.
-The final-head Release PR approval still controls formal publication.
-[Decision 0123](../decisions/0123-build-only-releases-and-production-rc.md) owns this model.
-Schema-1/2 requests retain their original cycle and recovery rules; do not rewrite their manifests.
-
-Use **Release / Prepare** on branch **main**, or run from a repository checkout:
+Use **Release / RC** and **Release / Confirm** on **main**, or the portable CLI:
 
 ```sh
-python3 scripts/release/cli.py doctor --scope android --json
-python3 scripts/release/cli.py plan --scope android --source main --bump patch --json
-python3 scripts/release/cli.py prepare --scope mobile --source main --bump patch --ios-destination testflight --apply
-python3 scripts/release/cli.py rc --candidate mobile-1.0.15-15 --dry-run
-python3 scripts/release/cli.py validate --candidate mobile-1.0.15-15 --json
-python3 scripts/release/cli.py status --candidate mobile-1.0.15-15 --json
-python3 scripts/release/cli.py publish --candidate web-0.0.50 --dry-run
-python3 scripts/release/cli.py retry --candidate mobile-1.0.15-15 --channel ios-testflight --dry-run
-python3 scripts/release/cli.py promote-ios --release mobile-1.0.15-15 --to app-store --apply
+python3 scripts/release/cli.py doctor --scope mobile --json
+python3 scripts/release/cli.py rc --scope mobile --ios-destination app-store --apply
+python3 scripts/release/cli.py status --candidate mobile-X.Y.Z-N --json
+python3 scripts/release/cli.py validate --candidate mobile-X.Y.Z-N --json
+python3 scripts/release/cli.py confirm --candidate mobile-X.Y.Z-N --apply
 ```
 
-IDs above are examples, not a command to publish that version. Query commands are read-only. Mutating
-commands default to a dry-run; `--apply` dispatches the corresponding workflow explicitly on main.
-JSON output carries `schemaVersion`, `ok`, result fields, and actionable errors. API errors remain
-unknown/blocked. Status/validate/retry can read a remote Release PR into a temporary directory when
-its candidate is absent locally, without switching the agent's checkout. A local Apple plan needs
-`--apple-state` from the authenticated read-only ASC discovery;
-Prepare performs that discovery on Actions without requiring keys on the caller's computer.
+Commands with side effects default to dry-run; `--apply` executes existing user authorization.
+`mobile` means Android and iOS; `web`, `android` and `ios` select only that scope. The RC entry defaults
+to both mobile platforms and App Store (including production TestFlight); explicitly choose TestFlight
+for beta-only distribution. Android-only RCs must use `--ios-destination testflight`.
 
-`scope` is web, android, ios or mobile. Mobile selects Android and iOS. TestFlight is the iOS default;
-app-store explicitly includes its store submission. An existing-build promotion creates a fresh
-App Store request without allocating another binary identity. The ordinary release entry does not
-merge dev: promote intended code using a normal dev → main PR first. The default branch remains dev;
-release workflow discovery requires the implementation on dev and execution requires it on main.
+Source must already be in main history. `main` resolves once to a full application SHA; preparing an RC
+never implicitly merges dev. Source promotion uses an ordinary reviewed code PR. Dev delivery is
+automatic and has [its own model](release-cycles.md), not a prerelease command.
+
+`prepare` is internal to RC. `prerelease` refuses new manual preview cycles. `publish` is an initial
+publication recovery entry, not a way to bypass Confirm or build a new schema-4 final release directly.
+Legacy schema-1/2/3 requests retain their existing authorization and original-artifact recovery rules.
 
 ## Request and review
 
-Prepare resolves a full main-history `sourceSha`, determines actual per-channel baselines, and reserves
-the preparation slot while collecting evidence and opening `codex/release/<candidate-id>` against main.
-Only same-repository PR heads can own a slot or reserve an identity; fork and deleted-repository
-heads are ignored. Only one undecided request per product (web/mobile) is admitted. Human and Apple
-review do not hold a runner lock. Server tags remain `vX.Y.Z`; mobile tags remain `mobile-vX.Y.Z`, with a shared increasing
-base build number. Native platform version codes retain their existing rules. Formal version tags
-are created only after final request approval. Preparation and previews also reserve automatic
-`mobile-build-N` tags under a shared allocation lock; consumed numbers are never recycled, including
-failed previews. Those reservations do not consume a formal semantic version.
-
-The Release PR contains only `releases/requests/<id>/`:
+RC preparation queries actual per-channel baselines, reserves identity under a short shared lock,
+collects source evidence and opens `codex/release/<id>` against main. Only `releases/requests/<id>/`
+may change. Editable drafts do not delay building the RC. Signing executes trusted-main controller
+code with the selected source in a separate checkout; release data cannot edit publisher workflows.
 
 | File | Purpose |
-| --- | --- |
-| manifest.json | Source, version/build, channels, baselines, dependencies and required disclosures |
-| evidence.json | Complete changed-file inventory, bounded net-diff excerpts, PR/commit context and Oryn provenance/uncertainties |
-| web.zh-CN.md | Forum web changes |
-| operators.zh-CN.md | Web deployment/configuration/migration notes |
-| android.zh-CN.md | Android changes only |
-| ios.zh-Hans.txt | iOS App Store What's New, plain text, at most 4000 characters |
-| testflight.en-US.txt | iOS testing instructions, independently reviewed |
-| changelog.json | Mobile schema-2/3 structured facts rendered into each selected platform's notes |
-| evidence.json | Evidence references binding each structured fact and TestFlight instruction to reviewed source |
+|---|---|
+| manifest.json | Source, final version, native counter, display ID, iOS number, channels and selected RC run |
+| changelog.json | Structured mobile facts and optional display ID; source for separate channel text |
+| evidence.json | Baseline-relative source and platform evidence |
+| android.zh-CN.md | Android What's New |
+| ios.zh-Hans.txt | App Store plain-text What's New |
+| testflight.en-US.txt | Separate English testing instructions |
+| web.zh-CN.md | Web release notes |
+| operators.zh-CN.md | Server prerequisites and operator actions |
 
-Only selected platform files are created. Source SHA controls the application build/tag; the reviewed
-PR head controls release metadata. A metadata PR merge is not a new application version. Baselines
-are distribution-specific: Android public verified APK release; web successful production deployment;
-iOS actual TestFlight distribution or live App Store version. Unknown Apple build/tag mappings block
-preparation and require reconciliation; an uploaded or in-review version is not a live-store baseline.
-The pinned ASC CLI queries live iOS versions with `--state READY_FOR_SALE --latest`; its legacy
-`appStoreState` and newer `appVersionState` filter values cannot be mixed in one query.
-That computed result contains `items`, `totalCount`, `hasMore` and optional `included` resources,
-rather than the raw API's `data` envelope. Only a complete, explicitly empty item list establishes
-that there is no live store baseline; missing or incomplete output blocks preparation.
+Review platform applicability, mandatory disclosures and server dependencies. Draft markers or empty
+channel entries block confirmation. iOS/TestFlight text must not mention Android/安卓/APK; Android text
+must not mention iOS/iPhone/iPad/iPadOS/App Store/TestFlight/苹果. Structured titles and summaries enforce
+the same rule for every listed platform. Frozen historical exemptions bind both exact bytes and exact
+candidate ID; they cannot excuse copied wording in a new request. Other semantic correctness requires
+review of the evidence.
 
-A reviewer edits files, checks evidence/platform attribution, fills server prerequisites where required,
-then approves the final head. `serverRequirement` is null or `{sourceSha, reason}`; the required source
-must be an ancestor of the confirmed deployed server. Never use main membership as proof of deployment.
-Mandatory disclosures are `{id, channels, text}` and must appear verbatim in the corresponding files.
+New schema-4 requests require **Release / Confirm** after the RC and final notes are ready. It records
+an immutable Actions artifact sealing candidate, source, version, counters, selected RC, targets,
+current PR head, complete content digest, operator, attempt and trusted controller SHA. A deployment
+pointer locates that seal but cannot authorize a release by itself. A changed head or note digest
+requires a new Confirm. The operator must have repository write/maintain/admin permission. An agent
+may execute it within an explicit user's release authorization; it never fabricates a GitHub APPROVED
+review. Legacy requests still require their eligible current-head human GitHub review.
 
-At least one current GitHub user with write/maintain/admin permission must have APPROVED the exact head.
-Bot/App reviews and stale reviews are rejected. An outstanding eligible maintainer's change request
-blocks publication. A manifest cannot self-declare approval. A Release PR cannot include application,
-workflow or publisher edits. `release-authorized` recomputes on reviews and head changes from the trusted
-main controller. Publication independently rechecks live reviews, paths, merged content and `ci-required`;
-a ruleset bypass or direct metadata push does not bypass that check.
+Confirm rechecks successful metadata-only `ci-required`, validates the original RC and exact PR paths,
+then merges only that sealed head. Publication independently validates the seal, source ancestry and
+merged bytes. A seal/merge failure is recoverable without rebuilding. The `release-authorized` check
+is derived from this proof; manually setting a check or changing a label is insufficient.
 
-## Optional production RC
+## Production RC
 
-Prepare the release request first, then optionally dispatch **Release / RC** on main with its
-candidate ID (`cli.py rc --candidate ID --apply`). Notes may still be drafts. RC resolves only a
-same-repository open schema-3 request whose source is in main history and whose formal publication has
-not started. It uses the same platform builders as direct Release: production endpoints/application
-IDs, `preview=false`, final version and final build number. No dev-cycle QA or source test matrix is run.
+RC uses final production endpoints, app identity, `preview=false`, final marketing version and final
+native build numbers. It distributes candidate APKs under an RC tag, uploads a normal Apple build only
+to the configured internal QA group, and preserves Web archives/images without production deployment.
+It does not publish stable aliases or submit the App Store version yet.
 
-Each candidate owns one RC run. Once RC starts, formal publication must select it; it cannot build
-another package under that identity. Platform jobs run independently; retry failed jobs to finish missing
-artifacts without rebuilding successful platforms. Signed artifacts already saved in that run are
-restored rather than rebuilt. If a previous platform attempt has a record but no original archive
-remains, prepare a fresh candidate; even an unsuccessful attempt may have reached distribution.
-The immutable RC record binds the candidate, full source, production
-configuration, build number, controller SHA and platform references. Android uses a separate GitHub
-prerelease; iOS uploads normally to Apple and assigns only the configured internal QA group; Web
-publishes candidate archives and a digest-qualified image without deploying production.
-RC iOS exports must not use Apple's TestFlight Internal Only option, which cannot be promoted.
+Each trusted-main RC records source, identity, controller, complete platform set, original archive
+references and asset digests in immutable Actions artifacts. The collector seals only successful
+platform results, then attaches `rcRun` to the editable request. A complete seal remains reusable if a
+later metadata attachment step fails; an incomplete or failed platform has no reusable complete seal.
+Retry only failed RC jobs in the original run. Existing artifacts are restored, Apple is queried before
+any upload and already uploaded builds are reused. Missing required originals fail rather than silently
+rebuilding an already distributed identity. Notes may change without rebuilding; binary/source/config
+changes need a fresh candidate and number. A replacement RC may explicitly retain an unpublished
+marketing version with `--version X.Y.Z` after closing its undecided request.
 
-After all selected platforms succeed, RC writes its exact run ID into the request's `rcRun` through
-the existing preparation App identity. This changes the request head and triggers ordinary metadata
-CI; obtain final human approval on that head. Notes edits do not rebuild the RC. Source/version/build
-changes require a new candidate. To replace an unsuccessful RC while retaining an unpublished
-marketing version, close its undecided request and Prepare with `--version X.Y.Z`; the mobile build
-number still increases. Web request IDs include the preparation run ID so replacement requests do not
-reuse a closed branch. The final `vX.Y.Z` / `mobile-vX.Y.Z` tag is created only for formal publication.
+If only attachment failed, download the exact `rc-record-<attempt>` artifact, validate with
+`rc.read_record(GitHub(), RUN_ID, identity)`, then run `GITHUB_RUN_ID=RUN_ID python3 scripts/release/rc.py
+attach` from a full checkout. This updates only the matching request's `rcRun`; final Confirm is still
+required. Do not substitute a mutable deployment receipt for the sealed original record.
 
-With `rcRun=null`, formal Release builds directly. With an explicit RC run, it consumes only that
-successful trusted-main run's immutable record: Android restores the original signed APKs and copies
-those bytes into the stable release; iOS submits the same Apple build ID; Web publishes the original
-archives and deploys the same image digest. It never selects a global latest RC or silently rebuilds
-an expired/missing original. RC records are retained 90 days, signed artifacts 30 days; publish within
-the available artifact window. Existing Apple builds can still be promoted using the existing-build
-entry when the IPA archive has expired. Dev prerelease packages have different compilation inputs
-and cannot become production RCs; only their dependency caches may be shared.
+### Build identities
+
+`displayBuild` is `YYYYMMDDNNNN`, in UTC+8, resetting daily at 0001. Dev bundles and production RCs share
+one atomic allocation lock and annotated `build-id-...` reservations. Failed reservations are consumed;
+9999 fails rather than wrapping. A retry reuses its original identity. Source and environment bind each
+reservation. A Confirm does not consume another number.
+
+Mobile also retains a global increasing internal counter (`mobile-build-N`) for Android ABI version
+codes and release-catalog ordering. Twelve-digit IDs do not fit Android's native versionCode.
+iOS uses the display ID as native `iosBuildNumber`; the compiled internal counter separately keeps
+in-app update/history comparisons consistent across platforms. App history and release pages show the
+date ID in parentheses; old history without it shows its recorded counter. Stable tags remain
+`vX.Y.Z` and `mobile-vX.Y.Z`, created only on final publication. Dev and RC tags do not consume a stable
+marketing version. Actual Apple upload validation, not the local metadata validator, establishes
+acceptance of a native number.
 
 ## Oryn drafting
 
-Prepare defaults to deterministic editable drafts. Set `draft_notes=true` (CLI `--draft-notes`)
+RC preparation defaults to deterministic editable drafts. Set `draft_notes=true` (CLI `--draft-notes`)
 to opt into [the pinned Oryn runtime](../../.github/actions/setup-oryn/action.yml)'s independent
 `release-notes` task. It shares Oryn's isolated Core execution, provider configuration and bounded
 structured output, but has no issue-repair authority, repository tools, signing inputs or GitHub token.
@@ -162,13 +139,13 @@ missing channels. The release PR opens with a warning naming the missing channel
 Failed generation leaves explicit drafts for human completion; it never blocks the PR from opening.
 A candidate cannot publish while any channel lacks notes: PR validation and every publisher reject a
 `[DRAFT:` note, and a schema-2 mobile channel with no reviewed changelog entry. Rendering preserves
-human-edited files; regeneration must be deliberate and reviewed. No model runs after release approval. Static validation
-checks shape, evidence references, and store-channel isolation: iOS What's New and TestFlight notes must not name Android, and Android notes must not name Apple's mobile platforms. A structured changelog entry is rejected when its title or summary names the opposite platform for a platform it lists. Validate previously did not prove this boundary. Other semantic correctness still requires a person.
+human-edited files; regeneration must be deliberate and reviewed. No model runs after confirmation. Static validation
+checks shape, evidence references, and store-channel isolation: iOS What's New and TestFlight notes must not name Android, and Android notes must not name Apple's mobile platforms. A structured changelog entry is rejected when its title or summary names the opposite platform for a platform it lists. Other semantic correctness still requires a person.
 
-New mobile candidates use schema 3 (schema-2 structured notes plus an explicit nullable `rcRun`) and retain the exact reviewed changelog and evidence bytes in the
+New mobile candidates use schema 4 (structured notes plus `displayBuild`, `iosBuildNumber` and mandatory selected `rcRun` before confirmation) and retain the exact reviewed changelog and evidence bytes in the
 candidate digest. Android, App Store, and TestFlight notes are rendered from that structure; a
 publisher rejects drift between the structured facts and platform text. Legacy schema-1 candidates
-remain valid for recovery and existing-build promotion, but new requests use schema 3. Existing schema-2 requests remain unchanged.
+remain valid for original-artifact recovery. Existing schema-2/3 requests remain unchanged.
 TestFlight notes have stable IDs and evidence references tied to the iOS TestFlight channel.
 
 The collector links each changed file to the feature pull requests that changed it within that
@@ -187,7 +164,7 @@ invalid supplied fields fail the attempt and trigger retry. Only absent fields u
 Android/App Store text is at most 400 characters, TestFlight text at most 500, titles 1–100,
 summaries 1–400, and `required` must be boolean. Web/operators retain their three-field entry format.
 Entries without a linked PR keep a text-hash `oryn-` ID, which the reviewer replaces
-with a concise semantic slug. The reviewer still checks wording, kind and grouping before approval.
+with a concise semantic slug. The reviewer still checks wording, kind and grouping before confirmation.
 Android and App Store notes use the app's sections: required, security, new, improved and fixed,
 omitting empty sections. Android uses Markdown headings and bullets; App Store uses plain-text
 headings, blank lines and `•` bullets. A summary that only restates its title is rendered once.
@@ -195,7 +172,7 @@ New mobile changelogs set `notesFormatVersion: 2`; the controller owns this fiel
 An absent field or value `1` retains the original flat App Store text byte-for-byte for existing
 candidates and recovery. To upgrade an unapproved candidate, explicitly set the field to `2` and run
 `python3 scripts/release/workflow.py render-structured --candidate <id> --replace-structured`.
-Review the resulting diff and obtain human approval on the new head; this changes the candidate
+Review the resulting diff and confirm the new head; this changes the candidate
 digest. Never upgrade an already approved candidate during recovery. Android and TestFlight formats
 are unchanged, and section labels and bullets count towards the App Store's 4000-character limit.
 The public mobile catalog contains structured entries, not this store-copy formatting field; the
@@ -225,103 +202,54 @@ they do not require artificial Android or App Store highlights.
 
 ## Verification and publication
 
-`Release / Publish` consumes the merged request and rechecks final approval, source ancestry,
-version identity, baselines and any declared server dependency. It does not rerun source CI.
-Selected platform jobs build/sign/package directly, or restore the RC explicitly selected in the
-reviewed request. RC and direct publication use one platform build implementation.
+Confirm merges the sealed request and triggers **Release / Promote original artifacts**. It checks
+authorization, baselines and declared server prerequisites. There is no release-time source CI or
+native test/compile stage. Android restores original signed APKs and verifies their digests before
+stable publication; `mobile-latest` is a separate alias update. iOS selects the exact uploaded Apple
+build, applies the separate channel notes and submits the selected App Store target. Web deploys the
+original digest-qualified RC image and verifies health and running binary identity.
 
-If a merged request stopped before any platform publisher started, use `publish --candidate ID
---apply` to start initial publication. A reserved tag is not proof of a build. Once a channel has
-an execution receipt, use Recover for its original artifact. Each selected publisher requires
-successful authorization/reservation. The summary fails when a selected publisher is skipped,
-failed or cancelled; one completed platform cannot make another failed platform look successful.
-
-Platform publishers are reusable workflows with main-only guards. They cannot be launched with arbitrary
-public workflow-dispatch inputs. Each rechecks approval before side effects. Publishers also require
-per-file SHA-256 digests from the trusted authorize step and verify the exact bytes they read against
-those outputs. Concurrent execution is serialized per platform; deploy/config transactions share `instance-mutate-main` or `instance-mutate-dev`
-and are not automatically cancelled. Queued concurrency uses GitHub's `queue: max` policy.
-
-- Web: GoReleaser builds archives once with explicit source/version metadata and approved notes. The
-  archive metadata must match the approved version/source, and the Linux executable's embedded VCS
-  revision must match that source. `-trimpath` removes recorded linker flags, so those flags are not
-  used as binary version evidence. Archives are retained before executable validation. The exact
-  Linux binary is packaged into GHCR. Production consumes a digest-qualified image reference,
-  waits for health, and compares the running binary digest. A failed deployment records failure even
-  when release archives are already downloadable. Image/config rollback does not restore the database.
-- Android: signed APK package, architecture, version code, certificate and server-side asset digests
-  are checked. Existing assets must match exactly. Public version notes come only from android.zh-CN.md.
-  Updating `mobile-latest` is a separate last step; it never overwrites immutable version APKs.
-- iOS: publisher queries exact version/build before uploading, preserves an existing processing build,
-  and uses separate TestFlight and zh-Hans store text. Existing store metadata/screenshots remain in
-  `apps/mobile/store/`, but static `whatsNew` is not a publication fallback. Other in-review versions
-  are not automatically withdrawn. An existing-build promotion validates its approved Apple build ID.
-
-Execution records use GitHub Deployments under `release-web`, `release-android`, `release-ios-testflight`
-and `release-ios-app-store`. Payloads record source, reviewed content digest/head, controller SHA,
-run/build identity and channel details. Read them together with immutable Git/tag contents, actual
-assets and Apple state; an editable receipt alone is not proof. Git contains requests and approved
-notes; temporary Actions artifacts are not their only durable source.
+Platform publishers are main-only reusable workflows. They independently verify source, candidate,
+note digests and original artifacts. Selected skipped/failed channels fail the overall result.
+Instance mutations serialize with config applies and never interrupt an active transaction. An image
+rollback does not restore the database. Execution records use `release-web`, `release-android`,
+`release-ios-testflight` and `release-ios-app-store` Deployments and bind source, content, controller,
+run and channel details. Receipts are observations, not standalone authority.
 
 ## Recovery and completion
 
-Schema-3 publication has no dev cycle to complete. Apple submitted/processing/installable/live
-remain separate facts. Legacy schema-1/2 formal requests still complete their original ordinary
-cycle or hotfix backflow using [the compatibility controller](release-cycles.md#enter-main-publish-and-finish).
-A pre-existing dev preview cycle is not cancelled or reassigned by a new RC/formal request.
+New releases have no dev cycle to complete or freeze to lift. Use **Release / Recover** with the original
+candidate and selected channel after a publisher starts. It verifies the original authorization and
+reuses signed artifacts or an exact Apple build. It cannot widen targets. `android-alias` only refreshes
+stable links. If nothing started after an authorized merge, `publish --candidate ID --apply` resumes
+initial promotion. Missing required original artifacts require a new identity, never a silent rebuild.
+Legacy requests keep their original recovery rules, including the strictly bounded Web build exception
+when every original archive upload was skipped and no release/image was published.
 
-Use **Release / Recover** on main with the original candidate and an approved channel. It rechecks the
-original approval, restores the original build artifact, and cannot add targets. `android-alias` only
-refreshes stable download links. iOS queries Apple before restoring an IPA; an existing Apple build can
-resume even when the temporary archive has expired. If required original artifacts are unavailable,
-stop and prepare a newly reviewed identity rather than rebuilding the same version silently.
-For Web only, a failed build attempt can run again from the same approved source/version if no
-archives were ever saved: the original run must have finished unsuccessfully, every archive-upload
-step must be explicitly skipped, no binary digest may have been recorded, and the immutable GitHub
-Release must not exist. Recover checks artifact inventory and all original job attempts before
-assigning the new build run. An expired/deleted archive, uncertain upload or API failure blocks
-another build. This exception does not apply to Android/iOS or an existing production image.
-An existing production image without its original digest receipt also blocks another push; reconcile
-the original identity/receipt or prepare a new release. Registry errors are not absence proofs.
+`promote-ios --release ID --apply` enters RC preparation for a published schema-4 TestFlight request,
+prepares App Store notes for its exact original build and selects its original RC without compiling.
+Confirm authorizes that metadata snapshot. It does not assign a new date or native counter. Legacy
+metadata corrections use their already prepared requests and original recovery paths.
 
-Store submission and availability are separate: submitted/in_review is not live. `status` reports
-recorded Apple results explicitly as observations, not an always-current store status. Query ASC for
-current external state. No permanent monitor is installed by this pipeline.
-
-A notes-only store correction requires another reviewed existing-build promotion request. For an
-already submitted version, the publisher compares the current zh-Hans What’s New against the
-approved text before recording success. A mismatch blocks with the current Apple state; an operator
-must resolve metadata editability in App Store Connect before Recover. The pipeline never withdraws
-an existing review queue. A live version may require a new version under Apple’s
-[metadata editability rules](https://developer.apple.com/help/app-store-connect/reference/app-information/required-localizable-and-editable-properties).
-A binary change requires a new release. Production rollback requires an explicitly chosen compatible
-image and configuration and database compatibility assessment. It is not an arbitrary-image option on Recover,
-and never automatically restores production data.
+App Store submission, processing, beta installability and public availability are separate facts.
+Query ASC for current state; submitted/in-review is not live. Existing conflicting review queues are
+reported, never automatically withdrawn. A notes mismatch on a submitted version requires resolving
+Apple metadata editability before recovery. A binary change requires a new RC. Production rollback is
+an explicit compatible image/config choice with database assessment, never automatic data restoration.
 
 ## GitHub configuration
 
-Use the existing Oryn GitHub App for request PR creation, narrowed to Contents/Pull requests write so
-PR CI triggers normally. The model child receives no installation token. `RELEASE_TOKEN` is limited to
-the trusted main tag-reservation step; its identity must satisfy the existing mobile-tag ruleset. Keep
-protected tag updates/deletion forbidden. Signing/Apple keys stay in `mobile-release`; SSH/config keys
-stay in production/dev environments. PR checks never receive those secrets.
+The existing Oryn App creates request PRs with narrowed Contents/Pull requests permissions so PR checks
+run. Models receive no installation token. `RELEASE_TOKEN` is used only for protected final-tag creation
+and merging the exact confirmed release-data head; its existing authorized identity must satisfy those
+rules. Do not broaden it or export a local credential to runners. Signing/Apple keys stay in
+`mobile-release`; SSH/config keys stay in production/dev environments. Untrusted PR checks receive none.
 
-Ordinary PR CI executes the proposed workflow/classifier code. `ci-required` checks job results,
-but cannot independently prove that a PR has not weakened CI itself. Maintainers must review
-workflow, classifier and publisher changes before merge; the trusted-main release authorization
-is a separate boundary that a release-data PR cannot edit.
+Main requires code PRs and normal CI. For release-data PRs `ci-required` is metadata-only and
+`release-authorized` reflects Confirm (or a legacy human review). A bypass merge cannot bypass the
+publisher's independent proof checks. Review changes to controller, classifiers and workflows as code;
+release-data PRs cannot change them. Historical retired workflows are not alternate publication paths.
 
-The publisher's human gate is mandatory regardless of UI protection. Configure main to require PRs,
-`ci-required` and `release-authorized`, and dev to require `ci-required`. The compatibility checks
-`ci-backend`, `ci-frontend`, `ci-contract` remain available while existing dev rules are in use. Change
-required names only after the new checks have appeared successfully. Repository ruleset changes are
-an operator action after the corresponding controller is available on the protected branches.
-
-The retired Release / mobile and Release / main entries refuse new releases. Do not rerun historical
-workflow versions as a substitute for the new approval process. Historical successful releases remain
-valid baselines; continuing an unapproved historical operation requires a reviewed request and explicit
-identity reconciliation. Runtime upgrades and source changes use normal reviewed code PRs.
-
-External coding agents can start with [yourtj-release](../../.agents/skills/yourtj-release/SKILL.md),
-[yourtj-release-notes](../../.agents/skills/yourtj-release-notes/SKILL.md) or
+See [yourtj-release](../../.agents/skills/yourtj-release/SKILL.md),
+[yourtj-release-notes](../../.agents/skills/yourtj-release-notes/SKILL.md) and
 [yourtj-release-recovery](../../.agents/skills/yourtj-release-recovery/SKILL.md).

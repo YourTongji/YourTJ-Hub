@@ -7599,25 +7599,25 @@ abstract class AppLocalizations {
   /// No description provided for @previewUpdateInstructions.
   ///
   /// In en, this message translates to:
-  /// **'This is a testing build. Get updates from the release issue’s Android link or the assigned TestFlight group.'**
+  /// **'Development builds follow dev automatically. Get the latest build from dev distribution or internal testing.'**
   String get previewUpdateInstructions;
 
   /// No description provided for @previewStale.
   ///
   /// In en, this message translates to:
-  /// **'This preview is no longer the current candidate. Check the release status for the current build or return to production.'**
+  /// **'A newer development build is available. Check dev distribution for the latest version.'**
   String get previewStale;
 
   /// No description provided for @previewStatusUnknown.
   ///
   /// In en, this message translates to:
-  /// **'Cannot verify this preview’s status. Check with the release owner before testing.'**
+  /// **'Cannot read dev distribution status. You can keep using this development build.'**
   String get previewStatusUnknown;
 
   /// No description provided for @previewStatusLink.
   ///
   /// In en, this message translates to:
-  /// **'Preview status'**
+  /// **'Dev builds'**
   String get previewStatusLink;
 
   /// No description provided for @timetableOptions.
@@ -8593,6 +8593,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Saving indicator style…'**
   String get unreadStyleSaving;
+
+  /// No description provided for @previewBuildPending.
+  ///
+  /// In en, this message translates to:
+  /// **'A newer dev build is in progress. This is still the latest available build for this platform.'**
+  String get previewBuildPending;
 }
 
 class _AppLocalizationsDelegate

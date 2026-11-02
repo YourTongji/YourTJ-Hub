@@ -24,6 +24,7 @@ class PreviewPublisherTests(unittest.TestCase):
         self.automatic = True
         self.members = [{'id': 'qa', 'type': 'internal'}]
         self.complete = True
+        self.states = []
 
     def asc(self, *args):
         self.calls.append(args)
@@ -41,7 +42,7 @@ class PreviewPublisherTests(unittest.TestCase):
         if args[:3] == ('builds', 'test-notes', 'list'):
             return {'data': []}
         if args[:3] == ('builds', 'build-beta-detail', 'view'):
-            return {'data': {'attributes': {'internalBuildState': 'IN_BETA_TESTING'}}}
+            return {'data': {'attributes': {'internalBuildState': self.states.pop(0) if self.states else 'IN_BETA_TESTING'}}}
         if args[:2] == ('builds', 'update') or args[:3] == ('builds', 'test-notes', 'create'):
             return {}
         self.fail(f'Unexpected command: {args[:3]}')
@@ -57,6 +58,13 @@ class PreviewPublisherTests(unittest.TestCase):
         self.run_publisher()
         self.assertEqual(json.loads(self.result.read_text())['stage'], 'available_for_testing')
         self.assertFalse(any(c[:2] == ('builds', 'add-groups') for c in self.calls))
+
+    def test_assignment_waits_for_apples_eventual_internal_availability(self):
+        self.states = ['READY_FOR_BETA_TESTING', 'IN_BETA_TESTING']
+        with patch('time.sleep') as sleep:
+            self.run_publisher()
+        self.assertEqual(json.loads(self.result.read_text())['stage'], 'available_for_testing')
+        sleep.assert_called_once_with(5)
 
     def test_rc_uses_final_production_configuration_and_never_submits_store_review(self):
         with patch.dict(os.environ, RC_BUILD='true', MOBILE_ENVIRONMENT='production', MOBILE_PREVIEW='false'):

@@ -153,7 +153,7 @@ class RCTests(unittest.TestCase):
              patch('controller.baselines', return_value={}):
             result = plan('mobile', 'patch', 'main', 'testflight', remote, version='1.0.19')
             self.assertEqual((result['version'], result['buildNumber']), ('1.0.19', 43))
-            self.assertEqual(result['schemaVersion'], 3)
+            self.assertEqual(result['schemaVersion'], 4)
             self.assertIsNone(result['rcRun'])
             for version in ['1.0.18', '1.0.17']:
                 with self.assertRaises(ReleaseError):
@@ -252,7 +252,7 @@ class RCTests(unittest.TestCase):
         remote.api.return_value = run
         artifact = {'id': 1, 'name': 'rc-record-1', 'expired': False, 'size_in_bytes': 1000}
         remote.pages.return_value = [artifact]
-        record = {'identity': identity(), 'platforms': {'ios': {'buildRunId': '100', 'buildId': 'apple-42', 'artifact': 'ios-1.0.19-42'}}}
+        record = {'identity': identity() | {'platforms': ['ios']}, 'platforms': {'ios': {'buildRunId': '100', 'buildId': 'apple-42', 'artifact': 'ios-1.0.19-42'}}}
         def archive(value):
             stream = io.BytesIO()
             with zipfile.ZipFile(stream, 'w') as zipped:
@@ -261,14 +261,20 @@ class RCTests(unittest.TestCase):
         with patch('rc.subprocess.check_output', return_value=archive(record)):
             self.assertEqual(read_record(remote, '100', identity()), record)
             for change in [{'head_branch': 'dev'}, {'event': 'pull_request'},
-                           {'path': '.github/workflows/other.yml'}, {'conclusion': 'failure'}]:
+                           {'path': '.github/workflows/other.yml'}, {'status': 'in_progress'}]:
                 with self.subTest(change=change), patch.dict(run, change), self.assertRaises(ReleaseError):
                     read_record(remote, '100', identity())
+            # Metadata attachment can fail after a complete immutable record was sealed.
+            with patch.dict(run, conclusion='failure'):
+                self.assertEqual(read_record(remote, '100', identity()), record)
             artifact['expired'] = True
             with self.assertRaises(ReleaseError):
                 read_record(remote, '100', identity())
         artifact['expired'] = False
         with patch('rc.subprocess.check_output', return_value=archive(record | {'identity': identity() | {'sourceSha': 'c' * 40}})):
+            with self.assertRaises(ReleaseError):
+                read_record(remote, '100', identity())
+        with patch('rc.subprocess.check_output', return_value=archive(record | {'identity': identity()})):
             with self.assertRaises(ReleaseError):
                 read_record(remote, '100', identity())
 
@@ -280,6 +286,8 @@ class RCTests(unittest.TestCase):
             self.assertNotIn('unittest discover', value, name)
         preview = (root / '.github/workflows/release-preview-ios.yml').read_text()
         self.assertNotIn('unittest discover', preview)
+        ready = (root / '.github/workflows/release-rc.yml').read_text().split('  ready:', 1)[1]
+        self.assertIn('fetch-depth: 0', ready, 'RC attachment verifies main ancestry and needs full checkout history')
 
 
 if __name__ == '__main__':

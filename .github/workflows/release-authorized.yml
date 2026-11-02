@@ -1,4 +1,4 @@
-name: Release / Human review
+name: Release / Authorization
 on:
   pull_request_target:
     branches: [main]

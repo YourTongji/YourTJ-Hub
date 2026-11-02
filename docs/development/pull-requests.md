@@ -128,7 +128,7 @@ PR 本身已有充分信息时
 契约变更须包含生成输出和 fixture 更新，其他跨端镜像按 [AGENTS.md](../../AGENTS.md) 同步。
 本地检查按 [testing.md](testing.md) 选取，CI 全量结论绑定被评审版本；旧提交的通过结果不能证明新代码。
 功能完成同时满足具体 AC 与 [通用完成标准](README.md#definition-of-done)。
-不要自行合并自己的 PR（solo repo 且明确允许的例外除外）；至少一次 review，发布还需遵守专门的人工审核。
+不要自行合并自己的 PR（solo repo 且明确允许的例外除外）；至少一次 review，发布还需遵守专门的 RC/Confirm 授权协议（旧 schema 保留人工审核）。
 
 ## Visual change declaration
 
@@ -212,7 +212,7 @@ Issue 条目，reviewer 核对实际实现，不重复挑战该取舍。执行�
 - `main` contains reviewed production source. Promote dev with an ordinary PR; release preparation
   never merges it implicitly. [Release requests](../operations/releases.md) are the explicit branch
   exception: `codex/release/<id>` starts from main and targets main with only its release metadata.
-  Final-head human review and merge trigger approved platform publication. Never develop directly
+  Schema-4 RC requests use explicit final-head Confirm to seal and promote original artifacts; legacy requests retain human GitHub review. Never develop directly
   on main or dev.
 - The dev instance syncs a consistent snapshot of the main database on each deploy (see
   `docs/operations/deployment.md`), so DB migrations are rehearsed on dev before reaching main.

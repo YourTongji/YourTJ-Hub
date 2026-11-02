@@ -20,19 +20,21 @@ CONTROL_ACTIONS = ['start', 'admit', 'advance', 'qa', 'production-qa', 'extend',
 def parser():
     root = argparse.ArgumentParser(description=__doc__)
     sub = root.add_subparsers(dest="command", required=True)
-    for name in ["status", "doctor", "plan", "prepare", "validate", "publish", "retry", "promote-ios", 'cycle', 'prerelease', 'control', 'rc']:
+    for name in ["status", "doctor", "plan", "prepare", "validate", "publish", "retry", "promote-ios", 'cycle', 'prerelease', 'control', 'rc', 'confirm', 'dev']:
         cmd = sub.add_parser(name)
         cmd.add_argument("--json", action="store_true", help="stable schemaVersion=1 JSON output")
-        if name in {"plan", "prepare", "doctor"}:
-            cmd.add_argument("--scope", choices=["web", "android", "ios", "mobile"], default="web")
-        if name in {"plan", "prepare"}:
+        if name in {"plan", "prepare", "doctor", 'rc'}:
+            cmd.add_argument("--scope", choices=["web", "android", "ios", "mobile"], default='mobile' if name == 'rc' else 'web')
+        if name in {"plan", "prepare", 'rc'}:
             cmd.add_argument('--version', default='', help='Optional final X.Y.Z, including a replacement RC of an unpublished version')
             cmd.add_argument("--source", default="main", help="main or full SHA already in main history")
             cmd.add_argument("--bump", choices=["patch", "minor", "major"], default="patch")
-            cmd.add_argument("--ios-destination", choices=["testflight", "app-store"], default="testflight")
+            cmd.add_argument("--ios-destination", choices=["testflight", "app-store"], default='app-store' if name == 'rc' else 'testflight')
             cmd.add_argument("--apple-state", type=Path, help="read-only ASC discovery JSON for local planning")
-        if name in {"status", "validate", "publish", "retry", "rc"}:
-            cmd.add_argument("--candidate", required=name != "status")
+        if name in {"status", "validate", "publish", "retry", "rc", 'confirm'}:
+            cmd.add_argument("--candidate", required=name not in {'status', 'rc'})
+        if name == 'dev':
+            cmd.add_argument('--source', default='', help='Current dev SHA; empty resolves dev once')
         if name == "retry":
             cmd.add_argument("--channel", choices=["web", "android", "android-alias", "ios-testflight", "ios-app-store"], required=True)
         if name == "promote-ios":
@@ -53,9 +55,9 @@ def parser():
             cmd.add_argument('--note', required=True)
             for field in ['pr', 'until', 'assignee', 'base']:
                 cmd.add_argument('--' + field, default='')
-        if name == 'prepare':
+        if name in {'prepare', 'rc'}:
             cmd.add_argument('--draft-notes', action='store_true', help='Opt in to AI note drafting; default opens an editable request immediately')
-        if name in {"prepare", "publish", "retry", "promote-ios", 'prerelease', 'control', 'rc'}:
+        if name in {"prepare", "publish", "retry", "promote-ios", 'prerelease', 'control', 'rc', 'confirm', 'dev'}:
             mode = cmd.add_mutually_exclusive_group()
             mode.add_argument("--apply", action="store_true", help="perform the user-authorized dispatch on main")
             mode.add_argument("--dry-run", action="store_true", help="show request; default, no remote writes")
@@ -63,15 +65,29 @@ def parser():
 
 
 def execute(args, github):
+    if args.command in {'confirm', 'dev'}:
+        if args.command == 'confirm':
+            candidate_path(args.candidate)
+            workflow, inputs = 'release-confirm.yml', {'candidate': args.candidate}
+        else:
+            require(not args.source or SHA.fullmatch(args.source), 'Use the current full dev SHA')
+            workflow, inputs = 'dev-distribute.yml', {'source': args.source, 'request_run': ''}
+        return github.dispatch(workflow, inputs) if args.apply else {'dryRun': True, 'workflow': workflow, 'ref': 'main', 'inputs': inputs}
     if args.command == 'rc':
         from model import ID
-        require(ID.fullmatch(args.candidate), 'Select a release candidate ID')
-        inputs = {'candidate': args.candidate}
+        if args.candidate:
+            require(ID.fullmatch(args.candidate), 'Select a release candidate ID')
+            inputs = {'candidate': args.candidate}
+        else:
+            channels_for(args.scope, args.ios_destination)
+            inputs = {'scope': args.scope, 'source': args.source, 'bump': args.bump, 'version': args.version,
+                      'ios_destination': args.ios_destination, 'draft_notes': str(args.draft_notes).lower()}
         return github.dispatch('release-rc.yml', inputs) if args.apply else {
             'dryRun': True, 'workflow': 'release-rc.yml', 'ref': 'main', 'inputs': inputs}
     if args.command == 'cycle':
         return {'releaseCycles': load_cycle(github)}
     if args.command in {'prerelease', 'control'}:
+        require(args.command != 'prerelease', 'Development builds follow dev automatically; use dev --apply only to retry current dev')
         fields = ['cycle', 'source', 'issue', 'channels']
         fields += ['purpose', 'artifacts', 'source_review_bypass_reason'] if args.command == 'prerelease' else ['action', 'note', 'pr', 'until', 'assignee', 'base', 'release_run']
         inputs = {key: getattr(args, key) for key in fields}
@@ -94,26 +110,23 @@ def execute(args, github):
         return {"repository": github.repository, "scope": args.scope, "defaultBranch": repo["default_branch"],
                 "permission": repo.get("permissions"), "controllerAvailable": github.api("contents/scripts/release/cli.py?ref=main", missing=True) is not None,
                 "appleStatus": "queried only by authenticated Actions discovery" if args.scope in {"ios", "mobile"} else "not_applicable",
-                "nextActions": ["plan", "prepare --apply"]}
+                "nextActions": ["rc --scope <scope> --apply", "confirm --candidate <id> --apply"]}
     if args.command == "plan":
         apple = json.loads(args.apple_state.read_text(encoding='utf-8')) if args.apple_state else None
         source = args.source
         return {"state": "draft", "manifest": plan(args.scope, args.bump, source, args.ios_destination, github, apple,
-                                                   version=args.version or None), "nextActions": ["prepare --apply"]}
+                                                   version=args.version or None), "nextActions": ["rc --scope <scope> --apply"]}
     if args.command == "prepare":
-        channels_for(args.scope, args.ios_destination)
-        inputs = {"scope": args.scope, "bump": args.bump, "source": args.source, "ios_destination": args.ios_destination,
-                  'draft_notes': str(args.draft_notes).lower()}
-        inputs['version'] = args.version
-        return github.dispatch("release-prepare.yml", inputs) if args.apply else {"dryRun": True, "workflow": "release-prepare.yml", "ref": "main", "inputs": inputs}
+        raise ReleaseError('Preparation is part of rc; use rc --scope <scope> --apply')
     if args.command == "promote-ios":
         candidate_path(args.release)
         inputs = {"scope": "ios", "bump": "patch", "source": "main", "ios_destination": "app-store", "existing_release": args.release}
-        return github.dispatch("release-prepare.yml", inputs) if args.apply else {"dryRun": True, "inputs": inputs, "requiresFreshHumanReview": True}
+        return github.dispatch("release-rc.yml", inputs) if args.apply else {
+            "dryRun": True, "workflow": "release-rc.yml", "ref": "main", "inputs": inputs, "requiresConfirmation": True}
     if args.command == "status" and not args.candidate:
         prs = github.pages("pulls?state=open&base=main")
         return {"requests": [{"candidateId": p["head"]["ref"].split("/")[-1], "url": p["html_url"]} for p in prs if trusted_request(p, github) and p["head"]["ref"].startswith("codex/release/")],
-                "nextActions": ["status --candidate <id>", "prepare --apply"]}
+                "nextActions": ["status --candidate <id>", "rc --apply"]}
     folder = Path(candidate_path(args.candidate))
     if not folder.exists():
         # Agents normally work on dev, while release data belongs to main/its Release PR.
@@ -134,7 +147,8 @@ def inspect_candidate(args, github, folder):
     require(manifest['candidateId'] == args.candidate, 'Candidate directory and manifest identity differ')
     content_digest = validate_candidate(manifest, folder, draft=args.command == "status")
     if args.command == "validate":
-        return {"candidateId": args.candidate, "valid": True, "contentDigest": content_digest, "approval": "must be checked against live GitHub reviews"}
+        return {"candidateId": args.candidate, "valid": True, "contentDigest": content_digest,
+                "approval": "requires exact RC confirmation" if manifest['schemaVersion'] == 4 else "requires current-head human GitHub review"}
     if args.command == "publish":
         # A reserved tag does not mean a publisher started. Once any channel has a start
         # receipt, resume original artifacts with Recover rather than rebuilding its identity.

@@ -141,7 +141,8 @@ def main():
     os.umask(0o077)
     team = os.environ["IOS_TEAM_ID"]
     version = os.environ["MOBILE_VERSION"]
-    number = os.environ["MOBILE_BUILD_NUMBER"]
+    from build_environment import ios_build_number
+    number = ios_build_number()
     if not re.fullmatch(r"[A-Z0-9]{10}", team):
         raise ValueError("Invalid Apple team ID")
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[1-9]\d*", number):

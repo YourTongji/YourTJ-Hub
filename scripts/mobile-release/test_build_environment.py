@@ -1,10 +1,21 @@
 import unittest
+import os
+from unittest.mock import patch
 from pathlib import Path
-from build_environment import android_package, dart_defines
+from build_environment import android_package, dart_defines, ios_build_number
 from publish_preview_ios import check_groups
 
 
 class BuildEnvironmentTests(unittest.TestCase):
+    def test_date_ios_number_does_not_replace_internal_android_catalog_counter(self):
+        with patch.dict(os.environ, MOBILE_BUILD_NUMBER='42', IOS_BUILD_NUMBER='202611030001', MOBILE_BUILD_ID='202611030001'):
+            self.assertEqual(ios_build_number(), '202611030001')
+            defines = dart_defines('production', 'a'*40, False)
+            self.assertIn('--dart-define=YOURTJ_BUILD_NUMBER=42', defines)
+            self.assertIn('--dart-define=YOURTJ_BUILD_ID=202611030001', defines)
+        with patch.dict(os.environ, MOBILE_BUILD_NUMBER='42', IOS_BUILD_NUMBER=''):
+            self.assertEqual(ios_build_number(), '42')
+
     def test_hosts_identity_and_distribution_are_bound_together(self):
         dev = dart_defines('dev', 'a'*40, True)
         production = dart_defines('production', 'a'*40, False)

@@ -7,10 +7,13 @@ on:
       purpose: {type: string, required: true}
       version: {type: string, required: true}
       number: {type: string, required: true}
+      automatic: {type: boolean, default: false}
+      display_build: {type: string, default: ''}
+      ios_number: {type: string, default: ''}
 permissions:
   contents: read
   actions: read
-  deployments: read
+  deployments: write
   pull-requests: read
 concurrency:
   group: release-apple-6809457637
@@ -29,9 +32,12 @@ jobs:
       PREVIEW_ARTIFACT: ios
       MOBILE_ENVIRONMENT: ${{ inputs.purpose }}
       MOBILE_PREVIEW: 'true'
+      DEV_AUTOMATIC: ${{ inputs.automatic && 'true' || 'false' }}
+      MOBILE_BUILD_ID: ${{ inputs.display_build }}
       RELEASE_SOURCE_ROOT: ${{ github.workspace }}/.source
       MOBILE_VERSION: ${{ inputs.version }}
       MOBILE_BUILD_NUMBER: ${{ inputs.number }}
+      IOS_BUILD_NUMBER: ${{ inputs.ios_number || inputs.number }}
       IOS_TEAM_ID: 4HJTS3G3T2
       ASC_TELEMETRY_DISABLED: '1'
       ASC_TIMEOUT: 90s
@@ -41,7 +47,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Restore the original dev build identity on retry
+        id: start
+        if: inputs.automatic
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/dev_delivery.py start
       - uses: ./.github/actions/setup-ios-toolchain
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         with:
           purpose: ${{ inputs.purpose }}
       - name: Recheck preview authorization
@@ -59,14 +72,17 @@ jobs:
           key-id: ${{ secrets.ASC_KEY_ID }}
           issuer-id: ${{ secrets.ASC_ISSUER_ID }}
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         with:
           flutter-version: "3.44.9"
           channel: stable
           cache: true
       - name: Bootstrap
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         working-directory: .source/apps/mobile/packages/forum_app
         run: flutter pub get
       - name: Install private iOS signing inputs
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         env:
           IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
           IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
@@ -86,6 +102,7 @@ jobs:
               output.write(f'IOS_P12_PATH={root / "distribution.p12"}\nIOS_PROFILE_PATH={root / "profile.mobileprovision"}\nIOS_WIDGET_PROFILE_PATH={root / "widget.mobileprovision"}\nASC_PRIVATE_KEY_PATH={root / "AuthKey.p8"}\n')
           PY
       - name: Build App Store IPA
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         env:
           IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
         run: |
@@ -100,6 +117,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
       - name: Preserve signed IPA and symbols for recovery
+        if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: preview-ios-${{ inputs.version }}-${{ inputs.number }}
@@ -110,11 +128,21 @@ jobs:
           retention-days: 30
           include-hidden-files: true
           if-no-files-found: error
+      - name: Restore original signed dev IPA
+        if: inputs.automatic && steps.start.outputs.build_required != 'true' && steps.start.outputs.existing_build_id == ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: preview-ios-${{ inputs.version }}-${{ inputs.number }}
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+          path: .source/apps/mobile/build/release
       - name: Distribute to the internal QA group only
         env:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE_TESTFLIGHT_GROUP_ID: ${{ vars.PRERELEASE_TESTFLIGHT_GROUP_ID }}
           IOS_IPA_PATH: .source/apps/mobile/build/release/ios/forum_app.ipa
+          IOS_EXPECTED_BUILD_ID: ${{ steps.start.outputs.existing_build_id }}
+          IOS_EXISTING_BUILD_ONLY: ${{ inputs.automatic && steps.start.outputs.existing_build_id != '' }}
         run: |
           python3 scripts/release/cycle_control.py check-build
           python3 scripts/mobile-release/publish_preview_ios.py
@@ -131,3 +159,9 @@ jobs:
         run: |
           rm -rf .asc "$RUNNER_TEMP/release-asc" "$RUNNER_TEMP/yourtj-ios-secrets"
           rm -f .source/apps/mobile/packages/forum_app/ios/Flutter/ReleaseSigning.xcconfig
+      - name: Record successful development distribution
+        if: inputs.automatic && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEV_PLATFORM: ios
+        run: python3 scripts/release/dev_delivery.py record
