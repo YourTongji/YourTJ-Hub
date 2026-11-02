@@ -271,8 +271,8 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   blurred, saturated backdrop, a faint top-down sheen and a lit line under a one-physical-pixel
   hairline, in the manner of system tab bars. High contrast, reduced motion and accessible
   navigation give the opaque canvas under the hairline. Pressing a destination dips its glyph and
-  lights a neutral platter behind it; there is no lens or drag scrub. Holding Campus or
-  Notifications keeps that platter lit while the same shortcut menu blooms from the bar's top edge
+  lights a neutral platter behind it; there is no lens or drag scrub. Holding Campus, or
+  Notifications when signed in, keeps that platter lit while the same shortcut menu blooms from the bar's top edge
   right above the destination, with the whole bar left clear of the scrim; slide-to-select,
   keyboard, screen-reader and cancellation behaviour match the dock. Pages clear either style by
   the same measured insets: the bar's content inset is its height, the bottom safe area and 8 pixels.
