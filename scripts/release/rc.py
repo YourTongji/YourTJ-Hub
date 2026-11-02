@@ -179,6 +179,8 @@ def handle(command, github, candidate, folder):
         require(len(rows) <= 1 and all(not a['expired'] for a in rows), 'Original RC artifact expired/ambiguous')
         records = [a for a in github.pages(f"actions/runs/{identity['run']}/artifacts", 'artifacts')
                    if a['name'].startswith(f'rc-result-{name}-')]
+        require(rows or not records,
+                'Original RC artifact missing after a platform attempt; prepare a fresh candidate instead of rebuilding')
         details = {}
         if records:
             artifact = max(records, key=lambda row: int(row['name'].rsplit('-', 1)[1]))
