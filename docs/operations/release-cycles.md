@@ -217,7 +217,9 @@ artifact digest register is required.
 ## Enter main, publish and finish
 
 Promote the tested source through a reviewed PR to main using a merge commit that preserves the
-source SHA. A clean merge is supported; fast-forward-only is not required. The controller rejects
+source SHA. The controller finds this integration in the paginated closed main PR list and matches
+the exact source head; commit associations can return only the original dev PR. A clean merge is
+supported; fast-forward-only is not required. The controller rejects
 squash/rebase replacement of the candidate identity and conflict/manual edits to the integration
 merge tree. Resolve such changes on dev, advance the cycle, rebuild and repeat QA.
 
