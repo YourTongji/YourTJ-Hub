@@ -1,0 +1,4 @@
+On iPhone Duo, open a conversation in portrait and landscape, type with the software keyboard, dismiss it and repeat. Check that the Dock hides without moving the chat pane or losing the active conversation, text or scroll position.
+Switch between the glass Dock and classic tab bar. Check shortcut menus and number/dot unread indicators. Tap a forum reply body to reply; long-press text to select/copy it. Links and images should keep their own actions.
+Verify local draft recovery after an expired session or email-verification recovery. With test accounts, check everyone/mutual-only/no-new-message permissions, existing conversations and blocks. Browse/add sticker packs and rename a personal sticker.
+Requires iOS/iPadOS 15 or later. Check timetable memos, course blocks, major-name/code search and confirmation before replacing a planning setup. Verify the schedule widget after changing timetable data.
