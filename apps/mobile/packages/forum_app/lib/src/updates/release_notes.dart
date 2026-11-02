@@ -77,10 +77,12 @@ class ReleaseNoteVersion {
     required this.breaking,
     required this.requiredActions,
     this.testflightNotes = const [],
+    this.displayBuild,
   });
 
   final String version;
   final int buildNumber;
+  final String? displayBuild;
   final Set<String> channels;
   final List<ReleaseNote> highlights;
   final List<ReleaseNote> breaking;
@@ -91,6 +93,10 @@ class ReleaseNoteVersion {
     if (value is! Map) return null;
     final version = value['version'];
     final build = value['buildNumber'];
+    final display = value['displayBuild'];
+    if (display != null &&
+        (display is! String || !RegExp(r'^[0-9]{12}$').hasMatch(display)))
+      return null;
     final rawChannels = value['channels'];
     const allowedChannels = {'android', 'ios-app-store', 'ios-testflight'};
     if (version is! String ||
@@ -149,6 +155,7 @@ class ReleaseNoteVersion {
     return ReleaseNoteVersion(
       version: version,
       buildNumber: build,
+      displayBuild: display as String?,
       channels: rawChannels.cast<String>().toSet(),
       highlights: highlights,
       breaking: breaking,

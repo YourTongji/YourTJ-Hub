@@ -4,10 +4,7 @@ on:
     inputs:
       source: {type: string, required: true}
       cycle: {type: string, required: true}
-  workflow_run:
-    workflows: ['CI / Verify']
-    types: [completed]
-    branches: [dev]
+      continuous: {type: boolean, default: false}
 permissions:
   contents: read
   actions: read
@@ -16,7 +13,6 @@ permissions:
 concurrency:
   group: instance-mutate-dev
   cancel-in-progress: false
-  queue: max
 jobs:
   gate:
     runs-on: ubuntu-latest
@@ -34,8 +30,12 @@ jobs:
           CYCLE_ID: ${{ inputs.cycle }}
           SOURCE_SHA: ${{ inputs.source }}
           BUILD_RUN: ${{ github.run_id }}
+          CONTINUOUS: ${{ inputs.continuous }}
         run: |
-          if [ -n "$CYCLE_ID" ]; then
+          if [ "$CONTINUOUS" = true ]; then
+            python3 scripts/release/dev_delivery.py current
+            echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          elif [ -n "$CYCLE_ID" ]; then
             python3 scripts/release/cycle_control.py check-dev
             echo 'eligible=true' >> "$GITHUB_OUTPUT"
             echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
@@ -43,7 +43,7 @@ jobs:
             python3 scripts/ci/deploy_gate.py
           fi
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-        if: steps.source.outputs.eligible == 'true' && inputs.cycle == ''
+        if: steps.source.outputs.eligible == 'true' && inputs.cycle == '' && !inputs.continuous
         with:
           name: ci-plan
           run-id: ${{ github.event.workflow_run.id }}
@@ -53,11 +53,12 @@ jobs:
         if: steps.source.outputs.eligible == 'true'
         env:
           CYCLE_ID: ${{ inputs.cycle }}
+          CONTINUOUS: ${{ inputs.continuous }}
         run: |
           python3 - <<'PY'
           import json,os
           from pathlib import Path
-          plan={'deploy':{'run':True}} if os.environ['CYCLE_ID'] else json.loads(Path('.ci-plan/ci-plan.json').read_text())
+          plan={'deploy':{'run':True}} if os.environ['CYCLE_ID'] or os.environ['CONTINUOUS']=='true' else json.loads(Path('.ci-plan/ci-plan.json').read_text())
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:
               out.write('eligible='+str(plan['deploy']['run'] is True).lower()+'\n')
           PY
@@ -92,19 +93,33 @@ jobs:
     needs: [gate, build, build-image]
     runs-on: ubuntu-latest
     environment: dev
+    permissions: {contents: read, actions: read, deployments: write}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           persist-credentials: false
-      - name: Reject an obsolete candidate before configuration or database mutation
+      - name: Recheck the selected dev source before mutation
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ needs.gate.outputs.sha }}
           CYCLE_ID: ${{ inputs.cycle }}
           BUILD_RUN: ${{ github.run_id }}
-        run: python3 scripts/release/cycle_control.py check-dev
+          CONTINUOUS: ${{ inputs.continuous }}
+        run: |
+          if [ "$CONTINUOUS" = true ]; then
+            python3 - <<'PY'
+          import os,sys
+          sys.path.insert(0,'scripts/release')
+          from dev_delivery import current_source
+          from github import GitHub
+          from model import require
+          require(current_source(GitHub(),os.environ['SOURCE_SHA']),'Dev deployment was superseded before mutation')
+          PY
+          else
+            python3 scripts/release/cycle_control.py check-dev
+          fi
       # 渲染实例 config（dev 环境 secrets; dev GitHub 凭据留空 → 渲染 allow-empty）
       - name: Render dev config
         uses: ./.github/actions/render-config
@@ -185,3 +200,10 @@ jobs:
               /opt/yourtj/scripts/deploy.sh dev dev-${{ needs.gate.outputs.sha }} 5235
             # 3. 部署成功/失败后清理本 run 上传的临时文件(含明文渲染 config)
             rm -rf "$RUN_DIR"
+      - name: Record continuous dev web deployment
+        if: inputs.continuous && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.gate.outputs.sha }}
+          DEV_PLATFORM: web
+        run: python3 scripts/release/dev_delivery.py record

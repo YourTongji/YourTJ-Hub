@@ -175,7 +175,11 @@ def build_catalog(github, published_at=None, verified_store_builds=()):
         output = {"version": version, "buildNumber": build_number,
                   "channels": sorted(structured_channels), "highlights": [], "breaking": [],
                   "requiredActions": [], "testflightNotes": []}
-        for channel, (_, changelog) in sorted(channel_candidates.items()):
+        for channel, (manifest, changelog) in sorted(channel_candidates.items()):
+            if manifest.get('displayBuild'):
+                require(output.get('displayBuild', manifest['displayBuild']) == manifest['displayBuild'],
+                        'Conflicting display build IDs for the same release')
+                output['displayBuild'] = manifest['displayBuild']
             if changelog is None:
                 continue
             allowed = CHANNEL_PLATFORMS[channel]

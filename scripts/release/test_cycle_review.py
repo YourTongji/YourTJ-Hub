@@ -113,7 +113,8 @@ class CycleReviewTests(unittest.TestCase):
         self.assertIn('    name: release-freeze\n', workflow)
         self.assertNotIn('strategy:', workflow)
         self.assertNotIn('checks: write', workflow)
-        self.assertIn('cycle_control.py check-pr', workflow)
+        self.assertNotIn('cycle_control.py check-pr', workflow)
+        self.assertIn('Dev delivery is continuous', workflow)
         source = (Path(__file__).resolve().parent / 'cycle_control.py').read_text()
         self.assertNotIn('check-runs', source)
 

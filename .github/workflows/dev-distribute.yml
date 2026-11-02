@@ -1,0 +1,70 @@
+name: Dev / Distribute
+on:
+  workflow_dispatch:
+    inputs:
+      source: {description: 'Current dev SHA; empty resolves dev once', type: string}
+      request_run: {description: 'Automatic dev push request run; empty is a maintainer retry', type: string}
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+  pull-requests: read
+jobs:
+  admit:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      source: ${{ steps.admit.outputs.source }}
+      eligible: ${{ steps.admit.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - id: admit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.source }}
+          REQUEST_RUN: ${{ inputs.request_run }}
+        run: python3 scripts/release/dev_delivery.py admit
+  web:
+    needs: admit
+    if: needs.admit.outputs.eligible == 'true'
+    uses: ./.github/workflows/deploy-dev.yml
+    with:
+      source: ${{ needs.admit.outputs.source }}
+      cycle: ''
+      continuous: true
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      deployments: write
+      actions: read
+  mobile:
+    needs: admit
+    if: needs.admit.outputs.eligible == 'true'
+    # One active bundle and only the newest pending bundle. Never interrupt an upload.
+    concurrency:
+      group: dev-mobile-delivery
+      cancel-in-progress: false
+    uses: ./.github/workflows/dev-mobile.yml
+    with:
+      source: ${{ needs.admit.outputs.source }}
+    secrets: inherit
+    permissions:
+      contents: write
+      actions: read
+      deployments: write
+      pull-requests: read
+  status:
+    needs: [admit, web, mobile]
+    if: always() && needs.admit.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    permissions: {contents: write, deployments: read}
+    concurrency:
+      group: dev-public-status
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - env: {GH_TOKEN: '${{ github.token }}'}
+        run: python3 scripts/release/dev_delivery.py status

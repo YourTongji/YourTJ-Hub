@@ -1,0 +1,65 @@
+name: Dev / Mobile builders
+on:
+  workflow_call:
+    inputs:
+      source: {type: string, required: true}
+permissions:
+  contents: write
+  actions: read
+  deployments: write
+  pull-requests: read
+jobs:
+  identity:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-mobile-identities
+      cancel-in-progress: false
+      queue: max
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      number: ${{ steps.identity.outputs.number }}
+      display: ${{ steps.identity.outputs.displayBuild }}
+      ios_number: ${{ steps.identity.outputs.iosNumber }}
+      tag: ${{ steps.identity.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {fetch-depth: 0, persist-credentials: false}
+      - id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.source }}
+        run: python3 scripts/release/dev_delivery.py identity
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: steps.identity.outputs.fresh == 'true'
+        with:
+          name: dev-identity
+          path: dev-identity.json
+          retention-days: 90
+          if-no-files-found: error
+  android:
+    needs: identity
+    uses: ./.github/workflows/release-preview-android.yml
+    with:
+      cycle: ''
+      source: ${{ inputs.source }}
+      purpose: dev
+      version: ${{ needs.identity.outputs.version }}
+      number: ${{ needs.identity.outputs.number }}
+      display_build: ${{ needs.identity.outputs.display }}
+      tag: ${{ needs.identity.outputs.tag }}
+      automatic: true
+    secrets: inherit
+  ios:
+    needs: identity
+    uses: ./.github/workflows/release-preview-ios.yml
+    with:
+      cycle: ''
+      source: ${{ inputs.source }}
+      purpose: dev
+      version: ${{ needs.identity.outputs.version }}
+      number: ${{ needs.identity.outputs.number }}
+      display_build: ${{ needs.identity.outputs.display }}
+      ios_number: ${{ needs.identity.outputs.ios_number }}
+      automatic: true
+    secrets: inherit

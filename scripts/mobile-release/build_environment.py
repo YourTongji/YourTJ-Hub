@@ -13,6 +13,13 @@ def android_package(environment):
     return ANDROID_PACKAGES[environment]
 
 
+def ios_build_number():
+    value = os.environ.get('IOS_BUILD_NUMBER') or os.environ['MOBILE_BUILD_NUMBER']
+    if not re.fullmatch(r'[1-9][0-9]{0,17}', value):
+        raise ValueError('Invalid native iOS build number')
+    return value
+
+
 def dart_defines(environment=None, source=None, preview=None):
     environment = environment or os.environ.get('MOBILE_ENVIRONMENT', 'production')
     source = source if source is not None else os.environ.get('SOURCE_SHA', '')
@@ -26,7 +33,9 @@ def dart_defines(environment=None, source=None, preview=None):
     host = 'dev.yourtj.de' if environment == 'dev' else 'f.yourtj.de'
     values = {'YOURTJ_API_BASE_URL': f'https://{host}', 'YOURTJ_OIDC_ISSUER': f'https://{host}/api/oauth',
               'YOURTJ_OIDC_CLIENT_ID': 'yourtj-mobile', 'YOURTJ_ENVIRONMENT': environment,
-              'YOURTJ_SOURCE_SHA': source, 'YOURTJ_PREVIEW': str(preview).lower()}
+              'YOURTJ_SOURCE_SHA': source, 'YOURTJ_PREVIEW': str(preview).lower(),
+              'YOURTJ_BUILD_ID': os.environ.get('MOBILE_BUILD_ID', ''),
+              'YOURTJ_BUILD_NUMBER': os.environ.get('MOBILE_BUILD_NUMBER', '0')}
     return [f'--dart-define={key}={value}' for key, value in values.items()]
 
 

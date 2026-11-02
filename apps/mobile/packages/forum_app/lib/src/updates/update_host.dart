@@ -23,6 +23,15 @@ bool get supportsApkUpdates => !kIsWeb && Platform.isAndroid;
 bool get supportsMobileReleaseNotes =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
+int? installedCatalogBuild(
+  Map<String, dynamic> info, {
+  int configuredBuild = AppConfig.catalogBuildNumber,
+}) {
+  if (configuredBuild > 0) return configuredBuild;
+  final value = info['catalogBuildNumber'] ?? info['buildNumber'];
+  return value is num ? value.toInt() : null;
+}
+
 class MobileUpdateHost extends StatefulWidget {
   const MobileUpdateHost({
     super.key,
@@ -148,8 +157,8 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
     bool force,
   ) async {
     final channel = info['channel'];
-    final installedBuild = info['buildNumber'];
-    if (installedBuild is! num) return;
+    final installedBuild = installedCatalogBuild(info);
+    if (installedBuild == null) return;
     if (channel == 'ios-testflight') {
       // Apple owns beta updates and testing instructions. Only an explicit check
       // leaves the app; startup/resume must not duplicate TestFlight's prompt.

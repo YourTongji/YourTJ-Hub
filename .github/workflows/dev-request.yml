@@ -1,0 +1,17 @@
+name: Dev / Request distribution
+on:
+  push:
+    branches: [dev]
+permissions:
+  actions: write
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request the trusted-main web and mobile delivery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE: ${{ github.sha }}
+          REQUEST: ${{ github.run_id }}
+        run: gh workflow run dev-distribute.yml --ref main -f source="$SOURCE" -f request_run="$REQUEST"

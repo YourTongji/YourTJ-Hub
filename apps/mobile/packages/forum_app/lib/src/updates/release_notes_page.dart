@@ -221,7 +221,8 @@ class _ReleaseTimelineEntry extends StatelessWidget {
                       style: type.heading,
                       children: [
                         TextSpan(
-                          text: ' · ${release.buildNumber}',
+                          text:
+                              ' (${release.displayBuild ?? release.buildNumber})',
                           style: type.caption.copyWith(
                             color: colors.textSecondary,
                           ),

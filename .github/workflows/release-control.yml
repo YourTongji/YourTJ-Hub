@@ -1,11 +1,11 @@
-name: Release / Control
+name: Legacy / Release recovery control
 on:
   workflow_dispatch:
     inputs:
       action:
         description: Owner action; complete verifies a successful release; reassign requires admin
         type: choice
-        options: [start, admit, advance, qa, production-qa, extend, offer, accept, reassign, complete, cancel, abort, hotfix, backflow, refresh]
+        options: [reassign, complete, cancel, abort, refresh]
         required: true
       cycle: {description: 'Cycle ID; omit for start/hotfix/complete/refresh', type: string}
       release_run: {description: 'Successful formal Release/Recover run ID; only for complete', type: string}

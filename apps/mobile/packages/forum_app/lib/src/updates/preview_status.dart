@@ -11,11 +11,11 @@ import '../../l10n/app_localizations.dart';
 import '../app_config.dart';
 
 const previewStatusUrl =
-    'https://github.com/YourTongji/YourTJ-Hub/releases/tag/preview-status';
+    'https://github.com/YourTongji/YourTJ-Hub/releases/tag/dev-latest';
 const _previewIndexUrl =
-    'https://github.com/YourTongji/YourTJ-Hub/releases/download/preview-status/preview-status.json';
+    'https://github.com/YourTongji/YourTJ-Hub/releases/download/dev-latest/dev-status.json';
 
-enum PreviewValidity { current, stale, unknown }
+enum PreviewValidity { current, building, stale, unknown }
 
 /// Informational only: validity follows the source, never binary identity or QA.
 PreviewValidity previewValidity(
@@ -25,6 +25,28 @@ PreviewValidity previewValidity(
   required String artifact,
   required DateTime now,
 }) {
+  if (data is Map && data['schema'] == 2) {
+    final latest = data['source'];
+    final platforms = data['platforms'];
+    if (purpose != 'dev' ||
+        data['updatedAt'] is! int ||
+        latest is! String ||
+        !RegExp(r'^[0-9a-f]{40}$').hasMatch(latest) ||
+        !RegExp(r'^[0-9a-f]{40}$').hasMatch(source) ||
+        platforms is! Map) {
+      return PreviewValidity.unknown;
+    }
+    final ready = platforms[artifact];
+    if (ready is! Map ||
+        ready['source'] is! String ||
+        !RegExp(r'^[0-9a-f]{40}$').hasMatch(ready['source'] as String)) {
+      return PreviewValidity.unknown;
+    }
+    if (ready['source'] != source) return PreviewValidity.stale;
+    return latest == source
+        ? PreviewValidity.current
+        : PreviewValidity.building;
+  }
   if (data is! Map ||
       data['schema'] != 1 ||
       data['updatedAt'] is! int ||
@@ -146,7 +168,7 @@ class _PreviewStatusHostState extends State<PreviewStatusHost>
     return Column(
       children: [
         Material(
-          color: Theme.of(context).colorScheme.errorContainer,
+          color: Theme.of(context).colorScheme.secondaryContainer,
           child: SafeArea(
             bottom: false,
             child: Padding(
@@ -155,7 +177,9 @@ class _PreviewStatusHostState extends State<PreviewStatusHost>
                 children: [
                   Expanded(
                     child: GfText(
-                      _validity == PreviewValidity.stale
+                      _validity == PreviewValidity.building
+                          ? l10n.previewBuildPending
+                          : _validity == PreviewValidity.stale
                           ? l10n.previewStale
                           : l10n.previewStatusUnknown,
                     ),

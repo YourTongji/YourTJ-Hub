@@ -17,6 +17,8 @@ def reservations():
                 metadata = json.loads(raw)
                 require(type(metadata.get("buildNumber")) is int, "Invalid annotated build number")
                 item["buildNumber"] = metadata["buildNumber"]
+                item['iosBuildNumber'] = metadata.get('iosBuildNumber') or str(metadata['buildNumber'])
+                item['displayBuild'] = metadata.get('displayBuild')
                 if tag.startswith('mobile-build-'):
                     require(tag == f"mobile-build-{item['buildNumber']}", 'Build reservation identity mismatch')
             else:
@@ -67,7 +69,7 @@ def baselines(github, channels, tags, apple=None):
                 continue
             tag = "mobile-v" + current["version"]
             identity = by_tag.get(tag)
-            require(identity and str(identity["buildNumber"]) == str(current["buildNumber"]),
+            require(identity and str(identity.get('iosBuildNumber') or identity["buildNumber"]) == str(current["buildNumber"]),
                     "Apple build has no matching immutable mobile tag; reconcile before preparing release")
             result[channel] = {"tag": tag, "sourceSha": identity["sourceSha"], "buildId": current["buildId"], "state": current["state"]}
         elif channel == "android":

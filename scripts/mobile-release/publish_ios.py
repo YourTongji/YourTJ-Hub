@@ -88,7 +88,8 @@ def main():
     os.environ["ASC_TELEMETRY_DISABLED"] = "1"
     os.environ.setdefault("ASC_TIMEOUT", "90s")
     version = os.environ["MOBILE_VERSION"]
-    number = os.environ["MOBILE_BUILD_NUMBER"]
+    from build_environment import ios_build_number
+    number = ios_build_number()
     target = os.environ.get("IOS_PUBLISH_TARGET", "both")
     if target not in {"both", "testflight", "app-store"}:
         raise ValueError("Invalid iOS publish target; choose both, testflight or app-store")

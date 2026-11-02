@@ -3,9 +3,14 @@ on:
   workflow_dispatch:
     inputs:
       candidate:
-        description: Prepared schema-3 release request ID; builds production bytes without publishing stable channels
+        description: Optional already-prepared request; empty prepares a new RC
         type: string
-        required: true
+      scope: {description: 'RC platforms', type: choice, options: [mobile, web, android, ios], default: mobile}
+      source: {description: 'Fixed main-history SHA; main resolves once', type: string, default: main}
+      version: {description: 'Optional final X.Y.Z', type: string}
+      bump: {description: 'Version increment', type: choice, options: [patch, minor, major], default: patch}
+      ios_destination: {description: 'Final iOS targets', type: choice, options: [app-store, testflight], default: app-store}
+      draft_notes: {description: 'Optional AI notes drafting', type: boolean, default: false}
 permissions:
   contents: write
   actions: read
@@ -14,12 +19,24 @@ permissions:
   pull-requests: read
   checks: read
 jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main' && inputs.candidate == ''
+    uses: ./.github/workflows/release-prepare.yml
+    with:
+      scope: ${{ inputs.scope }}
+      source: ${{ inputs.source }}
+      version: ${{ inputs.version }}
+      bump: ${{ inputs.bump }}
+      ios_destination: ${{ inputs.ios_destination }}
+      draft_notes: ${{ inputs.draft_notes }}
+    secrets: inherit
   identity:
-    if: github.ref == 'refs/heads/main'
+    needs: prepare
+    if: always() && !cancelled() && github.ref == 'refs/heads/main' && (needs.prepare.result == 'success' || needs.prepare.result == 'skipped')
     runs-on: ubuntu-latest
     environment: mobile-release
     concurrency:
-      group: release-candidate-${{ inputs.candidate }}
+      group: release-candidate-${{ inputs.candidate || needs.prepare.outputs.candidate }}
       cancel-in-progress: false
       queue: max
     outputs:
@@ -29,13 +46,15 @@ jobs:
       number: ${{ steps.identity.outputs.number }}
       tag: ${{ steps.identity.outputs.tag }}
       platforms: ${{ steps.identity.outputs.platforms }}
+      display: ${{ steps.identity.outputs.display_build }}
+      ios_number: ${{ steps.identity.outputs.ios_number }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with: {fetch-depth: 0, persist-credentials: false}
       - id: identity
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE: ${{ inputs.candidate }}
+          CANDIDATE: ${{ inputs.candidate || needs.prepare.outputs.candidate }}
         run: python3 scripts/release/rc.py begin
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: steps.identity.outputs.new_identity == 'true'
@@ -46,31 +65,34 @@ jobs:
           retention-days: 90
   android:
     needs: identity
-    if: contains(fromJSON(needs.identity.outputs.platforms), 'android')
+    if: ${{ !cancelled() && needs.identity.result == 'success' && contains(fromJSON(needs.identity.outputs.platforms), 'android') }}
     uses: ./.github/workflows/release-android.yml
     with:
       candidate: ${{ needs.identity.outputs.candidate }}
       source: ${{ needs.identity.outputs.source }}
       version: ${{ needs.identity.outputs.version }}
       number: ${{ needs.identity.outputs.number }}
+      display_build: ${{ needs.identity.outputs.display }}
       tag: ${{ needs.identity.outputs.tag }}
       rc_build: true
     secrets: inherit
   ios:
     needs: identity
-    if: contains(fromJSON(needs.identity.outputs.platforms), 'ios')
+    if: ${{ !cancelled() && needs.identity.result == 'success' && contains(fromJSON(needs.identity.outputs.platforms), 'ios') }}
     uses: ./.github/workflows/release-ios.yml
     with:
       candidate: ${{ needs.identity.outputs.candidate }}
       source: ${{ needs.identity.outputs.source }}
       version: ${{ needs.identity.outputs.version }}
       number: ${{ needs.identity.outputs.number }}
+      display_build: ${{ needs.identity.outputs.display }}
+      ios_number: ${{ needs.identity.outputs.ios_number }}
       channels: '["ios-testflight"]'
       rc_build: true
     secrets: inherit
   web:
     needs: identity
-    if: contains(fromJSON(needs.identity.outputs.platforms), 'web')
+    if: ${{ !cancelled() && needs.identity.result == 'success' && contains(fromJSON(needs.identity.outputs.platforms), 'web') }}
     uses: ./.github/workflows/release-web.yml
     with:
       candidate: ${{ needs.identity.outputs.candidate }}

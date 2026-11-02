@@ -153,7 +153,7 @@ class RCTests(unittest.TestCase):
              patch('controller.baselines', return_value={}):
             result = plan('mobile', 'patch', 'main', 'testflight', remote, version='1.0.19')
             self.assertEqual((result['version'], result['buildNumber']), ('1.0.19', 43))
-            self.assertEqual(result['schemaVersion'], 3)
+            self.assertEqual(result['schemaVersion'], 4)
             self.assertIsNone(result['rcRun'])
             for version in ['1.0.18', '1.0.17']:
                 with self.assertRaises(ReleaseError):

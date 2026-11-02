@@ -35,11 +35,11 @@ class PipelineTest(unittest.TestCase):
         self.root = Path(self.temp.name)
 
     def test_external_agent_dry_run_does_not_contact_a_remote(self):
-        args = parser().parse_args(['prepare', '--scope', 'mobile', '--ios-destination', 'testflight', '--json'])
+        args = parser().parse_args(['rc', '--scope', 'mobile', '--ios-destination', 'testflight', '--json'])
         value = execute(args, FakeGitHub())
         self.assertTrue(value['dryRun'])
         self.assertEqual(value['inputs']['ios_destination'], 'testflight')
-        args = parser().parse_args(['prepare', '--scope', 'android', '--ios-destination', 'app-store', '--apply'])
+        args = parser().parse_args(['rc', '--scope', 'android', '--ios-destination', 'app-store', '--apply'])
         with self.assertRaises(ReleaseError):
             execute(args, FakeGitHub())
 

@@ -160,6 +160,7 @@ def _draft_changelog(manifest, folder, request, result, response, replace=False)
     format_version = (notes_format_version(json.loads(changelog_path.read_text(encoding="utf-8")))
                       if changelog_path.exists() else NOTES_FORMAT_VERSION)
     changelog = {"schemaVersion": 1, "version": manifest["version"], "buildNumber": manifest["buildNumber"],
+                 **({'displayBuild': manifest['displayBuild']} if manifest.get('displayBuild') else {}),
                  "highlights": [], "breaking": [], "requiredActions": [], "evidence": {}, "testflightNotes": []}
     if format_version != 1:
         changelog["notesFormatVersion"] = format_version

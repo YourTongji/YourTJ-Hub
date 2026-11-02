@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-SCHEMA = 3
+SCHEMA = 4
 NOTES_FORMAT_VERSION = 2
 REPOSITORY = "YourTongji/YourTJ-Hub"
 FILES = {"web": "web.zh-CN.md", "android": "android.zh-CN.md",
@@ -95,13 +95,31 @@ def validate_candidate(manifest, folder, draft=False):
     require(isinstance(manifest, dict), 'Manifest must be an object')
     required = {"schemaVersion", "candidateId", "sourceSha", "product", "version", "tag", "buildNumber",
                 "channels", "operation", "existingRelease", "baselines", "notes", "serverRequirement", "requiredDisclosures"}
-    if manifest.get('schemaVersion') == 3:
+    if manifest.get('schemaVersion') in {3, 4}:
         required.add('rcRun')
+    if manifest.get('schemaVersion') == 4:
+        required.add('displayBuild')
+        required.add('iosBuildNumber')
     require(isinstance(manifest, dict) and set(manifest) == required, "Unexpected or missing manifest fields")
-    require(manifest["schemaVersion"] in {1, 2, 3}, "Unsupported manifest schema")
-    if manifest['schemaVersion'] == 3:
+    require(manifest["schemaVersion"] in {1, 2, 3, 4}, "Unsupported manifest schema")
+    if manifest['schemaVersion'] >= 3:
         require(manifest['rcRun'] is None or isinstance(manifest['rcRun'], str) and manifest['rcRun'].isdigit(),
                 'rcRun must be null or an explicit Actions run ID')
+    if manifest['schemaVersion'] == 4:
+        from datetime import datetime
+        value = manifest['displayBuild']
+        require(isinstance(value, str) and re.fullmatch(r'[0-9]{12}', value)
+                and int(value[-4:]) > 0, 'Invalid date/daily build ID')
+        try:
+            datetime.strptime(value[:8], '%Y%m%d')
+        except ValueError:
+            require(False, 'Invalid build ID calendar date')
+        require(manifest['operation'] == 'release', 'New releases use RC then Confirm')
+        ios_number = manifest['iosBuildNumber']
+        require((isinstance(ios_number, str) and re.fullmatch(r'[1-9][0-9]{0,17}', ios_number))
+                if any(c.startswith('ios-') for c in manifest['channels']) else ios_number is None,
+                'Invalid native iOS build number')
+        require(draft or manifest['rcRun'] is not None, 'A completed production RC is required before confirmation')
     legacy_candidate = manifest["schemaVersion"] == 1
     require(isinstance(manifest["candidateId"], str) and ID.fullmatch(manifest["candidateId"]), "Invalid candidate ID")
     require(isinstance(manifest["sourceSha"], str) and SHA.fullmatch(manifest["sourceSha"]), "Source must be a full commit SHA")
@@ -114,7 +132,7 @@ def validate_candidate(manifest, folder, draft=False):
             and set(channels) <= FILES.keys(), "Invalid channels")
     require(channels == ["web"] if product == "web" else "web" not in channels, "Channel/product mismatch")
     stem = f"{product}-{version}" + (f"-{number}" if product == "mobile" else "")
-    release_id = manifest['candidateId'] == stem or (manifest['schemaVersion'] == 3 and product == 'web'
+    release_id = manifest['candidateId'] == stem or (manifest['schemaVersion'] >= 3 and product == 'web'
                   and re.fullmatch(re.escape(stem) + r'-[1-9]\d*', manifest['candidateId']))
     require(release_id if manifest["operation"] == "release" else
             manifest["candidateId"].startswith(stem + "-store-"), "Candidate ID does not match release identity")
@@ -145,6 +163,8 @@ def validate_candidate(manifest, folder, draft=False):
         changelog_raw = changelog_path.read_bytes()
         changelog_digest = hashlib.sha256(changelog_raw).hexdigest()
         changelog = json.loads(changelog_raw)
+        if manifest['schemaVersion'] >= 4:
+            require(changelog.get('displayBuild') == manifest['displayBuild'], 'Changelog display build differs from the RC')
         validate_changelog(changelog, version, number, channels, draft=draft)
         evidence_path = Path(folder) / "evidence.json"
         require(evidence_path.is_file() and not evidence_path.is_symlink(), "Missing mobile evidence.json")
@@ -224,8 +244,10 @@ def notes_format_version(changelog):
 
 def validate_changelog(value, version, build_number, channels, draft=False):
     required = {"schemaVersion", "version", "buildNumber", "highlights", "breaking", "requiredActions", "evidence", "testflightNotes"}
-    require(isinstance(value, dict) and required <= set(value) <= required | {"notesFormatVersion"},
+    require(isinstance(value, dict) and required <= set(value) <= required | {"notesFormatVersion", 'displayBuild'},
             "Invalid structured changelog fields")
+    require('displayBuild' not in value or isinstance(value['displayBuild'], str)
+            and re.fullmatch(r'[0-9]{12}', value['displayBuild']), 'Invalid changelog display build')
     notes_format_version(value)
     require(value["schemaVersion"] == 1 and value["version"] == version and value["buildNumber"] == build_number,
             "Structured changelog identity differs from release candidate")
@@ -311,7 +333,7 @@ def render_changelog(changelog, platform):
     return "\n".join(_note_line(e)[0] for _, rows in sections for e in rows)
 
 
-def validate_approval(pr, reviews, paths, candidate_id, maintainers, require_merged=True):
+def validate_request_paths(pr, paths, candidate_id, require_merged=True):
     require(ID.fullmatch(candidate_id), "Invalid candidate ID")
     require(pr.get("base", {}).get("ref") == "main", "Release PR must target main")
     require(pr.get("head", {}).get("ref") == f"codex/release/{candidate_id}", "Unexpected release PR branch")
@@ -320,6 +342,11 @@ def validate_approval(pr, reviews, paths, candidate_id, maintainers, require_mer
     allowed = {"manifest.json", "evidence.json", "operators.zh-CN.md", CHANGELOG, *FILES.values()}
     require(paths and all(p.startswith(prefix) and p[len(prefix):] in allowed for p in paths),
             "Release PR may change only this candidate's release data")
+    return {"approvedHead": pr["head"]["sha"], "mergeSha": pr.get("merge_commit_sha")}
+
+
+def validate_approval(pr, reviews, paths, candidate_id, maintainers, require_merged=True):
+    identity = validate_request_paths(pr, paths, candidate_id, require_merged)
     latest = {}
     for review in sorted(reviews, key=lambda r: r["id"]):
         if review["state"] != "COMMENTED":
@@ -329,5 +356,5 @@ def validate_approval(pr, reviews, paths, candidate_id, maintainers, require_mer
     valid = [r for login, r in latest.items() if login in maintainers and r["user"]["type"] == "User"
              and not login.endswith("[bot]") and r["state"] == "APPROVED" and r["commit_id"] == pr["head"]["sha"]]
     require(valid, "Final PR head needs an eligible human's current APPROVED review")
-    return {"approvedHead": pr["head"]["sha"], "mergeSha": pr.get("merge_commit_sha"),
+    return identity | {
             "reviewIds": [r["id"] for r in valid], "reviewers": [r["user"]["login"] for r in valid]}

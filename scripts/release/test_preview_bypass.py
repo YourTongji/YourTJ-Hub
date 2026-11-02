@@ -67,8 +67,8 @@ class PreviewBypassTests(unittest.TestCase):
     def test_cli_passes_explicit_reason_and_rejects_production(self):
         args = ['prerelease', '--source', SHA, '--issue', '1240',
                 '--source-review-bypass-reason', 'Authorized emergency preview']
-        request = execute(parser().parse_args(args), self.remote)
-        self.assertEqual(request['inputs']['source_review_bypass_reason'], 'Authorized emergency preview')
+        with self.assertRaisesRegex(ReleaseError, 'follow dev automatically'):
+            execute(parser().parse_args(args), self.remote)
         self.remote.dispatch.assert_not_called()
         with self.assertRaises(SystemExit):
             execute(parser().parse_args(args + ['--cycle', '42', '--purpose', 'production']), self.remote)

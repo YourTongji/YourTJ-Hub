@@ -8,8 +8,9 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
-from build_environment import dart_defines
+from build_environment import dart_defines, ios_build_number
 from publish_ios import asc, resource, find_build, wait_for_build, APP_ID, GROUP_ID
 
 
@@ -67,7 +68,7 @@ def main():
     elif os.environ.get('MOBILE_PREVIEW') != 'true':
         raise ValueError('This publisher accepts previews only')
     group = preview_group()
-    version, number = os.environ['MOBILE_VERSION'], os.environ['MOBILE_BUILD_NUMBER']
+    version, number = os.environ['MOBILE_VERSION'], ios_build_number()
     result_path = Path(os.environ.get('RELEASE_RESULT_PATH', '.preview-ios.json'))
     def record(stage, **data):
         result_path.write_text(json.dumps({'stage': stage, 'version': version, 'buildNumber': number,
@@ -100,6 +101,10 @@ def main():
     if rc:
         notes = (f"Production RC {version} ({number}). Source {os.environ['SOURCE_SHA']}. "
                  f"Build record: https://github.com/YourTongji/YourTJ-Hub/actions/runs/{os.environ['GITHUB_RUN_ID']}")
+    elif os.environ.get('DEV_AUTOMATIC') == 'true':
+        notes = (f"Dev build {os.environ['MOBILE_BUILD_ID']}. Source {os.environ['SOURCE_SHA']}. "
+                 "Development server: dev.yourtj.de. Latest web and mobile builds: "
+                 "https://github.com/YourTongji/YourTJ-Hub/releases/tag/dev-latest")
     else:
         notes = (f"{os.environ['MOBILE_ENVIRONMENT'].upper()} testing only. Source {os.environ['SOURCE_SHA']}. "
                  "Complete the release issue's device checklist. Current candidate and return-to-production instructions: "
@@ -109,11 +114,15 @@ def main():
     asc('builds', 'test-notes', 'update' if existing else 'create', '--build-id', build,
         '--locale', 'en-US', '--whats-new', notes)
     assign_internal_group(build, group)
-    details = resource(asc('builds', 'build-beta-detail', 'view', '--build-id', build))
-    stage = details.get('attributes', {}).get('internalBuildState')
-    record('assigned', buildId=build, appleState=stage, group=group)
-    if stage != 'IN_BETA_TESTING':
-        raise ValueError(f'TestFlight assigned but not yet installable ({stage}); reconcile and retry')
+    for attempt in range(13):
+        details = resource(asc('builds', 'build-beta-detail', 'view', '--build-id', build))
+        stage = details.get('attributes', {}).get('internalBuildState')
+        record('assigned', buildId=build, appleState=stage, group=group)
+        if stage == 'IN_BETA_TESTING':
+            break
+        if stage != 'READY_FOR_BETA_TESTING' or attempt == 12:
+            raise ValueError(f'TestFlight assigned but not yet installable ({stage}); reconcile and retry')
+        time.sleep(5)
     record('available_for_testing', buildId=build, appleState=stage, group=group)
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
         out.write(f"TestFlight internal QA: {version} ({number}), build `{build}`, {stage}.\n\n"
