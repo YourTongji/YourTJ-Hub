@@ -79,7 +79,9 @@ def main():
     number = os.environ["MOBILE_BUILD_NUMBER"]
     tag = os.environ["RELEASE_TAG"]
     preview = os.environ.get('MOBILE_PREVIEW') == 'true'
-    expected_tag = bool(re.fullmatch(r'preview-\d+-\d+-\d+-(dev|production)', tag)) if preview else tag == f'mobile-v{version}'
+    rc = os.environ.get('RC_BUILD') == 'true'
+    expected_tag = (tag == f"rc-{os.environ.get('CANDIDATE')}-{os.environ.get('GITHUB_RUN_ID')}") if rc else (
+        bool(re.fullmatch(r'preview-\d+-\d+-\d+-(dev|production)', tag)) if preview else tag == f'mobile-v{version}')
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[1-9]\d*", number) or not expected_tag:
         raise ValueError("Invalid mobile release identity")
     if not preview and os.environ.get('MOBILE_ENVIRONMENT', 'production') != 'production':
@@ -123,14 +125,14 @@ def main():
         notes = output / "notes.md"
         notes.write_text(approved_notes + "\n", encoding='utf-8')
         gh("release", "create", tag, "--repo", REPOSITORY, "--verify-tag", "--draft", "--latest=false",
-           *(['--prerelease'] if preview else []),
+           *(['--prerelease'] if preview or rc else []),
            "--title", f"YourTJ {'PREVIEW ' if preview else ''}{version}", "--notes-file", str(notes))
         release = find_release(tag)
         if release is None:
             raise RuntimeError("Created release is not discoverable yet; retry to resume its draft")
     if (release.get("body") or "").strip() != approved_notes:
         raise ValueError("Existing release notes differ from reviewed Android notes; do not overwrite a published identity")
-    if bool(release.get('prerelease')) != preview:
+    if bool(release.get('prerelease')) != (preview or rc):
         raise ValueError('Release channel differs from the intended distribution')
     endpoint = f"repos/{REPOSITORY}/releases/{release['id']}"
     existing = {asset["name"]: asset for asset in release["assets"]}

@@ -54,6 +54,10 @@ def main():
     parser.add_argument("--replace-structured", action="store_true")
     args = parser.parse_args()
     github = GitHub()
+    if os.environ.get('RC_BUILD') == 'true':
+        from rc import handle
+        handle(args.command, github, args.candidate, args.folder)
+        return
     if args.command == "publish-catalog":
         catalog = publish_catalog(github)
         print(json.dumps({"schemaVersion": catalog["schemaVersion"], "releaseCount": len(catalog["releases"])}))
@@ -62,7 +66,7 @@ def main():
         require(args.candidate, "Structured rendering requires --candidate")
         folder = Path(candidate_path(args.candidate))
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
-        require(manifest.get("candidateId") == args.candidate and manifest.get("schemaVersion") == 2
+        require(manifest.get("candidateId") == args.candidate and manifest.get("schemaVersion") in {2, 3}
                 and manifest.get("product") == "mobile",
                 "Structured rendering applies to schema-2 mobile candidates")
         render_structured(manifest, folder, replace=args.replace_structured)
@@ -72,8 +76,9 @@ def main():
         existing_id = os.environ.get("EXISTING_RELEASE")
         if existing_id:
             original, original_binding = authorize(existing_id, github, args.folder / "original")
-            cycle = production_gate(github, original['sourceSha'], ['ios-app-store'], manifest=original,
-                                    binding=original_binding, promotion=True)
+            cycle = None if original['schemaVersion'] == 3 else production_gate(
+                github, original['sourceSha'], ['ios-app-store'], manifest=original,
+                binding=original_binding, promotion=True)
             receipt = latest_receipt(github, existing_id, "ios-testflight")
             require(receipt and receipt["status"] and receipt["status"]["state"] == "success", "Promotion requires successful original TestFlight receipt")
             build_id = receipt["deployment"]["payload"]["details"]["buildId"]
@@ -84,16 +89,14 @@ def main():
                          "operation": "promote-ios", "existingRelease": {"candidateId": existing_id, "buildId": build_id},
                          "channels": ["ios-app-store"], "notes": {"ios-app-store": FILES["ios-app-store"]},
                          "baselines": baselines(github, ["ios-app-store"], reservations(), apple), "requiredDisclosures": []}
+            if manifest['schemaVersion'] == 3:
+                manifest['rcRun'] = None
         else:
             source = os.environ.get('SOURCE', 'main')
-            if source in {'', 'main'}:
-                active = current(load_cycle(github))
-                require(active, 'Select an approved release cycle; main is not a moving release source')
-                source = active['source']
-            from model import channels_for
-            cycle = production_gate(github, source, channels_for(os.environ['SCOPE'], os.environ.get('IOS_DESTINATION', 'testflight')))
+            cycle = None
             manifest = plan(os.environ["SCOPE"], os.environ["BUMP"], source,
-                            os.environ.get("IOS_DESTINATION", "testflight"), github, apple)
+                            os.environ.get("IOS_DESTINATION", "testflight"), github, apple,
+                            version=os.environ.get('VERSION') or None)
             if manifest['product'] == 'mobile':
                 reserve_number(github, source, manifest['version'], manifest['buildNumber'], 'production')
         request = prepare(manifest, github, args.folder / "candidate")
@@ -180,9 +183,21 @@ def main():
     manifest, binding = authorize(args.candidate, github, args.folder)
     # Receipts must still record failures after a cancellation/timeout. Every
     # external publication path independently rechecks the cycle before acting.
-    if args.command != 'receipt':
+    cycle = None
+    if manifest['schemaVersion'] == 3:
+        from build_identity import verify_production_number
+        verify_production_number(github, manifest)
+        if args.command != 'receipt' and manifest['operation'] == 'release' and not manifest['rcRun']:
+            require(not github.pages('git/matching-refs/tags/rc-' + manifest['candidateId'] + '-'),
+                    'An RC already owns this build identity; select its successful run before formal publication')
+    elif args.command != 'receipt':
         cycle = production_gate(github, manifest['sourceSha'], manifest['channels'], manifest=manifest, binding=binding)
     if args.command == "authorize":
+        if manifest.get('rcRun'):
+            from rc import read_record, reusable
+            rc_record = read_record(github, manifest['rcRun'], manifest)
+            for channel in manifest['channels']:
+                reusable(rc_record, channel)
         if os.environ.get('INITIAL_PUBLICATION') == 'true':
             for channel in manifest['channels']:
                 require(latest_receipt(github, args.candidate, channel) is None,
@@ -249,7 +264,14 @@ def main():
             require(not recover or manifest["operation"] == "promote-ios", "No original build receipt for recovery")
             build_run = os.environ["GITHUB_RUN_ID"]
         prior_details = prior["deployment"]["payload"]["details"] if prior else {}
-        build_required = not recover
+        build_required = not recover and manifest['operation'] != 'promote-ios'
+        reuse_rc = manifest.get('rcRun') and manifest['operation'] == 'release'
+        if reuse_rc:
+            from rc import read_record, reusable
+            selected = reusable(read_record(github, manifest['rcRun'], manifest), channel)
+            prior_details = selected | prior_details
+            build_run = selected['buildRunId']
+            build_required = False
         if channel == 'web' and recover and not prior_details.get('image'):
             build_required = web_recovery_needs_build(github, manifest, prior_details)
             if build_required:
@@ -259,10 +281,11 @@ def main():
             "cycleId": cycle['id'] if cycle else None})
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:
             out.write('build_required=' + str(build_required).lower() + '\n')
+            out.write('reuse_rc=' + str(bool(reuse_rc)).lower() + '\n')
             out.write("binary=" + str(prior_details.get("binarySha256", "")) + "\n")
             out.write("image=" + str(prior_details.get("image", "")) + "\n")
             out.write(f"build_run_id={build_run}\n")
-            out.write(f"existing_build_id={manifest['existingRelease']['buildId'] if manifest['existingRelease'] else ''}\n")
+            out.write(f"existing_build_id={manifest['existingRelease']['buildId'] if manifest['existingRelease'] else prior_details.get('buildId', '')}\n")
     elif args.command == "receipt":
         channel = os.environ["CHANNEL"]
         details_file = Path(os.environ.get("RECEIPT_DETAILS", ".release-result.json"))

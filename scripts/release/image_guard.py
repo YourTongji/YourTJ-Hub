@@ -7,7 +7,7 @@ from model import require
 
 
 def require_absent(reference):
-    require(re.fullmatch(r'ghcr\.io/yourtongji/yourtj-hub:main-v[0-9]+\.[0-9]+\.[0-9]+', reference),
+    require(re.fullmatch(r'ghcr\.io/yourtongji/yourtj-hub:main-(?:v[0-9]+\.[0-9]+\.[0-9]+|rc-web-[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+){1,2})', reference),
             'Expected a versioned production image reference')
     result = subprocess.run(['docker', 'manifest', 'inspect', reference], capture_output=True, text=True)
     require(result.returncode != 0,

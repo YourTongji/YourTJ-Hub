@@ -25,6 +25,11 @@ runtime stay in Actions. No Codex-specific tool is required.
   Use [yourtj-release-notes](../yourtj-release-notes/SKILL.md) for edits. Validate the final files.
   One eligible human must APPROVE the final head; an agent's approval, label or manifest flag does
   not satisfy this requirement. Any source, target, evidence or note edit needs fresh review.
+- New schema-3 requests do not require a release cycle or production rehearsal. Prepare freezes
+  main once; optional `rc --candidate ID --apply` builds final production artifacts from that request.
+  The RC run attaches its `rcRun` to the request; review/approve the resulting head normally.
+  `rcRun=null` means direct build; a selected RC means original-artifact promotion, never another build.
+  Source CI remains independent and is not rerun by release workflows. Preserve legacy requests.
 - After an authorized merge, inspect channel receipts with `status --candidate <id> --json`.
   If publication never started and no channel has an execution receipt, `publish --candidate <id>
   --apply` resumes initial publication from the current main controller with the same approved source

@@ -73,63 +73,19 @@ jobs:
           REQUESTED_CHANNEL: ${{ inputs.channel }}
           INITIAL_PUBLICATION: ${{ github.event_name == 'workflow_dispatch' && !inputs.recover }}
         run: python3 scripts/release/workflow.py authorize
-  backend:
-    needs: authorize
-    if: contains(fromJSON(needs.authorize.outputs.channels), 'web') && !inputs.recover
-    uses: ./.github/workflows/ci-backend.yml
-    with:
-      source: ${{ needs.authorize.outputs.sha }}
-      postgres: true
-  frontend:
-    needs: authorize
-    if: contains(fromJSON(needs.authorize.outputs.channels), 'web') && !inputs.recover
-    uses: ./.github/workflows/ci-frontend.yml
-    with:
-      source: ${{ needs.authorize.outputs.sha }}
-  contract:
-    needs: authorize
-    if: contains(fromJSON(needs.authorize.outputs.channels), 'web') && !inputs.recover
-    uses: ./.github/workflows/ci-contract.yml
-    with:
-      source: ${{ needs.authorize.outputs.sha }}
-  govulncheck:
-    needs: authorize
-    if: contains(fromJSON(needs.authorize.outputs.channels), 'web')
-    uses: ./.github/workflows/ci-govulncheck.yml
-    with:
-      source: ${{ needs.authorize.outputs.sha }}
-  mobile:
-    needs: authorize
-    if: '!contains(fromJSON(needs.authorize.outputs.channels), ''web'') && !inputs.recover && needs.authorize.outputs.promotion != ''true'''
-    uses: ./.github/workflows/ci-mobile.yml
-    with:
-      source: ${{ needs.authorize.outputs.sha }}
   reserve:
-    needs: [authorize, backend, frontend, contract, govulncheck, mobile]
+    needs: authorize
     if: always() && needs.authorize.result == 'success'
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-candidate-${{ needs.authorize.outputs.candidate }}
+      cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify every selected source check
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-          CHANNELS: ${{ needs.authorize.outputs.channels }}
-          RECOVER: ${{ inputs.recover }}
-          PROMOTION: ${{ needs.authorize.outputs.promotion }}
-        run: |
-          python3 - <<'PY'
-          import os,json
-          results=json.loads(os.environ['RESULTS'])
-          web='web' in json.loads(os.environ['CHANNELS'])
-          expected=['govulncheck'] if web else []
-          if os.environ['RECOVER'] != 'true' and os.environ['PROMOTION'] != 'true':
-              expected += ['backend','frontend','contract'] if web else ['mobile']
-          for name in expected:
-              if results.get(name,{}).get('result') != 'success': raise SystemExit('Required source validation failed: '+name)
-          PY
       - name: Reserve approved immutable tag
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
