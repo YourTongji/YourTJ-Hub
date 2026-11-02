@@ -29,7 +29,9 @@ ASCII tokens match case-insensitively, including when written next to Chinese, a
 inside a longer Latin word. A structured changelog entry fails when its title or summary contains
 one of these tokens for a platform listed in `platforms`. An entry with no platform token may
 still list both `android` and `ios`. Already merged note and changelog bytes that predate the
-gate stay loadable so catalog reload and recovery keep working; editing them is checked again.
+gate stay loadable only for their named historical candidate/channel/file and exact digest, so
+catalog reload and recovery keep working. Editing them, or copying the whole text into a new
+candidate, is checked again.
 Do not rewrite those files to satisfy the gate. That changes the approved content digest.
 Account changes, automatic analytics and other required disclosures cannot be removed for brevity.
 Do not copy the static `apps/mobile/store/zh-Hans/metadata.json` What's New into another channel.

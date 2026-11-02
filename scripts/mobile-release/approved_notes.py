@@ -25,4 +25,5 @@ def read_notes(variable):
     digests = json.loads(os.environ.get('RELEASE_NOTES_DIGESTS', '{}'))
     if not isinstance(digests, dict) or digests.get(FILES[channel]) != hashlib.sha256(raw).hexdigest():
         raise ValueError(f'Reviewed release notes digest missing or changed: {variable}')
-    return validate_note_text(raw.decode('utf-8').strip(), FILES[channel], channel)
+    return validate_note_text(raw.decode('utf-8').strip(), FILES[channel], channel,
+                              candidate_id=os.environ.get('CANDIDATE'))

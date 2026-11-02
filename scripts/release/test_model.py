@@ -281,7 +281,14 @@ class StoreChannelIsolationTests(unittest.TestCase):
             with self.subTest(candidate_id=candidate_id):
                 self.assertTrue(validate_candidate(manifest, folder))
         ios = (root / "mobile-1.0.17-33" / "ios.zh-Hans.txt").read_text(encoding="utf-8").strip()
-        validate_note_text(ios, "ios.zh-Hans.txt", "ios-app-store")
+        fresh = candidate() | {'channels': ['ios-app-store'], 'notes': {'ios-app-store': 'ios.zh-Hans.txt'},
+                               'baselines': {'ios-app-store': {'tag': None, 'sourceSha': None}}}
+        (self.path / 'ios.zh-Hans.txt').write_text(ios)
+        with self.assertRaisesRegex(ReleaseError, 'mentions Android'):
+            validate_candidate(fresh, self.path)
+        validate_note_text(ios, "ios.zh-Hans.txt", "ios-app-store", candidate_id='mobile-1.0.17-33')
+        with self.assertRaisesRegex(ReleaseError, 'mentions Android'):
+            validate_note_text(ios, "ios.zh-Hans.txt", "ios-app-store", candidate_id='mobile-1.0.18-40')
         with self.assertRaisesRegex(ReleaseError, r"ios-app-store note ios\.zh-Hans\.txt mentions Android"):
             validate_note_text(ios + "。", "ios.zh-Hans.txt", "ios-app-store")
 
