@@ -19,6 +19,10 @@ permissions:
   packages: write
   pull-requests: read
   checks: read
+concurrency:
+  group: ${{ (inputs.scope == 'web' || startsWith(inputs.candidate, 'web-')) && 'release-web-packaging' || 'release-mobile-packaging' }}
+  cancel-in-progress: false
+  queue: max
 jobs:
   prepare:
     if: github.ref == 'refs/heads/main' && inputs.candidate == ''

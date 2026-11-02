@@ -37,6 +37,10 @@ blocked by mobile signing. One mobile bundle can run; only the newest pending de
 Active signing/upload work finishes safely. Shared native platform queues and instance locks retain
 serialization with production work; cancelling a queued dev request never interrupts a production upload.
 
+The shared packaging lock encloses allocation and upload for both dev and RC, preserving Apple build
+number order. Existing-build formal promotion has its own metadata queue and does not wait for a new
+development compile. Web remains independent of both native queues.
+
 The short shared allocator reserves one date ID plus a global mobile native counter. Android/iOS use
 the same immutable identity; [numbering rules](releases.md#build-identities) own the exact format.
 Retrying the original run restores original artifacts or the exact Apple build. Missing originals after

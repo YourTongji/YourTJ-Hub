@@ -30,7 +30,7 @@ permissions:
   checks: read
   deployments: write
 concurrency:
-  group: release-apple-6809457637
+  group: ${{ inputs.promotion && 'release-apple-metadata-6809457637' || 'release-apple-6809457637' }}
   cancel-in-progress: false
   queue: max
 jobs:
