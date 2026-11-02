@@ -382,7 +382,7 @@ class ReadingWindow extends StatelessWidget {
             : 0.0;
         return ReadingWindowScope(
           hasRail: hasRail,
-          edgeNavigation: edgeFrame != null,
+          edgeNavigation: edgeFrame != null && !keyboardOpen,
           edgeContentBottomInset: edgeFrame == null || keyboardOpen
               ? 0
               : constraints.maxHeight -
