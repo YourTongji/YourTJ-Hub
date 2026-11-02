@@ -37,6 +37,9 @@
     "ios-testflight": "testflight.en-US.txt",
     "ios-app-store": "ios.zh-Hans.txt"
   },
-  "serverRequirement": null,
+  "serverRequirement": {
+    "sourceSha": "3b5288572742bef651da5a7f05afe305349a8516",
+    "reason": "Requires the deployed Web 0.0.53 API behavior for sticker packs, recipient message permissions and registration recovery."
+  },
   "requiredDisclosures": []
 }
