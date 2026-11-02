@@ -33,7 +33,11 @@ class CycleGitTests(unittest.TestCase):
                   'base': {'ref': 'main'}, 'user': {'login': 'author'}}
             review = {'user': {'login': 'reviewer'}, 'state': 'APPROVED', 'commit_id': source}
             remote = Mock(repository=REPOSITORY)
-            remote.pages.side_effect = lambda endpoint: [pr] if endpoint.startswith('commits/') else [review]
+            def pages(endpoint):
+                if endpoint.startswith('commits/'):
+                    return [{**pr, 'base': {'ref': 'dev'}}]
+                return [pr] if endpoint == 'pulls?state=closed&base=main' else [review]
+            remote.pages.side_effect = pages
             remote.maintainers.return_value = {'reviewer'}
             with patch('cycle_control.git', side_effect=git):
                 reviewed_main_pr(remote, source)
