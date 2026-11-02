@@ -25,6 +25,17 @@ def identity():
 
 
 class RCTests(unittest.TestCase):
+    def test_prepare_reserves_resolved_main_sha_instead_of_symbolic_main(self):
+        manifest = candidate() | {'schemaVersion': 3, 'rcRun': None}
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.dict(os.environ, SCOPE='mobile', BUMP='patch', SOURCE='main', EXISTING_RELEASE='',
+                        GITHUB_OUTPUT=str(Path(temp) / 'output')), \
+             patch('sys.argv', ['workflow.py', 'prepare', '--folder', temp]), patch('workflow.GitHub'), \
+             patch('workflow.plan', return_value=manifest), patch('workflow.prepare', return_value={}), \
+             patch('workflow.write_json'), patch('workflow.reserve_number') as reserve:
+            workflow.main()
+        self.assertEqual(reserve.call_args.args[1], manifest['sourceSha'])
+
     def test_resolve_same_selected_run_can_resume_but_different_run_cannot(self):
         remote = Mock(repository=REPOSITORY)
         pr = {'number': 1, 'state': 'open', 'head': {'repo': {'full_name': REPOSITORY},
