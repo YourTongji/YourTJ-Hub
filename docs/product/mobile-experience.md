@@ -1734,11 +1734,17 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 ## Distribution and updates
 
+- `Current`: production RCs use final production configuration and version/build numbers, with normal
+  app identity and update behavior. They are separate from dev preview builds. Formal publication
+  reuses the selected RC's original APKs or Apple build; direct publication without RC builds once.
+  The [release runbook](../operations/releases.md#optional-production-rc) owns the operator flow.
+
 - `Current`: controlled preview builds display `DEV <short SHA>` or `PROD TEST <short SHA>` and
   suppress stable update prompts. Dev previews connect to `dev.yourtj.de`, with separate session,
   preference and local database storage. Android dev previews install beside the stable app as
-  `YourTJ Dev` (`tj.yourtj.forum_app.dev`, badged DEV icon); production rehearsals and iOS previews
-  use the existing app IDs and replace installed apps.
+  `YourTJ Dev` (`tj.yourtj.forum_app.dev`, badged DEV icon); iOS previews use the existing app ID
+  and replace installed apps. `PROD TEST` identifies retained legacy production previews;
+  new production RCs use normal production presentation as described above.
   Preview platforms can be selected per run. Installed previews warn when their source is no longer
   the active candidate, their platform is no longer selected or the freeze expires; offline/missing
   status is shown as unverified. A status link identifies the current candidate and normal production

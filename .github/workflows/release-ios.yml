@@ -19,6 +19,7 @@ on:
       channels: {type: string, required: true}
       channel: {type: string, default: ''}
       recover: {type: boolean, default: false}
+      rc_build: {type: boolean, default: false}
       promotion: {type: boolean, default: false}
 permissions:
   contents: read
@@ -100,7 +101,7 @@ jobs:
         run: rm -rf .asc "$RUNNER_TEMP/release-asc" .ios-profile-refresh
   publish:
     if: github.ref == 'refs/heads/main' && inputs.operation == ''
-    runs-on: xcode-27
+    runs-on: ${{ inputs.promotion && 'macos-26' || 'xcode-27' }}
     environment: mobile-release
     permissions:
       contents: read
@@ -110,6 +111,7 @@ jobs:
       deployments: write
     timeout-minutes: 90
     env:
+      RC_BUILD: ${{ inputs.rc_build && 'true' || 'false' }}
       CANDIDATE: ${{ inputs.candidate }}
       RELEASE_SOURCE_ROOT: ${{ github.workspace }}/.source
       SOURCE_SHA: ${{ inputs.source }}
@@ -129,8 +131,6 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ./.github/actions/setup-ios-toolchain
-        if: ${{ !inputs.recover && !inputs.promotion }}
       - name: Recheck human approval and frozen notes
         id: identity
         env:
@@ -164,6 +164,7 @@ jobs:
           key-id: ${{ secrets.ASC_KEY_ID }}
           issuer-id: ${{ secrets.ASC_ISSUER_ID }}
       - name: Recheck actual Apple baselines before starting publication
+        if: ${{ !inputs.rc_build }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -182,7 +183,7 @@ jobs:
           PY
       - name: Reconcile Apple before recovering an upload
         id: apple
-        if: inputs.recover || inputs.promotion
+        if: steps.start.outputs.build_required != 'true' && !inputs.rc_build
         run: |
           python3 - <<'PY'
           import os,sys
@@ -192,18 +193,20 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:
               out.write('needs_ipa='+str(build is None).lower()+'\n')
           PY
+      - uses: ./.github/actions/setup-ios-toolchain
+        if: steps.start.outputs.build_required == 'true'
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
-        if: ${{ !inputs.recover && !inputs.promotion }}
+        if: steps.start.outputs.build_required == 'true'
         with:
           flutter-version: "3.44.9"
           channel: stable
           cache: true
       - name: Bootstrap
-        if: ${{ !inputs.recover && !inputs.promotion }}
+        if: steps.start.outputs.build_required == 'true'
         working-directory: .source/apps/mobile/packages/forum_app
         run: flutter pub get
       - name: Install private iOS signing inputs
-        if: ${{ !inputs.recover && !inputs.promotion }}
+        if: steps.start.outputs.build_required == 'true'
         env:
           IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
           IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
@@ -222,11 +225,8 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as output:
               output.write(f'IOS_P12_PATH={root / "distribution.p12"}\nIOS_PROFILE_PATH={root / "profile.mobileprovision"}\nIOS_WIDGET_PROFILE_PATH={root / "widget.mobileprovision"}\nASC_PRIVATE_KEY_PATH={root / "AuthKey.p8"}\n')
           PY
-      - name: Validate release tools
-        if: ${{ !inputs.recover && !inputs.promotion }}
-        run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
       - name: Build App Store IPA
-        if: ${{ !inputs.recover && !inputs.promotion }}
+        if: steps.start.outputs.build_required == 'true'
         env:
           IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
         run: |
@@ -241,7 +241,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
       - name: Preserve signed IPA and symbols for recovery
-        if: ${{ !inputs.recover && !inputs.promotion }}
+        if: steps.start.outputs.build_required == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ios-${{ inputs.version }}-${{ inputs.number }}
@@ -253,7 +253,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
       - name: Restore original IPA only when Apple has no build
-        if: inputs.recover && !inputs.promotion && steps.apple.outputs.needs_ipa == 'true'
+        if: steps.start.outputs.build_required != 'true' && !inputs.promotion && (inputs.rc_build || steps.apple.outputs.needs_ipa == 'true')
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: ios-${{ inputs.version }}-${{ inputs.number }}
@@ -261,6 +261,7 @@ jobs:
           github-token: ${{ github.token }}
           path: .source/apps/mobile/build/release
       - name: Upload and submit TestFlight and App Store
+        if: ${{ !inputs.rc_build }}
         id: publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -272,11 +273,20 @@ jobs:
         run: |
           python3 scripts/release/workflow.py verify-publication
           python3 scripts/mobile-release/publish_ios.py
+      - name: Distribute RC only to the internal group
+        id: rc_publish
+        if: inputs.rc_build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE_TESTFLIGHT_GROUP_ID: ${{ vars.PRERELEASE_TESTFLIGHT_GROUP_ID }}
+          IOS_IPA_PATH: .source/apps/mobile/build/release/ios/forum_app.ipa
+          IOS_EXPECTED_BUILD_ID: ${{ steps.start.outputs.existing_build_id }}
+        run: python3 scripts/mobile-release/publish_preview_ios.py
       - name: Record each Apple result (submitted does not mean live)
         if: always() && steps.start.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-          RESULT: ${{ steps.publish.outcome }}
+          RESULT: ${{ inputs.rc_build && steps.rc_publish.outcome || steps.publish.outcome }}
         run: |
           python3 - <<'PY'
           import json,os,subprocess
@@ -284,7 +294,10 @@ jobs:
           file=Path('.release-result.json')
           details=json.loads(file.read_text()) if file.exists() else {}
           for channel in json.loads(os.environ['APPLE_CHANNELS']):
-              state='success' if channel in details else 'failure'
+              if os.environ.get('RC_BUILD') == 'true':
+                  state='success' if os.environ['RESULT']=='success' and details.get('stage')=='available_for_testing' else 'failure'
+              else:
+                  state='success' if channel in details else 'failure'
               subprocess.run(['python3','scripts/release/workflow.py','receipt'],env={**os.environ,'CHANNEL':channel,'RELEASE_STATE':state},check=True)
           PY
       - name: Remove Apple and signing authentication
@@ -292,8 +305,16 @@ jobs:
         run: |
           rm -rf .asc "$RUNNER_TEMP/release-asc" "$RUNNER_TEMP/yourtj-ios-secrets"
           rm -f .source/apps/mobile/packages/forum_app/ios/Flutter/ReleaseSigning.xcconfig
+      - name: Preserve RC platform record
+        if: always() && inputs.rc_build && steps.start.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: rc-result-ios-${{ github.run_attempt }}
+          path: rc-results/*.json
+          if-no-files-found: error
+          retention-days: 90
   catalog:
-    if: ${{ always() && needs.publish.result == 'success' }}
+    if: ${{ always() && needs.publish.result == 'success' && !inputs.rc_build }}
     needs: publish
     runs-on: ubuntu-latest
     permissions:

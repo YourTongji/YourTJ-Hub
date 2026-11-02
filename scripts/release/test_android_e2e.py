@@ -13,6 +13,12 @@ import publish_android as publisher
 
 class AndroidPublishTest(unittest.TestCase):
     def test_partial_upload_resumes_original_apks_and_rejects_replacement(self):
+        self.exercise_publisher(False)
+
+    def test_rc_keeps_production_apk_bytes_in_an_isolated_prerelease(self):
+        self.exercise_publisher(True)
+
+    def exercise_publisher(self, rc):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             sdk = root / 'sdk/build-tools/37.0.0'; sdk.mkdir(parents=True)
@@ -28,7 +34,8 @@ class AndroidPublishTest(unittest.TestCase):
                 if args[:2] == ('release','view'):
                     return json.dumps({'databaseId': 1}) if release else None
                 if args[:2] == ('release','create'):
-                    release = {'id': 1, 'draft': True, 'body': Path(args[args.index('--notes-file')+1]).read_text(encoding='utf-8'), 'assets': []}
+                    release = {'id': 1, 'draft': True, 'prerelease': '--prerelease' in args,
+                               'body': Path(args[args.index('--notes-file')+1]).read_text(encoding='utf-8'), 'assets': []}
                     writes.append('create'); return ''
                 if args[0] == 'api': return json.dumps(release)
                 if args[:2] == ('release','upload'):
@@ -48,13 +55,17 @@ class AndroidPublishTest(unittest.TestCase):
                 code = publisher.android_version_code('16', abi)
                 return f"package: name='tj.yourtj.forum_app' versionCode='{code}' versionName='1.0.15'\nnative-code: '{abi}'"
             env = {'MOBILE_VERSION':'1.0.15','MOBILE_BUILD_NUMBER':'16','RELEASE_TAG':'mobile-v1.0.15',
+                   'RC_BUILD': str(rc).lower(), 'MOBILE_PREVIEW': 'false', 'MOBILE_ENVIRONMENT': 'production',
                    'ANDROID_HOME':str(root/'sdk'),'ANDROID_NOTES_PATH':str(note),
                    'RELEASE_NOTES_DIGESTS':json.dumps({'android.zh-CN.md': hashlib.sha256(note.read_bytes()).hexdigest()})}
+            if rc:
+                env.update(CANDIDATE='mobile-1.0.15-16', GITHUB_RUN_ID='100', RELEASE_TAG='rc-mobile-1.0.15-16-100')
             with patch.object(publisher, 'ROOT', root), patch.object(publisher, 'gh', side_effect=gh), patch.object(publisher.subprocess, 'check_output', side_effect=apk_tool), patch.dict(os.environ, env), patch.object(sys, 'argv', ['publish_android.py']):
                 with self.assertRaisesRegex(RuntimeError, 'interrupted'): publisher.main()
                 self.assertTrue(release['draft'])
                 publisher.main()
                 self.assertFalse(release['draft'])
+                self.assertEqual(release['prerelease'], rc)
                 self.assertEqual(len(release['assets']), 4)
                 self.assertEqual(release['body'].strip(), note.read_text(encoding='utf-8'))
                 previous = list(writes); publisher.main(); self.assertEqual(writes, previous)

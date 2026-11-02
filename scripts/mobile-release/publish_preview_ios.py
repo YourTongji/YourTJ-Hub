@@ -60,7 +60,11 @@ def assign_internal_group(build, group):
 
 def main():
     dart_defines()
-    if os.environ.get('MOBILE_PREVIEW') != 'true':
+    rc = os.environ.get('RC_BUILD') == 'true'
+    if rc:
+        if os.environ.get('MOBILE_ENVIRONMENT') != 'production' or os.environ.get('MOBILE_PREVIEW') != 'false':
+            raise ValueError('RC requires the final production build configuration')
+    elif os.environ.get('MOBILE_PREVIEW') != 'true':
         raise ValueError('This publisher accepts previews only')
     group = preview_group()
     version, number = os.environ['MOBILE_VERSION'], os.environ['MOBILE_BUILD_NUMBER']
@@ -88,14 +92,18 @@ def main():
     if expected and build != expected:
         raise ValueError('Apple build differs from the original preview receipt')
     record('processed', buildId=build)
-    subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'release/cycle_control.py'),
+    subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / ('release/rc.py' if rc else 'release/cycle_control.py')),
                     'check-build'], check=True)
     # Recheck scope after processing; a group may have changed while waiting.
     preview_group()
     asc('builds', 'update', '--build-id', build, '--uses-non-exempt-encryption=false')
-    notes = (f"{os.environ['MOBILE_ENVIRONMENT'].upper()} testing only. Source {os.environ['SOURCE_SHA']}. "
-             "Complete the release issue's device checklist. Current candidate and return-to-production instructions: "
-             "https://github.com/YourTongji/YourTJ-Hub/releases/tag/preview-status")
+    if rc:
+        notes = (f"Production RC {version} ({number}). Source {os.environ['SOURCE_SHA']}. "
+                 f"Build record: https://github.com/YourTongji/YourTJ-Hub/actions/runs/{os.environ['GITHUB_RUN_ID']}")
+    else:
+        notes = (f"{os.environ['MOBILE_ENVIRONMENT'].upper()} testing only. Source {os.environ['SOURCE_SHA']}. "
+                 "Complete the release issue's device checklist. Current candidate and return-to-production instructions: "
+                 "https://github.com/YourTongji/YourTJ-Hub/releases/tag/preview-status")
     existing = [n for n in asc('builds', 'test-notes', 'list', '--build-id', build)['data']
                 if n.get('attributes', {}).get('locale') == 'en-US']
     asc('builds', 'test-notes', 'update' if existing else 'create', '--build-id', build,

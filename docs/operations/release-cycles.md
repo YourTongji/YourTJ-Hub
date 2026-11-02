@@ -6,7 +6,13 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-19
+> Last verified: 2026-11-02
+
+New schema-3 formal releases and production RCs use [the release runbook](releases.md) and
+[decision 0123](../decisions/0123-build-only-releases-and-production-rc.md), independently of these
+cycles. This runbook owns dev-connected prerelease cycles and compatibility recovery for existing
+schema-1/2 formal requests. New production-configuration rehearsals are replaced by final production
+RCs; retained rehearsal/QA records remain readable for legacy recovery.
 
 `Current`: the trusted-main controller binds a release owner, full source SHA, target channels,
 tracking issue, freeze deadline and QA conclusions. A changed source or repeated dev deployment
@@ -55,8 +61,8 @@ is limited to seven days. An unavailable owner can be replaced by an admin witho
 | Formal production | `https://f.yourtj.de` / `/api/oauth` | Reviewed web/mobile publishers and their approved public channels |
 
 All builds explicitly select the cycle's SHA. Rehearsal and formal builds use production configuration;
-dev IPAs cannot be promoted through the formal existing-build entry. Rehearsal is a separate test
-distribution, not a promise of identical binary bytes after rebuilding. The protocol binds source
+dev IPAs cannot be promoted through the formal existing-build entry. Retained legacy rehearsal packages are separate test
+distributions, not final RCs. The protocol binds source
 and environment; automated artifact/signature checks and formal recovery still protect published
 bytes. Operators do not calculate artifact hashes or allocate build numbers manually.
 
@@ -97,8 +103,7 @@ from the latest state. An upload failure before sealing retains the same-dispatc
 Select **main** for every release workflow. The workflows must exist on the repository default
 branch for discovery and on main for execution. Candidate scripts cannot replace the main controller.
 An eligible human must have reviewed the candidate's exact PR head before it gets signing access;
-the workflow runs backend/PostgreSQL, frontend and contract checks first, plus mobile checks and
-the selected native platform builds when mobile artifacts are selected.
+the workflow builds the selected artifacts directly, without a second source CI or native simulator test matrix.
 Normal branch review/CI remain mandatory.
 
 For an explicitly authorized emergency **dev preview**, a repository admin may supply
@@ -119,7 +124,7 @@ artifacts selected for that run.
 One formal Release request may select a subset of that scope. Its successful completion ends the
 ordinary cycle, even if other tested platforms have not been formally released. Later platforms
 start a new cycle with fresh QA; they do not keep the first cycle open.
-Use a comma-separated subset of `web,android,ios` for dev, or `android,ios` for production rehearsal.
+Use a comma-separated subset of `web,android,ios` for dev. New production builds use the independent RC entry.
 Empty defaults to all artifacts supported by that purpose. Web-only runs skip mobile identity
 allocation, signing and native builds; Android-only runs do not require the iOS build or TestFlight
 group. An initial dev preview must include `web` to establish the shared site's SHA. A later mobile-only
