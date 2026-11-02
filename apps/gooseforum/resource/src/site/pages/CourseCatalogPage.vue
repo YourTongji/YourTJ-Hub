@@ -637,6 +637,7 @@ async function loadMore() {
             <div class="grid gap-2 sm:grid-cols-3">
               <CourseCatalogMultiSelect
                 model-name="department"
+                form="course-more-filters"
                 :label="t('coursesPage.allDepartments')"
                 :options="page.props.departments.map((d) => ({ value: d, label: d }))"
                 :selected="page.props.query.department ?? []"
@@ -645,6 +646,7 @@ async function loadMore() {
               />
               <CourseCatalogMultiSelect
                 model-name="term"
+                form="course-more-filters"
                 :label="t('coursesPage.allTerms')"
                 :options="page.props.terms.map((term) => ({ value: term.value, label: term.label }))"
                 :selected="page.props.query.term ?? []"
@@ -653,6 +655,7 @@ async function loadMore() {
               />
               <CourseCatalogMultiSelect
                 model-name="campus"
+                form="course-more-filters"
                 :label="t('coursesPage.allCampuses')"
                 :options="page.props.campuses.map((c) => ({ value: c, label: c }))"
                 :selected="page.props.query.campus ?? []"
