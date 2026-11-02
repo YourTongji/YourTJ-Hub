@@ -34,7 +34,8 @@ def includes_hotfixes(state, source):
 def reviewed_main_pr(github, source):
     """Preserve source ancestry and reject hand-edited/conflict-resolved merge trees."""
     git('merge-base', '--is-ancestor', source, 'origin/main')
-    prs = github.pages(f'commits/{source}/pulls')
+    # Commit associations can omit a promotion PR once the source is already on dev.
+    prs = github.pages('pulls?state=closed&base=main')
     prs = [p for p in prs if p.get('merged_at') and p['base']['ref'] == 'main'
            and p['head']['sha'] == source and p['head']['repo']['full_name'].lower() == github.repository.lower()]
     require(prs, 'The exact source must enter main through a reviewed PR preserving ancestry')
