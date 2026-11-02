@@ -98,7 +98,8 @@ def main():
                             os.environ.get("IOS_DESTINATION", "testflight"), github, apple,
                             version=os.environ.get('VERSION') or None)
             if manifest['product'] == 'mobile':
-                reserve_number(github, source, manifest['version'], manifest['buildNumber'], 'production')
+                # Planning has resolved symbolic main to the immutable application source.
+                reserve_number(github, manifest['sourceSha'], manifest['version'], manifest['buildNumber'], 'production')
         request = prepare(manifest, github, args.folder / "candidate")
         write_json(args.folder / "oryn-input.json", request)
         write_json(args.folder / 'cycle.json', {key: cycle[key] for key in ['id', 'issue', 'owner']} if cycle else None)
