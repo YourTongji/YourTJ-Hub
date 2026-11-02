@@ -13,11 +13,11 @@ before(async () => {
 })
 after(async () => { await browser?.close(); await server?.close() })
 
-for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 700 }]) {
-  test(`课程更多筛选下拉越过卡片边缘仍完整可见且可选 (${viewport.width}px)`, async () => {
+for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 700 }, { width: 320, height: 700 }]) for (const side of ['up', 'down']) {
+  test(`课程更多筛选下拉越过卡片边缘仍完整可见且可选 (${viewport.width}px, ${side})`, async () => {
     const page = await browser.newPage({ viewport })
     try {
-      await page.goto(`${origin}/assets/test/fixtures/browser/course-catalog-multi-select.html`)
+      await page.goto(`${origin}/assets/test/fixtures/browser/course-catalog-multi-select.html?side=${side}`)
       await page.waitForFunction(() => document.documentElement.dataset.ready === 'true')
       const card = page.locator('.gf-card')
       const radius = await card.evaluate((el) => getComputedStyle(el).borderRadius)
@@ -34,6 +34,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 700 
         const trigger = document.querySelector('button').getBoundingClientRect()
         const hit = document.elementFromPoint(panel.left + 24, panel.bottom - 16)
         return {
+          cardTop: card.top,
           cardBottom: card.bottom,
           panel: panel.toJSON(),
           trigger: trigger.toJSON(),
@@ -43,7 +44,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 700 
           viewportHeight: innerHeight,
         }
       })
-      assert.ok(geometry.panel.bottom > geometry.cardBottom, '下拉应跨出卡片边缘以验证裁切场景')
+      assert.ok(side === 'up' ? geometry.panel.top < geometry.cardTop : geometry.panel.bottom > geometry.cardBottom, '下拉应跨出卡片边缘以验证裁切场景')
       assert.ok(geometry.portaled, '下拉脱离裁切卡片')
       assert.ok(geometry.panel.left >= 0 && geometry.panel.right <= geometry.viewportWidth, '下拉完整位于视口宽度内')
       assert.ok(geometry.panel.top >= 0 && geometry.panel.bottom <= geometry.viewportHeight, '下拉完整位于视口高度内')

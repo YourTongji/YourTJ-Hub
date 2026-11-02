@@ -7,8 +7,9 @@ import '../../../src/styles/resource.css'
 
 await setLocale('zh')
 document.documentElement.dataset.theme = 'gf-light'
+const marginTop = new URLSearchParams(location.search).get('side') === 'up' ? `${innerHeight - 180}px` : '48px'
 const form = h('form', { id: 'course-more-filters', action: '/courses', method: 'get' }, [
-  h('section', { class: 'gf-card overflow-hidden', style: 'height: 112px; margin: 48px 16px 1200px; padding: 16px' }, [
+  h('section', { class: 'gf-card overflow-hidden', style: `height: 112px; margin: ${marginTop} 16px 1200px; padding: 16px` }, [
     h(CourseCatalogMultiSelect, {
       modelName: 'department',
       form: 'course-more-filters',
