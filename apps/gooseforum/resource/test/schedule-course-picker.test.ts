@@ -10,7 +10,7 @@ const searchPkCourses = vi.hoisted(() => vi.fn(async (): Promise<PkCourse[]> => 
 // 选课弹窗打开时会加载字典（getPkCampuses/getPkFaculties），mock 掉避免真实 fetch。
 vi.mock('../src/runtime/pk-api', () => ({
   getPkCampuses: vi.fn(async () => []),
-  getPkFaculties: vi.fn(async () => []),
+  getPkFaculties: vi.fn(async () => [{ code: 'math', name: '数学科学学院' }]),
   getPkCoursesByMajor: vi.fn(async () => []),
   getPkOptionalTypes: vi.fn(async () => []),
   getPkCoursesByNature: vi.fn(async () => []),
@@ -74,6 +74,40 @@ describe('ScheduleCoursePicker Dialog 可访问性', () => {
     selects[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pageX: 10, pageY: 10 }))
     await flushPromises()
     expect(document.querySelector('[data-testid="site-select-search-input"]')).not.toBeNull()
+    wrapper.unmount()
+  })
+
+  test('开课学院下拉不受 Dialog 裁切，选择后弹窗仍保持打开', async () => {
+    const wrapper = mount(ScheduleCoursePicker, {
+      props: { open: true },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
+    tabs[2].click()
+    await flushPromises()
+
+    const dialog = document.querySelector('[role="dialog"]')!
+    const selects = [...dialog.querySelectorAll<HTMLElement>('[role="combobox"]')]
+    selects[1].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pageX: 10, pageY: 10 }))
+    await flushPromises()
+
+    const listbox = document.querySelector<HTMLElement>('[role="listbox"]')
+    expect(listbox).not.toBeNull()
+    expect(dialog.contains(listbox)).toBe(false)
+    expect(dialog.classList.contains('overflow-hidden')).toBe(false)
+    expect(dialog.querySelector('.overflow-y-auto')).not.toBeNull()
+
+    const option = document.querySelector<HTMLElement>('[role="option"]')!
+    option.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }))
+    option.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0 }))
+    await flushPromises()
+
+    expect(document.querySelector('[role="listbox"]')).toBeNull()
+    expect(document.querySelector('[role="dialog"]')).toBe(dialog)
+    expect(selects[1].textContent).toContain('数学科学学院')
     wrapper.unmount()
   })
 

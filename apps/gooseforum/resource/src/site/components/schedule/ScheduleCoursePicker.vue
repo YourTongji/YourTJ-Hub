@@ -702,7 +702,7 @@ async function submit() {
     <DialogPortal>
       <DialogOverlay class="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-xs transition-opacity duration-200" />
       <DialogContent
-        class="fixed left-1/2 top-1/2 z-[2000] flex h-[88vh] max-h-[88vh] w-[94vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl outline-none"
+        class="fixed left-1/2 top-1/2 z-[2000] flex h-[88vh] max-h-[88vh] w-[94vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-line/70 bg-base-100 shadow-2xl outline-none"
       >
         <!-- 弹窗顶栏 -->
         <div class="shrink-0 flex items-center justify-between border-b border-line/60 px-4 py-3 bg-base-100">
