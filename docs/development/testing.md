@@ -147,6 +147,9 @@ PR branch is validated once by its `pull_request` run rather than again by a dup
 [domain selector](../../scripts/ci/select_inputs.py) compares complete Git changes, including both
 sides of renames and deleted files. Unknown executable inputs or unavailable comparisons select
 conservative validation. Domain workflows are reusable and consume an explicit source SHA.
+PR selection compares the proposed head against its tested target base, shared with release-data
+scope validation. Main advancing while a check is queued does not add unrelated source domains to a
+notes-only request. Missing comparison identities still select the conservative full matrix.
 `ci-required` always runs and rejects missing, skipped, failed or cancelled selected domains;
 unselected domains carry reasons. Backend's reusable result includes PG/race and mobile includes
 all test shards. The old `ci-backend`, `ci-frontend`, `ci-contract` names remain compatibility aliases

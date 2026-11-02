@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 from model import ID, FILES, require, validate_candidate, validate_approval, digest
 from github import GitHub, git
@@ -167,10 +168,9 @@ def main():
             # Read-only PR CI; actual authorization comes from the trusted target controller.
             pr = event.get('pull_request')
             if pr:
-                parents = git('rev-list', '--parents', '-n', '1', 'HEAD').split()
-                # GitHub's synthetic merge snapshots the tested target. The event
-                # base may be older if main advanced while this check was queued.
-                base = parents[1] if len(parents) == 3 and parents[2] == pr['head']['sha'] else pr['base']['sha']
+                sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ci'))
+                from select_inputs import pr_base
+                base = pr_base(pr['base']['sha'], pr['head']['sha'])
             paths = (git('diff', '--name-only', '--no-renames',
                          base + '...' + pr['head']['sha'], '--') if pr else
                      git('diff', '--name-only', '--no-renames', 'HEAD^', 'HEAD', '--')).splitlines()

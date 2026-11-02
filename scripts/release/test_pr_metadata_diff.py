@@ -24,7 +24,7 @@ class PRMetadataDiffTests(unittest.TestCase):
             (folder/'android.zh-CN.md').write_text('改善聊天显示。')
             (folder/'testflight.en-US.txt').write_text('Verify chat rendering.')
             git('add','.');git('commit','-qm','release request');head=git('rev-parse','HEAD')
-            git('switch','-q','main');(root/'controller.md').write_text('new main controller');git('add','.');git('commit','-qm','advance main')
+            git('switch','-q','main');(root/'controller.py').write_text('new main controller');git('add','.');git('commit','-qm','advance main')
             target=git('rev-parse','HEAD')
             git('merge','--no-ff','--no-edit','request')
             event=root/'event.json';event.write_text(json.dumps({'pull_request':{'number':1,'base':{'sha':base},'head':{'sha':head,'ref':'codex/release/'+manifest['candidateId']}}}))
@@ -33,6 +33,15 @@ class PRMetadataDiffTests(unittest.TestCase):
                 os.chdir(root)
                 with patch.dict(os.environ,GITHUB_EVENT_PATH=str(event)), patch('sys.argv',['workflow.py','validate-pr']), patch('workflow.GitHub'):
                     workflow.main()
+                # CI must keep this a metadata-only check as well: newer main
+                # executable inputs do not request another source/native matrix.
+                import contextlib, io, sys
+                sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'ci'))
+                import select_inputs
+                with patch.dict(os.environ,GITHUB_EVENT_NAME='pull_request',GITHUB_EVENT_PATH=str(event),GITHUB_OUTPUT=''), patch('sys.argv',['select_inputs.py','--output',str(root/'plan.json')]), contextlib.redirect_stdout(io.StringIO()):
+                    select_inputs.main()
+                plan=json.loads((root/'plan.json').read_text())
+                self.assertEqual({k for k,v in plan.items() if v['run']},{'docs','govulncheck','release'})
                 # Updating the request from main must not turn known main edits
                 # into author changes when the event's base SHA is old.
                 git('switch','-q','request');git('merge','--no-edit',target)
