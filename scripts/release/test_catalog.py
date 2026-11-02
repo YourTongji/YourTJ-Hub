@@ -99,6 +99,15 @@ class CatalogReceiptTests(unittest.TestCase):
                         build_catalog(FakeGitHub(rows))
                 manifests[newer['candidateId']] = newer, folder
 
+    def test_date_native_ios_build_keeps_prior_public_catalog_coverage(self):
+        row = deployment('mobile-1.0.18-42', 'ios-app-store', 'WAITING_FOR_REVIEW')
+        row['payload']['tag'] = 'mobile-v1.0.18'
+        row['payload']['catalogBuildNumber'] = 42
+        row['payload']['details']['buildNumber'] = '202611030001'
+        rows = {'ios-app-store': [row], 'statuses': {}}
+        result = successful_channels(FakeGitHub(rows), store_version='1.0.19', verified_store_builds={('1.0.18', 42)})
+        self.assertIn('mobile-1.0.18-42', result)
+
     def test_requires_successful_receipts_and_channel_specific_public_availability(self):
         rows = {
             "android": [deployment("mobile-1.2.3-23", "android", "available", digest="b" * 64)],

@@ -1429,10 +1429,10 @@
   "settingsPasskeyRevoked": "Passkey entfernt",
   "settingsPasskeyEmpty": "Es sind keine Passkeys registriert.",
   "settingsPasskeyUnavailable": "Passkeys sind auf diesem Server nicht aktiviert.",
-  "previewUpdateInstructions": "Dies ist ein Testbuild. Updates gibt es über den Android-Link im Release-Issue oder die zugewiesene TestFlight-Gruppe.",
-  "previewStale": "Diese Vorschau ist nicht mehr der aktuelle Kandidat. Prüfe den Release-Status für die aktuelle Testversion oder die Rückkehr zur Produktivversion.",
-  "previewStatusUnknown": "Der Vorschau-Status kann nicht geprüft werden. Frage vor dem Testen die verantwortliche Person.",
-  "previewStatusLink": "Vorschau-Status",
+  "previewUpdateInstructions": "Entwicklungsbuilds folgen dev automatisch. Neue Builds sind über die Dev-Verteilung oder interne Tests verfügbar.",
+  "previewStale": "Ein neuerer Entwicklungsbuild ist verfügbar. Sieh in der Dev-Verteilung nach.",
+  "previewStatusUnknown": "Der Dev-Verteilungsstatus ist nicht erreichbar. Du kannst diesen Build weiter verwenden.",
+  "previewStatusLink": "Dev-Builds",
   "timetableOptions": "Stundenplan-Optionen",
   "timetableWeekPicker": "Woche wählen",
   "timetableDateRange": "{start} – {end}",
@@ -1668,5 +1668,6 @@
   "unreadStyleTitle": "Ungelesen-Anzeige",
   "unreadStyleNumbers": "Anzahl anzeigen",
   "unreadStyleHint": "Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.",
-  "unreadStyleSaving": "Anzeige wird gespeichert…"
+  "unreadStyleSaving": "Anzeige wird gespeichert…",
+  "previewBuildPending": "Ein neuer Dev-Build wird erstellt. Dies ist noch der neueste verfügbare Build für diese Plattform."
 }

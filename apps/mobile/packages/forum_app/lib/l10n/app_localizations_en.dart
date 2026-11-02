@@ -4224,18 +4224,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get previewUpdateInstructions =>
-      'This is a testing build. Get updates from the release issue’s Android link or the assigned TestFlight group.';
+      'Development builds follow dev automatically. Get the latest build from dev distribution or internal testing.';
 
   @override
   String get previewStale =>
-      'This preview is no longer the current candidate. Check the release status for the current build or return to production.';
+      'A newer development build is available. Check dev distribution for the latest version.';
 
   @override
   String get previewStatusUnknown =>
-      'Cannot verify this preview’s status. Check with the release owner before testing.';
+      'Cannot read dev distribution status. You can keep using this development build.';
 
   @override
-  String get previewStatusLink => 'Preview status';
+  String get previewStatusLink => 'Dev builds';
 
   @override
   String get timetableOptions => 'Timetable options';
@@ -4816,4 +4816,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unreadStyleSaving => 'Saving indicator style…';
+
+  @override
+  String get previewBuildPending =>
+      'A newer dev build is in progress. This is still the latest available build for this platform.';
 }

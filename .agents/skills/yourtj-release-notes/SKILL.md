@@ -13,7 +13,7 @@ baseline, including the live App Store baseline for a TestFlight-to-store promot
 are hints: verify platform branches and actual client use of API changes. Inspect incomplete diff
 excerpts in the fixed source checkout; do not announce unverified behavior.
 
-For schema-2 mobile candidates, edit the requested channel's entries in `changelog.json` and use
+For schema-2/3/4 mobile candidates, edit the requested channel's entries in `changelog.json` and use
 `workflow.py render-structured` to derive the canonical files; preserve other channels' facts.
 For Web and legacy candidates, edit only the requested channel's canonical file.
 Android and iOS never share a What’s New file.
@@ -29,5 +29,5 @@ Run `python3 scripts/release/cli.py validate --candidate <id> --json` after edit
 structure, identity, file isolation, disclosure/length constraints, and that a store channel note
 or structured changelog entry does not name the other mobile platform. Validate previously did
 not prove that semantic boundary. It still does not prove other semantic truth or substitute
-for the final human review. A notes-only request does not authorize creating
+for semantic review and exact RC Confirm (legacy schemas retain human review). A notes-only request does not authorize creating
 PRs, tags, store submissions or production deployments.

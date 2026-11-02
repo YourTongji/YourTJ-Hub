@@ -16,7 +16,7 @@ from catalog import publish_catalog
 from cycle_control import production_gate
 from cycle_store import load as load_cycle
 from cycle import current
-from build_identity import reserve_number
+from build_identity import reserve_number, reserve_display_id
 
 
 def web_recovery_needs_build(github, manifest, details):
@@ -66,7 +66,7 @@ def main():
         require(args.candidate, "Structured rendering requires --candidate")
         folder = Path(candidate_path(args.candidate))
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
-        require(manifest.get("candidateId") == args.candidate and manifest.get("schemaVersion") in {2, 3}
+        require(manifest.get("candidateId") == args.candidate and manifest.get("schemaVersion") in {2, 3, 4}
                 and manifest.get("product") == "mobile",
                 "Structured rendering applies to schema-2 mobile candidates")
         render_structured(manifest, folder, replace=args.replace_structured)
@@ -76,14 +76,17 @@ def main():
         existing_id = os.environ.get("EXISTING_RELEASE")
         if existing_id:
             original, original_binding = authorize(existing_id, github, args.folder / "original")
-            cycle = None if original['schemaVersion'] == 3 else production_gate(
+            require(original['schemaVersion'] == 4 and original['rcRun'],
+                    'New existing-build promotions require an original schema-4 RC; recover legacy requests through their original workflow')
+            cycle = None if original['schemaVersion'] >= 3 else production_gate(
                 github, original['sourceSha'], ['ios-app-store'], manifest=original,
                 binding=original_binding, promotion=True)
             receipt = latest_receipt(github, existing_id, "ios-testflight")
             require(receipt and receipt["status"] and receipt["status"]["state"] == "success", "Promotion requires successful original TestFlight receipt")
             build_id = receipt["deployment"]["payload"]["details"]["buildId"]
             found = (apple or {}).get('validBuilds', {}).get(build_id)
-            require(found and found['version'] == original['version'] and str(found['buildNumber']) == str(original['buildNumber']),
+            require(found and found['version'] == original['version']
+                    and str(found['buildNumber']) == str(original.get('iosBuildNumber') or original['buildNumber']),
                     'Discover the exact valid original Apple build before promotion')
             manifest = original | {"candidateId": original["candidateId"] + f"-store-{os.environ['GITHUB_RUN_ID']}",
                          "operation": "promote-ios", "existingRelease": {"candidateId": existing_id, "buildId": build_id},
@@ -97,9 +100,14 @@ def main():
             manifest = plan(os.environ["SCOPE"], os.environ["BUMP"], source,
                             os.environ.get("IOS_DESTINATION", "testflight"), github, apple,
                             version=os.environ.get('VERSION') or None)
+            if manifest['schemaVersion'] >= 4:
+                manifest['displayBuild'] = reserve_display_id(github, manifest['sourceSha'], 'production')
+                manifest['iosBuildNumber'] = manifest['displayBuild'] if any(c.startswith('ios-') for c in manifest['channels']) else None
             if manifest['product'] == 'mobile':
                 # Planning has resolved symbolic main to the immutable application source.
-                reserve_number(github, manifest['sourceSha'], manifest['version'], manifest['buildNumber'], 'production')
+                reserve_number(github, manifest['sourceSha'], manifest['version'], manifest['buildNumber'], 'production',
+                               **({k: manifest[v] for k, v in [('display_build', 'displayBuild'), ('ios_build_number', 'iosBuildNumber')]}
+                                  if manifest['schemaVersion'] >= 4 else {}))
         request = prepare(manifest, github, args.folder / "candidate")
         write_json(args.folder / "oryn-input.json", request)
         write_json(args.folder / 'cycle.json', {key: cycle[key] for key in ['id', 'issue', 'owner']} if cycle else None)
@@ -173,19 +181,33 @@ def main():
         try:
             if ids:
                 require(len(ids) == 1, "One release request per PR")
-                reviews = github.pages(f"pulls/{pr_number}/reviews")
-                validate_approval(pr, reviews, paths, next(iter(ids)), github.maintainers(reviews), False)
-                summary = "An eligible human approved the current release request head."
+                candidate_id = next(iter(ids))
+                git('fetch', 'origin', f"refs/pull/{pr_number}/head", '--tags')
+                with tempfile.TemporaryDirectory() as temp:
+                    manifest, folder = load_candidate(candidate_id, pr['head']['sha'], Path(temp), draft=True)
+                    if manifest['schemaVersion'] == 4:
+                        from confirmation import read_confirmation
+                        from controller import candidate_binding
+                        from model import validate_request_paths
+                        validate_request_paths(pr, paths, candidate_id, False)
+                        validate_candidate(manifest, folder)
+                        snapshot = candidate_binding(manifest, folder, {})
+                        read_confirmation(github, manifest, pr, snapshot['contentDigest'])
+                        summary = 'Operator Confirm sealed this exact RC and release-note head.'
+                    else:
+                        reviews = github.pages(f"pulls/{pr_number}/reviews")
+                        validate_approval(pr, reviews, paths, candidate_id, github.maintainers(reviews), False)
+                        summary = "An eligible human approved the current release request head."
         except ValueError as error:
             conclusion, summary = "failure", str(error)
         github.api("check-runs", method="POST", data={"name": "release-authorized", "head_sha": pr["head"]["sha"],
-                   "status": "completed", "conclusion": conclusion, "output": {"title": "Release human review", "summary": summary}})
+                   "status": "completed", "conclusion": conclusion, "output": {"title": "Release authorization", "summary": summary}})
         return
     manifest, binding = authorize(args.candidate, github, args.folder)
     # Receipts must still record failures after a cancellation/timeout. Every
     # external publication path independently rechecks the cycle before acting.
     cycle = None
-    if manifest['schemaVersion'] == 3:
+    if manifest['schemaVersion'] >= 3:
         from build_identity import verify_production_number
         verify_production_number(github, manifest)
         if args.command != 'receipt' and manifest['operation'] == 'release' and not manifest['rcRun']:

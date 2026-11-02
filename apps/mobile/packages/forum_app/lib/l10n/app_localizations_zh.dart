@@ -4021,17 +4021,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPasskeyUnavailable => '此服务器尚未启用通行密钥。';
 
   @override
-  String get previewUpdateInstructions =>
-      '这是测试版本，请通过本次发布记录中的 Android 下载链接或指定 TestFlight 测试组更新。';
+  String get previewUpdateInstructions => '开发包随 dev 自动分发，请从开发构建页或内部测试获取最新版本。';
 
   @override
-  String get previewStale => '此预发版本已不是当前候选。请查看发布状态，获取当前测试版本或返回正式版。';
+  String get previewStale => '已有更新的开发构建。查看 dev 分发状态获取最新版本。';
 
   @override
-  String get previewStatusUnknown => '暂时无法确认此预发版本的状态，测试前请与发布负责人核对。';
+  String get previewStatusUnknown => '暂时无法读取开发分发状态，你仍可以继续使用当前开发版本。';
 
   @override
-  String get previewStatusLink => '预发状态';
+  String get previewStatusLink => '开发构建';
 
   @override
   String get timetableOptions => '课表设置';
@@ -4570,4 +4569,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get unreadStyleSaving => '正在保存提醒样式…';
+
+  @override
+  String get previewBuildPending => '新的 dev 构建正在生成，当前仍是此平台最新可用的开发包。';
 }

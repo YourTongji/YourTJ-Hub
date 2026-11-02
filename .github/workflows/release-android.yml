@@ -9,6 +9,7 @@ on:
       number: {type: string, required: true}
       recover: {type: boolean, default: false}
       rc_build: {type: boolean, default: false}
+      display_build: {type: string, default: ''}
       alias_only: {type: boolean, default: false}
 permissions:
   contents: write
@@ -34,6 +35,7 @@ jobs:
       MOBILE_PREVIEW: 'false'
       MOBILE_VERSION: ${{ inputs.version }}
       MOBILE_BUILD_NUMBER: ${{ inputs.number }}
+      MOBILE_BUILD_ID: ${{ inputs.display_build }}
       RELEASE_TAG: ${{ inputs.tag }}
       ANDROID_NOTES_PATH: ${{ github.workspace }}/.release-approved/android.zh-CN.md
       RELEASE_RESULT_PATH: ${{ github.workspace }}/.release-result.json
@@ -107,7 +109,7 @@ jobs:
         working-directory: .source/apps/mobile/packages/forum_app
         run: |
           mapfile -t defines < <(python3 "$GITHUB_WORKSPACE/scripts/mobile-release/build_environment.py")
-          test "${#defines[@]}" -eq 6
+          test "${#defines[@]}" -eq 8
           flutter build apk --release --split-per-abi \
             --build-name="$MOBILE_VERSION" --build-number="$MOBILE_BUILD_NUMBER" \
             "${defines[@]}"

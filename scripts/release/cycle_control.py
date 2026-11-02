@@ -284,6 +284,10 @@ def main():
     parser.add_argument('command', choices=['change', 'begin-build', 'check-build', 'check-dev', 'check-pr', 'checks', 'status', 'refresh', 'apple-needed'])
     args = parser.parse_args()
     github = GitHub()
+    if os.environ.get('DEV_AUTOMATIC') == 'true' and args.command == 'check-build':
+        from dev_delivery import identity
+        identity(github)
+        return
     state = load(github)
     if args.command == 'apple-needed':
         c = state['cycles'].get(os.environ.get('CYCLE_ID'))

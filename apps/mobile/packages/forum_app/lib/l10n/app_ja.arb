@@ -1429,10 +1429,10 @@
   "settingsPasskeyRevoked": "パスキーを削除しました",
   "settingsPasskeyEmpty": "登録済みのパスキーはありません。",
   "settingsPasskeyUnavailable": "このサーバーではパスキーが有効になっていません。",
-  "previewUpdateInstructions": "テスト版です。更新にはリリース記録の Android リンクまたは指定された TestFlight グループを使用してください。",
-  "previewStale": "このプレビューは現在の候補ではありません。リリース状況から現在のテスト版または正式版をご確認ください。",
-  "previewStatusUnknown": "プレビューの状態を確認できません。テスト前にリリース担当者へ確認してください。",
-  "previewStatusLink": "プレビュー状況",
+  "previewUpdateInstructions": "開発ビルドは dev に合わせて自動配布されます。開発版の配布ページまたは内部テストから最新版を入手してください。",
+  "previewStale": "新しい開発ビルドがあります。dev の配布状況から最新版を確認してください。",
+  "previewStatusUnknown": "dev の配布状況を取得できません。この開発ビルドは引き続き使用できます。",
+  "previewStatusLink": "開発ビルド",
   "timetableOptions": "時間割の設定",
   "timetableWeekPicker": "週を選択",
   "timetableDateRange": "{start} – {end}",
@@ -1668,5 +1668,6 @@
   "unreadStyleTitle": "未読の表示",
   "unreadStyleNumbers": "未読件数を表示",
   "unreadStyleHint": "オフにすると点のみを表示します。このアカウントの Web と App で同期し、既読状態やプッシュ通知は変更しません。",
-  "unreadStyleSaving": "表示方法を保存中…"
+  "unreadStyleSaving": "表示方法を保存中…",
+  "previewBuildPending": "新しい dev ビルドを作成中です。この端末では現在のビルドが最新の利用可能な開発版です。"
 }

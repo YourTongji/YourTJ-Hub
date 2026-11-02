@@ -1734,24 +1734,18 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 ## Distribution and updates
 
-- `Current`: production RCs use final production configuration and version/build numbers, with normal
-  app identity and update behavior. They are separate from dev preview builds. Formal publication
-  reuses the selected RC's original APKs or Apple build; direct publication without RC builds once.
-  The [release runbook](../operations/releases.md#optional-production-rc) owns the operator flow.
-
-- `Current`: controlled preview builds display `DEV <short SHA>` or `PROD TEST <short SHA>` and
-  suppress stable update prompts. Dev previews connect to `dev.yourtj.de`, with separate session,
-  preference and local database storage. Android dev previews install beside the stable app as
-  `YourTJ Dev` (`tj.yourtj.forum_app.dev`, badged DEV icon); iOS previews use the existing app ID
-  and replace installed apps. `PROD TEST` identifies retained legacy production previews;
-  new production RCs use normal production presentation as described above.
-  Preview platforms can be selected per run. Installed previews warn when their source is no longer
-  the active candidate, their platform is no longer selected or the freeze expires; offline/missing
-  status is shown as unverified. A status link identifies the current candidate and normal production
-  download entries. Same-source rebuilds remain eligible. This notice never certifies QA, blocks app
-  use, switches sites or automatically installs a formal release.
-  `Partial`: signed installation and environment-switch behavior require candidate-specific device
-  checks through the [release-cycle checklist](../operations/release-cycles.md#freeze-fixes-and-qa).
+- `Current`: each dev merge automatically builds Web and native developer versions from the same SHA.
+  Mobile builds show `DEV <YYYYMMDDNNNN> · <short SHA>`, connect to dev.yourtj.de and use isolated
+  sessions/preferences/databases. Android `YourTJ Dev` installs beside production; iOS uses the
+  existing app ID and replaces the installed app through its dedicated internal TestFlight group.
+  An informational notice distinguishes a newer available build, a new build still running and
+  unavailable status. It has no expiry and never blocks app use or installs a stable version.
+- `Current`: production RCs use final production configuration, app identity, version and build numbers.
+  Confirm promotes the original APKs or exact Apple build; dev packages are separate artifacts.
+  App release history shows the date/daily ID in parentheses when present; older entries keep their
+  recorded counter. The [release runbook](../operations/releases.md) owns numbering and publication.
+  `Partial`: signed installation and environment isolation still require candidate-specific device
+  evidence; build completion alone does not establish acceptance.
 
 - `Current`: iPhone/iPad distribution is live on the
   [App Store](https://apps.apple.com/cn/app/yourtj/id6809457637), and Android has a public

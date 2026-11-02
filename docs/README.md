@@ -88,8 +88,8 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 
 ### Operations
 
-- [Reviewed releases](operations/releases.md)
-- [Release cycles, dev freeze and hotfix backflow](operations/release-cycles.md)
+- [RC and confirmed releases](operations/releases.md)
+- [Continuous dev delivery](operations/release-cycles.md)
 - [Deployment & release](operations/deployment.md)
 - [Host security maintenance](operations/host-security.md)
 - [1Panel OpenResty security maintenance](operations/proxy-security.md)

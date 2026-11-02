@@ -98,12 +98,8 @@ class GfApp extends ConsumerWidget {
                 child: _AppBusinessHosts(
                   locale: locale,
                   child: AppConfig.preview
-                      ? Banner(
-                          message: AppConfig.previewLabel,
-                          location: BannerLocation.topEnd,
-                          child: PreviewStatusHost(
-                            child: child ?? const SizedBox.shrink(),
-                          ),
+                      ? PreviewStatusHost(
+                          child: child ?? const SizedBox.shrink(),
                         )
                       : child ?? const SizedBox.shrink(),
                 ),

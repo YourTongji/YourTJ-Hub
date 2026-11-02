@@ -52,7 +52,7 @@ problem evidence, research and affected users
 - [Issues, requirements, review & pull requests](pull-requests.md)
 - [Licensing](licensing.md)
 - [Release workflow and agent entrypoints](../operations/releases.md)
-- [Release ownership, dev freeze and preview QA](../operations/release-cycles.md)
+- [Continuous dev delivery](../operations/release-cycles.md)
 - [Project board workflow](project-board.md)
 - [Documentation governance](documentation.md)
 - [Contracts, data & derived projections](../architecture/contracts-and-data.md)

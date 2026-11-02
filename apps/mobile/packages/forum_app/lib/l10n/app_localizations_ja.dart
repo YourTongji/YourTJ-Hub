@@ -4072,17 +4072,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get previewUpdateInstructions =>
-      'テスト版です。更新にはリリース記録の Android リンクまたは指定された TestFlight グループを使用してください。';
+      '開発ビルドは dev に合わせて自動配布されます。開発版の配布ページまたは内部テストから最新版を入手してください。';
 
   @override
-  String get previewStale =>
-      'このプレビューは現在の候補ではありません。リリース状況から現在のテスト版または正式版をご確認ください。';
+  String get previewStale => '新しい開発ビルドがあります。dev の配布状況から最新版を確認してください。';
 
   @override
-  String get previewStatusUnknown => 'プレビューの状態を確認できません。テスト前にリリース担当者へ確認してください。';
+  String get previewStatusUnknown => 'dev の配布状況を取得できません。この開発ビルドは引き続き使用できます。';
 
   @override
-  String get previewStatusLink => 'プレビュー状況';
+  String get previewStatusLink => '開発ビルド';
 
   @override
   String get timetableOptions => '時間割の設定';
@@ -4628,4 +4627,8 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get unreadStyleSaving => '表示方法を保存中…';
+
+  @override
+  String get previewBuildPending =>
+      '新しい dev ビルドを作成中です。この端末では現在のビルドが最新の利用可能な開発版です。';
 }

@@ -101,6 +101,7 @@ components:
       properties:
         version: {type: string, pattern: '^\d+\.\d+\.\d+$'}
         buildNumber: {type: integer, minimum: 1}
+        displayBuild: {type: string, pattern: '^[0-9]{12}$', description: UTC+8 date and daily sequence; optional for historical releases}
         channels: {type: array, items: {type: string, enum: [android, ios-app-store, ios-testflight]}, uniqueItems: true}
         highlights: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
         breaking: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/MobileReleaseNote'}}

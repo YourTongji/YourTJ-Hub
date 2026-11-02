@@ -1,4 +1,4 @@
-name: Release / Publish
+name: Release / Promote original artifacts
 on:
   push:
     branches: [main]
@@ -61,6 +61,8 @@ jobs:
       cycle: ${{ steps.authorize.outputs.cycle }}
       approved_head: ${{ steps.authorize.outputs.approved_head }}
       content_digest: ${{ steps.authorize.outputs.content_digest }}
+      display: ${{ steps.authorize.outputs.display_build }}
+      ios_number: ${{ steps.authorize.outputs.ios_number }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -119,6 +121,7 @@ jobs:
       tag: ${{ needs.authorize.outputs.tag }}
       version: ${{ needs.authorize.outputs.version }}
       number: ${{ needs.authorize.outputs.number }}
+      display_build: ${{ needs.authorize.outputs.display }}
       recover: ${{ inputs.recover || false }}
       alias_only: ${{ inputs.channel == 'android-alias' }}
     secrets: inherit
@@ -137,6 +140,8 @@ jobs:
       source: ${{ needs.authorize.outputs.sha }}
       version: ${{ needs.authorize.outputs.version }}
       number: ${{ needs.authorize.outputs.number }}
+      display_build: ${{ needs.authorize.outputs.display }}
+      ios_number: ${{ needs.authorize.outputs.ios_number }}
       channels: ${{ needs.authorize.outputs.channels }}
       channel: ${{ inputs.channel || '' }}
       recover: ${{ inputs.recover || false }}

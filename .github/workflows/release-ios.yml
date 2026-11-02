@@ -20,6 +20,8 @@ on:
       channel: {type: string, default: ''}
       recover: {type: boolean, default: false}
       rc_build: {type: boolean, default: false}
+      display_build: {type: string, default: ''}
+      ios_number: {type: string, default: ''}
       promotion: {type: boolean, default: false}
 permissions:
   contents: read
@@ -119,6 +121,8 @@ jobs:
       MOBILE_PREVIEW: 'false'
       MOBILE_VERSION: ${{ inputs.version }}
       MOBILE_BUILD_NUMBER: ${{ inputs.number }}
+      IOS_BUILD_NUMBER: ${{ inputs.ios_number || inputs.number }}
+      MOBILE_BUILD_ID: ${{ inputs.display_build }}
       IOS_TEAM_ID: 4HJTS3G3T2
       ASC_TELEMETRY_DISABLED: '1'
       ASC_TIMEOUT: 90s
@@ -189,7 +193,7 @@ jobs:
           import os,sys
           sys.path.insert(0,'scripts/mobile-release')
           from publish_ios import find_build
-          build=find_build(os.environ['MOBILE_VERSION'],os.environ['MOBILE_BUILD_NUMBER'])
+          build=find_build(os.environ['MOBILE_VERSION'],os.environ['IOS_BUILD_NUMBER'])
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:
               out.write('needs_ipa='+str(build is None).lower()+'\n')
           PY

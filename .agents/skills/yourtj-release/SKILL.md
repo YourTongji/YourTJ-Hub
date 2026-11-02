@@ -10,32 +10,27 @@ Read [the release runbook](../../../docs/operations/releases.md). The public int
 are authoritative. Git, Python and authenticated `gh` are sufficient. Signing and Oryn's private
 runtime stay in Actions. No Codex-specific tool is required.
 
-- Inspect intent first: a status/analysis request is read-only. `plan`, `doctor`, `status`, `validate`
-  do not publish. `prepare`, `publish`, `retry` and `promote-ios` default to dry-run; use `--apply` within the
-  user's existing authorization. Preparing a release creates a review request; it does not approve it.
-- Identify platform and destination. `mobile` means Android plus iOS; iOS defaults to TestFlight.
-  Don't widen Android to both platforms or TestFlight to App Store. Ask only if those choices are
-  genuinely unspecified and cannot be inferred.
-- Freeze a SHA already in main. A release never implicitly merges dev. If intended work is only in
-  dev, report that dependency and follow the separately authorized promotion PR process.
-- Run `doctor --scope <scope> --json`, then `plan` when baselines are locally available. Apple
-  baseline discovery uses authenticated Prepare Actions; a local unknown Apple state is not proof
-  of no previous release. Dispatch `prepare --scope ... --apply` after explicit preparation authority.
-- Open the resulting `codex/release/<id>` PR against main. It contains only its candidate directory.
-  Use [yourtj-release-notes](../yourtj-release-notes/SKILL.md) for edits. Validate the final files.
-  One eligible human must APPROVE the final head; an agent's approval, label or manifest flag does
-  not satisfy this requirement. Any source, target, evidence or note edit needs fresh review.
-- New schema-3 requests do not require a release cycle or production rehearsal. Prepare freezes
-  main once; optional `rc --candidate ID --apply` builds final production artifacts from that request.
-  The RC run attaches its `rcRun` to the request; review/approve the resulting head normally.
-  `rcRun=null` means direct build; a selected RC means original-artifact promotion, never another build.
-  Source CI remains independent and is not rerun by release workflows. Preserve legacy requests.
-- After an authorized merge, inspect channel receipts with `status --candidate <id> --json`.
-  If publication never started and no channel has an execution receipt, `publish --candidate <id>
-  --apply` resumes initial publication from the current main controller with the same approved source
-  and notes. A reserved tag is not a build. Existing execution receipts require `retry`/Recover.
-  App Store submission is not live distribution. For partial outcomes route to
-  [yourtj-release-recovery](../yourtj-release-recovery/SKILL.md).
+- Read-only status/planning never publishes. `rc`, `confirm`, `dev`, `publish`, `retry` and
+  `promote-ios` default to dry-run; use `--apply` within existing explicit user authority.
+- Dev builds follow every dev merge automatically. `dev --apply` retries the current dev source;
+  do not start a prerelease cycle, freeze or QA admission.
+- Select scope and destination from user intent. RC defaults to mobile/App Store; explicitly choose
+  TestFlight-only for beta-only intent. Source must already be in main; promote source through a
+  separately authorized code PR, never implicitly inside release preparation.
+- Run `doctor`, then `rc --scope ... --apply`. Apple baseline discovery stays in authenticated Actions.
+  RC prepares an editable release-data PR and builds final production configuration/version once.
+- Use [yourtj-release-notes](../yourtj-release-notes/SKILL.md), validate final notes and inspect the
+  immutable complete RC record. Schema-4 requests require explicit `confirm --candidate ID --apply`,
+  sealing exact head/source/notes/targets/identity/RC before merge and original-artifact promotion.
+  An agent may execute Confirm within explicit user publication authority. Do not fabricate a GitHub
+  APPROVED review. Legacy schemas retain their current-head eligible human-review rule.
+- Source/config/binary changes require a new RC identity; notes edits do not rebuild. A retry or Confirm
+  reuses the original date ID, internal counter and signed artifacts. Never promote dev configuration.
+- Inspect actual channel receipts and Apple state. Submission is not live distribution. If no publisher
+  started after an authorized merge, `publish` resumes initial promotion; existing execution receipts
+  use `retry`/Recover. Missing required originals never authorize rebuilding a distributed identity.
+- `promote-ios` enters metadata-only RC preparation for a published schema-4 TestFlight build, followed
+  by Confirm of the exact original Apple build. Legacy recovery stays with the original request.
 
-Read [scenarios](references/scenarios.md) when deciding between a new version, a draft edit and
-an existing-build promotion. Report source SHA, PR link, channels and actual observed outcomes.
+Report source SHA, PR, displayed build ID, channels and actual outcomes. See
+[yourtj-release-recovery](../yourtj-release-recovery/SKILL.md) for partial failures.

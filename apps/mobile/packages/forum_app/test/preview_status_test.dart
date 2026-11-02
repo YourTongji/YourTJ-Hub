@@ -27,6 +27,23 @@ void main() {
   );
 
   test(
+    'continuous dev builds do not expire while their source stays current',
+    () {
+      expect(
+        classify({
+          'schema': 2,
+          'updatedAt': 1,
+          'source': sha,
+          'platforms': {
+            'android': {'source': sha},
+          },
+        }),
+        PreviewValidity.current,
+      );
+    },
+  );
+
+  test(
     'fixed SHA remains valid across rebuilds; superseded/ended previews are stale',
     () {
       expect(classify(status()), PreviewValidity.current);
@@ -79,9 +96,29 @@ void main() {
       );
       await tester.pump();
       expect(find.text('Forum remains available'), findsOneWidget);
-      expect(find.text('Preview status'), findsOneWidget);
-      expect(find.textContaining('Cannot verify'), findsOneWidget);
+      expect(find.text('Dev builds'), findsOneWidget);
+      expect(find.textContaining('Cannot read'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
+    },
+  );
+  test(
+    'a newer source building is different from an available newer package',
+    () {
+      final data = {
+        'schema': 2,
+        'updatedAt': 999,
+        'source': 'b' * 40,
+        'platforms': {
+          'android': {'source': sha},
+        },
+      };
+      expect(classify(data), PreviewValidity.building);
+      data['platforms'] = {
+        'android': {'source': 'b' * 40},
+      };
+      expect(classify(data), PreviewValidity.stale);
+      data['platforms'] = {};
+      expect(classify(data), PreviewValidity.unknown);
     },
   );
 }
