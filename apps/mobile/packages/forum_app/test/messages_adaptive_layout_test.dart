@@ -66,6 +66,8 @@ void main() {
       );
       final input = find.byType(GfChatInput);
       expect(tester.getRect(input).right, lessThanOrEqualTo(size.width - 84));
+      final workspaceWidth = tester.getRect(find.byType(MessagesPage)).width;
+      final directoryFields = find.byType(GfSearchField).evaluate().length;
       final field = find.byType(TextField).last;
       final controller = tester.widget<TextField>(field).controller!;
       await tester.enterText(field, 'draft stays in the safe input');
@@ -76,8 +78,12 @@ void main() {
         ReadingWindowScope.edgeNavigationOf(
           tester.element(find.byType(MessagesPage)),
         ),
-        isFalse,
+        isTrue,
       );
+      // Keep the side-pocket workspace; only its capsule hides while typing.
+      expect(find.byKey(const Key('capsule')), findsNothing);
+      expect(tester.getRect(find.byType(MessagesPage)).width, workspaceWidth);
+      expect(find.byType(GfSearchField).evaluate().length, directoryFields);
       expect(
         tester.widget<ListView>(timeline).padding,
         const EdgeInsets.fromLTRB(12, 12, 12, 18),
