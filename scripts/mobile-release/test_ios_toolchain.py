@@ -30,12 +30,16 @@ class IOSToolchainTest(unittest.TestCase):
                 self.assertEqual(code, 0)
                 self.assertIn('DEVELOPER_DIR=', output)
 
-    def test_reviewed_rc_works_only_for_dev(self):
-        self.assertEqual(self.select('dev', '27B48')[0], 0)
-        self.assertEqual(self.select('production', '27B48'), (1, ''))
+    def test_reviewed_rc_works_for_both_purposes(self):
+        for purpose in ['dev', 'production']:
+            with self.subTest(purpose=purpose):
+                code, output = self.select(purpose, '27B48')
+                self.assertEqual(code, 0)
+                self.assertIn('DEVELOPER_DIR=', output)
 
     def test_unknown_purpose_build_or_old_sdk_cannot_select_signing_tools(self):
         for purpose, build, sdk in [('other', '27B52', '27.2'), ('dev', '27B47', '27.2'),
-                                    ('dev', '27B48', '27.1')]:
+                                    ('dev', '27B48', '27.1'), ('production', '27B47', '27.2'),
+                                    ('production', '27B5038j', '27.2')]:
             with self.subTest(purpose=purpose, build=build, sdk=sdk):
                 self.assertEqual(self.select(purpose, build, sdk), (1, ''))
