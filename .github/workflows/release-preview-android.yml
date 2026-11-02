@@ -20,6 +20,11 @@ concurrency:
   cancel-in-progress: false
   queue: max
 jobs:
+  status:
+    needs: preview
+    if: inputs.automatic && needs.preview.result == 'success'
+    uses: ./.github/workflows/dev-status.yml
+    permissions: {contents: write, deployments: read}
   preview:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest

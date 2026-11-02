@@ -79,6 +79,8 @@ def open_request(github, product):
 
 
 def plan(scope, bump, source, destination, github, apple=None, version=None):
+    if scope not in {'ios', 'mobile'}:
+        destination = 'testflight'  # The iOS-only selector has no effect on Web/APK requests.
     channels = channels_for(scope, destination)
     product = "web" if scope == "web" else "mobile"
     pending = open_request(github, product)

@@ -79,9 +79,10 @@ def execute(args, github):
             require(ID.fullmatch(args.candidate), 'Select a release candidate ID')
             inputs = {'candidate': args.candidate}
         else:
-            channels_for(args.scope, args.ios_destination)
+            destination = args.ios_destination if args.scope in {'ios', 'mobile'} else 'testflight'
+            channels_for(args.scope, destination)
             inputs = {'scope': args.scope, 'source': args.source, 'bump': args.bump, 'version': args.version,
-                      'ios_destination': args.ios_destination, 'draft_notes': str(args.draft_notes).lower()}
+                      'ios_destination': destination, 'draft_notes': str(args.draft_notes).lower()}
         return github.dispatch('release-rc.yml', inputs) if args.apply else {
             'dryRun': True, 'workflow': 'release-rc.yml', 'ref': 'main', 'inputs': inputs}
     if args.command == 'cycle':
