@@ -1,12 +1,13 @@
 """Release authority is external evidence, never a flag supplied by a candidate."""
 import copy
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 from model import (ReleaseError, validate_candidate, validate_approval, next_identity, channels_for, render_changelog,
-                   validate_changelog)
+                   validate_changelog, validate_note_text)
 
 
 SHA = "a" * 40
@@ -183,6 +184,106 @@ class ApprovalTests(unittest.TestCase):
         other = self.review | {"user": {"login": "other", "type": "User"}, "state": "CHANGES_REQUESTED", "id": 2}
         with self.assertRaises(ReleaseError):
             validate_approval(self.pr, [self.review, other], self.files, "mobile-1.0.15-15", {"maintainer", "other"})
+
+
+class StoreChannelIsolationTests(unittest.TestCase):
+    """Store What's New files name only their own mobile platform."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name)
+
+    def test_ios_note_rejects_the_1311_android_sentence(self):
+        leak = "打开账户抽屉情况下，Android 返回操作优先关闭账户抽屉，保留当前页面。"
+        manifest = candidate() | {"channels": ["ios-app-store"], "notes": {"ios-app-store": "ios.zh-Hans.txt"},
+                                  "baselines": {"ios-app-store": {"tag": None, "sourceSha": None}}}
+        (self.path / "ios.zh-Hans.txt").write_text(leak + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ReleaseError, r"ios-app-store note ios\.zh-Hans\.txt mentions Android"):
+            validate_candidate(manifest, self.path)
+        with self.assertRaisesRegex(ReleaseError, r"ios-testflight note testflight\.en-US\.txt mentions Android"):
+            validate_note_text("Confirm history shows no Android entries.", "testflight.en-US.txt", "ios-testflight")
+
+    def test_opposite_tokens_fail_and_same_platform_words_pass(self):
+        forbidden = {
+            "ios-app-store": ("ios.zh-Hans.txt", [("请改用 Android 版。", "Android"), ("Android返回优先关闭抽屉。", "Android"),
+                                                 ("安装安卓客户端。", "安卓"), ("另行下载 APK。", "APK"), ("下载 apk。", "APK")]),
+            "ios-testflight": ("testflight.en-US.txt", [("Install the APK.", "APK"), ("Check the 安卓 build.", "安卓")]),
+            "android": ("android.zh-CN.md", [("与 iOS 行为一致。", "iOS"), ("在 iPhone 上打开。", "iPhone"),
+                                            ("支持 iPad 分屏。", "iPad"), ("需要 iPadOS 17。", "iPadOS"),
+                                            ("前往 App Store 更新。", "App Store"), ("使用 TestFlight 验证。", "TestFlight"),
+                                            ("在苹果设备上可用。", "苹果")]),
+        }
+        for channel, (name, samples) in forbidden.items():
+            for sample, token in samples:
+                with self.subTest(channel=channel, sample=sample):
+                    with self.assertRaisesRegex(ReleaseError,
+                                                 rf"{re.escape(channel)} note {re.escape(name)} mentions {re.escape(token)}"):
+                        validate_note_text(sample, name, channel)
+        allowed = {
+            "ios-app-store": ("ios.zh-Hans.txt", "需要 iOS 16 或更高版本，支持 iPhone 与 iPad。本次说明不涉及 androidx。"),
+            "ios-testflight": ("testflight.en-US.txt", "On iPhone and iPad, open TestFlight and check the App Store build."),
+            "android": ("android.zh-CN.md", "发现 Android 更新时展示该渠道的版本变化，并保留 APK 校验。支持 Apple Music 链接预览。修复 bios 显示。"),
+            "web": ("web.zh-CN.md", "本次仅发布 Web，不要求 Android/iOS 配套发版。"),
+            "operators": ("operators.zh-CN.md", "不要求 Android/iOS 配套发版，也不发布 App Store 或 APK。"),
+        }
+        for channel, (name, text) in allowed.items():
+            with self.subTest(channel=channel):
+                self.assertEqual(validate_note_text(text, name, channel), text)
+
+    def test_changelog_rejects_opposite_platform_cues_and_keeps_shared_wording(self):
+        def entry(identity, platforms, summary, title="搜索"):
+            return {"id": identity, "title": title, "summary": summary, "platforms": platforms, "kind": "fix"}
+
+        def changelog(rows):
+            return {"schemaVersion": 1, "version": "1.0.15", "buildNumber": 15,
+                    "highlights": rows, "breaking": [], "requiredActions": [], "testflightNotes": [],
+                    "evidence": {row["id"]: ["proof"] for row in rows}}
+
+        channels = ["android", "ios-app-store", "ios-testflight"]
+        shared = entry("shared-search", ["android", "ios"], "改进搜索结果排序。")
+        validate_changelog(changelog([shared]), "1.0.15", 15, channels, draft=True)
+        android_only = entry("android-drawer", ["android"],
+                             "打开账户抽屉情况下，Android 返回操作优先关闭账户抽屉，保留当前页面。",
+                             title="账户抽屉返回")
+        validate_changelog(changelog([android_only]), "1.0.15", 15, channels, draft=True)
+        leaked = entry("pr-1247", ["android", "ios"], android_only["summary"], title="账户抽屉返回")
+        with self.assertRaisesRegex(ReleaseError, r"changelog entry pr-1247 lists ios but mentions Android"):
+            validate_changelog(changelog([leaked]), "1.0.15", 15, channels, draft=True)
+        testflight_only = entry("beta-apk", ["ios-testflight"], "Compare the installed APK.", title="安装包")
+        with self.assertRaisesRegex(ReleaseError, r"changelog entry beta-apk lists ios-testflight but mentions APK"):
+            validate_changelog(changelog([testflight_only]), "1.0.15", 15, channels)
+
+    def test_scrubbed_store_file_still_rejects_a_mistagged_changelog_entry(self):
+        manifest = candidate() | {"schemaVersion": 2, "channels": ["android", "ios-app-store"],
+                                  "notes": {"android": "android.zh-CN.md", "ios-app-store": "ios.zh-Hans.txt"},
+                                  "baselines": {c: {"tag": "mobile-v1.0.14", "sourceSha": "b" * 40}
+                                                for c in ("android", "ios-app-store")}}
+        leaked = {"id": "pr-1247", "title": "账户抽屉返回",
+                  "summary": "打开账户抽屉情况下，Android 返回操作优先关闭账户抽屉，保留当前页面。",
+                  "platforms": ["android", "ios"], "kind": "fix"}
+        changelog = {"schemaVersion": 1, "version": manifest["version"], "buildNumber": manifest["buildNumber"],
+                     "highlights": [leaked], "breaking": [], "requiredActions": [], "testflightNotes": [],
+                     "evidence": {"pr-1247": ["proof"]}}
+        (self.path / "evidence.json").write_text(json.dumps({"schemaVersion": 1, "sourceSha": SHA, "evidence": [
+            {"id": "proof", "channels": ["android", "ios-app-store"]}]}), encoding="utf-8")
+        (self.path / "changelog.json").write_text(json.dumps(changelog, ensure_ascii=False), encoding="utf-8")
+        (self.path / "android.zh-CN.md").write_text(render_changelog(changelog, "android"), encoding="utf-8")
+        (self.path / "ios.zh-Hans.txt").write_text("改进搜索结果排序。", encoding="utf-8")
+        with self.assertRaisesRegex(ReleaseError, r"changelog entry pr-1247 lists ios but mentions Android"):
+            validate_candidate(manifest, self.path)
+
+    def test_exact_merged_notes_remain_valid_and_any_edit_is_checked(self):
+        root = Path(__file__).resolve().parents[2] / "releases" / "requests"
+        for candidate_id in ("mobile-1.0.16-17", "mobile-1.0.17-33", "mobile-1.0.17-33-store-39439793116"):
+            folder = root / candidate_id
+            manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+            with self.subTest(candidate_id=candidate_id):
+                self.assertTrue(validate_candidate(manifest, folder))
+        ios = (root / "mobile-1.0.17-33" / "ios.zh-Hans.txt").read_text(encoding="utf-8").strip()
+        validate_note_text(ios, "ios.zh-Hans.txt", "ios-app-store")
+        with self.assertRaisesRegex(ReleaseError, r"ios-app-store note ios\.zh-Hans\.txt mentions Android"):
+            validate_note_text(ios + "。", "ios.zh-Hans.txt", "ios-app-store")
 
 
 if __name__ == "__main__":

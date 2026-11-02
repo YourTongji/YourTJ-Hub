@@ -11,6 +11,26 @@
 Shared Flutter functionality may appear separately in both Android and iOS if it actually works
 on both. An iOS Widget fix belongs only to iOS; Android notification permission belongs only to
 Android. Backend or status-site work is not a mobile feature merely because it shares the repository.
+
+A store channel What's New file must not name the other mobile platform. This is a hard rule
+with no comparative-QA exception: do not mention the other platform in order to say testers
+should ignore it. `validate_note_text` / `validate_candidate` enforce it (`workflow.py validate-pr`
+and `cli.py validate`). Validate previously checked shape, identity and disclosures only; it did
+not prove this semantic boundary. The closed token sets are:
+
+| Channel | Must not contain |
+| --- | --- |
+| `ios.zh-Hans.txt`, `testflight.en-US.txt` | Android, 安卓, APK |
+| `android.zh-CN.md` | iOS, iPhone, iPad, iPadOS, App Store, TestFlight, 苹果 |
+
+The same words on that channel's own platform are allowed, including an iOS system requirement.
+`web.zh-CN.md` and `operators.zh-CN.md` are not store What's New files and are not checked.
+ASCII tokens match case-insensitively, including when written next to Chinese, and do not match
+inside a longer Latin word. A structured changelog entry fails when its title or summary contains
+one of these tokens for a platform listed in `platforms`. An entry with no platform token may
+still list both `android` and `ios`. Already merged note and changelog bytes that predate the
+gate stay loadable so catalog reload and recovery keep working; editing them is checked again.
+Do not rewrite those files to satisfy the gate. That changes the approved content digest.
 Account changes, automatic analytics and other required disclosures cannot be removed for brevity.
 Do not copy the static `apps/mobile/store/zh-Hans/metadata.json` What's New into another channel.
 No unsupported “performance/stability improvements” filler. Reverted work is absent from net changes.
