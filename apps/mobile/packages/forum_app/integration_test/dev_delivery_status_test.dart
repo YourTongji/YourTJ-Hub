@@ -1,4 +1,8 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:forum_app/src/updates/android_release.dart';
+import 'package:forum_app/src/updates/release_notes_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -92,7 +96,90 @@ void main() {
         }
       }
     }
+    final previousHttp = HttpOverrides.current;
+    HttpOverrides.global = _OfflineHistory();
+    try {
+      SharedPreferences.setMockInitialValues({
+        'mobile.releaseNotes.${Uri.encodeComponent(mobileReleaseNotesUrl)}.json':
+            jsonEncode({
+              'schemaVersion': 1,
+              'releases': [
+                for (final build in [33, 43])
+                  {
+                    'version': build == 43 ? '1.0.18' : '1.0.17',
+                    'buildNumber': build,
+                    if (build == 43) 'displayBuild': '202611030003',
+                    'channels': ['ios-app-store'],
+                    'highlights': [
+                      {
+                        'id': 'entry-$build',
+                        'title': '版本编号',
+                        'summary': '发布历史保留每个版本的编号。',
+                        'platforms': ['ios-app-store'],
+                        'kind': 'improvement',
+                      },
+                    ],
+                    'breaking': [],
+                    'requiredActions': [],
+                    'testflightNotes': [],
+                  },
+              ],
+            }),
+      });
+      for (final brightness in Brightness.values) {
+        for (final width in [320.0, 900.0]) {
+          await tester.pumpWidget(const SizedBox());
+          await tester.pumpWidget(
+            MaterialApp(
+              debugShowCheckedModeBanner: false,
+              locale: const Locale('zh'),
+              theme: gfThemeData(brightness),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(width == 320 ? 2 : 1)),
+                child: Center(
+                  child: SizedBox(width: width, child: child),
+                ),
+              ),
+              home: const ReleaseNotesPage(),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(
+            find.textContaining('202611030003', findRichText: true),
+            findsOneWidget,
+          );
+          expect(
+            find.textContaining('(33)', findRichText: true),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          await tester.pump(const Duration(milliseconds: 250));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 200)),
+          );
+          await binding.takeScreenshot(
+            'history-${brightness.name}-${width == 320 ? '320' : 'native'}',
+          );
+        }
+      }
+      await tester.pumpWidget(const SizedBox());
+    } finally {
+      HttpOverrides.global = previousHttp;
+    }
     await tester.pumpWidget(const SizedBox());
     debugDefaultTargetPlatformOverride = null;
   });
+}
+
+// Exercise cached history without contacting public services or replacing
+// the date-ID fixture with an unrelated remote catalog.
+class _OfflineHistory extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    throw const SocketException('Isolated release-history fixture');
+  }
 }

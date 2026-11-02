@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 from model import ID, FILES, require, validate_candidate, validate_approval, digest
 from github import GitHub, git
@@ -165,11 +166,24 @@ def main():
         pr_number = args.pr or event.get("pull_request", {}).get("number")
         if args.command == "validate-pr":
             # Read-only PR CI; actual authorization comes from the trusted target controller.
-            paths = git("diff", "--name-only", "--no-renames", event.get("pull_request", {}).get("base", {}).get("sha", "HEAD^"), "HEAD", "--").splitlines()
+            pr = event.get('pull_request')
+            if pr:
+                sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ci'))
+                from select_inputs import pr_base
+                base = pr_base(pr['base']['sha'], pr['head']['sha'])
+            paths = (git('diff', '--name-only', '--no-renames',
+                         base + '...' + pr['head']['sha'], '--') if pr else
+                     git('diff', '--name-only', '--no-renames', 'HEAD^', 'HEAD', '--')).splitlines()
             ids = {p.split("/")[2] for p in paths if p.startswith("releases/requests/") and len(p.split("/")) > 3}
             for candidate_id in ids:
-                folder = Path(candidate_path(candidate_id))
-                validate_candidate(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder)
+                if pr:
+                    # A queued check's synthetic merge can contain newer main code.
+                    # Validate the proposed candidate bytes and branch diff directly.
+                    with tempfile.TemporaryDirectory() as temporary:
+                        load_candidate(candidate_id, pr['head']['sha'], Path(temporary))
+                else:
+                    folder = Path(candidate_path(candidate_id))
+                    validate_candidate(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder)
             if pr_number and event["pull_request"]["head"]["ref"].startswith("codex/release/"):
                 require(len(ids) == 1 and all(p.startswith(candidate_path(next(iter(ids))) + "/") for p in paths), "Release PR includes unrelated changes")
             return

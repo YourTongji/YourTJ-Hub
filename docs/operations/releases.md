@@ -45,6 +45,10 @@ collects source evidence and opens `codex/release/<id>` against main. Only `rele
 may change. Editable drafts do not delay building the RC. Signing executes trusted-main controller
 code with the selected source in a separate checkout; release data cannot edit publisher workflows.
 
+Metadata CI compares the proposed branch from its merge base and validates that head's candidate
+bytes. New main commits arriving while a check is queued are not treated as changes in the request;
+actual unrelated edits on the request branch still fail the candidate-only scope rule.
+
 | File | Purpose |
 |---|---|
 | manifest.json | Source, final version, native counter, display ID, iOS number, channels and selected RC run |
