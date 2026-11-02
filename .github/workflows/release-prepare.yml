@@ -2,6 +2,13 @@ name: Release / Prepare
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: Optional final X.Y.Z; replacement RCs may retain an unpublished version
+        type: string
+      draft_notes:
+        description: Optional AI release-note drafting (off by default)
+        type: boolean
+        default: false
       scope:
         description: 'Release targets (select main branch)'
         type: choice
@@ -13,7 +20,7 @@ on:
         options: [patch, minor, major]
         default: patch
       source:
-        description: Approved full cycle SHA (main selects the active cycle, never the moving main head)
+        description: Fixed main-history SHA; main is resolved once during preparation
         type: string
         default: main
       ios_destination:
@@ -63,6 +70,7 @@ jobs:
           SCOPE: ${{ inputs.scope }}
           BUMP: ${{ inputs.bump }}
           SOURCE: ${{ inputs.source }}
+          VERSION: ${{ inputs.version }}
           IOS_DESTINATION: ${{ inputs.ios_destination }}
           EXISTING_RELEASE: ${{ inputs.existing_release }}
         run: |
@@ -70,6 +78,7 @@ jobs:
           if [ -f "$RUNNER_TEMP/apple-state.json" ]; then args+=(--apple-state "$RUNNER_TEMP/apple-state.json"); fi
           python3 scripts/release/workflow.py prepare "${args[@]}"
       - name: Set up Oryn
+        if: inputs.draft_notes
         id: runtime
         continue-on-error: true
         uses: ./.github/actions/setup-oryn

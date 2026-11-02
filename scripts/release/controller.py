@@ -78,7 +78,7 @@ def open_request(github, product):
     return None
 
 
-def plan(scope, bump, source, destination, github, apple=None):
+def plan(scope, bump, source, destination, github, apple=None, version=None):
     channels = channels_for(scope, destination)
     product = "web" if scope == "web" else "mobile"
     pending = open_request(github, product)
@@ -103,9 +103,23 @@ def plan(scope, bump, source, destination, github, apple=None):
         match = re.search(r"(?m)^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$", pubspec)
         require(match, "Mobile pubspec must define the version/build floor")
         floor, floor_build = match[1], int(match[2])
-    version, number = next_identity(product, bump, identities, floor, floor_build)
+    next_version, number = next_identity(product, bump, identities, floor, floor_build)
+    if version:
+        from model import VERSION
+        require(VERSION.fullmatch(version), 'Version must be X.Y.Z')
+        prefix = 'v' if product == 'web' else 'mobile-v'
+        require(not any(row['tag'] == prefix + version for row in tags), 'Final version tag already reserved')
+        require(all(tuple(map(int, version.split('.'))) > tuple(map(int, row['tag'][len(prefix):].split('.')))
+                    for row in tags if re.fullmatch(re.escape(prefix) + r'\d+\.\d+\.\d+', row['tag'])),
+                'Version must advance the final release namespace')
+        require(product != 'mobile' or tuple(map(int, version.split('.'))) >= tuple(map(int, floor.split('.'))),
+                'Version below source floor')
+    else:
+        version = next_version
     candidate_id = f"{product}-{version}" + (f"-{number}" if number else "")
-    return {"schemaVersion": 2, "candidateId": candidate_id, "sourceSha": sha,
+    if product == 'web' and os.environ.get('GITHUB_RUN_ID'):
+        candidate_id += '-' + os.environ['GITHUB_RUN_ID']
+    return {"schemaVersion": 3, "candidateId": candidate_id, "sourceSha": sha, "rcRun": None,
             "product": product, "version": version, "tag": ("v" if product == "web" else "mobile-v") + version,
             "buildNumber": number, "channels": channels, "operation": "release", "existingRelease": None,
             "baselines": baselines(github, channels, tags, apple), "notes": {c: FILES[c] for c in channels},
@@ -136,7 +150,7 @@ def notes_banner(manifest, status):
         return (f"Release notes: Oryn drafted every channel (attempt {len(status['attempts'])}). "
                 "Review wording, kind and evidence before approval.")
     if status is None:
-        reason, missing = "Oryn was unavailable", list(manifest["notes"])
+        reason, missing = "Automatic drafting was disabled or unavailable", list(manifest["notes"])
     else:
         reason = f"Oryn returned no usable draft after {len(status['attempts'])} attempt(s)" \
             if status["status"] == "failed" else f"Oryn's best draft after {len(status['attempts'])} attempt(s) is partial"
@@ -174,7 +188,7 @@ def create_pr(manifest, folder, github, notes_status=None, cycle=None):
     previews = "\n\n".join(f"### {channel}\n\n{(Path(folder) / filename).read_text(encoding='utf-8')}" for channel, filename in manifest["notes"].items())
     body = (f"Release request `{candidate_id}`\n\n{notes_banner(manifest, notes_status)}\n\nSource: `{manifest['sourceSha']}`\n\n"
             f"Targets: {', '.join(manifest['channels'])}\n\n"
-            "A release maintainer must review the final head. For schema 2 mobile requests, edit changelog.json, attach evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive platform files; review TestFlight English separately. Verify platform scope, disclosures and server prerequisites, then approve and merge. Bots cannot approve. The publisher independently rechecks approval.\n\n"
+            "A release maintainer must review the final head. For schema 2/3 mobile requests, edit changelog.json, attach evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive platform files; review TestFlight English separately. Verify platform scope, disclosures and server prerequisites, then approve and merge. Bots cannot approve. The publisher independently rechecks approval.\n\n"
             f"Baselines:\n```json\n{json.dumps(manifest['baselines'], indent=2)}\n```\n\n{previews}\n\n"
             "Evidence and uncertainties: `evidence.json`. Source, targets and note edits require fresh approval.")
     if cycle:
@@ -256,7 +270,7 @@ def emit_outputs(manifest, binding):
                "notes_digests": json.dumps(binding['notesDigests'], separators=(',', ':')),
                "changelog_digest": binding.get('changelogDigest') or '',
                "evidence_digest": binding.get('evidenceDigest') or '',
-               "promotion": str(manifest["operation"] == "promote-ios").lower()}
+               "promotion": str(manifest["operation"] == "promote-ios" or bool(manifest.get('rcRun'))).lower()}
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:
             for k, v in outputs.items():

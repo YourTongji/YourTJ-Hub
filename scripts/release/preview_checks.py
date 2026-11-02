@@ -8,11 +8,7 @@ from model import require
 def verify(stage, artifacts, results):
     mobile = bool(set(artifacts) & {'android', 'ios'})
     expected = {'begin': 'success'}
-    if stage == 'source':
-        expected.update({name: 'success' for name in ['backend', 'frontend', 'contract', 'govulncheck']})
-        expected.update({name: 'success' if mobile else 'skipped' for name in ['mobile', 'native']})
-    else:
-        expected['validated'] = 'success'
+    if stage == 'distribution':
         expected['identity'] = 'success' if mobile else 'skipped'
         expected.update({job: 'success' if artifact in artifacts else 'skipped'
                          for artifact, job in [('web', 'dev'), ('android', 'android'), ('ios', 'ios')]})

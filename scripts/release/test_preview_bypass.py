@@ -70,7 +70,7 @@ class PreviewBypassTests(unittest.TestCase):
         request = execute(parser().parse_args(args), self.remote)
         self.assertEqual(request['inputs']['source_review_bypass_reason'], 'Authorized emergency preview')
         self.remote.dispatch.assert_not_called()
-        with self.assertRaises(ReleaseError):
+        with self.assertRaises(SystemExit):
             execute(parser().parse_args(args + ['--cycle', '42', '--purpose', 'production']), self.remote)
 
     def test_controller_seals_the_override_and_signing_rechecks_it(self):

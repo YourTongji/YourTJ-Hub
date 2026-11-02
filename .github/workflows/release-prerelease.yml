@@ -6,12 +6,12 @@ on:
       source: {description: 'Full current dev SHA for a new cycle', type: string}
       issue: {description: 'Release tracking issue for a new cycle', type: string}
       channels: {description: 'Production scope for a new cycle', type: string, default: 'web,android,ios-testflight,ios-app-store'}
-      artifacts: {description: 'Preview artifacts: web,android,ios; empty = all for purpose. Production rehearsal: android,ios only.', type: string}
+      artifacts: {description: 'Dev preview artifacts: web,android,ios; empty = all', type: string}
       source_review_bypass_reason: {description: 'Optional admin-only source-review exception for this dev preview run; audited with source SHA and actor', type: string}
       purpose:
-        description: 'Dev candidate or same-source production-configuration rehearsal'
+        description: 'Dev configuration preview; production RCs use Release / RC'
         type: choice
-        options: [dev, production]
+        options: [dev]
         default: dev
 permissions:
   contents: read
@@ -72,49 +72,9 @@ jobs:
       - name: Refresh the public candidate notice
         env: {GH_TOKEN: '${{ github.token }}'}
         run: python3 scripts/release/preview_status.py
-  backend:
-    needs: begin
-    uses: ./.github/workflows/ci-backend.yml
-    with: {source: '${{ needs.begin.outputs.source }}', postgres: true}
-  frontend:
-    needs: begin
-    uses: ./.github/workflows/ci-frontend.yml
-    with: {source: '${{ needs.begin.outputs.source }}'}
-  contract:
-    needs: begin
-    uses: ./.github/workflows/ci-contract.yml
-    with: {source: '${{ needs.begin.outputs.source }}'}
-  govulncheck:
-    needs: begin
-    uses: ./.github/workflows/ci-govulncheck.yml
-    with: {source: '${{ needs.begin.outputs.source }}'}
-  mobile:
-    needs: begin
-    if: contains(fromJSON(needs.begin.outputs.artifacts), 'android') || contains(fromJSON(needs.begin.outputs.artifacts), 'ios')
-    uses: ./.github/workflows/ci-mobile.yml
-    with: {source: '${{ needs.begin.outputs.source }}'}
-  native:
-    needs: begin
-    if: contains(fromJSON(needs.begin.outputs.artifacts), 'android') || contains(fromJSON(needs.begin.outputs.artifacts), 'ios')
-    uses: ./.github/workflows/ci-mobile-native.yml
-    with:
-      source: ${{ needs.begin.outputs.source }}
-      platforms: ${{ needs.begin.outputs.mobile_artifacts }}
-      purpose: ${{ inputs.purpose }}
-  validated:
-    needs: [begin, backend, frontend, contract, govulncheck, mobile, native]
-    if: always() && needs.begin.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with: {persist-credentials: false}
-      - env:
-          ARTIFACTS: ${{ needs.begin.outputs.artifacts }}
-          RESULTS: ${{ toJSON(needs) }}
-        run: python3 scripts/release/preview_checks.py source
   identity:
-    needs: [begin, validated]
-    if: ${{ !cancelled() && needs.validated.result == 'success' && (contains(fromJSON(needs.begin.outputs.artifacts), 'android') || contains(fromJSON(needs.begin.outputs.artifacts), 'ios')) }}
+    needs: begin
+    if: ${{ !cancelled() && needs.begin.result == 'success' && (contains(fromJSON(needs.begin.outputs.artifacts), 'android') || contains(fromJSON(needs.begin.outputs.artifacts), 'ios')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -141,8 +101,8 @@ jobs:
           PURPOSE: ${{ inputs.purpose }}
         run: python3 scripts/release/preview.py
   dev:
-    needs: [begin, validated]
-    if: ${{ !cancelled() && needs.validated.result == 'success' && contains(fromJSON(needs.begin.outputs.artifacts), 'web') }}
+    needs: begin
+    if: ${{ !cancelled() && needs.begin.result == 'success' && contains(fromJSON(needs.begin.outputs.artifacts), 'web') }}
     uses: ./.github/workflows/deploy-dev.yml
     with:
       source: ${{ needs.begin.outputs.source }}
@@ -178,7 +138,7 @@ jobs:
       number: ${{ needs.identity.outputs.number }}
     secrets: inherit
   ready:
-    needs: [begin, validated, identity, dev, android, ios]
+    needs: [begin, identity, dev, android, ios]
     if: always()
     runs-on: ubuntu-latest
     steps:

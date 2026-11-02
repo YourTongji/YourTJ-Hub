@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-SCHEMA = 2
+SCHEMA = 3
 NOTES_FORMAT_VERSION = 2
 REPOSITORY = "YourTongji/YourTJ-Hub"
 FILES = {"web": "web.zh-CN.md", "android": "android.zh-CN.md",
@@ -92,10 +92,16 @@ def validate_note_text(text, name, channel, draft=False):
 
 
 def validate_candidate(manifest, folder, draft=False):
+    require(isinstance(manifest, dict), 'Manifest must be an object')
     required = {"schemaVersion", "candidateId", "sourceSha", "product", "version", "tag", "buildNumber",
                 "channels", "operation", "existingRelease", "baselines", "notes", "serverRequirement", "requiredDisclosures"}
+    if manifest.get('schemaVersion') == 3:
+        required.add('rcRun')
     require(isinstance(manifest, dict) and set(manifest) == required, "Unexpected or missing manifest fields")
-    require(manifest["schemaVersion"] in {1, SCHEMA}, "Unsupported manifest schema")
+    require(manifest["schemaVersion"] in {1, 2, 3}, "Unsupported manifest schema")
+    if manifest['schemaVersion'] == 3:
+        require(manifest['rcRun'] is None or isinstance(manifest['rcRun'], str) and manifest['rcRun'].isdigit(),
+                'rcRun must be null or an explicit Actions run ID')
     legacy_candidate = manifest["schemaVersion"] == 1
     require(isinstance(manifest["candidateId"], str) and ID.fullmatch(manifest["candidateId"]), "Invalid candidate ID")
     require(isinstance(manifest["sourceSha"], str) and SHA.fullmatch(manifest["sourceSha"]), "Source must be a full commit SHA")
@@ -108,7 +114,9 @@ def validate_candidate(manifest, folder, draft=False):
             and set(channels) <= FILES.keys(), "Invalid channels")
     require(channels == ["web"] if product == "web" else "web" not in channels, "Channel/product mismatch")
     stem = f"{product}-{version}" + (f"-{number}" if product == "mobile" else "")
-    require(manifest["candidateId"] == stem if manifest["operation"] == "release" else
+    release_id = manifest['candidateId'] == stem or (manifest['schemaVersion'] == 3 and product == 'web'
+                  and re.fullmatch(re.escape(stem) + r'-[1-9]\d*', manifest['candidateId']))
+    require(release_id if manifest["operation"] == "release" else
             manifest["candidateId"].startswith(stem + "-store-"), "Candidate ID does not match release identity")
     require(manifest["operation"] in {"release", "promote-ios"}, "Invalid operation")
     existing = manifest["existingRelease"]
