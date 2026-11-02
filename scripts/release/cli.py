@@ -20,17 +20,18 @@ CONTROL_ACTIONS = ['start', 'admit', 'advance', 'qa', 'production-qa', 'extend',
 def parser():
     root = argparse.ArgumentParser(description=__doc__)
     sub = root.add_subparsers(dest="command", required=True)
-    for name in ["status", "doctor", "plan", "prepare", "validate", "publish", "retry", "promote-ios", 'cycle', 'prerelease', 'control']:
+    for name in ["status", "doctor", "plan", "prepare", "validate", "publish", "retry", "promote-ios", 'cycle', 'prerelease', 'control', 'rc']:
         cmd = sub.add_parser(name)
         cmd.add_argument("--json", action="store_true", help="stable schemaVersion=1 JSON output")
         if name in {"plan", "prepare", "doctor"}:
             cmd.add_argument("--scope", choices=["web", "android", "ios", "mobile"], default="web")
         if name in {"plan", "prepare"}:
+            cmd.add_argument('--version', default='', help='Optional final X.Y.Z, including a replacement RC of an unpublished version')
             cmd.add_argument("--source", default="main", help="main or full SHA already in main history")
             cmd.add_argument("--bump", choices=["patch", "minor", "major"], default="patch")
             cmd.add_argument("--ios-destination", choices=["testflight", "app-store"], default="testflight")
             cmd.add_argument("--apple-state", type=Path, help="read-only ASC discovery JSON for local planning")
-        if name in {"status", "validate", "publish", "retry"}:
+        if name in {"status", "validate", "publish", "retry", "rc"}:
             cmd.add_argument("--candidate", required=name != "status")
         if name == "retry":
             cmd.add_argument("--channel", choices=["web", "android", "android-alias", "ios-testflight", "ios-app-store"], required=True)
@@ -43,7 +44,7 @@ def parser():
             cmd.add_argument('--issue', default='')
             cmd.add_argument('--channels', default='web,android,ios-testflight,ios-app-store')
         if name == 'prerelease':
-            cmd.add_argument('--purpose', choices=['dev', 'production'], default='dev')
+            cmd.add_argument('--purpose', choices=['dev'], default='dev')
             cmd.add_argument('--artifacts', default='', help='Comma-separated web,android,ios; default all supported for purpose')
             cmd.add_argument('--source-review-bypass-reason', default='', help='Admin-only, audited source-review exception for this dev preview run')
         if name == 'control':
@@ -52,7 +53,9 @@ def parser():
             cmd.add_argument('--note', required=True)
             for field in ['pr', 'until', 'assignee', 'base']:
                 cmd.add_argument('--' + field, default='')
-        if name in {"prepare", "publish", "retry", "promote-ios", 'prerelease', 'control'}:
+        if name == 'prepare':
+            cmd.add_argument('--draft-notes', action='store_true', help='Opt in to AI note drafting; default opens an editable request immediately')
+        if name in {"prepare", "publish", "retry", "promote-ios", 'prerelease', 'control', 'rc'}:
             mode = cmd.add_mutually_exclusive_group()
             mode.add_argument("--apply", action="store_true", help="perform the user-authorized dispatch on main")
             mode.add_argument("--dry-run", action="store_true", help="show request; default, no remote writes")
@@ -60,6 +63,12 @@ def parser():
 
 
 def execute(args, github):
+    if args.command == 'rc':
+        from model import ID
+        require(ID.fullmatch(args.candidate), 'Select a release candidate ID')
+        inputs = {'candidate': args.candidate}
+        return github.dispatch('release-rc.yml', inputs) if args.apply else {
+            'dryRun': True, 'workflow': 'release-rc.yml', 'ref': 'main', 'inputs': inputs}
     if args.command == 'cycle':
         return {'releaseCycles': load_cycle(github)}
     if args.command in {'prerelease', 'control'}:
@@ -89,14 +98,13 @@ def execute(args, github):
     if args.command == "plan":
         apple = json.loads(args.apple_state.read_text(encoding='utf-8')) if args.apple_state else None
         source = args.source
-        if source == 'main':
-            active = current(load_cycle(github))
-            require(active, 'Select a release cycle before planning production')
-            source = active['source']
-        return {"state": "draft", "manifest": plan(args.scope, args.bump, source, args.ios_destination, github, apple), "nextActions": ["prepare --apply"]}
+        return {"state": "draft", "manifest": plan(args.scope, args.bump, source, args.ios_destination, github, apple,
+                                                   version=args.version or None), "nextActions": ["prepare --apply"]}
     if args.command == "prepare":
         channels_for(args.scope, args.ios_destination)
-        inputs = {"scope": args.scope, "bump": args.bump, "source": args.source, "ios_destination": args.ios_destination}
+        inputs = {"scope": args.scope, "bump": args.bump, "source": args.source, "ios_destination": args.ios_destination,
+                  'draft_notes': str(args.draft_notes).lower()}
+        inputs['version'] = args.version
         return github.dispatch("release-prepare.yml", inputs) if args.apply else {"dryRun": True, "workflow": "release-prepare.yml", "ref": "main", "inputs": inputs}
     if args.command == "promote-ios":
         candidate_path(args.release)

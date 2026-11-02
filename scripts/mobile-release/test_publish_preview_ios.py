@@ -17,7 +17,7 @@ class PreviewPublisherTests(unittest.TestCase):
                          SOURCE_SHA='a'*40, MOBILE_VERSION='1.0.17', MOBILE_BUILD_NUMBER='21',
                          PRERELEASE_TESTFLIGHT_GROUP_ID='qa', IOS_EXISTING_BUILD_ONLY='true',
                          IOS_EXPECTED_BUILD_ID='build', RELEASE_RESULT_PATH=str(self.result),
-                         GITHUB_STEP_SUMMARY=str(Path(folder.name) / 'summary'))
+                         GITHUB_STEP_SUMMARY=str(Path(folder.name) / 'summary'), GITHUB_RUN_ID='100')
         env.start()
         self.addCleanup(env.stop)
         self.calls = []
@@ -57,6 +57,24 @@ class PreviewPublisherTests(unittest.TestCase):
         self.run_publisher()
         self.assertEqual(json.loads(self.result.read_text())['stage'], 'available_for_testing')
         self.assertFalse(any(c[:2] == ('builds', 'add-groups') for c in self.calls))
+
+    def test_rc_uses_final_production_configuration_and_never_submits_store_review(self):
+        with patch.dict(os.environ, RC_BUILD='true', MOBILE_ENVIRONMENT='production', MOBILE_PREVIEW='false'):
+            self.run_publisher()
+        record = json.loads(self.result.read_text())
+        self.assertEqual(record['buildId'], 'build')
+        self.assertEqual(record['environment'], 'production')
+        self.assertEqual(record['stage'], 'available_for_testing')
+        self.assertFalse(any(c[:2] in [('builds', 'upload'), ('publish', 'appstore')] for c in self.calls))
+        note = next(c for c in self.calls if c[:3] == ('builds', 'test-notes', 'create'))[-1]
+        self.assertIn('/actions/runs/100', note)
+        self.assertNotIn('preview-status', note)
+
+    def test_rc_cannot_use_dev_or_preview_compilation_flags(self):
+        for env in [{'RC_BUILD': 'true', 'MOBILE_ENVIRONMENT': 'dev'},
+                    {'RC_BUILD': 'true', 'MOBILE_ENVIRONMENT': 'production', 'MOBILE_PREVIEW': 'true'}]:
+            with patch.dict(os.environ, env), self.assertRaises(ValueError):
+                self.run_publisher()
 
     def test_existing_manual_membership_is_idempotent(self):
         self.automatic = False

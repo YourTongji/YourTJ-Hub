@@ -11,13 +11,14 @@ from approved_notes import read_notes
 
 
 def main():
+    rc = os.environ.get('RC_BUILD') == 'true'
     tag = os.environ['RELEASE_TAG']
     notes = Path('.release-approved/web.zh-CN.md')
     os.environ['WEB_NOTES_PATH'] = str(notes)
     text = read_notes('WEB_NOTES_PATH')
     release = find_release(tag)
     if release is None:
-        gh('release', 'create', tag, '--verify-tag', '--draft', '--title', tag, '--notes-file', str(notes))
+        gh('release', 'create', tag, '--verify-tag', '--draft', *(['--prerelease'] if rc else []), '--title', tag, '--notes-file', str(notes))
         release = find_release(tag)
     if not release or (release.get('body') or '').strip() != text:
         raise ValueError('Existing web release differs from approved notes')
@@ -36,7 +37,7 @@ def main():
     for path in assets:
         if uploaded.get(path.name, {}).get('digest') != 'sha256:' + hashlib.sha256(path.read_bytes()).hexdigest():
             raise ValueError('GitHub archive digest not confirmed; retry original artifacts')
-    gh('release', 'edit', tag, '--draft=false', '--latest')
+    gh('release', 'edit', tag, '--draft=false', '--latest=false' if rc else '--latest')
 
 
 if __name__ == '__main__':

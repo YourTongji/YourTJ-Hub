@@ -392,7 +392,7 @@ class PipelineTest(unittest.TestCase):
 
     def test_release_request_names_incomplete_oryn_notes(self):
         manifest = candidate()
-        self.assertIn('Oryn was unavailable. Missing: android, ios-testflight.', notes_banner(manifest, None))
+        self.assertIn('Automatic drafting was disabled or unavailable. Missing: android, ios-testflight.', notes_banner(manifest, None))
         failed = {'status': 'failed', 'missing': ['android'], 'stopped': None,
                   'attempts': [{'attempt': 1, 'error': 'TimeoutExpired: `bun` timed out'}]}
         self.assertIn("no usable draft after 1 attempt(s) (last error: TimeoutExpired: 'bun' timed out). Missing: android.",

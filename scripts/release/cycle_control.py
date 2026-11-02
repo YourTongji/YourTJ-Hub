@@ -163,7 +163,7 @@ def verify_build_run(github, run_id, artifact):
     for job in sorted(github.pages(f'actions/runs/{run_id}/jobs?filter=all', 'jobs'), key=lambda j: j['id']):
         jobs[job['name']] = job['conclusion']
     name = {'web': 'dev / deploy', 'android': 'android / preview', 'ios': 'ios / preview'}[artifact]
-    require(jobs.get('validated') == 'success' and jobs.get(name) == 'success',
+    require((jobs.get('begin') or jobs.get('validated')) == 'success' and jobs.get(name) == 'success',
             f'Prerelease {artifact} validation and distribution must succeed before QA')
 
 
