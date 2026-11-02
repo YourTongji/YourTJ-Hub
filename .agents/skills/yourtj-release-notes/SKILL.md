@@ -26,6 +26,8 @@ regeneration is a new reviewable edit. Model output, PR prose, and an `approved`
 publication authority. Never replace an approved release's text during a retry.
 
 Run `python3 scripts/release/cli.py validate --candidate <id> --json` after edits. This checks
-structure, identity, file isolation and disclosure/length constraints; it does not prove semantic
-truth or substitute for the final human review. A notes-only request does not authorize creating
+structure, identity, file isolation, disclosure/length constraints, and that a store channel note
+or structured changelog entry does not name the other mobile platform. Validate previously did
+not prove that semantic boundary. It still does not prove other semantic truth or substitute
+for the final human review. A notes-only request does not authorize creating
 PRs, tags, store submissions or production deployments.

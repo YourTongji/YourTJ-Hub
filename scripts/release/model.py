@@ -18,6 +18,42 @@ MAX_BUILD = 2099996000
 MAX_CHANGELOG_GROUP = 100
 
 
+def _product_token(body):
+    """Match a product token beside Chinese or punctuation, not inside a longer Latin word."""
+    return re.compile(rf"(?<![A-Za-z0-9])(?:{body})(?![A-Za-z0-9])", re.IGNORECASE)
+
+
+# Closed sets. iOS channels reject Android product tokens; Android rejects Apple/iOS product tokens.
+_ANDROID_PRODUCT_TOKENS = (
+    ("Android", _product_token("Android")),
+    ("安卓", re.compile("安卓")),
+    ("APK", _product_token("APKs?")),
+)
+_APPLE_PRODUCT_TOKENS = (
+    ("iOS", _product_token("iOS")),
+    ("iPhone", _product_token("iPhones?")),
+    ("iPadOS", _product_token("iPadOS")),
+    ("iPad", _product_token("iPads?")),
+    ("App Store", _product_token(r"App\s*Store")),
+    ("TestFlight", _product_token("TestFlight")),
+    ("苹果", re.compile("苹果")),
+)
+# Exact merged text that already names the other platform. Catalog reload, recovery and
+# publishers revalidate these bytes; rewriting them would change the approved content digest.
+# The historical candidate, channel and filename must also match. Copying even
+# these complete bytes into another candidate does not inherit the exception.
+_FROZEN_OPPOSITE_PLATFORM_NOTES = {
+    # releases/requests/mobile-1.0.17-33/ios.zh-Hans.txt
+    ('mobile-1.0.17-33', 'ios-app-store', 'ios.zh-Hans.txt'): "d0d084fd441177eea1acc4b5a4b249d32265921d89383abd5c14e78582d895df",
+    # releases/requests/mobile-1.0.16-17/testflight.en-US.txt
+    ('mobile-1.0.16-17', 'ios-testflight', 'testflight.en-US.txt'): "1139da8cd08105cdaa140125be0ed6ee975059fffa4fe51b5ce6c72c715c4b4d",
+}
+_FROZEN_OPPOSITE_PLATFORM_CHANGELOGS = frozenset({
+    # releases/requests/mobile-1.0.17-33/changelog.json (pr-1247 lists ios and says Android)
+    ('mobile-1.0.17-33', "736e68726526c521437dd2809298d71b97ced3d790cdb5ee50eeceb13a3062cf"),
+})
+
+
 class ReleaseError(ValueError):
     """An invariant or prerequisite failed; callers must not infer permission."""
 
@@ -73,21 +109,35 @@ def next_identity(product, bump, reservations, floor="1.0.0", floor_build=1):
     return ".".join(map(str, version)), number
 
 
-def read_note(folder, name, channel, draft=False):
+def read_note(folder, name, channel, draft=False, *, candidate_id=None):
     path = Path(folder) / name
     require(path.is_file() and not path.is_symlink(), f"Missing or symlinked note: {name}")
     text = path.read_text(encoding="utf-8").strip()
-    return validate_note_text(text, name, channel, draft)
+    return validate_note_text(text, name, channel, draft, candidate_id=candidate_id)
 
 
-def validate_note_text(text, name, channel, draft=False):
-    """Shared shape rules for candidate validation and the bytes read by publishers."""
+def _opposite_platform_token(platform, text):
+    """Token from the other mobile platform, or None for web, operators and same-platform words."""
+    if platform == "android":
+        patterns = _APPLE_PRODUCT_TOKENS
+    elif isinstance(platform, str) and platform.startswith("ios"):
+        patterns = _ANDROID_PRODUCT_TOKENS
+    else:
+        return None
+    return next((label for label, pattern in patterns if pattern.search(text)), None)
+
+
+def validate_note_text(text, name, channel, draft=False, *, candidate_id=None):
+    """Shared shape and store-channel isolation rules for candidate validation and publishers."""
     require(text and "\x00" not in text and len(text) <= (4000 if channel.startswith("ios-") else 16000),
             f"Empty or oversized note: {name}")
     require(draft or "[DRAFT:" not in text, f"Unfinished draft: {name}")
     if channel.startswith("ios-"):
         require(not re.search(r"(?m)^\s{0,3}(?:#{1,6}\s|```)|\[[^\]]+\]\(|<[^>]+>", text),
                 f"Apple notes must be plain text: {name}")
+    token = _opposite_platform_token(channel, text)
+    require(token is None or _FROZEN_OPPOSITE_PLATFORM_NOTES.get((candidate_id, channel, name)) == hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            f"{channel} note {name} mentions {token}")
     return text
 
 
@@ -154,7 +204,7 @@ def validate_candidate(manifest, folder, draft=False):
                     and isinstance(baseline["tag"], str) and re.fullmatch(r"(?:mobile-)?v\d+\.\d+\.\d+", baseline["tag"])),
                 f"Unresolved baseline: {channel}")
     require(manifest["notes"] == {c: FILES[c] for c in channels}, "Each channel requires its own canonical note file")
-    contents = {c: read_note(folder, name, c, draft) for c, name in manifest["notes"].items()}
+    contents = {c: read_note(folder, name, c, draft, candidate_id=manifest['candidateId']) for c, name in manifest["notes"].items()}
     changelog_digest = None
     changelog = None
     if product == "mobile" and not legacy_candidate:
@@ -165,7 +215,8 @@ def validate_candidate(manifest, folder, draft=False):
         changelog = json.loads(changelog_raw)
         if manifest['schemaVersion'] >= 4:
             require(changelog.get('displayBuild') == manifest['displayBuild'], 'Changelog display build differs from the RC')
-        validate_changelog(changelog, version, number, channels, draft=draft)
+        validate_changelog(changelog, version, number, channels, draft=draft,
+                           enforce_platform_isolation=(manifest['candidateId'], changelog_digest) not in _FROZEN_OPPOSITE_PLATFORM_CHANGELOGS)
         evidence_path = Path(folder) / "evidence.json"
         require(evidence_path.is_file() and not evidence_path.is_symlink(), "Missing mobile evidence.json")
         evidence_raw = evidence_path.read_bytes()
@@ -242,7 +293,7 @@ def notes_format_version(changelog):
     return version
 
 
-def validate_changelog(value, version, build_number, channels, draft=False):
+def validate_changelog(value, version, build_number, channels, draft=False, *, enforce_platform_isolation=True):
     required = {"schemaVersion", "version", "buildNumber", "highlights", "breaking", "requiredActions", "evidence", "testflightNotes"}
     require(isinstance(value, dict) and required <= set(value) <= required | {"notesFormatVersion", 'displayBuild'},
             "Invalid structured changelog fields")
@@ -273,6 +324,11 @@ def validate_changelog(value, version, build_number, channels, draft=False):
                     and len(entry["platforms"]) == len(set(entry["platforms"]))
                     and set(entry["platforms"]) <= allowed_platforms
                     and set(entry["platforms"]) <= supported, "Invalid or unpublished changelog platforms")
+            if enforce_platform_isolation:
+                blob = f"{entry['title']}\n{entry['summary']}"
+                for platform in entry["platforms"]:
+                    token = _opposite_platform_token(platform, blob)
+                    require(token is None, f"changelog entry {entry['id']} lists {platform} but mentions {token}")
     testflight = value["testflightNotes"]
     require(isinstance(testflight, list) and ("ios-testflight" not in channels or draft or testflight),
             "TestFlight release requires structured testing notes")
