@@ -8,6 +8,8 @@ type Option = { value: string; label: string }
 const props = defineProps<{
   /** 表单字段名（checkbox 提交用的 name，如 department）。 */
   modelName: string
+  /** 外置面板中的 checkbox 所属表单 ID。 */
+  form?: string
   /** 按钮上的标题（如「全部院系」）。 */
   label: string
   /** 选项列表。 */
@@ -27,6 +29,9 @@ const panelUp = ref(false)
 const search = ref('')
 const triggerRef = ref<HTMLElement | null>(null)
 const rootRef = ref<HTMLElement | null>(null)
+const panelRef = ref<HTMLElement | null>(null)
+const panelStyle = ref<Record<string, string>>({})
+const optionsStyle = ref<Record<string, string>>({})
 const panelId = `course-filter-${Math.random().toString(36).slice(2, 9)}`
 
 const count = computed(() => props.selected.length)
@@ -62,29 +67,59 @@ function onRootKeydown(e: KeyboardEvent) {
   }
   if (!open.value || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return
   e.preventDefault()
-  const boxes = Array.from(rootRef.value?.querySelectorAll<HTMLElement>('input[type="checkbox"]') ?? [])
+  const boxes = Array.from(panelRef.value?.querySelectorAll<HTMLElement>('input[type="checkbox"]') ?? [])
   if (!boxes.length) return
   const idx = boxes.indexOf(document.activeElement as HTMLElement)
   const next = e.key === 'ArrowDown' ? (idx + 1) % boxes.length : (idx - 1 + boxes.length) % boxes.length
   boxes[next].focus()
 }
 
-// 依据按钮位置决定向下或向上展开，避免超出视口底部。
+// 依据按钮位置决定展开方向，并让传送到 body 的浮层跟随页面滚动。
 function computePlacement() {
   const el = triggerRef.value
   if (!el) return
   const rect = el.getBoundingClientRect()
-  const spaceBelow = window.innerHeight - rect.bottom
-  panelUp.value = spaceBelow < 320
+  const gap = 4
+  const viewportPadding = 8
+  const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPadding
+  const spaceAbove = rect.top - gap - viewportPadding
+  panelUp.value = spaceBelow < 300 && spaceAbove > spaceBelow
+  const availableHeight = Math.max(0, panelUp.value ? spaceAbove : spaceBelow)
+  const width = Math.min(Math.max(rect.width, 240), window.innerWidth - viewportPadding * 2)
+  const left = Math.max(viewportPadding, Math.min(rect.left, window.innerWidth - width - viewportPadding))
+  panelStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    width: `${width}px`,
+    maxHeight: `${availableHeight}px`,
+    zIndex: '100',
+    ...(panelUp.value
+      ? { bottom: `${window.innerHeight - rect.top + gap}px` }
+      : { top: `${rect.bottom + gap}px` }),
+  }
+  optionsStyle.value = { maxHeight: `${Math.max(0, Math.min(240, availableHeight - 48))}px` }
 }
 
 function onDocMouseDown(e: MouseEvent) {
   if (!open.value) return
-  if (rootRef.value && !rootRef.value.contains(e.target as Node)) open.value = false
+  const target = e.target as Node
+  if (!rootRef.value?.contains(target) && !panelRef.value?.contains(target)) open.value = false
 }
 
-onMounted(() => document.addEventListener('mousedown', onDocMouseDown))
-onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
+function onViewportChange() {
+  if (open.value) computePlacement()
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', onDocMouseDown)
+  window.addEventListener('resize', onViewportChange)
+  window.addEventListener('scroll', onViewportChange, true)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', onDocMouseDown)
+  window.removeEventListener('resize', onViewportChange)
+  window.removeEventListener('scroll', onViewportChange, true)
+})
 </script>
 
 <template>
@@ -108,45 +143,50 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
       <ChevronDown class="h-4 w-4 shrink-0 text-base-content/50 transition-transform" :class="{ 'rotate-180': open }" />
     </button>
 
-    <div
-      v-show="open"
-      :id="panelId"
-      role="group"
-      class="absolute left-0 z-30 w-full min-w-[15rem] rounded-md border border-line bg-base-100 shadow-md"
-      :class="panelUp ? 'bottom-full mb-1' : 'top-full mt-1'"
-    >
-      <div class="border-b border-line/60 p-1.5">
-        <div class="relative">
-          <Search class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-base-content/40" />
-          <input
-            v-model="search"
-            type="text"
-            :placeholder="placeholder ?? t('common.search')"
-            :aria-label="t('common.searchOptions')"
-            class="gf-input gf-input-sm w-full pl-8"
-            @keydown.enter.prevent
-            @click.stop
-          />
+    <Teleport to="body">
+      <div
+        ref="panelRef"
+        v-show="open"
+        :id="panelId"
+        role="group"
+        class="rounded-md border border-line bg-base-100 shadow-md"
+        :style="panelStyle"
+        @keydown="onRootKeydown"
+      >
+        <div class="border-b border-line/60 p-1.5">
+          <div class="relative">
+            <Search class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-base-content/40" />
+            <input
+              v-model="search"
+              type="text"
+              :placeholder="placeholder ?? t('common.search')"
+              :aria-label="t('common.searchOptions')"
+              class="gf-input gf-input-sm w-full pl-8"
+              @keydown.enter.prevent
+              @click.stop
+            />
+          </div>
+        </div>
+        <div class="overflow-y-auto p-1.5" :style="optionsStyle">
+          <label
+            v-for="opt in options"
+            v-show="search ? opt.label.toLowerCase().includes(search.trim().toLowerCase()) : true"
+            :key="opt.value"
+            class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-base-content/75 transition hover:bg-base-200/60"
+          >
+            <input
+              type="checkbox"
+              :name="modelName"
+              :form="form"
+              :value="opt.value"
+              :checked="selected.includes(opt.value)"
+              class="h-3.5 w-3.5 shrink-0 accent-primary"
+            />
+            <span class="truncate">{{ opt.label }}</span>
+          </label>
+          <p v-if="filtered.length === 0" class="px-2 py-1 text-sm text-base-content/45">{{ t('common.noMatch') }}</p>
         </div>
       </div>
-      <div class="max-h-60 overflow-y-auto p-1.5">
-        <label
-          v-for="opt in options"
-          v-show="search ? opt.label.toLowerCase().includes(search.trim().toLowerCase()) : true"
-          :key="opt.value"
-          class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-base-content/75 transition hover:bg-base-200/60"
-        >
-          <input
-            type="checkbox"
-            :name="modelName"
-            :value="opt.value"
-            :checked="selected.includes(opt.value)"
-            class="h-3.5 w-3.5 shrink-0 accent-primary"
-          />
-          <span class="truncate">{{ opt.label }}</span>
-        </label>
-        <p v-if="filtered.length === 0" class="px-2 py-1 text-sm text-base-content/45">{{ t('common.noMatch') }}</p>
-      </div>
-    </div>
+    </Teleport>
   </div>
 </template>
