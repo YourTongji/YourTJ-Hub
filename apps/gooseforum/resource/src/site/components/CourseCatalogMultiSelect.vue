@@ -9,7 +9,7 @@ const props = defineProps<{
   /** 表单字段名（checkbox 提交用的 name，如 department）。 */
   modelName: string
   /** 外置面板中的 checkbox 所属表单 ID。 */
-  form?: string
+  form: string
   /** 按钮上的标题（如「全部院系」）。 */
   label: string
   /** 选项列表。 */

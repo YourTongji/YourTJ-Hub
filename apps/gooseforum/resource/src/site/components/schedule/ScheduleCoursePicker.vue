@@ -705,7 +705,7 @@ async function submit() {
         class="fixed left-1/2 top-1/2 z-[2000] flex h-[88vh] max-h-[88vh] w-[94vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-line/70 bg-base-100 shadow-2xl outline-none"
       >
         <!-- 弹窗顶栏 -->
-        <div class="shrink-0 flex items-center justify-between border-b border-line/60 px-4 py-3 bg-base-100">
+        <div class="shrink-0 flex items-center justify-between rounded-t-2xl border-b border-line/60 px-4 py-3 bg-base-100">
           <div class="flex items-center gap-2.5 min-w-0">
             <DialogTitle class="text-sm sm:text-base font-bold text-base-content shrink-0">
               {{ t('schedule.openPicker') }}
@@ -1401,7 +1401,7 @@ async function submit() {
         </div>
 
         <!-- 弹窗固定底栏 -->
-        <div class="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-line/60 px-4 py-3 bg-base-100">
+        <div class="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-b-2xl border-t border-line/60 px-4 py-3 bg-base-100">
           <!-- 左侧：已选统计与清空操作 -->
           <div class="flex items-center gap-2 text-xs text-base-content/75 w-full sm:w-auto">
             <template v-if="selectedKeys.size > 0">
