@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useWriteRecovery } from '@/site/composables/useWriteRecovery'
+import WriteRecoveryActions from '@/site/components/WriteRecoveryActions.vue'
 import IdentityPicker from '@/site/components/IdentityPicker.vue'
 import GfSwitch from '@/site/components/GfSwitch.vue'
 import { computed, nextTick, ref, watch } from 'vue'
@@ -56,6 +58,7 @@ const uploadDone = ref(0)
 const message = ref('')
 const website = ref('')
 const error = ref('')
+const { code: writeRecoveryCode, capture: captureWriteFailure } = useWriteRecovery(error)
 const sensitiveWords = ref<string[]>([])
 const validationAttempted = ref(false)
 const titleInput = ref<HTMLInputElement | null>(null)
@@ -428,6 +431,7 @@ async function save() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       error.value = err instanceof Error ? err.message : t('publish.saveFailed')
+    captureWriteFailure(err)
       showModerationBlocked(err)
     }
   } finally {
@@ -473,6 +477,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       error.value = err instanceof Error ? err.message : t('publish.draftSaveFailed')
+    captureWriteFailure(err)
       showModerationBlocked(err)
     }
     return false
@@ -664,6 +669,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
 
           <p v-if="validationError" class="gf-status-message gf-status-message-error">{{ validationError }}</p>
           <p v-if="error" class="gf-status-message gf-status-message-error">{{ error }}</p>
+          <WriteRecoveryActions v-if="error" :code="writeRecoveryCode" />
           <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
 
           <div v-if="captchaRequired" class="gf-card flex flex-wrap items-center gap-3 p-3">

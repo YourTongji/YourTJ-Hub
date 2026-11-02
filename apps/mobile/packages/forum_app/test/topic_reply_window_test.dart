@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:convert';
+import 'dart:ui' show Tristate;
 
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
@@ -11,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/local/writing_store.dart';
+import 'package:forum_app/src/navigation/window_reserved_regions.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
@@ -87,16 +89,25 @@ Map<String, dynamic> anchoredPageJson({
 }
 
 class _NotificationPageRepository extends PageRepository {
-  _NotificationPageRepository(super.client, this.page);
+  _NotificationPageRepository(
+    super.client,
+    this.page, [
+    this.pageByPath = const <String, Map<String, dynamic>>{},
+  ]);
 
   final Map<String, dynamic> page;
+
+  /// 跳楼/刷新后按请求路径返回不同窗口。
+  final Map<String, Map<String, dynamic>> pageByPath;
+  final List<String> paths = <String>[];
 
   @override
   Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (!path.startsWith('/p/post/')) {
       throw UnimplementedError('unexpected page path: $path');
     }
-    return parsePayload(page);
+    paths.add(path);
+    return parsePayload(pageByPath[path] ?? page);
   }
 }
 
@@ -104,6 +115,34 @@ class _NotificationPageRepository extends PageRepository {
 /// 以便断言客户端请求的 limit 与游标。
 class TopicWindowServer extends TopicRepository {
   TopicWindowServer(super.client);
+
+  final List<String> topicActions = [];
+
+  @override
+  Future<bool> likeTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) async {
+    topicActions.add('like:$topicId:$action');
+    return true;
+  }
+
+  @override
+  Future<bool> bookmarkTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) async {
+    topicActions.add('bookmark:$topicId:$action');
+    return true;
+  }
+
+  @override
+  Future<bool> watchTopic({required int topicId, required int action}) async {
+    topicActions.add('watch:$topicId:$action');
+    return true;
+  }
 
   /// 服务端楼层(按 postNo 升序)。
   final List<PostPayload> posts = <PostPayload>[];
@@ -245,6 +284,14 @@ class _CreatedReplyPostRepository extends PostRepository {
 
   int get postId => 9000 + postNo;
 
+  final List<int> likes = <int>[];
+
+  @override
+  Future<bool> likePost({required int postId, required int action}) async {
+    likes.add(action);
+    return true;
+  }
+
   @override
   Future<CreatePostResult> createPost({
     required int topicId,
@@ -290,10 +337,14 @@ void main() {
 
   late TopicWindowServer server;
   late ProviderContainer container;
+  late _NotificationPageRepository pageRepo;
+  late _CreatedReplyPostRepository postRepo;
 
   Future<void> pumpTopic(
     WidgetTester tester, {
     required Map<String, dynamic> page,
+    Map<String, Map<String, dynamic>> pageByPath =
+        const <String, Map<String, dynamic>>{},
     int floors = 15,
     int? postNo,
     bool pendingReply = false,
@@ -301,6 +352,8 @@ void main() {
     String replyCaptchaAction = 'post.create',
     bool trailingReplies = false,
     int createdPostNo = 16,
+    double textScale = 1,
+    WindowReservedRegions? reservedRegions,
   }) async {
     final GfApiClient client = GfApiClient(
       dio: Dio(),
@@ -313,13 +366,16 @@ void main() {
       ]);
     container = ProviderContainer(
       overrides: <Override>[
+        windowReservedRegionsProvider.overrideWith(
+          (ref) => Stream.value(reservedRegions),
+        ),
         apiClientProvider.overrideWithValue(client),
         pageRepositoryProvider.overrideWithValue(
-          _NotificationPageRepository(client, page),
+          pageRepo = _NotificationPageRepository(client, page, pageByPath),
         ),
         topicRepositoryProvider.overrideWithValue(server),
         postRepositoryProvider.overrideWithValue(
-          _CreatedReplyPostRepository(
+          postRepo = _CreatedReplyPostRepository(
             client,
             requireCaptcha: requireReplyCaptcha,
             captchaAction: replyCaptchaAction,
@@ -359,6 +415,12 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: gfThemeData(Brightness.light),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           locale: const Locale('zh'),
@@ -402,6 +464,202 @@ void main() {
     composer(tester).onPublish();
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'Duo topic moves back and topic actions into the clear side pocket',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      tester.view.physicalSize = const Size(951, 669);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(right: 84, bottom: 20);
+      tester.view.viewPadding = const FakeViewPadding(right: 84, bottom: 20);
+      addTearDown(tester.view.reset);
+      await pumpTopic(
+        tester,
+        page: anchoredPageJson(
+          posts: [floorPost(1), floorPost(2)],
+          hasBefore: false,
+          hasAfter: false,
+        ),
+        reservedRegions: const WindowReservedRegions(
+          size: Size(951, 669),
+          safeArea: EdgeInsets.only(right: 84, bottom: 20),
+          occlusions: [Rect.fromLTWH(867, 0, 84, 120)],
+        ),
+      );
+      final rail = find.byKey(const Key('topic-action-rail'));
+      expect(rail, findsOneWidget);
+      expect(tester.getRect(rail).left, greaterThanOrEqualTo(867));
+      expect(tester.getRect(rail).top, greaterThanOrEqualTo(120));
+      expect(tester.getRect(rail).bottom, lessThanOrEqualTo(649));
+      expect(find.byType(GfFloatingControls), findsNothing);
+      expect(find.byTooltip(l10nOf(tester).commonBack), findsOneWidget);
+      for (final label in [
+        '${l10nOf(tester).topicLike} · 2',
+        l10nOf(tester).topicBookmark,
+        l10nOf(tester).topicWatch,
+      ]) {
+        await tester.tap(
+          find.descendant(of: rail, matching: find.byTooltip(label)),
+        );
+        await tester.pumpAndSettle();
+      }
+      expect(server.topicActions, [
+        'like:100:1',
+        'bookmark:100:1',
+        'watch:100:1',
+      ]);
+      final watchSemantics = tester.getSemantics(
+        find.bySemanticsLabel(l10nOf(tester).topicUnwatch),
+      );
+      expect(watchSemantics.flagsCollection.isEnabled, Tristate.isTrue);
+      expect(watchSemantics.flagsCollection.isToggled, Tristate.isTrue);
+      expect(
+        find.descendant(
+          of: rail,
+          matching: find.byTooltip(l10nOf(tester).topicUnwatch),
+        ),
+        findsOneWidget,
+      );
+      final floors = find.descendant(
+        of: rail,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GfIconButton && widget.symbol == 'list-ordered',
+        ),
+      );
+      await tester.tap(floors);
+      await tester.pumpAndSettle();
+      expect(find.byType(GfPostPositionRail), findsOneWidget);
+      await tester.tap(floors);
+      await tester.pumpAndSettle();
+      final reply = find.descendant(
+        of: rail,
+        matching: find.byTooltip(l10nOf(tester).topicJoinDiscussion),
+      );
+      await tester.tap(reply);
+      await tester.pumpAndSettle();
+      composer(tester).controller.text = '侧栏回复草稿';
+      expect(
+        tester.getRect(find.byType(GfPostComposer)).right,
+        lessThanOrEqualTo(tester.getRect(rail).left),
+      );
+      // Stale geometry must restore safe controls without replacing the draft.
+      final draft = composer(tester).controller;
+      tester.view.physicalSize = const Size(466, 678);
+      await tester.pumpAndSettle();
+      expect(rail, findsNothing);
+      expect(composer(tester).controller, same(draft));
+      expect(draft.text, '侧栏回复草稿');
+      expect(find.byTooltip(l10nOf(tester).commonBack), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+      await disposePage(tester);
+    },
+  );
+
+  testWidgets(
+    'expanded topic separates body and replies without losing the draft',
+    (tester) async {
+      tester.view.physicalSize = const Size(867, 669);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final page = anchoredPageJson(
+        posts: [
+          floorPost(
+            1,
+            content: List.generate(
+              40,
+              (i) => '正文段落 $i，展开后可以一边读正文一边看评论。',
+            ).join('\n\n'),
+          ),
+          for (var floor = 2; floor <= 15; floor++) floorPost(floor),
+        ],
+        hasBefore: false,
+        hasAfter: false,
+      );
+      await pumpTopic(tester, page: page);
+      final body = find.byKey(const Key('topic-body-scroll'));
+      final replies = find.byType(CustomScrollView);
+      expect(body, findsOneWidget);
+      expect(
+        tester.getRect(body).right,
+        lessThan(tester.getRect(replies).left),
+      );
+      final replyController = tester
+          .widget<CustomScrollView>(replies)
+          .controller!;
+      final bodyController = tester
+          .widget<SingleChildScrollView>(body)
+          .controller!;
+      await tester.drag(replies, const Offset(0, -250));
+      await tester.pumpAndSettle();
+      expect(replyController.offset, greaterThan(100));
+      expect(bodyController.offset, 0);
+      final replyOffset = replyController.offset;
+      await tester.drag(body, const Offset(0, -220));
+      await tester.pumpAndSettle();
+      expect(bodyController.offset, greaterThan(100));
+      expect(replyController.offset, replyOffset);
+      final bodyOffset = bodyController.offset;
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(body, findsNothing);
+      expect(replyController.offset, closeTo(bodyOffset, 1));
+      tester.view.physicalSize = const Size(867, 669);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<SingleChildScrollView>(body).controller!.offset,
+        closeTo(bodyOffset, 1),
+      );
+      await tester.drag(replies, const Offset(0, -250));
+      await tester.pumpAndSettle();
+      final activeReplyOffset = replyController.offset;
+      tester
+          .widget<GfFloatingControls>(find.byType(GfFloatingControls))
+          .onOpenReply!();
+      await tester.pumpAndSettle();
+      composer(tester).controller.text = '保留我的回复草稿';
+      final draft = composer(tester).controller;
+      expect(
+        tester.getRect(find.byType(GfPostComposer)).left,
+        greaterThanOrEqualTo(tester.getRect(replies).left),
+      );
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(body, findsNothing);
+      expect(composer(tester).controller, same(draft));
+      expect(draft.text, '保留我的回复草稿');
+      expect(replyController.offset, greaterThan(activeReplyOffset));
+      tester.view.physicalSize = const Size(867, 669);
+      await tester.pumpAndSettle();
+      expect(body, findsOneWidget);
+      expect(composer(tester).controller, same(draft));
+      expect(replyController.offset, closeTo(activeReplyOffset, 1));
+      expect(tester.takeException(), isNull);
+      await disposePage(tester);
+    },
+  );
+
+  testWidgets('large text keeps topic content and comments in one column', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(867, 669);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpTopic(
+      tester,
+      page: anchoredPageJson(
+        posts: [floorPost(1), floorPost(2)],
+        hasBefore: false,
+        hasAfter: false,
+      ),
+      textScale: 2,
+    );
+    expect(find.byKey(const Key('topic-body-scroll')), findsNothing);
+    expect(tester.getSize(find.byType(CustomScrollView)).width, 720);
+    expect(tester.takeException(), isNull);
+    await disposePage(tester);
+  });
 
   for (final removed in ['', 'authorDeleted', 'moderatorRemoved']) {
     testWidgets('robot reply banner requires an available topic ($removed)', (
@@ -548,6 +806,214 @@ void main() {
           .length,
       tailRequests + 1,
     );
+    await disposePage(tester);
+  });
+
+  // slider 跳楼 + 加载更早回复后点赞:只原地替换该楼,不重载评论窗口。
+  testWidgets('滑条跳楼加载更早回复后点赞不折叠已加载楼层', (tester) async {
+    tester.view.physicalSize = const Size(1080, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> firstPage = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    final Map<String, dynamic> anchored = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(
+      tester,
+      page: firstPage,
+      pageByPath: <String, Map<String, dynamic>>{'/p/post/100/8': anchored},
+      floors: 40,
+    );
+
+    // 真实控件:打开楼层 rail 并拖动滑条到第 8 楼。
+    tester
+        .widget<GfFloatingControls>(find.byType(GfFloatingControls))
+        .onFloorTap!();
+    await tester.pumpAndSettle();
+    tester.widget<Slider>(find.byType(Slider)).onChanged!(8);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(8);
+    await tester.pumpAndSettle();
+    expect(pageRepo.paths.last, '/p/post/100/8');
+    expect(find.text('8楼内容'), findsOneWidget);
+
+    // 加载更早回复:[1..7] 并入已加载窗口。
+    final AppLocalizations l10n = l10nOf(tester);
+    await tester.tap(find.text(l10n.topicEarlierReplies));
+    await tester.pumpAndSettle();
+    expect(find.text('7楼内容'), findsOneWidget);
+    expect(find.text('8楼内容'), findsOneWidget);
+
+    // 给第 8 楼点赞:不得再请求整窗。
+    final int windowRequests = pageRepo.paths.length;
+    final PostActions target = tester
+        .widgetList<PostActions>(find.byType(PostActions))
+        .firstWhere((PostActions action) => action.post.postNo == 8);
+    await tester.tap(
+      find.descendant(
+        of: find.byWidget(target),
+        matching: find.byTooltip(l10n.topicLike),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(pageRepo.paths, hasLength(windowRequests));
+    expect(postRepo.likes, <int>[1]);
+    for (final int floor in <int>[2, 7, 8, 10, 15]) {
+      expect(find.text('$floor楼内容'), findsOneWidget);
+    }
+    final PostActions liked = tester
+        .widgetList<PostActions>(find.byType(PostActions))
+        .firstWhere((PostActions action) => action.post.postNo == 8);
+    expect(liked.post.isLiked, isTrue);
+    expect(liked.post.likeCount, 1);
+    await disposePage(tester);
+  });
+
+  testWidgets('滑条跳楼后静默刷新保留锚定窗口', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> firstPage = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    final Map<String, dynamic> anchored = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(
+      tester,
+      page: firstPage,
+      pageByPath: <String, Map<String, dynamic>>{'/p/post/100/8': anchored},
+      floors: 40,
+    );
+    tester
+        .widget<GfFloatingControls>(find.byType(GfFloatingControls))
+        .onFloorTap!();
+    await tester.pumpAndSettle();
+    tester.widget<Slider>(find.byType(Slider)).onChanged!(8);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(8);
+    await tester.pumpAndSettle();
+    expect(pageRepo.paths.last, '/p/post/100/8');
+
+    final int requests = pageRepo.paths.length;
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    expect(pageRepo.paths, hasLength(requests + 1));
+    expect(pageRepo.paths.last, '/p/post/100/8');
+    expect(find.text('8楼内容'), findsOneWidget);
+    expect(find.text('15楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  // 倒序⇒正序不重载:刷新若用被尾窗改写的 _currentFloor,服务端锚点窗口
+  // 只向前取,列表塌成最后一楼。
+  testWidgets('倒序切回正序后下拉刷新不塌缩为最后一楼', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> firstPage = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    // 第 40 楼是话题最后一楼:真实锚点窗口只有它自己,没有前置楼层。
+    final Map<String, dynamic> tailAnchor = anchoredPageJson(
+      posts: <PostPayload>[floorPost(40)],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    await pumpTopic(
+      tester,
+      page: firstPage,
+      pageByPath: <String, Map<String, dynamic>>{'/p/post/100/40': tailAnchor},
+      floors: 40,
+    );
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+    await tester.tap(find.text('正序'));
+    await tester.pumpAndSettle();
+
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    // 已加载的最早一楼是主帖(1 楼):刷新落回默认首窗,而不是塌成最后一楼。
+    expect(pageRepo.paths.last, '/p/post/100');
+    expect(find.text('40楼内容'), findsNothing);
+    expect(find.text('2楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  // 跳楼后加载更早回复再刷新:已合并的更早楼层不能被锚点窗口丢掉。
+  testWidgets('跳楼加载更早回复后下拉刷新保留更早楼层', (tester) async {
+    tester.view.physicalSize = const Size(1080, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> firstPage = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    final Map<String, dynamic> anchored = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(
+      tester,
+      page: firstPage,
+      pageByPath: <String, Map<String, dynamic>>{'/p/post/100/8': anchored},
+      floors: 40,
+    );
+    tester
+        .widget<GfFloatingControls>(find.byType(GfFloatingControls))
+        .onFloorTap!();
+    await tester.pumpAndSettle();
+    tester.widget<Slider>(find.byType(Slider)).onChanged!(8);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(8);
+    await tester.pumpAndSettle();
+    expect(pageRepo.paths.last, '/p/post/100/8');
+    await tester.tap(find.text(l10nOf(tester).topicEarlierReplies));
+    await tester.pumpAndSettle();
+    expect(find.text('2楼内容'), findsOneWidget);
+
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    expect(pageRepo.paths.last, '/p/post/100');
+    expect(find.text('2楼内容'), findsOneWidget);
+    expect(find.text('8楼内容'), findsOneWidget);
     await disposePage(tester);
   });
 
@@ -811,6 +1277,91 @@ void main() {
 
     expect(find.byKey(const Key('reply-captcha')), findsOneWidget);
     expect(find.text(l10nOf(tester).publishCaptchaExplanation), findsNothing);
+    await disposePage(tester);
+  });
+
+  testWidgets('点击楼层正文直接以该楼层为回复目标', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[floorPost(1), floorPost(2), floorPost(3)],
+      hasBefore: false,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, floors: 3);
+    final Finder body = find.text('2楼内容', findRichText: true);
+    expect(body, findsOneWidget);
+
+    await tester.tapAt(tester.getTopLeft(body) + const Offset(8, 8));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-reply-composer')), findsOneWidget);
+    final GfPostComposer replyComposer = composer(tester);
+    expect(replyComposer.targetName, 'user2');
+    expect(replyComposer.controller.text, '@user2 ');
+    await disposePage(tester);
+  });
+
+  testWidgets('长按楼层正文可以选择文本且不误触直接回复', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[floorPost(1), floorPost(2), floorPost(3)],
+      hasBefore: false,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, floors: 3);
+    final Finder body = find.text('2楼内容', findRichText: true);
+    expect(body, findsOneWidget);
+
+    // RichText 在列表里会撑满可用宽度，按控件中心长按可能落在文字之外；
+    // 这里取正文左上角附近，确保手势真正落在字形上。
+    final Offset bodyPoint = tester.getTopLeft(body) + const Offset(8, 8);
+    await tester.longPressAt(bodyPoint);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
+    final Finder bodyRegion = find.ancestor(
+      of: body,
+      matching: find.byType(SelectableRegion),
+    );
+    final SelectableRegionState region = tester.state<SelectableRegionState>(
+      bodyRegion.first,
+    );
+    expect(
+      region.contextMenuButtonItems.map(
+        (ContextMenuButtonItem item) => item.type,
+      ),
+      contains(ContextMenuButtonType.copy),
+    );
+
+    // 选择态下再次轻点正文只应清除选择，不应误触回复。
+    await tester.tapAt(bodyPoint);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
+    await disposePage(tester);
+  });
+
+  testWidgets('点击楼层操作栏或拖动滚动不会误触直接回复', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[floorPost(1), floorPost(2), floorPost(3)],
+      hasBefore: false,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, floors: 3);
+    final AppLocalizations l10n = l10nOf(tester);
+    final PostActions actions = tester
+        .widgetList<PostActions>(find.byType(PostActions))
+        .firstWhere((PostActions action) => action.post.postNo == 2);
+    await tester.tap(
+      find.descendant(
+        of: find.byWidget(actions),
+        matching: find.byTooltip(l10n.topicLike),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
+
+    final Finder body = find.text('2楼内容', findRichText: true);
+    await tester.drag(body, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
     await disposePage(tester);
   });
 }

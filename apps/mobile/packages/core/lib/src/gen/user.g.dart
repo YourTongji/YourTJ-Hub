@@ -37,6 +37,7 @@ _$UserCardPayloadImpl _$$UserCardPayloadImplFromJson(
   collectionCount: (json['collectionCount'] as num).toInt(),
   isOnline: json['isOnline'] as bool,
   isFollowing: json['isFollowing'] as bool,
+  isMutualFollowing: json['isMutualFollowing'] as bool? ?? false,
   isSelf: json['isSelf'] as bool,
   isAccountClosed: json['isAccountClosed'] as bool? ?? false,
   displayBadges: (json['displayBadges'] as List<dynamic>?)
@@ -79,6 +80,7 @@ Map<String, dynamic> _$$UserCardPayloadImplToJson(
   'collectionCount': instance.collectionCount,
   'isOnline': instance.isOnline,
   'isFollowing': instance.isFollowing,
+  'isMutualFollowing': instance.isMutualFollowing,
   'isSelf': instance.isSelf,
   'isAccountClosed': instance.isAccountClosed,
   'displayBadges': instance.displayBadges,
@@ -201,6 +203,7 @@ _$UserConnectionPayloadImpl _$$UserConnectionPayloadImplFromJson(
   bio: json['bio'] as String,
   url: json['url'] as String,
   isFollowing: json['isFollowing'] as bool?,
+  isMutualFollowing: json['isMutualFollowing'] as bool?,
   isSelf: json['isSelf'] as bool? ?? false,
 );
 
@@ -215,6 +218,7 @@ Map<String, dynamic> _$$UserConnectionPayloadImplToJson(
   'bio': instance.bio,
   'url': instance.url,
   'isFollowing': instance.isFollowing,
+  'isMutualFollowing': instance.isMutualFollowing,
   'isSelf': instance.isSelf,
 };
 

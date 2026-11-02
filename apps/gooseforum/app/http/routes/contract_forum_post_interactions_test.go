@@ -823,7 +823,7 @@ func TestPostRevisionsHTTPContract(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			conn, router := setupForumInteractionContractTest(t)
-			if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+			if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}); err != nil {
 				t.Fatal(err)
 			}
 			// 固定 id/编辑者/时间戳 + 直接播种 v1 版本，使响应与确定性 fixture 精确一致。

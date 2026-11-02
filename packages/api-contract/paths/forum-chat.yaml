@@ -10,7 +10,10 @@ sendChatMessage:
       fails with `common.request.invalidParams` (HTTP 200). Content hitting the
       sensitive-word list is blocked outright with `chat.sensitive.blocked`
       (params `word` plus all matches in `words`) — chat has no delayed-visibility state. Messaging oneself and
-      other service failures surface as `chat.send.failed` (params error). JSON
+      other service failures surface as `chat.send.failed`. New conversations obey the
+      recipient's chatMessagePolicy; blocks override existing history. Permission denial
+      returns `chat.permission.denied` without revealing which restriction applied.
+      Committed idempotent retries acknowledge the earlier write. JSON
       replyToMessageId is optional for compatibility with older clients and is
       stored only when the target belongs to the resulting conversation. JSON
       binding is lenient: a malformed body binds to zero values and fails
@@ -35,6 +38,8 @@ sendChatMessage:
             examples:
               success:
                 externalValue: ../fixtures/chat-send-success.json
+              permissionDenied:
+                externalValue: ../fixtures/chat-permission-denied.json
               invalidParams:
                 externalValue: ../fixtures/invalid-params.json
       '401':

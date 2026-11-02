@@ -24,11 +24,13 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type loginSchoolProvider struct {
@@ -549,5 +551,66 @@ func TestTongjiRegisterUsernameCollisionAllowsRetry(t *testing.T) {
 	rec = postTongjiRegistration(t, router, proof, "retry_student", "Password123", csrf)
 	if rec.Code != http.StatusOK || !hasAccessTokenCookie(rec) {
 		t.Fatalf("retry: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTongjiCreatedAccountSessionFailureRequiresFreshSchoolLogin(t *testing.T) {
+	router, provider := setupTongjiLogin(t)
+	cookies := startTongjiRegistrationProof(t, router)
+	csrf := tongjiRegistrationCSRF(t, router, cookies)
+	conn := db.Connect()
+	const callback = "test:tongji_session_failure"
+	if err := conn.Callback().Create().Before("gorm:create").Register(callback, func(tx *gorm.DB) {
+		if tx.Statement.Table == (&userSessions.Entity{}).TableName() {
+			_ = tx.AddError(errors.New("private session storage fault"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Create().Remove(callback) })
+	rec := postTongjiRegistration(t, router, cookies, "created_student", "Password123", csrf)
+	var response component.ResultStruct
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusInternalServerError || response.MessageCode != "auth.tongji.retryLogin" || hasAccessTokenCookie(rec) || rec.Header().Get("New-Token") != "" {
+		t.Fatalf("created account reported as failed registration: %d %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "private session storage fault") {
+		t.Fatal("internal error exposed")
+	}
+	if response.Params["restartUrl"] != "/api/auth/tongji?redirect=%2Fcampus" {
+		t.Fatalf("lost safe continuation: %#v", response.Params)
+	}
+	user, err := users.GetByEmail("2356789@tongji.edu.cn")
+	if err != nil || user.Id == 0 || user.Username != "created_student" || user.IsActivated != users.ActivationSuccess {
+		t.Fatalf("created account lost: %#v %v", user, err)
+	}
+	consumed := postTongjiRegistration(t, router, cookies, "duplicate_student", "Password123", csrf)
+	if consumed.Code != http.StatusGone {
+		t.Fatalf("consumed proof reused: %d %s", consumed.Code, consumed.Body.String())
+	}
+	if err := conn.Callback().Create().Remove(callback); err != nil {
+		t.Fatal(err)
+	}
+	// A new provider round trip signs into the same account without another registration form.
+	start := httptest.NewRecorder()
+	router.ServeHTTP(start, httptest.NewRequest(http.MethodGet, "/api/auth/tongji?redirect=%2Fcampus", nil))
+	address, err := url.Parse(start.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/campus/tongji/callback?code=new-code&state="+url.QueryEscape(address.Query().Get("state")), nil)
+	for _, cookie := range start.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+	recovered := httptest.NewRecorder()
+	router.ServeHTTP(recovered, req)
+	if recovered.Code != http.StatusSeeOther || recovered.Header().Get("Location") != "/campus" || !hasAccessTokenCookie(recovered) || provider.exchanges != 2 {
+		t.Fatalf("fresh school sign-in failed: %d %s", recovered.Code, recovered.Body.String())
+	}
+	var count int64
+	if err := conn.Model(&users.EntityComplete{}).Where("email = ?", user.Email).Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("duplicate account: %d %v", count, err)
 	}
 }

@@ -8,16 +8,18 @@ import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import 'post_history_sheet.dart';
+import 'post_share_image.dart';
+import '../../report_content.dart';
 
 class TopicActions extends ConsumerStatefulWidget {
   const TopicActions({
     super.key,
     required this.props,
     required this.onChanged,
-    this.firstPostId,
+    this.firstPost,
   });
   final TopicDetailProps props;
-  final int? firstPostId;
+  final PostPayload? firstPost;
   final Future<void> Function() onChanged;
   @override
   ConsumerState<TopicActions> createState() => _TopicActionsState();
@@ -40,7 +42,21 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
     if (action == 'history') {
       await showGfBottomSheet<void>(
         context,
-        builder: (_) => PostHistorySheet(postId: widget.firstPostId!),
+        builder: (_) => PostHistorySheet(postId: widget.firstPost!.id),
+      );
+      return;
+    }
+    if (action == 'report') {
+      await showContentReport(context, targetType: 'topic', targetId: topic.id);
+      return;
+    }
+    if (action == 'shareImage' && widget.firstPost != null) {
+      await showPostShareImage(
+        context,
+        post: widget.firstPost!,
+        topicTitle: topic.title,
+        baseUrl: ref.read(apiClientProvider).baseUrl,
+        topicLink: true,
       );
       return;
     }
@@ -111,7 +127,13 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
       }
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       if (action == 'delete') {
-        context.go('/');
+        ref.read(removedTopicsProvider.notifier).add(topic.id);
+        ref.read(topicReturnStatesProvider).remove(topic.id);
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/');
+        }
       } else {
         await widget.onChanged();
       }
@@ -145,9 +167,20 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
             value: 'delete',
             child: GfText(l10n.contentDelete),
           ),
-        if (widget.firstPostId != null)
+        if (widget.firstPost != null)
           GfPopupMenuItem(value: 'history', child: GfText(l10n.topicHistory)),
         GfPopupMenuItem(value: 'share', child: GfText(l10n.topicShare)),
+        if (available &&
+            widget.firstPost != null &&
+            !widget.firstPost!.isHidden &&
+            !widget.firstPost!.isAuthorDeleted &&
+            !widget.firstPost!.isModeratorRemoved)
+          GfPopupMenuItem(
+            value: 'shareImage',
+            child: GfText(l10n.topicShareImage),
+          ),
+        if (available && !props.permissions.isOwnTopic)
+          GfPopupMenuItem(value: 'report', child: GfText(l10n.topicReport)),
         if (props.permissions.canModerateTopic &&
             props.topic.processStatus == 0)
           GfPopupMenuItem(

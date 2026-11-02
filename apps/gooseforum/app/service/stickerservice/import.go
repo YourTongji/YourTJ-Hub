@@ -10,8 +10,10 @@ import (
 	"path"
 	"strings"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 )
 
 const ImportMaxZipBytes = 32 << 20
@@ -30,7 +32,54 @@ type ImportIssue struct {
 	Reason string `json:"reason"`
 }
 
-func ImportPack(ctx context.Context, userID uint64, archive []byte) (ImportResult, error) {
+// importEntry stores one image. It reports a duplicate as skipped and a
+// failure as a stable reason; an empty reason means the image was added.
+type importEntry func(ctx context.Context, name string, data []byte) (skipped bool, reason string)
+
+// isZipArchive checks the local-file or empty-archive signature.
+func isZipArchive(data []byte) bool {
+	return bytes.HasPrefix(data, []byte("PK\x03\x04")) || bytes.HasPrefix(data, []byte("PK\x05\x06"))
+}
+
+// importUpload accepts either a ZIP archive or one image file. Anything else
+// fails as an invalid ZIP, the format the endpoint documents.
+func importUpload(ctx context.Context, fileName string, data []byte, handle importEntry, allowAVIF bool) (ImportResult, error) {
+	if isZipArchive(data) {
+		return importArchive(ctx, data, handle, allowAVIF)
+	}
+	base := path.Base(strings.ReplaceAll(fileName, `\`, "/"))
+	if !importFilenameAllowed(base, allowAVIF) {
+		return ImportResult{Failed: []ImportIssue{}}, ErrInvalidZip
+	}
+	result := ImportResult{Failed: []ImportIssue{}}
+	if len(data) > filedata.MaxFileSize {
+		result.Failed = append(result.Failed, ImportIssue{Name: base, Reason: "tooLarge"})
+		return result, nil
+	}
+	recordImport(&result, base)(handle(ctx, base, data))
+	return result, nil
+}
+
+// AVIF is a market-only input; member and official uploads keep their policy.
+func importFilenameAllowed(name string, allowAVIF bool) bool {
+	_, ok := imagepolicy.ContentTypeForFilename(name)
+	return ok || allowAVIF && strings.EqualFold(path.Ext(name), ".avif")
+}
+
+func recordImport(result *ImportResult, name string) func(skipped bool, reason string) {
+	return func(skipped bool, reason string) {
+		switch {
+		case reason != "":
+			result.Failed = append(result.Failed, ImportIssue{Name: name, Reason: reason})
+		case skipped:
+			result.Skipped++
+		default:
+			result.Imported++
+		}
+	}
+}
+
+func importArchive(ctx context.Context, archive []byte, handle importEntry, allowAVIF bool) (ImportResult, error) {
 	result := ImportResult{Failed: []ImportIssue{}}
 	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
 	if err != nil {
@@ -42,7 +91,7 @@ func ImportPack(ctx context.Context, userID uint64, archive []byte) (ImportResul
 			return result, err
 		}
 		fail := func(reason string) {
-			result.Failed = append(result.Failed, ImportIssue{Name: path.Base(entry.Name), Reason: reason})
+			result.Failed = append(result.Failed, ImportIssue{Name: entry.Name, Reason: reason})
 		}
 		if index >= ImportMaxEntries {
 			result.Failed = append(result.Failed, ImportIssue{Name: "...", Reason: "tooManyFiles"})
@@ -56,7 +105,7 @@ func ImportPack(ctx context.Context, userID uint64, archive []byte) (ImportResul
 			result.Skipped++
 			continue
 		}
-		if _, ok := imagepolicy.ContentTypeForFilename(base); !ok {
+		if !importFilenameAllowed(base, allowAVIF) {
 			result.Skipped++
 			continue
 		}
@@ -86,8 +135,39 @@ func ImportPack(ctx context.Context, userID uint64, archive []byte) (ImportResul
 			fail("tooLarge")
 			continue
 		}
-		_, err = ImportImage(ctx, userID, data, base, StemName(base), "official", 0, false)
-		if err != nil {
+		recordImport(&result, entry.Name)(handle(ctx, base, data))
+	}
+	return result, nil
+}
+
+// ImportPack imports a ZIP archive into the default official pack.
+func ImportPack(ctx context.Context, userID uint64, archive []byte) (ImportResult, error) {
+	if !isZipArchive(archive) {
+		return ImportResult{Failed: []ImportIssue{}}, ErrInvalidZip
+	}
+	return ImportOfficial(ctx, userID, sticker.PackOfficial, "pack.zip", archive)
+}
+
+// ImportOfficial adds a ZIP archive or one image to an official pack. Each
+// image becomes an enabled sticker named after its file stem, appended after
+// the pack's current stickers.
+func ImportOfficial(ctx context.Context, userID uint64, pack, fileName string, data []byte) (ImportResult, error) {
+	if pack == "" {
+		pack = sticker.PackOfficial
+	}
+	conn := db.ConnectContext(ctx)
+	if known, err := knownPackTx(conn, pack); err != nil {
+		return ImportResult{Failed: []ImportIssue{}}, err
+	} else if !known {
+		return ImportResult{Failed: []ImportIssue{}}, ErrPackInvalid
+	}
+	order, err := sticker.MaxOfficialSortOrder(conn, pack)
+	if err != nil {
+		return ImportResult{Failed: []ImportIssue{}}, err
+	}
+	return importUpload(ctx, fileName, data, func(ctx context.Context, base string, data []byte) (bool, string) {
+		order++
+		if _, err := ImportImage(ctx, userID, data, base, StemName(base), pack, order, false); err != nil {
 			reason := strings.SplitN(err.Error(), ":", 2)[0]
 			switch reason {
 			case "tooLarge", "invalidImage", "unusableName":
@@ -95,10 +175,8 @@ func ImportPack(ctx context.Context, userID uint64, archive []byte) (ImportResul
 				reason = "saveFailed"
 				slog.Warn("import sticker failed", "name", base, "error", err)
 			}
-			fail(reason)
-			continue
+			return false, reason
 		}
-		result.Imported++
-	}
-	return result, nil
+		return false, ""
+	}, false)
 }

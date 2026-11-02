@@ -8,6 +8,7 @@ workspace:
   - packages/core
   - packages/forum_app
   - packages/ui_kit
+  - packages/ui_kit/example
 dependency_overrides:
   # Keep Runner on iOS 13; the Widget Extension separately requires iOS 14.
   home_widget:

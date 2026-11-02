@@ -140,7 +140,9 @@ class _FeedbackBannerState extends State<_FeedbackBanner>
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    final accent = widget.message.error ? colors.error : colors.success;
+    // Inverse surface: the opposite palette supplies tones that read on it.
+    final inverse = colors.isDark ? GfColors.light : GfColors.dark;
+    final accent = widget.message.error ? inverse.error : inverse.success;
     return Positioned(
       top: 0,
       left: 0,
@@ -169,56 +171,61 @@ class _FeedbackBannerState extends State<_FeedbackBanner>
                       ?current,
                     ],
                   ),
-                  child: Material(
+                  child: DecoratedBox(
                     key: ObjectKey(widget.message),
-                    color: colors.base100,
-                    elevation: 4,
-                    shadowColor: Colors.black.withValues(alpha: .14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: accent.withValues(alpha: .25)),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(GfRadius.lg),
+                      boxShadow: colors.elevation(GfElevation.mid),
                     ),
-                    child: Semantics(
-                      liveRegion: true,
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          left: 14,
-                          top: 6,
-                          bottom: 6,
-                          right: 4,
-                        ),
-                        child: Row(
-                          children: [
-                            GfSymbol(
-                              widget.message.error
-                                  ? 'circle-alert'
-                                  : 'circle-check',
-                              color: accent,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: GfText(
-                                widget.message.text,
-                                style: GfTheme.typographyOf(
-                                  context,
-                                ).body.copyWith(color: colors.baseContent),
+                    child: Material(
+                      color: colors.neutral,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(GfRadius.lg),
+                      ),
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                            left: GfSpace.lg,
+                            top: 4,
+                            bottom: 4,
+                            right: 4,
+                          ),
+                          child: Row(
+                            children: [
+                              GfSymbol(
+                                widget.message.error
+                                    ? 'circle-alert'
+                                    : 'circle-check',
+                                color: accent,
+                                size: GfIconSize.md,
                               ),
-                            ),
-                            IconButton(
-                              tooltip: MaterialLocalizations.of(
-                                context,
-                              ).closeButtonTooltip,
-                              onPressed: _dismiss,
-                              icon: GfSymbol(
-                                'x',
-                                size: 18,
-                                color: colors.baseContent.withValues(
-                                  alpha: .55,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: GfText(
+                                  widget.message.text,
+                                  style: GfTheme.typographyOf(context).subhead
+                                      .copyWith(
+                                        color: colors.neutralContent,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                 ),
                               ),
-                            ),
-                          ],
+                              IconButton(
+                                tooltip: MaterialLocalizations.of(
+                                  context,
+                                ).closeButtonTooltip,
+                                onPressed: _dismiss,
+                                icon: GfSymbol(
+                                  'x',
+                                  size: GfIconSize.sm,
+                                  color: colors.neutralContent.withValues(
+                                    alpha: .6,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

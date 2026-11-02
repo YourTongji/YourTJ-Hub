@@ -4,14 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../format.dart';
-import '../../asset_url.dart';
 import '../../providers.dart';
+import '../../format.dart';
 import '../../server_messages.dart';
 import 'post_editor.dart';
 import 'post_history_sheet.dart';
-import '../../widgets/markdown_view.dart';
-import '../../widgets/share/share_image_preview.dart';
+import 'post_share_image.dart';
 
 const double _postActionIconSize = 20;
 
@@ -22,6 +20,7 @@ class PostActions extends ConsumerStatefulWidget {
     this.topicTitle = '',
     this.topicAvailable = true,
     required this.onChanged,
+    this.onPostPatched,
     required this.onReply,
     required this.onReport,
   });
@@ -29,6 +28,10 @@ class PostActions extends ConsumerStatefulWidget {
   final String topicTitle;
   final bool topicAvailable;
   final Future<void> Function() onChanged;
+
+  /// 点赞/收藏只改变本楼互动状态(issue #1316):宿主原地替换该楼层,
+  /// 不重载评论窗口,已加载的更早回复与滚动位置保持不变。
+  final ValueChanged<PostPayload>? onPostPatched;
   final VoidCallback? onReply;
   final VoidCallback onReport;
   @override
@@ -42,7 +45,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
       widget.post.isAuthorDeleted || widget.post.isModeratorRemoved;
   bool get _available =>
       widget.topicAvailable && !_removed && !widget.post.isHidden;
-  void _recordState({bool? liked, bool? bookmarked}) {
+  void _recordState({bool? liked, bool? bookmarked, int? likeCount}) {
     if (!mounted ||
         (_busy && _actionEpoch != ref.read(offlineCacheEpochProvider))) {
       return;
@@ -59,23 +62,27 @@ class _PostActionsState extends ConsumerState<PostActions> {
       liked: liked ?? oldLiked,
       bookmarked: bookmarked ?? previous?.bookmarked ?? post.isBookmarked,
       likeCount:
+          likeCount ??
           count +
-          (liked == null || liked == oldLiked
-              ? 0
-              : liked
-              ? 1
-              : -1),
+              (liked == null || liked == oldLiked
+                  ? 0
+                  : liked
+                  ? 1
+                  : -1),
     );
   }
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(
+    Future<void> Function() action, {
+    bool reload = true,
+  }) async {
     if (_busy) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     _actionEpoch = epoch;
     setState(() => _busy = true);
     try {
       await action();
-      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+      if (reload && mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         await widget.onChanged();
       }
     } catch (error) {
@@ -144,118 +151,16 @@ class _PostActionsState extends ConsumerState<PostActions> {
       return;
     }
     if (action == 'shareImage') {
-      if (!_available) return;
-      await showShareImagePreview(
+      await showPostShareImage(
         context,
-        fileName: 'yourtj-post-${post.topicId}-${post.postNo}.png',
-        cardBuilder: (theme) {
-          final colors = theme.colors;
-          final postUrl = Uri.parse(ref.read(apiClientProvider).baseUrl)
-              .replace(
-                path: '/p/post/${post.topicId}/${post.postNo}',
-                query: null,
-                fragment: null,
-              )
-              .toString();
-          // Share cards mirror the reading view's author identity
-          // (anonymous label / nickname / username) so a post looks the same
-          // exported as it does in the app. They deliberately stay clear of
-          // privateDisplayName(): it bakes the viewer's local private notes
-          // into the label, which must never leak into an exported PNG.
-          final author = post.isAnonymous
-              ? l10n.courseCopyAuthorAnonymousLabel
-              : (post.author.nickname?.trim().isNotEmpty == true
-                    ? post.author.nickname!.trim()
-                    : post.author.username.trim().isNotEmpty
-                    ? post.author.username.trim()
-                    : l10n.courseCopyAuthorAnonymousLabel);
-          return ShareImageCard(
-            theme: theme,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GfText(
-                  widget.topicTitle,
-                  style: TextStyle(
-                    color: colors.baseContent,
-                    fontSize: 22,
-                    height: 1.3,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    if (post.isAnonymous)
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: colors.base200,
-                        child: GfSymbol(
-                          'user-round',
-                          size: 18,
-                          color: colors.iconMuted,
-                        ),
-                      )
-                    else
-                      ClipOval(
-                        child: ShareImageNetworkImage(
-                          resolveApiAssetUrl(post.author.avatarUrl),
-                          width: 36,
-                          height: 36,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_) => CircleAvatar(
-                            radius: 18,
-                            backgroundColor: colors.base200,
-                            child: GfSymbol(
-                              'user-round',
-                              size: 18,
-                              color: colors.iconMuted,
-                            ),
-                          ),
-                        ),
-                      ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          GfText(
-                            author,
-                            style: TextStyle(
-                              color: colors.baseContent,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          GfText(
-                            '#${post.postNo} · ${timeAgo(post.createdAt, l10n: l10n)}',
-                            style: TextStyle(
-                              color: colors.iconMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                GfMarkdownView(
-                  data: post.content,
-                  mentions: post.mentions,
-                  screenshot: true,
-                  colors: colors,
-                ),
-                const SizedBox(height: 12),
-                GfText(
-                  postUrl,
-                  style: TextStyle(color: colors.primary, fontSize: 11),
-                ),
-              ],
-            ),
-          );
-        },
+        post: post,
+        topicTitle: widget.topicTitle,
+        baseUrl: ref.read(apiClientProvider).baseUrl,
       );
+      return;
+    }
+    if (action == 'report') {
+      widget.onReport();
       return;
     }
     final confirm = await showGfAlertDialog<bool>(
@@ -321,14 +226,24 @@ class _PostActionsState extends ConsumerState<PostActions> {
                 onPressed: _busy
                     ? null
                     : () => _run(() async {
+                        final bool next = !post.isLiked;
+                        final int nextCount = next
+                            ? post.likeCount + 1
+                            : (post.likeCount > 0 ? post.likeCount - 1 : 0);
                         await ref
                             .read(postRepositoryProvider)
                             .likePost(
                               postId: post.id,
                               action: post.isLiked ? 2 : 1,
                             );
-                        _recordState(liked: !post.isLiked);
-                      }),
+                        _recordState(liked: next, likeCount: nextCount);
+                        if (_actionEpoch ==
+                            ref.read(offlineCacheEpochProvider)) {
+                          widget.onPostPatched?.call(
+                            post.copyWith(isLiked: next, likeCount: nextCount),
+                          );
+                        }
+                      }, reload: false),
                 style: TextButton.styleFrom(
                   minimumSize: const Size(44, 44),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -366,14 +281,20 @@ class _PostActionsState extends ConsumerState<PostActions> {
           onPressed: _busy
               ? null
               : () => _run(() async {
+                  final bool next = !post.isBookmarked;
                   await ref
                       .read(postRepositoryProvider)
                       .bookmarkPost(
                         postId: post.id,
                         action: post.isBookmarked ? 2 : 1,
                       );
-                  _recordState(bookmarked: !post.isBookmarked);
-                }),
+                  _recordState(bookmarked: next);
+                  if (_actionEpoch == ref.read(offlineCacheEpochProvider)) {
+                    widget.onPostPatched?.call(
+                      post.copyWith(isBookmarked: next),
+                    );
+                  }
+                }, reload: false),
           icon: GfSymbol(
             post.isBookmarked ? 'bookmark-filled' : 'bookmark',
             size: _postActionIconSize,
@@ -386,7 +307,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
           IconButton(
             tooltip: l10n.topicReply,
             onPressed: _busy ? null : widget.onReply,
-            icon: const GfSymbol('corner-down-left', size: _postActionIconSize),
+            icon: const GfSymbol('comment-plus', size: _postActionIconSize),
           ),
       ],
       GfPopupMenuButton<String>(
@@ -419,6 +340,8 @@ class _PostActionsState extends ConsumerState<PostActions> {
               child: GfText(l10n.topicShareImage),
             ),
           ],
+          if (!post.isOwnPost && available)
+            GfPopupMenuItem(value: 'report', child: GfText(l10n.topicReport)),
           if (post.canModerate && post.processStatus == 0)
             GfPopupMenuItem(
               destructive: true,
@@ -432,12 +355,6 @@ class _PostActionsState extends ConsumerState<PostActions> {
             ),
         ],
       ),
-      if (!post.isOwnPost && available)
-        IconButton(
-          tooltip: l10n.topicReport,
-          onPressed: _busy ? null : widget.onReport,
-          icon: const GfSymbol('flag', size: _postActionIconSize),
-        ),
     ];
     return IconButtonTheme(
       data: IconButtonThemeData(

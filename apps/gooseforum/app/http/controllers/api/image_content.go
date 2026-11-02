@@ -6,25 +6,29 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
-var errInvalidImageContent = imagepolicy.ErrInvalidImageContent
+// uploadFailureError carries a ready failure envelope through the
+// storageservice error contract, so a direct-upload complete returns exactly the
+// same code as the multipart and avatar paths for the same input.
+type uploadFailureError struct{ failure *imageUploadFailure }
 
-// Keep every upload entry on the same format validation policy.
-func validateUploadedImage(reader io.Reader, expectedContentType string) error {
-	return imagepolicy.ValidateContent(reader, expectedContentType)
+func (e uploadFailureError) Error() string {
+	return string(e.failure.Data.MessageCode)
 }
 
-// imageContentViolation 报告 err 是否来自图片内容校验（空内容 / 已知不支持格式 /
-// 内容与扩展名不符），供直传路径决定是否按「对象内容无效」回滚。
-func imageContentViolation(err error) bool {
-	return errors.Is(err, imagepolicy.ErrEmptyImageContent) ||
-		errors.Is(err, imagepolicy.ErrUnsupportedImageFormat) ||
-		errors.Is(err, imagepolicy.ErrInvalidImageContent)
+// Unwrap makes storageservice treat the object as invalid and roll it back.
+func (e uploadFailureError) Unwrap() error { return storageservice.ErrDirectUploadInvalidObject }
+
+// detectUploadedImageContent 是四个上传出口共用的字节判定入口：类型只由文件头
+// 决定，客户端声明的扩展名与 MIME 不参与。返回规范化 MIME 供存储名/入库使用。
+func detectUploadedImageContent(reader io.Reader) (string, error) {
+	return imagepolicy.DetectContentType(reader)
 }
 
 // imageContentFailureCode 把内容校验 sentinel 映射为稳定 messageCode：
-// 空内容 / 已知不支持格式 / 其余不匹配或解码失败（含非 sentinel 错误）。
+// 空内容 / 已知不支持格式 / 其余字节不是可用图片（含非 sentinel 错误）。
 func imageContentFailureCode(err error) component.MessageCode {
 	switch {
 	case errors.Is(err, imagepolicy.ErrEmptyImageContent):

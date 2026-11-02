@@ -1,14 +1,79 @@
 import 'dart:ui' as ui;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/current_user.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
+import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
+import 'package:forum_app/src/widgets/user_profile_preview.dart';
 import 'fixtures/page_fixtures.dart';
+import 'pages_smoke_test.dart' show MemoryTokenStorage;
+
+class _Users extends UserRepository {
+  _Users()
+    : super(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+      );
+  final cards = <int>[];
+  @override
+  Future<UserCardPayload> getUserCard(int userId) async {
+    cards.add(userId);
+    throw StateError('offline');
+  }
+}
+
+const StickerItemPayload _smile = StickerItemPayload(
+  name: 'smile',
+  url: '/file/img/stickers/smile.png',
+);
+
+class _MemoryTokenStorage implements TokenStorage {
+  @override
+  Future<String?> read() async => null;
+  @override
+  Future<void> write(String token) async {}
+  @override
+  Future<void> clear() async {}
+}
+
+/// 记录每次查询：一页列表只能解析一次，行不自己发请求。
+class _StickerCatalog extends StickerRepository {
+  _StickerCatalog(this.items)
+    : super(GfApiClient(dio: Dio(), tokenStorage: _MemoryTokenStorage()));
+
+  final List<StickerItemPayload> items;
+  int listCalls = 0;
+  final List<String> resolvedNames = <String>[];
+
+  @override
+  Future<List<StickerItemPayload>> list() async {
+    listCalls++;
+    return items;
+  }
+
+  @override
+  Future<List<StickerItemPayload>> resolve(List<String> names) async {
+    resolvedNames.addAll(names);
+    return const <StickerItemPayload>[];
+  }
+}
+
+/// 富文本的纯文本镜像（Text.rich 不暴露 data）。
+Iterable<String> _richTexts(WidgetTester tester) => tester
+    .widgetList<RichText>(find.byType(RichText))
+    .map((RichText rich) => rich.text.toPlainText());
 
 void main() {
   testWidgets('author, image and body have distinct navigation targets', (
@@ -45,12 +110,19 @@ void main() {
       ],
     );
     addTearDown(router.dispose);
+    final users = _Users();
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: router,
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
+      ProviderScope(
+        overrides: [
+          userRepositoryProvider.overrideWithValue(users),
+          currentUserProvider.overrideWith((_) async => null),
+        ],
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -59,11 +131,15 @@ void main() {
     expect(find.text('profile 1'), findsOneWidget);
     router.pop();
     await tester.pumpAndSettle();
+    // Avatar opens the profile preview card in place, matching topic detail.
     await tester.tap(find.byType(GfAvatar).first);
     await tester.pumpAndSettle();
-    expect(find.text('profile 1'), findsOneWidget);
-    router.pop();
+    expect(find.byType(UserProfilePreview), findsOneWidget);
+    expect(users.cards, [1]);
+    expect(router.state.uri.path, '/');
+    Navigator.of(tester.element(find.byType(UserProfilePreview))).pop();
     await tester.pumpAndSettle();
+    expect(find.byType(UserProfilePreview), findsNothing);
     await tester.tap(
       find.byWidgetPredicate(
         (w) =>
@@ -98,28 +174,30 @@ void main() {
     bool? bookmarkTarget;
 
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: StatefulBuilder(
-            builder: (context, setState) => GfTopicList(
-              loading: false,
-              topics: [topic],
-              feedMode: GfTopicFeedMode.card,
-              hasMore: false,
-              onLoadMore: () {},
-              onLikeTopic: (_, target) async {
-                likeTarget = target;
-                setState(() => topic = topic.copyWith(liked: target));
-                return true;
-              },
-              onBookmarkTopic: (_, target) async {
-                bookmarkTarget = target;
-                setState(() => topic = topic.copyWith(bookmarked: target));
-                return true;
-              },
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => GfTopicList(
+                loading: false,
+                topics: [topic],
+                feedMode: GfTopicFeedMode.card,
+                hasMore: false,
+                onLoadMore: () {},
+                onLikeTopic: (_, target) async {
+                  likeTarget = target;
+                  setState(() => topic = topic.copyWith(liked: target));
+                  return true;
+                },
+                onBookmarkTopic: (_, target) async {
+                  bookmarkTarget = target;
+                  setState(() => topic = topic.copyWith(bookmarked: target));
+                  return true;
+                },
+              ),
             ),
           ),
         ),
@@ -179,22 +257,24 @@ void main() {
     var calls = 0;
 
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: StatefulBuilder(
-            builder: (context, setState) => GfTopicList(
-              loading: false,
-              topics: [topic],
-              feedMode: GfTopicFeedMode.card,
-              hasMore: false,
-              onLoadMore: () {},
-              onLikeTopic: (_, target) async {
-                calls++;
-                return false;
-              },
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => GfTopicList(
+                loading: false,
+                topics: [topic],
+                feedMode: GfTopicFeedMode.card,
+                hasMore: false,
+                onLoadMore: () {},
+                onLikeTopic: (_, target) async {
+                  calls++;
+                  return false;
+                },
+              ),
             ),
           ),
         ),
@@ -225,26 +305,28 @@ void main() {
     final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        theme: gfThemeData(Brightness.light),
-        home: Scaffold(
-          body: GfTopicList(
-            collapsePinned: true,
-            loading: false,
-            controller: controller,
-            header: const Text('Announcement'),
-            topics: [
-              topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
-              topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
-              topic.copyWith(id: 3, title: 'Regular topic', pinWeight: 0),
-              for (var i = 4; i <= 30; i++)
-                topic.copyWith(id: i, title: 'Topic $i', pinWeight: 0),
-            ],
-            hasMore: false,
-            onLoadMore: () => loads++,
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: GfTopicList(
+              collapsePinned: true,
+              loading: false,
+              controller: controller,
+              header: const Text('Announcement'),
+              topics: [
+                topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
+                topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
+                topic.copyWith(id: 3, title: 'Regular topic', pinWeight: 0),
+                for (var i = 4; i <= 30; i++)
+                  topic.copyWith(id: i, title: 'Topic $i', pinWeight: 0),
+              ],
+              hasMore: false,
+              onLoadMore: () => loads++,
+            ),
           ),
         ),
       ),
@@ -264,7 +346,10 @@ void main() {
     expect(find.text('Pinned two'), findsOneWidget);
     // Pinned titles stay in the strip; no pinned rows join the list.
     expect(
-      find.ancestor(of: find.text('Pinned two'), matching: find.byType(GfTopicRow)),
+      find.ancestor(
+        of: find.text('Pinned two'),
+        matching: find.byType(GfTopicRow),
+      ),
       findsNothing,
     );
     expect(
@@ -287,20 +372,22 @@ void main() {
     final topic = home.topics.first;
     for (final mode in GfTopicFeedMode.values) {
       await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('zh'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: GfTopicList(
-              feedMode: mode,
-              loading: false,
-              topics: [
-                topic.copyWith(id: 1, title: 'First regular', pinWeight: 0),
-                topic.copyWith(id: 2, title: 'Then pinned', pinWeight: 1),
-              ],
-              hasMore: false,
-              onLoadMore: () {},
+        ProviderScope(
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                feedMode: mode,
+                loading: false,
+                topics: [
+                  topic.copyWith(id: 1, title: 'First regular', pinWeight: 0),
+                  topic.copyWith(id: 2, title: 'Then pinned', pinWeight: 1),
+                ],
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
         ),
@@ -346,17 +433,78 @@ void main() {
     );
     addTearDown(router.dispose);
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: router,
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        theme: gfThemeData(Brightness.light),
+      ProviderScope(
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: gfThemeData(Brightness.light),
+        ),
       ),
     );
     await tester.pumpAndSettle();
     return () => opened;
   }
+
+  testWidgets(
+    'empty card uses localized title and short thought appears once',
+    (tester) async {
+      final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+      await pumpCardFeed(tester, [
+        home.topics.first.copyWith(title: '', description: '', pinWeight: 0),
+      ]);
+      expect(find.text('无标题'), findsOneWidget);
+      expect(find.text('(｀・ω・´)'), findsNothing);
+      await pumpCardFeed(tester, [
+        home.topics.first.copyWith(title: '', description: '失眠咯', pinWeight: 0),
+      ]);
+      expect(find.text('失眠咯'), findsOneWidget);
+      expect(find.text('无标题'), findsNothing);
+    },
+  );
+
+  testWidgets('media-only cards keep images and localized fallback', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first.copyWith(
+      title: ' ',
+      description: ' ',
+      pinWeight: 0,
+      images: ['https://example.test/photo.png'],
+    );
+    for (final entry in {
+      'zh': '无标题',
+      'en': 'Untitled',
+      'ja': '無題',
+      'de': 'Ohne Titel',
+    }.entries) {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            locale: Locale(entry.key),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                loading: false,
+                topics: [topic],
+                feedMode: GfTopicFeedMode.card,
+                hasMore: false,
+                onLoadMore: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final card = tester.widget<GfTopicCard>(find.byType(GfTopicCard));
+      expect(card.title, entry.value);
+      expect(card.description, isEmpty);
+      expect(card.imageUrls, ['https://example.test/photo.png']);
+    }
+  });
 
   testWidgets('card mode folds pins into one announcement-style line', (
     tester,
@@ -420,30 +568,32 @@ void main() {
     final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
     final topic = home.topics.first;
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('de'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: MediaQuery(
-          data: const MediaQueryData(
-            size: Size(320, 640),
-            textScaler: TextScaler.linear(2),
-          ),
-          child: Scaffold(
-            body: GfTopicList(
-              collapsePinned: true,
-              feedMode: GfTopicFeedMode.card,
-              loading: false,
-              topics: [
-                for (var i = 1; i <= 5; i++)
-                  topic.copyWith(
-                    id: i,
-                    title: 'Ein sehr langer angehefteter Beitragstitel $i',
-                    pinWeight: i,
-                  ),
-              ],
-              hasMore: false,
-              onLoadMore: () {},
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('de'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 640),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: Scaffold(
+              body: GfTopicList(
+                collapsePinned: true,
+                feedMode: GfTopicFeedMode.card,
+                loading: false,
+                topics: [
+                  for (var i = 1; i <= 5; i++)
+                    topic.copyWith(
+                      id: i,
+                      title: 'Ein sehr langer angehefteter Beitragstitel $i',
+                      pinWeight: i,
+                    ),
+                ],
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
         ),
@@ -475,23 +625,25 @@ void main() {
     for (final locale in AppLocalizations.supportedLocales) {
       final l10n = await AppLocalizations.delegate.load(locale);
       await tester.pumpWidget(
-        MaterialApp(
-          key: ValueKey(locale),
-          locale: locale,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: MediaQuery(
-            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-            child: Scaffold(
-              body: GfTopicList(
-                collapsePinned: true,
-                loading: false,
-                topics: [
-                  topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
-                  topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
-                ],
-                hasMore: false,
-                onLoadMore: () {},
+        ProviderScope(
+          child: MaterialApp(
+            key: ValueKey(locale),
+            locale: locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: MediaQuery(
+              data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+              child: Scaffold(
+                body: GfTopicList(
+                  collapsePinned: true,
+                  loading: false,
+                  topics: [
+                    topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
+                    topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
+                  ],
+                  hasMore: false,
+                  onLoadMore: () {},
+                ),
               ),
             ),
           ),
@@ -503,13 +655,21 @@ void main() {
         RegExp(RegExp.escape(l10n.homePinnedTopics(2))),
       );
       expect(
-        tester.getSemantics(label).getSemanticsData().flagsCollection.isExpanded,
+        tester
+            .getSemantics(label)
+            .getSemanticsData()
+            .flagsCollection
+            .isExpanded,
         ui.Tristate.isFalse,
       );
       await tester.tap(line);
       await tester.pumpAndSettle();
       expect(
-        tester.getSemantics(label).getSemanticsData().flagsCollection.isExpanded,
+        tester
+            .getSemantics(label)
+            .getSemanticsData()
+            .flagsCollection
+            .isExpanded,
         ui.Tristate.isTrue,
       );
       expect(find.text('Pinned two'), findsOneWidget);
@@ -522,16 +682,18 @@ void main() {
   // issue #895：无标题瞬间的列表行要与 Web TopicRow/SSR 一致，始终有可识别的行标题。
   Future<void> pumpList(WidgetTester tester, TopicPayload topic) async {
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: GfTopicList(
-            loading: false,
-            topics: [topic],
-            hasMore: false,
-            onLoadMore: () {},
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [topic],
+              hasMore: false,
+              onLoadMore: () {},
+            ),
           ),
         ),
       ),
@@ -591,7 +753,7 @@ void main() {
       );
       await pumpList(tester, topic);
 
-      expect(find.text('(｀・ω・´)'), findsOneWidget);
+      expect(find.text('无标题'), findsOneWidget);
     },
   );
 
@@ -611,17 +773,19 @@ void main() {
     );
     Future<void> pump(String? reason) async {
       await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('zh'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: GfTopicList(
-              loading: false,
-              topics: [home.topics.first.copyWith(feedReason: reason)],
-              feedMode: GfTopicFeedMode.card,
-              hasMore: false,
-              onLoadMore: () {},
+        ProviderScope(
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                loading: false,
+                topics: [home.topics.first.copyWith(feedReason: reason)],
+                feedMode: GfTopicFeedMode.card,
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
         ),
@@ -665,17 +829,19 @@ void main() {
       ],
     );
     await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: GfTopicList(
-            loading: false,
-            topics: [topic],
-            feedMode: GfTopicFeedMode.list,
-            hasMore: false,
-            onLoadMore: () {},
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [topic],
+              feedMode: GfTopicFeedMode.list,
+              hasMore: false,
+              onLoadMore: () {},
+            ),
           ),
         ),
       ),
@@ -690,5 +856,453 @@ void main() {
     expect(avatar.frameScale, 1.4);
     expect(avatar.frameAssetUrl, isNotEmpty);
     expect(avatar.frameColors, isEmpty);
+  });
+
+  testWidgets('anonymous authors keep their existing card targets', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final persona = home.topics.first.copyWith(
+      author: home.topics.first.author.copyWith(publicUid: 'p-7'),
+    );
+    final legacy = home.topics.first.copyWith(
+      id: 101,
+      title: 'legacy anonymous',
+      author: const UserBriefPayload(id: 0, username: 'ghost', avatarUrl: ''),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [persona, legacy],
+              feedMode: GfTopicFeedMode.card,
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/a/:uid',
+          builder: (_, state) =>
+              Scaffold(body: Text('persona ${state.pathParameters['uid']}')),
+        ),
+        GoRoute(
+          path: '/p/:id',
+          builder: (_, state) =>
+              Scaffold(body: Text('topic ${state.pathParameters['id']}')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final cards = find.byType(GfTopicCard);
+    // A persona's avatar and name both open its independent profile.
+    await tester.tap(
+      find.descendant(of: cards.first, matching: find.byType(GfAvatar)),
+    );
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/a/p-7');
+    router.pop();
+    await tester.pumpAndSettle();
+    // A legacy anonymous avatar opens nothing, so the tap reaches the card.
+    await tester.tap(
+      find.descendant(of: cards.last, matching: find.byType(GfAvatar)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(UserProfilePreview), findsNothing);
+    expect(router.state.uri.path, '/p/101');
+  });
+
+  for (final mode in GfTopicFeedMode.values) {
+    testWidgets('a topic deleted this session leaves the ${mode.name} feed', (
+      tester,
+    ) async {
+      final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+      final kept = home.topics.first.copyWith(id: 101, title: 'kept topic');
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                loading: false,
+                topics: [home.topics.first, kept],
+                feedMode: mode,
+                hasMore: false,
+                onLoadMore: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('移动端测试话题'), findsOneWidget);
+      container.read(removedTopicsProvider.notifier).add(100);
+      await tester.pumpAndSettle();
+      expect(find.text('移动端测试话题'), findsNothing);
+      expect(find.text('kept topic'), findsOneWidget);
+    });
+  }
+
+  testWidgets('feed cards outside GfTopicList drop a deleted topic too', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ListView(
+                children: [buildTopicFeedCard(context, home.topics.first)],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(GfTopicCard), findsOneWidget);
+    container.read(removedTopicsProvider.notifier).add(100);
+    await tester.pumpAndSettle();
+    expect(find.byType(GfTopicCard), findsNothing);
+  });
+  // issue #1304：列表行与卡片把摘要里的 `[:sticker:name:]` 渲染为图片，
+  // 未识别/停用的 token 直接省略而不再以原文出现（MADR 0030 共享解析）。
+  group('feed excerpts render stickers', () {
+    Future<StickerLibrary> pumpFeed(
+      WidgetTester tester,
+      List<TopicPayload> topics, {
+      GfTopicFeedMode mode = GfTopicFeedMode.list,
+      _StickerCatalog? catalog,
+    }) async {
+      final library = StickerLibrary(catalog ?? _StickerCatalog([_smile]));
+      addTearDown(library.dispose);
+      await tester.pumpWidget(
+        ProviderScope(child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: topics,
+              feedMode: mode,
+              stickerLibrary: library,
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        )),
+      );
+      await tester.pumpAndSettle();
+      return library;
+    }
+
+    TopicPayload topicWith(String description, {String title = '标题'}) =>
+        parsePageProps<HomeProps>(
+          parsePayload(homePayloadJson()),
+        )!.topics.first.copyWith(title: title, description: description);
+
+    testWidgets('pinned strip renders an untitled pinned moment sticker', (
+    tester,
+  ) async {
+    final library = StickerLibrary(_StickerCatalog([_smile]));
+    addTearDown(library.dispose);
+    final topic = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!
+        .topics
+        .first
+        .copyWith(id: 7, title: '', description: '置顶 [:sticker:smile:]');
+    await tester.pumpWidget(
+      ProviderScope(child: MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: gfThemeData(Brightness.light),
+        home: Scaffold(
+          body: GfTopicList(
+            collapsePinned: true,
+            loading: false,
+            topics: [topic.copyWith(pinWeight: 1)],
+            stickerLibrary: library,
+            hasMore: false,
+            onLoadMore: () {},
+          ),
+        ),
+      )),
+    );
+    await tester.pumpAndSettle();
+    // 置顶条是小字视图：贴纸显示 [名字]，不发图片。
+    expect(find.byType(StickerImage), findsNothing);
+    expect(find.textContaining('[smile]'), findsOneWidget);
+    expect(
+      _richTexts(tester).where((text) => text.contains('[:sticker:')),
+      isEmpty,
+    );
+  });
+
+    testWidgets('list row renders a resolved token as a text label', (
+        tester,
+      ) async {
+      await pumpFeed(tester, [topicWith('正文 [:sticker:smile:] 结尾')]);
+
+      // 列表行是小字视图：贴纸显示 [名字] 文本，不渲染图片。
+      expect(find.byType(StickerImage), findsNothing);
+      expect(find.textContaining('[smile]'), findsOneWidget);
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+      expect(_richTexts(tester).where((text) => text.contains('正文')), hasLength(1));
+    });
+
+    testWidgets('a token-looking string in a real title stays literal', (
+      tester,
+    ) async {
+      await pumpFeed(tester, [
+        topicWith('普通摘要', title: '[:sticker:smile:] 字面标题'),
+      ]);
+
+      // 标题是纯文本（不经过 Markdown 管线），与 Web/SSR 对齐：原样展示，
+      // 不做 [名字] 转换或省略。
+      expect(find.textContaining('[:sticker:smile:] 字面标题'), findsOneWidget);
+    });
+
+    testWidgets('an untitled topic whose excerpt is all-unknown tokens falls back to the no-title label', (
+      tester,
+    ) async {
+      final catalog = _StickerCatalog(const <StickerItemPayload>[]);
+      await pumpFeed(
+        tester,
+        [topicWith('[:sticker:ghost:]', title: '')],
+        catalog: catalog,
+      );
+
+      // token 全部被省略后标题槽不留白：回退到本地化"无标题"占位。
+      expect(find.text('无标题'), findsOneWidget);
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+    });
+
+    testWidgets('card renders the token inline at the body sticker scale', (
+      tester,
+    ) async {
+      await pumpFeed(
+        tester,
+        [topicWith('正文 [:sticker:smile:]')],
+        mode: GfTopicFeedMode.card,
+      );
+
+      expect(
+        tester.getSize(find.byType(StickerImage)).height,
+        moreOrLessEquals(17 * StickerImage.inlineScale),
+      );
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+    });
+
+    // 无标题瞬间的卡片：摘要落在标题位，同样是卡片大字视图——贴纸渲染图片，不出 [名字]/原文。
+    testWidgets('an untitled moment card renders its excerpt sticker as an image', (
+      tester,
+    ) async {
+      await pumpFeed(
+        tester,
+        [topicWith('瞬间 [:sticker:smile:]', title: '')],
+        mode: GfTopicFeedMode.card,
+      );
+
+      expect(find.byType(StickerImage), findsOneWidget);
+      expect(
+        tester.getSize(find.byType(StickerImage)).height,
+        moreOrLessEquals(17 * StickerImage.inlineScale),
+      );
+      expect(find.textContaining('[smile]'), findsNothing);
+      final List<String> texts = _richTexts(tester).toList();
+      expect(texts.where((text) => text.contains('[:sticker:')), isEmpty);
+      // 只出现一次：标题位承载摘要，描述位不重复。
+      expect(texts.where((text) => text.contains('瞬间')), hasLength(1));
+    });
+
+    testWidgets('an untitled pending moment card keeps the review prefix', (
+      tester,
+    ) async {
+      await pumpFeed(
+        tester,
+        [
+          topicWith('瞬间 [:sticker:smile:]', title: '')
+              .copyWith(processStatus: 2),
+        ],
+        mode: GfTopicFeedMode.card,
+      );
+
+      expect(find.byType(StickerImage), findsOneWidget);
+      expect(
+        _richTexts(tester).where((text) => text.startsWith('审核中 · 瞬间')),
+        hasLength(1),
+      );
+    });
+
+    testWidgets('an untitled card whose excerpt is all-unknown tokens shows the no-title label', (
+      tester,
+    ) async {
+      await pumpFeed(
+        tester,
+        [topicWith('[:sticker:ghost:]', title: '')],
+        mode: GfTopicFeedMode.card,
+        catalog: _StickerCatalog(const <StickerItemPayload>[]),
+      );
+
+      expect(find.text('无标题'), findsOneWidget);
+      expect(find.byType(StickerImage), findsNothing);
+    });
+
+    testWidgets('unknown and disabled tokens disappear instead of leaking', (
+      tester,
+    ) async {
+      final catalog = _StickerCatalog(const <StickerItemPayload>[]);
+      await pumpFeed(
+        tester,
+        [
+          topicWith('第一条 [:sticker:ghost:]'),
+          topicWith('第二条 [:sticker:hidden:]', title: '另一个标题'),
+        ],
+        catalog: catalog,
+      );
+
+      expect(find.byType(StickerImage), findsNothing);
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+      // 一页只解析一次，且两根行一起进同一批。
+      expect(catalog.listCalls, 1);
+      expect(catalog.resolvedNames, ['ghost', 'hidden']);
+    });
+
+    testWidgets('an all-unknown excerpt renders nothing at all', (
+      tester,
+    ) async {
+      await pumpFeed(tester, [
+        topicWith('[:sticker:ghost:]'),
+      ], catalog: _StickerCatalog(const <StickerItemPayload>[]));
+
+      expect(find.byType(StickerImage), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(GfTopicRow),
+          matching: find.byWidgetPredicate(
+            (Widget w) => w is Text && w.style?.fontSize == 13,
+          ),
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('token-free excerpts keep the plain text path', (tester) async {
+      await pumpFeed(tester, [topicWith('普通摘要')]);
+
+      expect(find.byType(StickerImage), findsNothing);
+      final Text description = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (Widget w) => w is Text && w.data == '普通摘要',
+        ),
+      );
+      expect(description.style?.fontSize, 13);
+      expect(description.maxLines, 1);
+      expect(description.overflow, TextOverflow.ellipsis);
+    });
+
+    testWidgets('an untitled moment renders its excerpt token in the title', (
+      tester,
+    ) async {
+      await pumpFeed(tester, [
+        topicWith('瞬间 [:sticker:smile:]', title: ''),
+      ]);
+
+      // 列表行小字视图：标题位里的贴纸同样是 [名字] 文本，不发图片。
+      expect(find.byType(StickerImage), findsNothing);
+      expect(find.textContaining('[smile]'), findsOneWidget);
+      // 只出现在 15px 的标题位，不再重复一行 13px 摘要。
+      final Finder row = find.byType(GfTopicRow);
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byWidgetPredicate(
+            (Widget w) =>
+                w is Text && w.style?.fontSize == 15,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        _richTexts(tester).where((text) => text.contains('瞬间')),
+        hasLength(1),
+      );
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byWidgetPredicate(
+            (Widget w) => w is Text && w.style?.fontSize == 13,
+          ),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('feeds without a library omit tokens instead of markup', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              loading: false,
+              topics: [topicWith('正文 [:sticker:smile:]')],
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        )),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StickerImage), findsNothing);
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+    });
   });
 }

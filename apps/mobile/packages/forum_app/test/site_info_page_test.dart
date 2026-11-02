@@ -67,6 +67,33 @@ void main() {
     baseUrl: 'https://example.test',
   );
 
+  for (final scale in [0.8, 1.0, 1.5, 2.0]) {
+    testWidgets('site directory keeps scaled 900px boundary at $scale', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final threshold = 900 * (scale < 1 ? 1.0 : scale);
+      tester.view.physicalSize = Size(threshold - 1, 900);
+      final api = client();
+      final pages = _Pages(api, SiteInfoKind.privacy, {
+        'enabled': true,
+        'contentHtml': '<p>Privacy content</p>',
+      });
+      await pump(tester, pages, api);
+      expect(find.byKey(const ValueKey('site-info-directory')), findsNothing);
+      final requests = pages.paths.length;
+      tester.view.physicalSize = Size(threshold, 900);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('site-info-directory')), findsOneWidget);
+      expect(find.text('Privacy content', findRichText: true), findsOneWidget);
+      expect(pages.paths.length, requests);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('wide about page keeps its directory beside bundled disclosure', (
     tester,
   ) async {

@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 )
 
 // 审批种类与快捷动作（issue #1049）。
@@ -96,8 +98,9 @@ func approvalSubject(a Approval, target string) string {
 const appealPrivacyNote = "被拒内容、作者身份和申诉说明不会发到外部群，请打开确认页或版主工作台查看后处理。"
 
 // SafeText 规范化外部展示文本：去控制字符、折叠空白并按 rune 截断，避免用户输入
-// 破坏卡片结构或撑爆消息体。
+// 破坏卡片结构或撑爆消息体。贴纸 token 在这里无法展开成图片，一律去掉。
 func SafeText(value string, maxRunes int) string {
+	value = markdown2html.StripStickerTokens(value)
 	var b strings.Builder
 	space := false
 	for _, r := range value {

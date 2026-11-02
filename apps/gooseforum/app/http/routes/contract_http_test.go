@@ -77,6 +77,7 @@ func setupHTTPContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(
 		&users.EntityComplete{},
+		&users.PrivacySettingsEntity{},
 		&userStatistics.Entity{},
 		&userSessions.Entity{},
 		&userTotp.Entity{},
@@ -178,6 +179,26 @@ func persistHTTPContractConfig(t *testing.T, conn *gorm.DB, pageType string, con
 	if err := conn.Where("page_type = ?", pageType).Assign(entity).FirstOrCreate(&entity).Error; err != nil {
 		t.Fatalf("save %s config: %v", pageType, err)
 	}
+}
+
+// restorePageConfigAfterTest 在测试改写 pageConfig 行之前登记还原：原有行写回，
+// 原本没有该行则删除。共享 harness 复用同一个进程级缓存，未还原的行会让后续
+// 用例读到别人开的开关（如邮件服务启用状态）。
+func restorePageConfigAfterTest(t *testing.T, conn *gorm.DB, pageType string) {
+	t.Helper()
+	var previous pageConfig.Entity
+	hadPrevious := conn.Where("page_type = ?", pageType).Take(&previous).Error == nil
+	t.Cleanup(func() {
+		if hadPrevious {
+			if err := conn.Save(&previous).Error; err != nil {
+				t.Errorf("restore %s config: %v", pageType, err)
+			}
+			return
+		}
+		if err := conn.Where("page_type = ?", pageType).Delete(&pageConfig.Entity{}).Error; err != nil {
+			t.Errorf("delete %s config: %v", pageType, err)
+		}
+	})
 }
 
 func contractTestID() uint64 {

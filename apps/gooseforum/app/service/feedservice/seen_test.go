@@ -347,7 +347,7 @@ func TestReconcilePreservesSeenCardsOrderAndChecksVisibility(t *testing.T) {
 	if err := conn.Model(&topics.Entity{}).Where("id = ?", items[1].ID).Update("status", 0).Error; err != nil {
 		t.Fatal(err)
 	}
-	rows, removed, _, err := Reconcile(context.Background(), viewer, requested)
+	rows, removed, _, err := Reconcile(context.Background(), viewer, requested, false)
 	if err != nil {
 		t.Fatal(err)
 	}

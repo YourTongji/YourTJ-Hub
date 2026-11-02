@@ -81,6 +81,22 @@ func TestExpandStickerTokensNoTokensFastPath(t *testing.T) {
 	}
 }
 
+func TestSplitStickerTokensSeparatesPlainTextAndNames(t *testing.T) {
+	segments := SplitStickerTokens("前[:sticker:a:]中[*:unknown:][:sticker:b:]")
+	want := []StickerTokenSegment{{Text: "前"}, {Name: "a"}, {Text: "中[*:unknown:]"}, {Name: "b"}}
+	if len(segments) != len(want) {
+		t.Fatalf("SplitStickerTokens() = %+v", segments)
+	}
+	for i := range want {
+		if segments[i] != want[i] {
+			t.Fatalf("segment %d = %+v, want %+v", i, segments[i], want[i])
+		}
+	}
+	if plain := SplitStickerTokens("没有贴纸"); len(plain) != 1 || plain[0] != (StickerTokenSegment{Text: "没有贴纸"}) {
+		t.Fatalf("SplitStickerTokens() without tokens = %+v", plain)
+	}
+}
+
 func TestStickerTokenReBoundaries(t *testing.T) {
 	cases := map[string]bool{
 		"[:sticker:a:]":                               true,

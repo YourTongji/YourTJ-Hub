@@ -40,6 +40,7 @@ class _Store extends WritingStore {
 
 class _Posts extends PostRepository {
   _Posts(super.client);
+  Future<void> Function()? beforeWrite;
   Completer<CreatePostResult>? pending;
   bool fail = false;
   @override
@@ -51,6 +52,7 @@ class _Posts extends PostRepository {
     String? captchaCode,
     String? identity,
   }) async {
+    await beforeWrite?.call();
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return pending == null
         ? const CreatePostResult(id: 9100, postNo: 4, renderedContent: '')
@@ -235,6 +237,34 @@ void main() {
     await tester.pump(const Duration(milliseconds: 800));
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'reply tail is persisted before a request invalidates its session',
+    (tester) async {
+      await pumpTopic(tester);
+      await open(tester);
+      List<LocalDraft>? atRequest;
+      var calls = 0;
+      posts.beforeWrite = () async {
+        calls++;
+        atRequest = await store.drafts(scope);
+        container.read(offlineCacheEpochProvider.notifier).invalidate();
+        throw const UnauthorizedException();
+      };
+      composer(tester).controller.text = 'last reply input before 401';
+      // Invoke the real composer action without advancing the 700ms debounce.
+      composer(tester).onPublish();
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      expect(atRequest, hasLength(1));
+      expect(atRequest!.single.content, 'last reply input before 401');
+      expect(
+        (await store.drafts(scope)).single.content,
+        'last reply input before 401',
+      );
+      await disposePage(tester);
+    },
+  );
 
   testWidgets('restored reply rebuilds local mention candidates', (
     tester,
@@ -470,7 +500,7 @@ void main() {
   });
 
   testWidgets(
-    'unavailable ownership keeps unsent text but not an acknowledged empty reply',
+    'unavailable ownership preserves text and refuses an unprotected write',
     (tester) async {
       await pumpTopic(tester, identity: Future<CurrentUser?>.value(null));
       await open(tester);
@@ -482,14 +512,14 @@ void main() {
       expect(find.text('已保存到本机'), findsNothing);
       composer(tester).onPublish();
       await tester.pumpAndSettle();
-      expect(find.byType(GfPostComposer), findsNothing);
-      expect(find.text('刚发出的回复'), findsOneWidget);
+      expect(find.byType(GfPostComposer), findsOneWidget);
+      expect(find.text('刚发出的回复'), findsNothing);
       expect(await store.drafts(scope), isEmpty);
       await disposePage(tester);
     },
   );
 
-  testWidgets('late failed ownership cannot reopen a successfully sent reply', (
+  testWidgets('late failed ownership cancels the pending protected write', (
     tester,
   ) async {
     final identity = Completer<CurrentUser?>();
@@ -501,9 +531,9 @@ void main() {
     await tester.pump();
     identity.complete(null);
     await tester.pumpAndSettle();
-    expect(find.byType(GfPostComposer), findsNothing);
-    expect(find.text('刚发出的回复'), findsOneWidget);
-    expect(find.text('本机保存失败，请重试'), findsNothing);
+    expect(find.byType(GfPostComposer), findsOneWidget);
+    expect(find.text('刚发出的回复'), findsNothing);
+    expect(find.text('本机保存失败，请重试'), findsOneWidget);
     expect(await store.drafts(scope), isEmpty);
     await disposePage(tester);
   });

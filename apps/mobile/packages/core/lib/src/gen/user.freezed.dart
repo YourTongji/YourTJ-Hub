@@ -44,7 +44,9 @@ mixin _$UserCardPayload {
   int get followingCount => throw _privateConstructorUsedError;
   int get collectionCount => throw _privateConstructorUsedError;
   bool get isOnline => throw _privateConstructorUsedError;
-  bool get isFollowing => throw _privateConstructorUsedError;
+  bool get isFollowing =>
+      throw _privateConstructorUsedError; // viewer 视角：当前登录者与对方双向关注（issue #1320）。旧后端缺键时按 false。
+  bool get isMutualFollowing => throw _privateConstructorUsedError;
   bool get isSelf => throw _privateConstructorUsedError;
   bool get isAccountClosed =>
       throw _privateConstructorUsedError; // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
@@ -97,6 +99,7 @@ abstract class $UserCardPayloadCopyWith<$Res> {
     int collectionCount,
     bool isOnline,
     bool isFollowing,
+    bool isMutualFollowing,
     bool isSelf,
     bool isAccountClosed,
     List<UserBadgePayload>? displayBadges,
@@ -146,6 +149,7 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
     Object? collectionCount = null,
     Object? isOnline = null,
     Object? isFollowing = null,
+    Object? isMutualFollowing = null,
     Object? isSelf = null,
     Object? isAccountClosed = null,
     Object? displayBadges = freezed,
@@ -244,6 +248,10 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
                 ? _value.isFollowing
                 : isFollowing // ignore: cast_nullable_to_non_nullable
                       as bool,
+            isMutualFollowing: null == isMutualFollowing
+                ? _value.isMutualFollowing
+                : isMutualFollowing // ignore: cast_nullable_to_non_nullable
+                      as bool,
             isSelf: null == isSelf
                 ? _value.isSelf
                 : isSelf // ignore: cast_nullable_to_non_nullable
@@ -324,6 +332,7 @@ abstract class _$$UserCardPayloadImplCopyWith<$Res>
     int collectionCount,
     bool isOnline,
     bool isFollowing,
+    bool isMutualFollowing,
     bool isSelf,
     bool isAccountClosed,
     List<UserBadgePayload>? displayBadges,
@@ -373,6 +382,7 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
     Object? collectionCount = null,
     Object? isOnline = null,
     Object? isFollowing = null,
+    Object? isMutualFollowing = null,
     Object? isSelf = null,
     Object? isAccountClosed = null,
     Object? displayBadges = freezed,
@@ -471,6 +481,10 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
             ? _value.isFollowing
             : isFollowing // ignore: cast_nullable_to_non_nullable
                   as bool,
+        isMutualFollowing: null == isMutualFollowing
+            ? _value.isMutualFollowing
+            : isMutualFollowing // ignore: cast_nullable_to_non_nullable
+                  as bool,
         isSelf: null == isSelf
             ? _value.isSelf
             : isSelf // ignore: cast_nullable_to_non_nullable
@@ -530,6 +544,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
     required this.collectionCount,
     required this.isOnline,
     required this.isFollowing,
+    this.isMutualFollowing = false,
     required this.isSelf,
     this.isAccountClosed = false,
     final List<UserBadgePayload>? displayBadges,
@@ -596,6 +611,10 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
   final bool isOnline;
   @override
   final bool isFollowing;
+  // viewer 视角：当前登录者与对方双向关注（issue #1320）。旧后端缺键时按 false。
+  @override
+  @JsonKey()
+  final bool isMutualFollowing;
   @override
   final bool isSelf;
   @override
@@ -633,7 +652,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
 
   @override
   String toString() {
-    return 'UserCardPayload(decoration: $decoration, userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isSelf: $isSelf, isAccountClosed: $isAccountClosed, displayBadges: $displayBadges, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
+    return 'UserCardPayload(decoration: $decoration, userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isMutualFollowing: $isMutualFollowing, isSelf: $isSelf, isAccountClosed: $isAccountClosed, displayBadges: $displayBadges, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
   }
 
   @override
@@ -683,6 +702,8 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
                 other.isOnline == isOnline) &&
             (identical(other.isFollowing, isFollowing) ||
                 other.isFollowing == isFollowing) &&
+            (identical(other.isMutualFollowing, isMutualFollowing) ||
+                other.isMutualFollowing == isMutualFollowing) &&
             (identical(other.isSelf, isSelf) || other.isSelf == isSelf) &&
             (identical(other.isAccountClosed, isAccountClosed) ||
                 other.isAccountClosed == isAccountClosed) &&
@@ -725,6 +746,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
     collectionCount,
     isOnline,
     isFollowing,
+    isMutualFollowing,
     isSelf,
     isAccountClosed,
     const DeepCollectionEquality().hash(_displayBadges),
@@ -775,6 +797,7 @@ abstract class _UserCardPayload implements UserCardPayload {
     required final int collectionCount,
     required final bool isOnline,
     required final bool isFollowing,
+    final bool isMutualFollowing,
     required final bool isSelf,
     final bool isAccountClosed,
     final List<UserBadgePayload>? displayBadges,
@@ -831,7 +854,9 @@ abstract class _UserCardPayload implements UserCardPayload {
   @override
   bool get isOnline;
   @override
-  bool get isFollowing;
+  bool get isFollowing; // viewer 视角：当前登录者与对方双向关注（issue #1320）。旧后端缺键时按 false。
+  @override
+  bool get isMutualFollowing;
   @override
   bool get isSelf;
   @override
@@ -2149,7 +2174,9 @@ mixin _$UserConnectionPayload {
   String get avatarUrl => throw _privateConstructorUsedError;
   String get bio => throw _privateConstructorUsedError;
   String get url => throw _privateConstructorUsedError;
-  bool? get isFollowing => throw _privateConstructorUsedError;
+  bool? get isFollowing =>
+      throw _privateConstructorUsedError; // viewer 视角：双向关注（issue #1320）。
+  bool? get isMutualFollowing => throw _privateConstructorUsedError;
   bool get isSelf => throw _privateConstructorUsedError;
 
   /// Serializes this UserConnectionPayload to a JSON map.
@@ -2178,6 +2205,7 @@ abstract class $UserConnectionPayloadCopyWith<$Res> {
     String bio,
     String url,
     bool? isFollowing,
+    bool? isMutualFollowing,
     bool isSelf,
   });
 }
@@ -2208,6 +2236,7 @@ class _$UserConnectionPayloadCopyWithImpl<
     Object? bio = null,
     Object? url = null,
     Object? isFollowing = freezed,
+    Object? isMutualFollowing = freezed,
     Object? isSelf = null,
   }) {
     return _then(
@@ -2244,6 +2273,10 @@ class _$UserConnectionPayloadCopyWithImpl<
                 ? _value.isFollowing
                 : isFollowing // ignore: cast_nullable_to_non_nullable
                       as bool?,
+            isMutualFollowing: freezed == isMutualFollowing
+                ? _value.isMutualFollowing
+                : isMutualFollowing // ignore: cast_nullable_to_non_nullable
+                      as bool?,
             isSelf: null == isSelf
                 ? _value.isSelf
                 : isSelf // ignore: cast_nullable_to_non_nullable
@@ -2272,6 +2305,7 @@ abstract class _$$UserConnectionPayloadImplCopyWith<$Res>
     String bio,
     String url,
     bool? isFollowing,
+    bool? isMutualFollowing,
     bool isSelf,
   });
 }
@@ -2299,6 +2333,7 @@ class __$$UserConnectionPayloadImplCopyWithImpl<$Res>
     Object? bio = null,
     Object? url = null,
     Object? isFollowing = freezed,
+    Object? isMutualFollowing = freezed,
     Object? isSelf = null,
   }) {
     return _then(
@@ -2335,6 +2370,10 @@ class __$$UserConnectionPayloadImplCopyWithImpl<$Res>
             ? _value.isFollowing
             : isFollowing // ignore: cast_nullable_to_non_nullable
                   as bool?,
+        isMutualFollowing: freezed == isMutualFollowing
+            ? _value.isMutualFollowing
+            : isMutualFollowing // ignore: cast_nullable_to_non_nullable
+                  as bool?,
         isSelf: null == isSelf
             ? _value.isSelf
             : isSelf // ignore: cast_nullable_to_non_nullable
@@ -2356,6 +2395,7 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
     required this.bio,
     required this.url,
     this.isFollowing,
+    this.isMutualFollowing,
     this.isSelf = false,
   });
 
@@ -2379,13 +2419,16 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
   final String url;
   @override
   final bool? isFollowing;
+  // viewer 视角：双向关注（issue #1320）。
+  @override
+  final bool? isMutualFollowing;
   @override
   @JsonKey()
   final bool isSelf;
 
   @override
   String toString() {
-    return 'UserConnectionPayload(decoration: $decoration, id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, bio: $bio, url: $url, isFollowing: $isFollowing, isSelf: $isSelf)';
+    return 'UserConnectionPayload(decoration: $decoration, id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, bio: $bio, url: $url, isFollowing: $isFollowing, isMutualFollowing: $isMutualFollowing, isSelf: $isSelf)';
   }
 
   @override
@@ -2406,6 +2449,8 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
             (identical(other.url, url) || other.url == url) &&
             (identical(other.isFollowing, isFollowing) ||
                 other.isFollowing == isFollowing) &&
+            (identical(other.isMutualFollowing, isMutualFollowing) ||
+                other.isMutualFollowing == isMutualFollowing) &&
             (identical(other.isSelf, isSelf) || other.isSelf == isSelf));
   }
 
@@ -2421,6 +2466,7 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
     bio,
     url,
     isFollowing,
+    isMutualFollowing,
     isSelf,
   );
 
@@ -2452,6 +2498,7 @@ abstract class _UserConnectionPayload implements UserConnectionPayload {
     required final String bio,
     required final String url,
     final bool? isFollowing,
+    final bool? isMutualFollowing,
     final bool isSelf,
   }) = _$UserConnectionPayloadImpl;
 
@@ -2474,7 +2521,9 @@ abstract class _UserConnectionPayload implements UserConnectionPayload {
   @override
   String get url;
   @override
-  bool? get isFollowing;
+  bool? get isFollowing; // viewer 视角：双向关注（issue #1320）。
+  @override
+  bool? get isMutualFollowing;
   @override
   bool get isSelf;
 

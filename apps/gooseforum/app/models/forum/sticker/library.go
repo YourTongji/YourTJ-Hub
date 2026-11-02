@@ -99,13 +99,16 @@ func InsertPersonalTx(tx *gorm.DB, entity *Entity) error {
 	}).Error
 }
 
-// CloseLibraryTx removes private membership and fences requests that passed
+// CloseLibraryTx removes private membership and pack subscriptions, and fences requests that passed
 // authentication before account closure. Shared assets keep their stable tokens.
 func CloseLibraryTx(tx *gorm.DB, userID uint64) error {
 	if err := LockLibraryTx(tx, userID); err != nil && !errors.Is(err, ErrLibraryClosed) {
 		return err
 	}
 	if err := tx.Where("user_id = ?", userID).Delete(&LibraryEntry{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("user_id = ?", userID).Delete(&PackSubscription{}).Error; err != nil {
 		return err
 	}
 	return tx.Model(&LibraryOwner{}).Where("user_id = ?", userID).Update("closed", true).Error

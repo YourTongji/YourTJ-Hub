@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart' show CancelToken;
 
+import '../../gen/activation_status.dart';
 import '../../gen/auth.dart';
 import '../../gen/response.dart';
 import '../gf_api_client.dart';
@@ -174,6 +175,14 @@ class AuthRepository {
       },
     );
   }
+
+  Future<ActivationStatus> getActivationStatus({CancelToken? cancelToken}) =>
+      _client.get<ActivationStatus>(
+        '/api/resend-activation-email',
+        cancelToken: cancelToken,
+        parser: (json) =>
+            ActivationStatus.fromJson(json as Map<String, dynamic>),
+      );
 
   /// 重发当前账号的激活邮件,并保留服务端的稳定成功消息元数据。
   Future<GfResponse<Object?>> resendActivationEmail({

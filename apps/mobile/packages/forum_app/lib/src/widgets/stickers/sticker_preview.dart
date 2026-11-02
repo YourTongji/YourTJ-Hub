@@ -1,3 +1,5 @@
+import '../../../l10n/app_localizations.dart';
+import '../image_viewer_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -17,10 +19,22 @@ Future<void> showStickerPreview(
   StickerCollection? collection,
 }) => Navigator.of(context, rootNavigator: true).push<void>(
   MaterialPageRoute<void>(
-    builder: (_) {
+    builder: (viewerContext) {
       final viewer = Scaffold(
         backgroundColor: Colors.black,
-        body: SafeArea(child: GfImageViewer(images: [resolveApiAssetUrl(url)])),
+        body: SafeArea(
+          child: GfImageViewer(
+            // Standalone sticker surfaces already support a MaterialApp without
+            // host translations; retain the shared English default there.
+            labels:
+                Localizations.of<AppLocalizations>(
+                  viewerContext,
+                  AppLocalizations,
+                )?.imageViewerLabels ??
+                const GfImageViewerLabels(),
+            images: [resolveApiAssetUrl(url)],
+          ),
+        ),
       );
       return collection == null
           ? viewer

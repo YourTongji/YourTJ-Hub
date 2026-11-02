@@ -20,7 +20,7 @@ void main() {
       );
       expect(
         WidgetStateProperty.resolveAs<Color>(decoration.fillColor!, {}),
-        GfTheme.colorsOf(context).base300,
+        GfTheme.colorsOf(context).fill,
       );
       expect(
         decoration.border!.isOutline,
@@ -37,7 +37,7 @@ void main() {
       ]) {
         expect(
           (border! as UnderlineInputBorder).borderRadius,
-          BorderRadius.circular(16),
+          BorderRadius.circular(GfRadius.md),
         );
       }
       expect(decoration.constraints!.minHeight, greaterThanOrEqualTo(48));

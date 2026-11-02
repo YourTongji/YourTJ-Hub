@@ -54,7 +54,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get navPublish => '发布';
 
   @override
-  String get navMessages => '消息';
+  String get navMessages => '私信';
 
   @override
   String get navProfile => '我的';
@@ -220,6 +220,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authUsernameOrEmail => '用户名或邮箱';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 个字符，仅限英文字母、数字、下划线（_）和连字符（-）。';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 个字符，须包含英文字母（A–Z／a–z）和数字（0–9），可混合其他字符。';
+
+  @override
   String get authUsername => '用户名';
 
   @override
@@ -281,8 +289,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authOidcLogin => '使用 yourtj 统一登录';
 
   @override
-  String get authRegisterEmailVerify =>
-      '注册成功，验证邮件已发送，请前往邮箱完成验证。未收到邮件？登录后可在账号安全中重发验证邮件。';
+  String get authRegisterEmailVerify => '账号已创建，请查看邮箱完成验证。未收到邮件时可在账号安全页重发或更换邮箱。';
 
   @override
   String get authActivationRequired => '请先到邮箱激活账号';
@@ -291,7 +298,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authResendActivationEmail => '重发验证邮件';
 
   @override
-  String get authRegisterSuccess => '注册成功,请登录';
+  String get authRegisterSuccess => '账号已创建。';
 
   @override
   String get authResetEmailSent => '重置邮件已发送,请查收';
@@ -527,7 +534,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileNotLoggedIn => '未登录';
 
   @override
-  String get messagesTitle => '消息';
+  String get messagesTitle => '私信';
 
   @override
   String get messagesEmpty => '还没有私信会话';
@@ -631,7 +638,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTabProfile => '资料';
 
   @override
-  String get settingsTabAccount => '账户、安全与隐私';
+  String get settingsTabAccount => '账号与安全';
 
   @override
   String get settingsTabPrivacy => '隐私';
@@ -738,7 +745,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsOAuth => '外部账号关联';
 
   @override
-  String get settingsOAuthSub => 'GitHub 与 Google 登录关联';
+  String get settingsOAuthSub => 'GitHub、Google 与 Apple 登录关联';
 
   @override
   String get settingsOAuthManage => 'OAuth 绑定管理';
@@ -818,6 +825,48 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsAppearance => '外观';
 
   @override
+  String get decorationAppearance => '个人装扮';
+
+  @override
+  String get decorationTitle => '头像框与多彩昵称';
+
+  @override
+  String get decorationFrame => '头像框';
+
+  @override
+  String get decorationNickname => '多彩昵称';
+
+  @override
+  String get decorationGrant => '装扮由管理员授予。';
+
+  @override
+  String get decorationNone => '不装备';
+
+  @override
+  String get decorationPreview => '预览';
+
+  @override
+  String get decorationEquip => '使用此款';
+
+  @override
+  String get decorationLocked => '尚未拥有';
+
+  @override
+  String get decorationEquipped => '已装备';
+
+  @override
+  String get decorationAvailable => '可使用';
+
+  @override
+  String get decorationCurrent => '当前装扮';
+
+  @override
+  String get decorationPreviewOnly => '仅供预览';
+
+  @override
+  String get decorationLockedHint => '尚未拥有，可以预览效果。';
+
+  @override
   String get settingsDarkMode => '深色模式';
 
   @override
@@ -827,7 +876,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsLightCurrent => '当前:浅色';
 
   @override
-  String get settingsAbout => '关于';
+  String get settingsAbout => '关于社区';
 
   @override
   String get settingsAboutVersion => '版本 0.1.0 · 同济大学校园论坛';
@@ -1005,6 +1054,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get topicJumpToFloor => '跳转楼层';
+
+  @override
   String topicFloorSelected(Object floor) {
     return '已跳转到 $floor 楼';
   }
@@ -1037,16 +1089,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get topicLaterReplies => '加载更新回复';
 
   @override
-  String get topicFeedModeList => '列表';
-
-  @override
-  String get topicFeedModeCard => '卡片';
-
-  @override
   String get topicNewTopic => '新建话题';
 
   @override
-  String get scheduleTitle => '排课器';
+  String get scheduleTitle => '选课排课';
+
+  @override
+  String get scheduleFilters => '筛选';
+
+  @override
+  String get scheduleCandidates => '候选';
 
   @override
   String get scheduleTabTimetable => '方案预览';
@@ -1172,7 +1224,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleOptional => '选修';
 
   @override
-  String get scheduleSearchHint => '搜索课名/课号/教师';
+  String get scheduleSearchHint => '搜索课程名称';
 
   @override
   String get scheduleStaged => '备选';
@@ -1331,6 +1383,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsFollowSiteThemeDesc => '使用服务器下发的站点配色';
 
   @override
+  String get settingsNavigationStyle => '底部导航';
+
+  @override
+  String get settingsNavigationDock => '悬浮 Dock';
+
+  @override
+  String get settingsNavigationBar => '经典底栏';
+
+  @override
+  String get settingsNavigationStyleDesc => '宽屏窗口始终使用侧边导航。';
+
+  @override
   String get richContentCopyCode => '复制代码';
 
   @override
@@ -1397,6 +1461,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get navCampus => '校园';
+
+  @override
+  String get navShortcutsHint => '长按打开快捷入口';
 
   @override
   String get campusTitle => '我的校园';
@@ -1492,13 +1559,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileMore => '更多功能';
 
   @override
-  String get profileContent => '内容管理';
+  String get profileContent => '我的内容';
 
   @override
   String get profileTrash => '回收站';
-
-  @override
-  String get profileSecurity => '账户、安全与隐私';
 
   @override
   String get profileAdmin => '管理工作台';
@@ -1549,7 +1613,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get adminDownloadFailed => '导出下载失败，请稍后重试。';
 
   @override
-  String get publishGalleryTooMany => '内容最多支持 9 张图片，请先减少图片或继续使用文章编辑器。';
+  String get publishGalleryTooMany => '最多支持 9 张图片，请减少图片后再试。';
 
   @override
   String get profileActivity => '动态';
@@ -1771,7 +1835,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authPasswordMismatch => '两次输入的密码不一致';
 
   @override
-  String get schedulerWebTitle => '完整版排课器，请到网页端体验';
+  String get schedulerWebTitle => '在网页端体验完整选课排课';
 
   @override
   String get schedulerWebAction => '前往 f.yourtj.de';
@@ -2467,13 +2531,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusToday => '今天';
 
   @override
-  String get campusTimetable => '我的课表';
+  String get campusTimetable => '学校课表';
 
   @override
   String get campusAcademics => '学业记录';
 
   @override
-  String get campusMessages => '校园消息';
+  String get campusMessages => '学校通知';
 
   @override
   String get campusCalendars => '校历';
@@ -2816,7 +2880,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      '小组件展示课表中的课程名称、时间、教师和地点。内容来自本机保存的课表，刷新后同步到桌面。';
+      '小组件会展示本机课表中的课程名称、时间、教师和地点，也会展示你自建格子的名称和地点（不含备注）。同意后，刷新课表会将这些内容同步到桌面。';
 
   @override
   String get scheduleWidgetRefresh => '从离线课表刷新';
@@ -3049,9 +3113,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationsUnreadEmptyDescription => '所有通知都已查看。';
-
-  @override
-  String get homeFeedOptions => '显示方式';
 
   @override
   String get homeAllCategories => '全部分类';
@@ -3971,4 +4032,542 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get previewStatusLink => '预发状态';
+
+  @override
+  String get timetableOptions => '课表设置';
+
+  @override
+  String get timetableWeekPicker => '选择周次';
+
+  @override
+  String timetableDateRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String timetableUpdatedAt(String time) {
+    return '更新于 $time';
+  }
+
+  @override
+  String get timetableShowingSnapshot => '正在显示本机快照';
+
+  @override
+  String get timetablePartlyUpdated => '部分数据未更新';
+
+  @override
+  String get timetableMayBeOutdated => '可能不是最新';
+
+  @override
+  String get timetableFocusDay => '聚焦这一天';
+
+  @override
+  String get timetableUnfocusDay => '恢复整周视图';
+
+  @override
+  String get timetableAddBlockHere => '在这里添加格子';
+
+  @override
+  String get timetableOtherWeek => '非本周';
+
+  @override
+  String get timetableBlock => '自定义格子';
+
+  @override
+  String get timetableInProgress => '正在上课';
+
+  @override
+  String get timetableEmptyWeek => '本周没有课。点空白格可以添加自己的安排。';
+
+  @override
+  String get timetableDayFree => '这天没有安排。点空白格可以添加格子。';
+
+  @override
+  String get timetableGestureTip => '点星期聚焦当天；点空白格添加格子，长按并拖动可一次选中多节。';
+
+  @override
+  String get timetableDisplay => '显示';
+
+  @override
+  String get timetableAlwaysShowWeekend => '始终显示周末';
+
+  @override
+  String get timetableAlwaysShowWeekendHint => '关闭时，没有安排的周末会自动收起。';
+
+  @override
+  String get timetableShowOtherWeeks => '显示非本周课程';
+
+  @override
+  String get timetableShowOtherWeeksHint => '在空闲格里以淡色显示。';
+
+  @override
+  String get timetableShowSectionTimes => '显示上课时间';
+
+  @override
+  String get timetableFocusToday => '打开时聚焦今天';
+
+  @override
+  String get timetableMemos => '格子与备注';
+
+  @override
+  String get timetableNoMemos => '还没有格子或备注。可以为社团活动、自习或提醒添加格子。';
+
+  @override
+  String get timetableAddBlock => '添加格子';
+
+  @override
+  String get timetableEditBlock => '编辑格子';
+
+  @override
+  String get timetableBlockTitle => '名称';
+
+  @override
+  String get timetableBlockTitleHint => '社团例会';
+
+  @override
+  String get timetableBlockPlace => '地点';
+
+  @override
+  String get timetableBlockPlaceHint => '图书馆三楼';
+
+  @override
+  String get timetableBlockNote => '备注';
+
+  @override
+  String get timetableBlockDays => '星期';
+
+  @override
+  String get timetableBlockStart => '开始节次';
+
+  @override
+  String get timetableBlockEnd => '结束节次';
+
+  @override
+  String timetableWeeksOnly(int week) {
+    return '仅第 $week 周';
+  }
+
+  @override
+  String get timetableWeeksEvery => '每周';
+
+  @override
+  String get timetableWeeksOdd => '单周';
+
+  @override
+  String get timetableWeeksEven => '双周';
+
+  @override
+  String get timetableBlockColor => '颜色';
+
+  @override
+  String timetableColorN(int number) {
+    return '颜色 $number';
+  }
+
+  @override
+  String get timetableSaveBlock => '保存';
+
+  @override
+  String get timetableDeleteBlock => '删除格子';
+
+  @override
+  String get timetableDeleteNote => '删除备注';
+
+  @override
+  String timetableCredits(String credits) {
+    return '$credits 学分';
+  }
+
+  @override
+  String get timetableCourseNote => '每周备注';
+
+  @override
+  String get timetableCourseNoteHint => '带计算器';
+
+  @override
+  String timetableWeekNote(int week) {
+    return '第 $week 周备注';
+  }
+
+  @override
+  String get timetableWeekNoteHint => '小测、交作业';
+
+  @override
+  String get timetableNotesLocal => '备注只保存在本设备。';
+
+  @override
+  String get timetableNotesSaved => '已保存在本设备。';
+
+  @override
+  String get timetableNotesUnsaved => '无法保存到本设备。修改备注即可重试。';
+
+  @override
+  String get timetableWidgets => '桌面小组件';
+
+  @override
+  String get timetableWidgetNext => '下一节课';
+
+  @override
+  String get timetableWidgetNextHint => '即将开始的课，含时间与教室';
+
+  @override
+  String get timetableWidgetToday => '今日课表';
+
+  @override
+  String get timetableWidgetTodayHint => '今天的全部课程一览';
+
+  @override
+  String get timetableWidgetTimeline => '课程时间线';
+
+  @override
+  String get timetableWidgetTimelineHint => '按时间轴排列今天的课';
+
+  @override
+  String get timetableWidgetAdd => '添加';
+
+  @override
+  String timetableWidgetAddNamed(String name) {
+    return '添加“$name”小组件';
+  }
+
+  @override
+  String get timetableWidgetRequested => '在系统弹窗中确认后，小组件会放到桌面。';
+
+  @override
+  String get timetableWidgetManual => '添加小组件：长按桌面空白处，打开“小组件”，选择 YourTJ。';
+
+  @override
+  String get timetableWidgetIosSteps =>
+      '添加小组件：长按主屏幕空白处，轻点左上角的 +，搜索 YourTJ 并选择尺寸。';
+
+  @override
+  String get timetableCalendarSection => '课程日历';
+
+  @override
+  String get timetableMore => '更多';
+
+  @override
+  String get timetableMemosNone => '还没有格子或备注';
+
+  @override
+  String timetableMemoSummary(int blocks, int notes) {
+    return '$blocks 个格子 · $notes 条备注';
+  }
+
+  @override
+  String get timetableMemosIntro => '格子和备注只保存在本设备。点课程可以写备注。';
+
+  @override
+  String get timetableBlocksHeading => '格子';
+
+  @override
+  String get timetableNotesHeading => '课程备注';
+
+  @override
+  String get timetableWidgetsHint => '把下一节课或今日课表放到桌面。';
+
+  @override
+  String get timetableExportHint => '保存为 .ics 文件，导入其他日历 App。';
+
+  @override
+  String get timetableBlockWhen => '时间';
+
+  @override
+  String get timetableAddNote => '添加备注';
+
+  @override
+  String timetableWeeksRange(String range) {
+    return '第 $range 周';
+  }
+
+  @override
+  String get timetableListSeparator => '、';
+
+  @override
+  String get timetableConfirmDelete => '再点一次删除';
+
+  @override
+  String get profileMutualFollowing => '已互关';
+
+  @override
+  String get homeFeedSwitchToList => '切换为列表';
+
+  @override
+  String get homeFeedSwitchToCard => '切换为卡片';
+
+  @override
+  String get profileStreamManage => '管理';
+
+  @override
+  String get searchFilterInCatalog => '在课程目录中筛选';
+
+  @override
+  String get profileEditAddCover => '添加封面';
+
+  @override
+  String get profileEditAddSocialLinks => '添加社交链接';
+
+  @override
+  String get profileEditAddWebsite => '添加个人网站';
+
+  @override
+  String get profileEditBasics => '基本信息';
+
+  @override
+  String get profileEditBioHint => '介绍一下自己';
+
+  @override
+  String get profileEditChangeAvatar => '更换头像';
+
+  @override
+  String get profileEditChangeCover => '更换封面';
+
+  @override
+  String get profileEditDisplay => '展示';
+
+  @override
+  String get profileEditDone => '完成';
+
+  @override
+  String get profileEditFromPhotos => '从相册选择';
+
+  @override
+  String get profileEditLinks => '链接';
+
+  @override
+  String get profileEditNicknameHint => '填写昵称';
+
+  @override
+  String get profileEditSignatureHint => '添加一句签名';
+
+  @override
+  String get profileEditSocialHint => '用户名或 HTTPS 链接';
+
+  @override
+  String get profileEditTakePhoto => '拍照';
+
+  @override
+  String get profileEditWebsiteUrl => '网站地址';
+
+  @override
+  String get profileLanguageHint => '公开主页使用的语言，与 App 语言分开设置。';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return '佩戴：$name · 展示 $count 枚';
+  }
+
+  @override
+  String get contentMineTitle => '我的内容';
+
+  @override
+  String get settingsManageBadges => '管理徽章';
+
+  @override
+  String get campusSettings => '校园设置';
+
+  @override
+  String get scheduleStatusHelp => '方案状态与帮助';
+
+  @override
+  String get courseAddToPlanner => '添加到选课排课';
+
+  @override
+  String get coursePlannerSelectTerm => '请先选择相同学期和专业，再确认教学班；现有方案不会自动更改。';
+
+  @override
+  String get coursePlannerUnavailable => '这个学期的教学班不可用，请返回课程详情选择其他开课记录。';
+
+  @override
+  String get coursePlannerCalendarsFailed => '学期列表加载失败，请检查网络后重试。';
+
+  @override
+  String get authCheckEmailVerification => '检查邮箱验证';
+
+  @override
+  String get authWriteRecoveryHint => '输入会保留。验证完成后返回，手动继续。';
+
+  @override
+  String get activationStatusRefresh => '刷新状态';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return '没有找到名称匹配“$query”的课程';
+  }
+
+  @override
+  String get scheduleNoOptional => '当前学期未返回选修课程';
+
+  @override
+  String get scheduleMajorSearchHint => '搜索专业名称或代码';
+
+  @override
+  String get chatMessagePolicyLabel => '谁可以发起私信';
+
+  @override
+  String get activationStatusMailUnavailable => '邮件服务暂不可用，请稍后刷新';
+
+  @override
+  String get activationStatusMissingEmail => '请先在账号设置中添加邮箱';
+
+  @override
+  String get chatMessagePolicyTitle => '私信权限';
+
+  @override
+  String get campusTimetableNotConnected => '尚未连接同济身份';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return '按课程名称搜索：$term';
+  }
+
+  @override
+  String get scheduleConfigureScope => '配置排课范围';
+
+  @override
+  String get chatMessagePolicySaved => '私信权限已保存到你的账号';
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '更改专业将清空 $planCount 个方案中的 $courseCount 门课程和 $eventCount 个自定义安排。取消会保留原配置与方案。';
+  }
+
+  @override
+  String get activationStatusDailyLimit => '今日额度已用完，请明天再试';
+
+  @override
+  String get activationStatusDisabled => '本站暂未要求邮箱验证';
+
+  @override
+  String get authVerificationPendingHint =>
+      '请使用邮箱中的链接完成验证，之后刷新本页。未收到时可重发或更换邮箱；验证前，部分操作暂不可用。';
+
+  @override
+  String get scheduleChangeMajorUpdated => '方案内容已变化，请重新选择专业。';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return '请在 $seconds 秒后重发';
+  }
+
+  @override
+  String get authVerificationPending => '等待验证邮箱';
+
+  @override
+  String get activationStatusFrozen => '账号受限，暂不能重发';
+
+  @override
+  String get authRegistrationUnavailable => '注册暂不可用，请稍后再试。';
+
+  @override
+  String get imageViewerThumbnails => '图片缩略图';
+
+  @override
+  String activationStatusTarget(String email) {
+    return '收件目标：$email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return '今天还可重发 $count / $limit 次';
+  }
+
+  @override
+  String get chatMessagePolicyNobody => '禁止新私信';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return '当前范围：$scope';
+  }
+
+  @override
+  String get activationStatusVerified => '邮箱已验证，无需重发';
+
+  @override
+  String get authCheckSignupAvailability => '重新检查注册状态';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return '请选择：$fields，再查找课程或教学班。';
+  }
+
+  @override
+  String get imageViewerOriginalSize => '原始尺寸';
+
+  @override
+  String get imageViewerFitPreview => '适配预览';
+
+  @override
+  String get scheduleChangeMajorConfirm => '更改并清空';
+
+  @override
+  String get campusTimetableConnectBody =>
+      '连接同济身份后，这里会显示学校提供的个人课表。暂不连接也可以使用课程目录和模拟排课。';
+
+  @override
+  String get chatMessagePolicyHint => '已有消息的会话可以继续；空会话不算。屏蔽始终优先，机器人也遵守此设置。';
+
+  @override
+  String get scheduleSearchReady => '输入课程名称开始查找';
+
+  @override
+  String get scheduleNoCompulsory => '当前范围未返回必修课程';
+
+  @override
+  String get scheduleMajorNoMatch => '没有匹配的专业';
+
+  @override
+  String get scheduleChangeMajorTitle => '更改专业并清空方案？';
+
+  @override
+  String get scheduleEmptyCourseHint => '可以调整排课范围，或按课程名称搜索。';
+
+  @override
+  String get scheduleSetupTitle => '先设置排课范围';
+
+  @override
+  String get scheduleConfigChangeTitle => '切换排课配置？';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '将清空全部方案的课程和自定义安排，其中 $planCount 个方案有内容（$courseCount 门课程、$eventCount 个安排）。方案名称保留。';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name：$courseCount 门课程、$eventCount 个安排';
+  }
+
+  @override
+  String get scheduleConfigChangeSync => '如果这些方案已开启同步，清空内容也会同步到其他设备。';
+
+  @override
+  String get scheduleConfigChangeConfirm => '清空方案并切换';
+
+  @override
+  String get scheduleConfigChangeUpdated => '方案已发生变化，请重新选择并确认。';
+
+  @override
+  String get unreadStyleTitle => '未读提醒';
+
+  @override
+  String get unreadStyleNumbers => '显示未读数量';
+
+  @override
+  String get unreadStyleHint => '关闭后仅显示红点。此设置在该账号的 Web 和 App 间同步，不会标记已读或改变推送。';
+
+  @override
+  String get unreadStyleSaving => '正在保存提醒样式…';
 }

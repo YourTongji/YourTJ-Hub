@@ -164,7 +164,9 @@ class GfContentRow extends StatelessWidget {
                                 if (thumbnailUrl.isNotEmpty) ...[
                                   const SizedBox(width: 10),
                                   ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(
+                                      GfRadius.md,
+                                    ),
                                     child: GfNetworkImage(
                                       thumbnailUrl,
                                       width: 64,

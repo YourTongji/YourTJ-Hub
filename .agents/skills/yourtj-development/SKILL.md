@@ -131,6 +131,17 @@ Map each applicable `AC-*` to observed evidence and an honest result. A test com
 prove the user outcome. For UI changes, inspect the affected user flow and visible states on the relevant
 platforms; follow testing.md for visual evidence rather than adding screenshot baselines by default.
 
+### Declare user-visible presentation changes
+
+Before completing a UI task, produce the PR's visual-change declaration using the
+[owning rule](../../../docs/development/pull-requests.md#visual-change-declaration). Determine applicability
+from actual presentation impact, not labels or file types; when unsure, declare it. Use one row per
+presentation surface, enumerate old → new features and explicitly write “无” when nothing is removed or
+weakened. Cite the specific predeclared Issue item or separately explain new scope. A shared-component
+migration must account for its affected surfaces, not merely the component file. Use the mechanical
+reskin exception only with “特性无 delta” and the complete call-site list for independent sampling.
+Reconcile the final diff after later edits; the table does not replace behavior or visual evidence.
+
 ## 6. Synchronize documentation
 
 Follow [`docs/development/documentation.md`](../../../docs/development/documentation.md). Any new feature PR

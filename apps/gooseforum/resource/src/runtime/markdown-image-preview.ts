@@ -26,6 +26,24 @@ export function getMarkdownImagePreview(
   return { images, index: index >= 0 ? index : 0 }
 }
 
+export interface MarkdownSticker {
+  name: string
+  src: string
+}
+
+/** A clicked renderer-marked sticker opens its own card, never the photo lightbox. */
+export function getMarkdownSticker(target: EventTarget | null): MarkdownSticker | null {
+  if (!(target instanceof HTMLElement)) return null
+  const image = target.closest('.gf-prose-post img')
+  if (!(image instanceof HTMLImageElement) || !isStickerImage(image)) return null
+  const name = image.getAttribute('data-gf-sticker') || ''
+  const src = image.currentSrc || image.src
+  if (!name || !src) return null
+  // A sticker inside an author link keeps that link destination.
+  if (image.closest('a')) return null
+  return { name, src }
+}
+
 function isStickerImage(image: HTMLImageElement) {
   // The Markdown renderer emits this marker for both official and personal
   // stickers. Match the marker, not the URL: ordinary photos stay previewable.

@@ -30,6 +30,34 @@ const boxWidth = (page, selector) => page.locator(selector).evaluate((el) => el.
 const sidebarWidth = (page) => boxWidth(page, '#goose-shell-sidebar')
 const feedWidth = (page) => boxWidth(page, '[data-testid="feed"]')
 
+test('footer copyright stays as theme-colored Unicode text', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  try {
+    await openShell(page)
+    const copyright = page.locator('footer > div').nth(1).locator('span')
+    const colors = []
+
+    for (const theme of ['gf-light', 'gf-dark']) {
+      await page.locator('html').evaluate((element, value) => {
+        element.setAttribute('data-theme', value)
+      }, theme)
+      const rendered = await copyright.evaluate((element) => ({
+        text: element.textContent,
+        images: element.querySelectorAll('img').length,
+        color: getComputedStyle(element).color,
+      }))
+
+      assert.equal(rendered.text, '© yourtj')
+      assert.equal(rendered.images, 0)
+      colors.push(rendered.color)
+    }
+
+    assert.notEqual(colors[0], colors[1], 'the footer text should inherit each theme color')
+  } finally {
+    await page.close()
+  }
+})
+
 // 旋转态由 transform 矩阵读出：rotate(180deg) 的 a = cos180 = -1，未旋转为 none。
 // 用矩阵而不是类名断言，顺带证明组件层样式真的加载并生效。
 const iconRotation = (page) => page.locator('.gf-shell-sidebar-toggle-icon').evaluate((el) => {

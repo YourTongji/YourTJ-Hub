@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,21 +15,23 @@ func init() {
 	cmd := &cobra.Command{
 		Use:   "mock-topics",
 		Short: "Mock topics for testing",
-		Run:   runMockTopics,
+		RunE:  runMockTopics,
 	}
 	appendCommand(cmd)
 }
 
-func runMockTopics(cmd *cobra.Command, args []string) {
+// runMockTopics 批量创建 mock 帖子。任一失败使命令返回非零退出状态,
+// 不能用正常退出掩盖部分或全部失败(issue #1284)。
+func runMockTopics(cmd *cobra.Command, args []string) error {
 	fmt.Println("Starting to mock topics...")
 
 	allUsers := users.All()
 	if len(allUsers) == 0 {
-		fmt.Println("No users found, please create users first.")
-		return
+		return errors.New("no users found, please create users first")
 	}
 
 	totalTopics := 50
+	created, failed := 0, 0
 	for i := 1; i <= totalTopics; i++ {
 		// Pick a user randomly or sequentially
 		user := allUsers[i%len(allUsers)]
@@ -45,8 +48,10 @@ func runMockTopics(cmd *cobra.Command, args []string) {
 
 		resp := api.WriteTopic(req)
 		if resp.Data.Code == component.SUCCESS {
+			created++
 			fmt.Printf("[%d/%d] Created topic: %s (User: %s)\n", i, totalTopics, req.Params.Title, user.Username)
 		} else {
+			failed++
 			fmt.Printf("[%d/%d] Failed to create topic: %s\n", i, totalTopics, resp.Data.MessageCode)
 		}
 
@@ -54,5 +59,9 @@ func runMockTopics(cmd *cobra.Command, args []string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	fmt.Println("Mock topics generation completed.")
+	fmt.Printf("Mock topics generation done: created=%d failed=%d total=%d\n", created, failed, totalTopics)
+	if failed > 0 {
+		return fmt.Errorf("%d/%d mock topics failed to create", failed, totalTopics)
+	}
+	return nil
 }

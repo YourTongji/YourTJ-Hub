@@ -71,6 +71,7 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
 	loginAPI.POST("/set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
 	loginAPI.POST("/set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
+	loginAPI.GET("/resend-activation-email", UpQueryReq(api.GetActivationStatus))
 	loginAPI.POST("/resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginAPI.POST("/set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginAPI.POST("/set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
@@ -97,6 +98,20 @@ func enableContractEmailVerification(t *testing.T, conn *gorm.DB) {
 	security.EnableEmailVerification = true
 	persistHTTPContractConfig(t, conn, pageConfig.SecuritySettings, security)
 	hotdataserve.ClearSecuritySettingsConfigCache()
+	// 开启邮箱验证的实例必须同时配好邮件服务：注册入口对「需要验证但发不出邮件」
+	// 的组合直接拒绝（issue #1284 B18），否则这里的 register 用例看不到邮箱占用。
+	// 邮件配置行同样要在用例结束后还原，否则同进程后续用例会读到一个已配置的
+	// 邮件服务（共享 sqlite 内存库 + 进程级 hotdataserve 缓存）。
+	restorePageConfigAfterTest(t, conn, pageConfig.EmailSettings)
+	t.Cleanup(hotdataserve.ClearMailSettingsConfigCache)
+	persistHTTPContractConfig(t, conn, pageConfig.EmailSettings, pageConfig.MailSettingsConfig{
+		EnableMail:   true,
+		SmtpHost:     "smtp.example.test",
+		SmtpPort:     587,
+		SmtpUsername: "noreply@example.test",
+		FromEmail:    "noreply@example.test",
+	})
+	hotdataserve.ClearMailSettingsConfigCache()
 }
 
 // useContractTempKV 把 kvstore（激活邮件重发配额）重定向到进程级临时目录，
@@ -241,23 +256,42 @@ func TestUserCardHTTPContract(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
 		target := createHTTPContractUser(t, conn, contractTestID())
 		viewer := createHTTPContractUser(t, conn, contractTestID())
-		if err := conn.Create(&userFollow.Entity{UserId: viewer.Id, FollowUserId: target.Id, Status: 1}).Error; err != nil {
-			t.Fatalf("create follow relation: %v", err)
+		// 双向关注：卡片必须同时给出 isFollowing 与 isMutualFollowing（issue #1320）。
+		for _, pair := range [][2]uint64{{viewer.Id, target.Id}, {target.Id, viewer.Id}} {
+			if err := conn.Create(&userFollow.Entity{UserId: pair[0], FollowUserId: pair[1], Status: 1}).Error; err != nil {
+				t.Fatalf("create follow relation %d -> %d: %v", pair[0], pair[1], err)
+			}
 		}
 
-		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId="+fmt.Sprint(target.Id), "", contractSessionToken(t, viewer))
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("authenticated user card status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		readCard := func(token string, userID uint64) (isFollowing, isMutualFollowing bool) {
+			t.Helper()
+			recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId="+fmt.Sprint(userID), "", token)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("user card status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+			}
+			var result struct {
+				IsFollowing       bool `json:"isFollowing"`
+				IsMutualFollowing bool `json:"isMutualFollowing"`
+			}
+			if err := json.Unmarshal(decodeContractEnvelope(t, recorder).Result, &result); err != nil {
+				t.Fatalf("decode user card: %v", err)
+			}
+			return result.IsFollowing, result.IsMutualFollowing
 		}
-		response := decodeContractEnvelope(t, recorder)
-		var result struct {
-			IsFollowing bool `json:"isFollowing"`
+
+		if isFollowing, isMutual := readCard(contractSessionToken(t, viewer), target.Id); !isFollowing || !isMutual {
+			t.Fatalf("authenticated user card isFollowing=%v isMutualFollowing=%v, want both true", isFollowing, isMutual)
 		}
-		if err := json.Unmarshal(response.Result, &result); err != nil {
-			t.Fatalf("decode authenticated user card: %v", err)
+		// 匿名请求没有 viewer 视角，两个字段恒为 false。
+		if isFollowing, isMutual := readCard("", target.Id); isFollowing || isMutual {
+			t.Fatalf("anonymous user card isFollowing=%v isMutualFollowing=%v, want both false", isFollowing, isMutual)
 		}
-		if !result.IsFollowing {
-			t.Fatal("authenticated user card isFollowing = false, want true")
+		// 本人卡片恒为 false：存量自关注行（#594 carve-out）也不能让本人卡片自称已关注。
+		if err := conn.Create(&userFollow.Entity{UserId: viewer.Id, FollowUserId: viewer.Id, Status: 1}).Error; err != nil {
+			t.Fatalf("seed residual self follow: %v", err)
+		}
+		if isFollowing, isMutual := readCard(contractSessionToken(t, viewer), viewer.Id); isFollowing || isMutual {
+			t.Fatalf("own user card isFollowing=%v isMutualFollowing=%v, want both false", isFollowing, isMutual)
 		}
 	})
 

@@ -212,7 +212,7 @@ onMounted(() => {
 <template>
   <BasicPage :title="adminText('k004o')" :description="adminText('k004p')" sticky>
     <template #actions>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <Button variant="outline" type="button" @click="loadSponsors">
           <RefreshCw class="size-4" />
           {{ adminText('k004q') }}

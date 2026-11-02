@@ -12,7 +12,7 @@ import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
-import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
+import 'package:forum_app/src/widgets/logo_pull_refresh.dart';
 import 'package:forum_app/src/widgets/logo_motion_loader.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -186,6 +186,9 @@ class _SortedPages extends _Pages {
   int latestTopicCount = 25;
   bool keepNextPage = false;
   bool sharedTopics = false;
+
+  /// The server always echoes the resolved sort (forum/feed.go).
+  bool actualSort = false;
   Completer<PagePayload>? hotRequest;
   Completer<PagePayload>? nextRequest;
 
@@ -194,6 +197,7 @@ class _SortedPages extends _Pages {
     final props = data['props'] as Map<String, dynamic>;
     final first = (props['topics'] as List).first as Map<String, dynamic>;
     props['sort'] = sort;
+    if (actualSort) props['actualSort'] = sort;
     props['topics'] = [
       for (var i = 0; i < (sort == 'latest' ? latestTopicCount : 25); i++)
         {
@@ -696,6 +700,57 @@ void main() {
     },
   );
 
+  testWidgets('swiping to an unloaded sort never pulls the underline back', (
+    tester,
+  ) async {
+    final pages = _SortedPages()
+      ..actualSort = true
+      ..hotRequest = Completer<PagePayload>();
+    await pump(tester, pages, _Topics(pages));
+    TabController controller() => tester
+        .widget<TabBar>(find.byKey(const ValueKey('gf-tab-bar')))
+        .controller!;
+    final values = <double>[];
+    final selected = <Object>[];
+    void sample() {
+      values.add(controller().animation!.value);
+      selected.add(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected);
+    }
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(GfTopicList)),
+    );
+    for (var i = 0; i < 12; i++) {
+      await gesture.moveBy(const Offset(-25, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+      sample();
+    }
+    await gesture.up();
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      sample();
+    }
+    // The hot feed is still loading: the bar must already commit to it.
+    expect(selected.last, 'hot');
+    pages.hotRequest!.complete(pages.sorted('hot'));
+    await tester.pumpAndSettle();
+    sample();
+
+    for (var i = 1; i < values.length; i++) {
+      expect(
+        values[i],
+        greaterThanOrEqualTo(values[i - 1] - 1e-9),
+        reason: 'underline moved back at frame $i: $values',
+      );
+    }
+    expect(values.last, 1);
+    expect(
+      selected.skipWhile((value) => value == 'latest'),
+      everyElement('hot'),
+    );
+    expect(find.text('hot 0'), findsOneWidget);
+  });
+
   testWidgets('pagination completes into its original sort after switching', (
     tester,
   ) async {
@@ -763,7 +818,7 @@ void main() {
       // fence needed by the older pending read in the other sort.
       pages.likeCount = 6;
       await tester
-          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
           .onRefresh();
       await tester.pumpAndSettle();
       pages.hotRequest!.complete(stale);
@@ -831,7 +886,7 @@ void main() {
     final stale = pages.payload();
     pages.pending = Completer<PagePayload>();
     final refresh = tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.tap(find.byTooltip('点赞').first);
     await tester.pumpAndSettle();
@@ -845,7 +900,7 @@ void main() {
     pages.pending = null;
     pages.liked = false;
     await tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.pumpAndSettle();
     expect(
@@ -896,7 +951,7 @@ void main() {
     await tester.tap(find.byTooltip('点赞').first);
     await tester.pump();
     await tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.pumpAndSettle();
     expect(
@@ -926,7 +981,7 @@ void main() {
       final stale = pages.payload();
       pages.pending = Completer<PagePayload>();
       final refresh = tester
-          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
           .onRefresh();
       await tester.tap(find.byTooltip('点赞').first);
       await tester.pump();
@@ -953,7 +1008,7 @@ void main() {
     pages.likeCount = 20;
     container.read(offlineCacheEpochProvider.notifier).invalidate();
     await tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.pumpAndSettle();
     topics.pending!.complete(false);
@@ -1043,7 +1098,7 @@ void main() {
 
     pages.page1LikeCount = 9;
     await tester
-        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .widget<LogoPullRefresh>(find.byType(LogoPullRefresh))
         .onRefresh();
     await tester.pumpAndSettle();
 

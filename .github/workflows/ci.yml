@@ -1,5 +1,6 @@
 name: CI / Verify
 on:
+  workflow_dispatch:
   pull_request:
   merge_group:
     types: [checks_requested]
@@ -8,7 +9,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # A manual full run must not cancel the push validation that deploys dev.
+  group: ci-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && '-full' || '' }}
   cancel-in-progress: true
 jobs:
   inputs:
@@ -20,6 +22,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Check CI concurrency isolation
+        run: node --test scripts/test-ci-concurrency.mjs
+      - name: Check login provider contract mirrors
+        run: node --test scripts/test-login-provider-mirrors.mjs
+      - name: Check locked mobile dependency bootstrap
+        run: node --test scripts/test-mobile-ci-lockfile.mjs
       - id: select
         run: python3 scripts/ci/select_inputs.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

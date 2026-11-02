@@ -47,12 +47,14 @@ String? _parseAuthReturnTo(String? raw) {
     'security',
     'appearance',
     'notifications',
+    'data',
+    'privacy-controls',
+    'badges',
   };
   const staticPaths = {
     '/',
     '/campus',
-    '/campus/explore',
-    '/campus/official',
+    '/campus/settings',
     '/notifications',
     '/messages',
     '/chat',
@@ -60,6 +62,7 @@ String? _parseAuthReturnTo(String? raw) {
     '/publish',
     '/settings',
     '/settings/widgets',
+    '/settings/chat-permissions',
     '/my-course-reviews',
     '/my-content',
     '/recycle-bin',
@@ -72,6 +75,7 @@ String? _parseAuthReturnTo(String? raw) {
     '/terms',
     '/privacy',
     '/drafts',
+    '/stickers',
     '/schedule',
     '/courses',
     '/wiki',
@@ -102,7 +106,9 @@ String? _parseAuthReturnTo(String? raw) {
     'publish' => const {'topicId', 'id', 'local', 'type', 'contentType'},
     'courses' => const {'q', 'reviewId', 'offeringId'},
     'profile' => const {'stream'},
-    'search' || 'wiki' => const {'q'},
+    'my-content' => const {'type'},
+    'search' => const {'q', 'scope'},
+    'wiki' => const {'q'},
     'settings' =>
       uri.path == '/settings/profile' ? const {'edit'} : const <String>{},
     null || '' => const {'sort'},
@@ -128,6 +134,11 @@ String? _parseAuthReturnTo(String? raw) {
       return null;
     }
     if (entry.key == 'edit' && value != '1') return null;
+    if (uri.path == '/my-content' &&
+        entry.key == 'type' &&
+        !const {'topic', 'post'}.contains(value)) {
+      return null;
+    }
   }
   if (uri.path == '/chat' && !positive(uri.queryParameters['userId'] ?? '')) {
     return null;
@@ -188,6 +199,7 @@ bool requiresNativeSession(Uri uri) => const {
   '/drafts',
   '/my-course-reviews',
   '/my-content',
+  '/campus/settings',
   '/recycle-bin',
   '/admin',
   '/moderation',

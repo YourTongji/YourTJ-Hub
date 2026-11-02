@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../components/gf_motion.dart';
 import 'gf_colors.dart';
+import 'gf_design.dart';
 import 'gf_filled_input_border.dart';
 import 'gf_shadows.dart';
 import 'gf_theme_extensions.dart';
@@ -14,10 +15,10 @@ WidgetStateProperty<Color?> _softTouchOverlay(Color color) =>
         return color.withValues(alpha: 0.14);
       }
       if (states.contains(WidgetState.pressed)) {
-        return color.withValues(alpha: 0.045);
+        return color.withValues(alpha: 0.08);
       }
       if (states.contains(WidgetState.hovered)) {
-        return color.withValues(alpha: 0.04);
+        return color.withValues(alpha: 0.05);
       }
       return Colors.transparent;
     });
@@ -49,19 +50,19 @@ ThemeData gfThemeData(
     onError: colors.errorContent,
     surface: colors.base100,
     onSurface: colors.baseContent,
-    surfaceContainerLow: colors.base200,
-    surfaceContainer: colors.base200,
-    surfaceContainerHigh: colors.base300,
+    surfaceContainerLow: colors.canvasGrouped,
+    surfaceContainer: colors.surfaceRaised,
+    surfaceContainerHigh: colors.surfaceRaised,
     surfaceContainerHighest: colors.base300,
     surfaceDim: colors.base200,
     surfaceBright: colors.base100,
-    onSurfaceVariant: colors.iconMuted,
-    outline: colors.line,
-    outlineVariant: colors.line,
+    onSurfaceVariant: colors.textSecondary,
+    outline: colors.outline,
+    outlineVariant: colors.separator,
     shadow: colors.neutral,
     // Neutral is a light foreground in dark mode. A modal must always dim its
     // background, so its scrim cannot inherit that theme-dependent foreground.
-    scrim: Colors.black.withValues(alpha: 0.4),
+    scrim: colors.scrim,
     inverseSurface: colors.neutral,
     onInverseSurface: colors.neutralContent,
     inversePrimary: colors.primary,
@@ -70,6 +71,14 @@ ThemeData gfThemeData(
 
   const inputBorder = GfFilledInputBorder();
   final GfTypography typography = GfTypography.standard(colors.baseContent);
+  final TextStyle buttonLabel = typography.bodyStrong.copyWith(
+    fontSize: 15,
+    height: 20 / 15,
+  );
+  WidgetStateProperty<Color?> disabledAware(Color enabled, Color disabled) =>
+      WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled) ? disabled : enabled,
+      );
 
   return ThemeData(
     useMaterial3: true,
@@ -78,10 +87,11 @@ ThemeData gfThemeData(
     // Keep Material's interaction lifecycle but remove its visible ink spread.
     splashFactory: InkRipple.splashFactory,
     splashColor: Colors.transparent,
-    highlightColor: colors.baseContent.withValues(alpha: 0.04),
-    scaffoldBackgroundColor: colors.base100,
-    canvasColor: colors.base100,
-    dividerColor: colors.line,
+    highlightColor: colors.pressed,
+    hoverColor: colors.pressed,
+    scaffoldBackgroundColor: colors.canvas,
+    canvasColor: colors.canvas,
+    dividerColor: colors.separator,
     extensions: <ThemeExtension<dynamic>>[
       GfRadii.standard,
       GfBorders.standard,
@@ -89,156 +99,182 @@ ThemeData gfThemeData(
       GfShadows.standard,
       typography,
     ],
-    iconTheme: IconThemeData(color: colors.baseContent, size: 24),
+    iconTheme: IconThemeData(color: colors.textPrimary, size: GfIconSize.lg),
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: colors.primary,
       selectionColor: colors.primary.withValues(alpha: 0.2),
       selectionHandleColor: colors.primary,
     ),
-    // Navigation bars keep the web header's flat, strong-title treatment in
-    // a mobile-native 56px height.
+    // Flat navigation bar: 56px, centered 17px semibold title. The hairline
+    // is drawn by GfAppBar so plain AppBars stay borderless.
     appBarTheme: AppBarTheme(
-      backgroundColor: colors.base100,
-      foregroundColor: colors.baseContent,
+      backgroundColor: colors.canvas,
+      foregroundColor: colors.textPrimary,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: true,
       toolbarHeight: 56,
-      titleTextStyle: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        color: colors.baseContent,
-      ),
+      titleTextStyle: typography.title3,
     ),
-    // Native controls and Gf wrappers share the same application-owned styles.
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: colors.primary,
       foregroundColor: colors.primaryContent,
       shape: const CircleBorder(),
-      elevation: 2,
-      focusElevation: 3,
-      hoverElevation: 3,
-      highlightElevation: 4,
+      elevation: 0,
+      focusElevation: 0,
+      hoverElevation: 0,
+      highlightElevation: 0,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: colors.base100,
+      backgroundColor: colors.canvas,
       surfaceTintColor: Colors.transparent,
-      indicatorColor: colors.base300,
+      indicatorColor: colors.primarySoft,
       height: 64,
       overlayColor: _softTouchOverlay(colors.primary),
       labelTextStyle: WidgetStatePropertyAll(
-        TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: colors.baseContent,
-        ),
+        typography.meta.copyWith(color: colors.textSecondary),
       ),
       iconTheme: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
         final bool selected = states.contains(WidgetState.selected);
         return IconThemeData(
-          size: 24,
-          color: selected ? colors.primary : colors.iconMuted,
+          size: GfIconSize.lg,
+          color: selected ? colors.primary : colors.textSecondary,
         );
       }),
     ),
     iconButtonTheme: IconButtonThemeData(
-      style: ButtonStyle(overlayColor: _softTouchOverlay(colors.baseContent)),
+      style: ButtonStyle(
+        overlayColor: _softTouchOverlay(colors.baseContent),
+        foregroundColor: disabledAware(colors.textPrimary, colors.textDisabled),
+      ),
     ),
     tabBarTheme: TabBarThemeData(
       overlayColor: _softTouchOverlay(colors.baseContent),
     ),
     listTileTheme: ListTileThemeData(
-      iconColor: colors.iconMuted,
-      textColor: colors.baseContent,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      minVerticalPadding: 12,
-      titleTextStyle: TextStyle(fontSize: 15, color: colors.baseContent),
-      subtitleTextStyle: TextStyle(
-        fontSize: 13,
-        color: colors.baseContent.withValues(alpha: 0.55),
+      iconColor: colors.textSecondary,
+      textColor: colors.textPrimary,
+      contentPadding: const EdgeInsets.symmetric(horizontal: GfSpace.lg),
+      minVerticalPadding: GfSpace.md,
+      minLeadingWidth: GfIconSize.lg,
+      horizontalTitleGap: GfSpace.md,
+      shape: const RoundedRectangleBorder(),
+      titleTextStyle: typography.body,
+      subtitleTextStyle: typography.caption.copyWith(
+        color: colors.textSecondary,
       ),
     ),
     dividerTheme: DividerThemeData(
-      color: colors.line,
-      thickness: GfBorders.standard.width,
+      color: colors.separator,
+      thickness: 0.5,
       space: 1,
     ),
+    // Transient feedback uses the inverse surface, like GfToast.
     snackBarTheme: SnackBarThemeData(
-      backgroundColor: colors.base100,
-      contentTextStyle: TextStyle(fontSize: 14, color: colors.baseContent),
+      backgroundColor: colors.neutral,
+      contentTextStyle: typography.subhead.copyWith(
+        color: colors.neutralContent,
+      ),
+      actionTextColor: colors.isDark
+          ? GfColors.light.primary
+          : GfColors.dark.primary,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(GfRadii.standard.box),
-        side: BorderSide(color: colors.line, width: GfBorders.standard.width),
+        borderRadius: BorderRadius.circular(GfRadius.md),
       ),
       behavior: SnackBarBehavior.floating,
     ),
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(
+        color: colors.neutral,
+        borderRadius: BorderRadius.circular(GfRadius.sm),
+      ),
+      textStyle: typography.caption.copyWith(color: colors.neutralContent),
+      padding: const EdgeInsets.symmetric(
+        horizontal: GfSpace.md,
+        vertical: GfSpace.sm,
+      ),
+    ),
     switchTheme: SwitchThemeData(
       overlayColor: _softTouchOverlay(colors.primary),
-      thumbColor: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
-        return states.contains(WidgetState.selected)
-            ? colors.primaryContent
-            : colors.baseContent.withValues(alpha: 0.6);
-      }),
+      thumbColor: WidgetStatePropertyAll(Colors.white),
       trackColor: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
-        return states.contains(WidgetState.selected)
-            ? colors.primary
-            : colors.base300;
+        if (states.contains(WidgetState.selected)) {
+          return states.contains(WidgetState.disabled)
+              ? colors.primary.withValues(alpha: 0.4)
+              : colors.primary;
+        }
+        return colors.fillStrong;
       }),
-      trackOutlineColor: WidgetStatePropertyAll(Colors.transparent),
+      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+      thumbIcon: const WidgetStatePropertyAll(null),
     ),
-    // Buttons follow gf-button-* semantics (see GfButton).
+    sliderTheme: SliderThemeData(
+      activeTrackColor: colors.primary,
+      inactiveTrackColor: colors.fillStrong,
+      thumbColor: Colors.white,
+      overlayColor: colors.primary.withValues(alpha: 0.12),
+      trackHeight: 4,
+    ),
+    progressIndicatorTheme: ProgressIndicatorThemeData(
+      color: colors.primary,
+      linearTrackColor: colors.fill,
+      circularTrackColor: Colors.transparent,
+      linearMinHeight: 3,
+      borderRadius: BorderRadius.circular(GfRadius.full),
+    ),
+    // Buttons follow GfButton: pill shapes, one label style, visible disabled
+    // fills in both themes.
     filledButtonTheme: FilledButtonThemeData(
       style: ButtonStyle(
         tapTargetSize: MaterialTapTargetSize.padded,
-        backgroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.disabled)
-              ? colors.base300
-              : colors.primary,
+        minimumSize: const WidgetStatePropertyAll(Size(64, GfControl.regular)),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 18),
         ),
-        foregroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.disabled)
-              ? colors.baseContent.withValues(alpha: 0.38)
-              : colors.primaryContent,
+        backgroundColor: disabledAware(colors.primary, colors.fill),
+        foregroundColor: disabledAware(
+          colors.primaryContent,
+          colors.textDisabled,
         ),
         overlayColor: _softTouchOverlay(colors.primaryContent),
-        shape: WidgetStatePropertyAll(StadiumBorder()),
-        textStyle: WidgetStatePropertyAll(
-          TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
+        shape: const WidgetStatePropertyAll(StadiumBorder()),
+        textStyle: WidgetStatePropertyAll(buttonLabel),
+        elevation: const WidgetStatePropertyAll(0),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
         tapTargetSize: MaterialTapTargetSize.padded,
-        foregroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.disabled)
-              ? colors.baseContent.withValues(alpha: 0.38)
-              : colors.baseContent,
+        minimumSize: const WidgetStatePropertyAll(Size(64, GfControl.regular)),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 18),
         ),
+        foregroundColor: disabledAware(colors.textPrimary, colors.textDisabled),
         overlayColor: _softTouchOverlay(colors.baseContent),
         side: WidgetStateProperty.resolveWith(
           (states) => BorderSide(
             color: states.contains(WidgetState.disabled)
-                ? colors.line.withValues(alpha: 0.5)
-                : colors.line,
-            width: GfBorders.standard.width,
+                ? colors.fill
+                : colors.outline,
           ),
         ),
-        shape: WidgetStatePropertyAll(StadiumBorder()),
+        shape: const WidgetStatePropertyAll(StadiumBorder()),
+        textStyle: WidgetStatePropertyAll(buttonLabel),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: ButtonStyle(
         tapTargetSize: MaterialTapTargetSize.padded,
-        foregroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.disabled)
-              ? colors.baseContent.withValues(alpha: 0.38)
-              : colors.primary,
+        minimumSize: const WidgetStatePropertyAll(Size(48, GfControl.regular)),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: GfSpace.md),
         ),
+        foregroundColor: disabledAware(colors.primary, colors.textDisabled),
         overlayColor: _softTouchOverlay(colors.primary),
-        shape: WidgetStatePropertyAll(StadiumBorder()),
+        shape: const WidgetStatePropertyAll(StadiumBorder()),
+        textStyle: WidgetStatePropertyAll(buttonLabel),
       ),
     ),
     // Form fields have a quiet filled silhouette. Every state keeps the same
@@ -247,30 +283,33 @@ ThemeData gfThemeData(
       filled: true,
       fillColor: WidgetStateColor.resolveWith(
         (states) => states.contains(WidgetState.disabled)
-            ? colors.base300.withValues(alpha: 0.55)
-            : colors.base300,
+            ? colors.fill.withValues(alpha: colors.fill.a * 0.6)
+            : colors.fill,
       ),
       isDense: true,
-      constraints: const BoxConstraints(minHeight: 52),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      hintStyle: TextStyle(fontSize: 16, color: colors.iconMuted),
-      labelStyle: TextStyle(fontSize: 16, color: colors.iconMuted),
+      constraints: const BoxConstraints(minHeight: GfControl.field),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: GfSpace.lg,
+        vertical: 14,
+      ),
+      hintStyle: typography.body.copyWith(color: colors.textPlaceholder),
+      labelStyle: typography.body.copyWith(color: colors.textSecondary),
       floatingLabelStyle: WidgetStateTextStyle.resolveWith(
-        (states) => TextStyle(
-          fontSize: 14,
+        (states) => typography.caption.copyWith(
           color: states.contains(WidgetState.error)
               ? colors.error
               : states.contains(WidgetState.focused)
               ? colors.primary
-              : colors.iconMuted,
+              : colors.textSecondary,
         ),
       ),
-      helperStyle: TextStyle(fontSize: 13, color: colors.iconMuted),
-      errorStyle: TextStyle(fontSize: 13, color: colors.error),
+      helperStyle: typography.caption.copyWith(color: colors.textSecondary),
+      errorStyle: typography.caption.copyWith(color: colors.error),
+      counterStyle: typography.caption.copyWith(color: colors.textSecondary),
       helperMaxLines: 3,
       errorMaxLines: 4,
-      prefixIconColor: colors.iconMuted,
-      suffixIconColor: colors.iconMuted,
+      prefixIconColor: colors.textSecondary,
+      suffixIconColor: colors.textSecondary,
       prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
       suffixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
       border: inputBorder,
@@ -288,44 +327,67 @@ ThemeData gfThemeData(
     ),
     checkboxTheme: CheckboxThemeData(
       overlayColor: _softTouchOverlay(colors.primary),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-      side: BorderSide(color: colors.iconMuted, width: 1.5),
+      fillColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? (states.contains(WidgetState.disabled)
+                  ? colors.fillStrong
+                  : colors.primary)
+            : Colors.transparent,
+      ),
+      checkColor: WidgetStatePropertyAll(colors.primaryContent),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(GfRadius.xs),
+      ),
+      side: WidgetStateBorderSide.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? BorderSide.none
+            : BorderSide(color: colors.textPlaceholder, width: 1.5),
+      ),
       visualDensity: VisualDensity.standard,
       materialTapTargetSize: MaterialTapTargetSize.padded,
     ),
-    radioTheme: RadioThemeData(overlayColor: _softTouchOverlay(colors.primary)),
-    chipTheme: ChipThemeData(
-      backgroundColor: colors.base300,
-      labelStyle: TextStyle(
-        color: colors.baseContent.withValues(alpha: 0.55),
-        fontSize: 11,
-        fontWeight: FontWeight.w500,
-      ),
-      side: BorderSide.none,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(GfRadii.standard.selector),
+    radioTheme: RadioThemeData(
+      overlayColor: _softTouchOverlay(colors.primary),
+      fillColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? colors.primary
+            : colors.textPlaceholder,
       ),
     ),
-    // Cards follow gf-card semantics: mobile default has no border (the
-    // hairline bottom divider is drawn by GfCard itself); `emphasized`
-    // restores the desktop border+radius look.
+    chipTheme: ChipThemeData(
+      backgroundColor: colors.fill,
+      selectedColor: colors.primarySoft,
+      labelStyle: typography.meta.copyWith(color: colors.textPrimary),
+      side: BorderSide.none,
+      shape: const StadiumBorder(),
+      showCheckmark: false,
+    ),
     cardTheme: CardThemeData(
-      color: colors.base100,
+      color: colors.surfaceGrouped,
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(GfRadii.standard.box),
+        borderRadius: BorderRadius.circular(GfRadius.lg),
       ),
     ),
-    // Floating surfaces have a softer silhouette than compact inline controls.
+    // Modal surfaces share the largest radius and the raised surface colour.
     dialogTheme: DialogThemeData(
-      backgroundColor: colors.base100,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: colors.surfaceRaised,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(GfRadius.xl),
+      ),
+      titleTextStyle: typography.title2,
+      contentTextStyle: typography.small.copyWith(color: colors.textSecondary),
+      barrierColor: colors.scrim,
     ),
     bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: colors.base100,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      backgroundColor: colors.surfaceRaised,
+      surfaceTintColor: Colors.transparent,
+      modalBarrierColor: colors.scrim,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(GfRadius.xl)),
       ),
     ),
     // Popup menus are actions anchored to a trigger. Material's current
@@ -334,10 +396,30 @@ ThemeData gfThemeData(
     // relationship while Flutter still flips/clamps at viewport edges.
     popupMenuTheme: PopupMenuThemeData(
       position: PopupMenuPosition.under,
-      color: colors.base100,
+      color: colors.surfaceRaised,
       surfaceTintColor: Colors.transparent,
-      textStyle: TextStyle(color: colors.baseContent, fontSize: 15),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: colors.isDark ? 0 : 6,
+      shadowColor: const Color(0x330F172A),
+      menuPadding: const EdgeInsets.all(6),
+      textStyle: typography.body,
+      labelTextStyle: WidgetStatePropertyAll(typography.body),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(GfRadius.lg),
+        side: colors.isDark
+            ? BorderSide(color: colors.separator, width: 0.5)
+            : BorderSide.none,
+      ),
+    ),
+    dropdownMenuTheme: DropdownMenuThemeData(
+      menuStyle: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(colors.surfaceRaised),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(GfRadius.lg),
+          ),
+        ),
+      ),
     ),
     // Native mobile motion is owned by GfMotion (220ms in / 180ms out).
     // iOS keeps the system Cupertino transition so the edge-swipe back
@@ -360,7 +442,7 @@ ThemeData gfThemeData(
       bodyLarge: typography.body,
       bodyMedium: typography.small,
       bodySmall: typography.caption,
-      labelLarge: typography.bodyStrong.copyWith(fontSize: 14),
+      labelLarge: buttonLabel,
       labelMedium: typography.meta,
       labelSmall: typography.label,
     ),

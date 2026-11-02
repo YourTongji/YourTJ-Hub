@@ -1,4 +1,4 @@
-import type { FeedRefreshRequest, FeedSessionResponse } from '@gooseforum/client'
+import type { FeedRefreshRequest, FeedReconcileRequest, FeedSessionResponse } from '@gooseforum/client'
 import { acknowledgeSeen, confirmPendingSeen, feedAccount, feedAccountRevision, invalidateSeen, pendingSeenPatches, resetFeedAccount, StaleFeedAccountError } from './feed-telemetry'
 
 async function request(path: string, body: unknown, signal?: AbortSignal): Promise<FeedSessionResponse> {
@@ -41,4 +41,7 @@ export async function refreshForYou(signal?: AbortSignal, replaceSnapshotId = ''
 }
 export async function reconcileForYou(topicIds: number[], signal?: AbortSignal) {
   return request('reconcile', { topicIds }, signal)
+}
+export async function reconcileRegularTopics(topicIds: number[], signal?: AbortSignal) {
+  return request('reconcile', { topicIds, includeOwn: true } satisfies FeedReconcileRequest, signal)
 }

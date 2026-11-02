@@ -1,7 +1,7 @@
 # Hub owns decoration entitlements and equipment
 
 ## Status
-Proposed
+Accepted
 Class: architecture
 
 ## Context and Problem Statement

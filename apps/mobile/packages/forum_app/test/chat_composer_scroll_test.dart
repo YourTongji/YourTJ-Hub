@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -10,6 +11,14 @@ import 'package:ui_kit/ui_kit.dart';
 import 'chat_visible_read_test.dart' show pumpChat;
 import 'fixtures/sticker_fixtures.dart';
 import 'pages_behavior_test.dart' show MemTokenStorage, makeChatMessage;
+
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
 
 void main() {
   setUp(() {
@@ -96,10 +105,23 @@ void main() {
         await tester.pumpAndSettle();
         expectAnchor();
 
-        // Draft previews also consume list height without a window-metrics event.
-        await tester.tap(find.text('Smile').last);
+        // An inline sticker grows the input without a window-metrics event.
+        await tester.tap(_pickerSticker('Smile').last);
         await tester.pumpAndSettle();
-        expect(find.byKey(const Key('sticker-draft-preview')), findsOneWidget);
+        final chatController = tester
+            .widget<GfChatInput>(find.byType(GfChatInput))
+            .controller;
+        expect(
+          find.descendant(
+            of: find.byWidgetPredicate(
+              (widget) =>
+                  widget is EditableText &&
+                  identical(widget.controller, chatController),
+            ),
+            matching: find.byType(StickerImage),
+          ),
+          findsOneWidget,
+        );
         expectAnchor();
 
         // Switching back to the keyboard must preserve the same history anchor.

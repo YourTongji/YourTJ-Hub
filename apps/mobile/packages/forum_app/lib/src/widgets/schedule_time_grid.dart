@@ -271,7 +271,7 @@ class _TimeCell extends StatelessWidget {
               fontSize: 12,
               height: 1.1,
               fontWeight: FontWeight.w700,
-              color: colors.baseContent.withValues(alpha: 0.7),
+              color: colors.textSecondary,
             ),
           ),
           if (time != null)
@@ -281,7 +281,7 @@ class _TimeCell extends StatelessWidget {
               style: TextStyle(
                 fontSize: 9.5,
                 height: 1.1,
-                color: colors.baseContent.withValues(alpha: 0.75),
+                color: colors.textSecondary,
               ),
             ),
         ],
@@ -508,7 +508,7 @@ class _CourseCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 1),
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(GfRadius.sm),
           border: Border.all(
             color: custom ? colors.line : accent.withValues(alpha: .22),
           ),
@@ -568,7 +568,7 @@ class _CourseCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 10,
                         height: 1.15,
-                        color: colors.baseContent.withValues(alpha: .8),
+                        color: colors.textSecondary,
                       ),
                     ),
                   if (weeksText.isNotEmpty || conflicted)
@@ -582,7 +582,7 @@ class _CourseCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 9.5,
                               height: 1.15,
-                              color: colors.baseContent.withValues(alpha: .8),
+                              color: colors.textSecondary,
                             ),
                           ),
                         ),
@@ -618,26 +618,7 @@ class _CourseCard extends StatelessWidget {
           : course.code,
     );
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    const List<Color> light = <Color>[
-      Color(0xFFE8EEFF),
-      Color(0xFFDCF2FE),
-      Color(0xFFDDF3E7),
-      Color(0xFFFDF0D5),
-      Color(0xFFFFE9E7),
-      Color(0xFFF1E8FB),
-      Color(0xFFE0F2FE),
-      Color(0xFFFFECF1),
-    ];
-    const List<Color> darkColors = <Color>[
-      Color(0xFF1E2A4A),
-      Color(0xFF12303F),
-      Color(0xFF123527),
-      Color(0xFF3A2F10),
-      Color(0xFF482029),
-      Color(0xFF2E1D40),
-      Color(0xFF12303F),
-      Color(0xFF402030),
-    ];
-    return (dark ? darkColors : light)[(slot - 1) % 8];
+    return (dark ? kCourseSlotColorsDark : kCourseSlotColorsLight)[(slot - 1) %
+        8];
   }
 }

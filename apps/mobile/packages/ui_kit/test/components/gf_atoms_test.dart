@@ -90,7 +90,8 @@ void main() {
       );
       final Text a = tester.widget(find.text('A'));
       expect(
-        a.style?.color,
+        (a.style?.color ??
+            DefaultTextStyle.of(tester.element(find.text('A'))).style.color),
         GfColors.light.baseContent,
         reason: 'active segment uses neutral text on the selected surface',
       );

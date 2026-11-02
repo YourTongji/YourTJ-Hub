@@ -8,6 +8,8 @@ import { formatDateTime } from '@/runtime/format'
 import { reasonText } from '@/admin/utils/aiModerationReasons'
 import MarkdownImageViewer from '@/components/MarkdownImageViewer.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import RejectionReasonFields from './RejectionReasonFields.vue'
+import { emptyRejectionDraft, rejectionReason, rejectionError } from '@/runtime/review-rejection'
 import type { ReviewQueueItem } from '@/admin/types'
 
 // 前台版主工作台的待审队列（issue #975）：版主不必进入管理后台即可审核
@@ -31,7 +33,14 @@ const error = ref('')
 const busyIds = ref<number[]>([])
 const confirmRejectId = ref(0)
 const hasMore = computed(() => items.value.length < total.value)
-let confirmTimer = 0
+const rejectDraft = ref(emptyRejectionDraft())
+const reasonError = ref('')
+function openRejection(item: ReviewQueueItem) {
+  if (busyIds.value.includes(item.id) || confirmRejectId.value === item.id) return
+  rejectDraft.value = emptyRejectionDraft()
+  reasonError.value = ''
+  confirmRejectId.value = item.id
+}
 
 async function load(reset = false) {
   if (loading.value) return
@@ -53,6 +62,7 @@ async function load(reset = false) {
 function switchKind(next: Kind) {
   if (kind.value === next) return
   kind.value = next
+  confirmRejectId.value = 0
   items.value = []
   total.value = 0
   void load(true)
@@ -64,20 +74,22 @@ function targetURL(item: ReviewQueueItem) {
 
 async function review(item: ReviewQueueItem, approve: boolean) {
   if (busyIds.value.includes(item.id)) return
-  // 拒绝是不可撤回的结论：第一次点击进入确认态，再次点击才执行。
-  if (!approve && confirmRejectId.value !== item.id) {
-    confirmRejectId.value = item.id
-    window.clearTimeout(confirmTimer)
-    confirmTimer = window.setTimeout(() => { confirmRejectId.value = 0 }, 4000)
-    return
+  const explanation = approve ? '' : rejectionReason(t, rejectDraft.value)
+  if (!approve) {
+    reasonError.value = rejectionError(t, explanation)
+    if (reasonError.value) { document.getElementById(`review-${item.id}-preset`)?.focus(); return }
   }
-  confirmRejectId.value = 0
+  const reviewedKind = kind.value
   busyIds.value = [...busyIds.value, item.id]
   error.value = ''
   try {
-    await moderationReviewAction(kind.value, item.id, approve, item.revisionId)
-    items.value = items.value.filter(entry => entry.id !== item.id)
-    total.value = Math.max(total.value - 1, 0)
+    if (approve) await moderationReviewAction(reviewedKind, item.id, true, item.revisionId)
+    else await moderationReviewAction(reviewedKind, item.id, false, item.revisionId, explanation)
+    if (kind.value === reviewedKind) {
+      items.value = items.value.filter(entry => entry.id !== item.id)
+      total.value = Math.max(total.value - 1, 0)
+      if (confirmRejectId.value === item.id) confirmRejectId.value = 0
+    }
     emit('changed')
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('moderation.review.actionFailed')
@@ -91,7 +103,7 @@ onMounted(() => { void load(true) })
 
 <template>
   <section class="space-y-3" data-test="moderation-review-queue">
-    <p v-if="error" class="rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">{{ error }}</p>
+    <p v-if="error" role="alert" class="rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">{{ error }}</p>
     <div class="gf-card overflow-hidden">
       <div class="flex items-center justify-between gap-2 border-b border-line bg-base-200/60 p-2">
         <div class="flex items-center gap-1">
@@ -144,14 +156,20 @@ onMounted(() => { void load(true) })
             </button>
             <button
               type="button"
-              class="gf-button gf-button-sm"
-              :class="confirmRejectId === item.id ? 'gf-button-danger' : 'gf-button-secondary'"
+              class="gf-button gf-button-sm gf-button-secondary" :aria-expanded="confirmRejectId === item.id"
               :disabled="busyIds.includes(item.id)"
-              @click="review(item, false)"
+              @click="openRejection(item)"
             >
-              <X class="h-4 w-4" />{{ confirmRejectId === item.id ? t('moderation.review.confirmReject') : t('moderation.review.reject') }}
+              <X class="h-4 w-4" />{{ t('moderation.review.reject') }}
             </button>
           </div>
+          <form v-if="confirmRejectId === item.id" class="col-span-2 space-y-3 rounded border border-line p-3 lg:col-span-3" @submit.prevent="review(item, false)">
+            <RejectionReasonFields v-model="rejectDraft" :id-prefix="`review-${item.id}`" :disabled="busyIds.includes(item.id)" :error="reasonError" />
+            <div class="flex flex-wrap justify-end gap-2">
+              <button type="button" class="gf-button gf-button-sm gf-button-ghost h-auto max-w-full whitespace-normal py-2 text-center [overflow-wrap:anywhere]" :disabled="busyIds.includes(item.id)" @click="confirmRejectId = 0">{{ t('common.cancel') }}</button>
+              <button type="submit" class="gf-button gf-button-sm gf-button-danger h-auto max-w-full whitespace-normal py-2 text-center [overflow-wrap:anywhere]" :disabled="busyIds.includes(item.id)">{{ t('moderation.review.confirmReject') }}</button>
+            </div>
+          </form>
         </article>
       </div>
       <EmptyState v-else-if="!loading" :icon="Check" :title="t('moderation.review.emptyTitle')" :description="t('moderation.review.emptyDescription')" />

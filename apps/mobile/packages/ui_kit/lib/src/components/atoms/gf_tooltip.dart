@@ -14,22 +14,22 @@ class GfTooltip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
     final GfShadows shadows = GfTheme.shadowsOf(context);
 
     return Tooltip(
       message: message,
       decoration: BoxDecoration(
         color: colors.neutral,
-        borderRadius: BorderRadius.circular(radii.field),
+        borderRadius: BorderRadius.circular(GfRadius.sm),
         boxShadow: shadows.tooltip,
       ),
-      textStyle: TextStyle(
-        color: colors.neutralContent,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
+      textStyle: GfTheme.typographyOf(
+        context,
+      ).caption.copyWith(color: colors.neutralContent),
+      padding: const EdgeInsets.symmetric(
+        horizontal: GfSpace.md,
+        vertical: GfSpace.sm - 2,
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: child,
     );
   }

@@ -41,8 +41,11 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
           .read(campusRepositoryProvider)
           .start(mode, cancelToken: _cancel);
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-      await Navigator.of(context).push<bool>(
+      // Cover the shell as well as its branch navigator: school credentials
+      // must never share the screen with the retained campus dock.
+      await Navigator.of(context, rootNavigator: true).push<bool>(
         MaterialPageRoute(
+          fullscreenDialog: true,
           builder: (_) => AdminPage(
             target: MobileWebTarget.campus,
             campusAuthorizationUrl: uri,

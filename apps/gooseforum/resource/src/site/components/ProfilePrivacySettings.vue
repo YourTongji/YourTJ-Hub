@@ -8,6 +8,7 @@ import {
   getPrivacySettings,
   updatePrivacySettings,
   type ProfileAudience,
+  type ChatMessagePolicy,
   type ProfilePrivacySection,
   type UserPrivacySettings,
 } from '@/runtime/api'
@@ -20,12 +21,13 @@ import {
 
 const props = defineProps<{ profileUrl: string }>()
 const { t } = useI18n()
+type PrivacySetting = ProfilePrivacySection | 'chatMessagePolicy'
 
 const settings = ref<UserPrivacySettings | null>(null)
 const loading = ref(true)
 const loadFailed = ref(false)
-const saving = ref<ProfilePrivacySection | 'legacy' | null>(null)
-const failedSection = ref<ProfilePrivacySection | 'legacy' | null>(null)
+const saving = ref<PrivacySetting | 'legacy' | null>(null)
+const failedSection = ref<PrivacySetting | 'legacy' | null>(null)
 const pendingWiden = ref<{ key: ProfilePrivacySection, audience: ProfileAudience } | null>(null)
 const legacyUpdate = ref<Partial<UserPrivacySettings> | null>(null)
 const widenCancel = ref<HTMLButtonElement | null>(null)
@@ -33,14 +35,14 @@ const root = ref<HTMLElement | null>(null)
 const widenReturnKey = ref<ProfilePrivacySection | null>(null)
 // Saves confirm on the row itself; a page-level banner would shift the
 // layout under the select the user is still working with.
-const savedSection = ref<ProfilePrivacySection | 'legacy' | null>(null)
+const savedSection = ref<PrivacySetting | 'legacy' | null>(null)
 const announcement = ref('')
 let savedTimer: number | undefined
 
-function markSaved(target: ProfilePrivacySection | 'legacy') {
+function markSaved(target: PrivacySetting | 'legacy') {
   window.clearTimeout(savedTimer)
   savedSection.value = target
-  announcement.value = t('settings.status.profileVisibilitySaved')
+  announcement.value = target === 'chatMessagePolicy' ? t('settings.privacy.chatSaved') : t('settings.status.profileVisibilitySaved')
   savedTimer = window.setTimeout(() => { savedSection.value = null }, 2000)
 }
 
@@ -104,7 +106,7 @@ function confirmWiden() {
   if (pending) void save(pending.key, { [pending.key]: pending.audience })
 }
 
-async function save(target: ProfilePrivacySection | 'legacy', update: Partial<UserPrivacySettings>) {
+async function save(target: PrivacySetting | 'legacy', update: Partial<UserPrivacySettings>) {
   saving.value = target
   failedSection.value = null
   savedSection.value = null
@@ -121,6 +123,18 @@ async function save(target: ProfilePrivacySection | 'legacy', update: Partial<Us
   } finally {
     saving.value = null
   }
+}
+
+const chatOptions = computed(() => [
+  { value: 'everyone', label: t('settings.privacy.audiences.everyone') },
+  { value: 'mutual', label: t('settings.privacy.audiences.mutual') },
+  { value: 'nobody', label: t('settings.privacy.chatNobody') },
+])
+
+function chooseChatPolicy(value: string) {
+  if (!settings.value || saving.value || (settings.value.chatMessagePolicy ?? 'everyone') === value) return
+  if (!['everyone', 'mutual', 'nobody'].includes(value)) return
+  void save('chatMessagePolicy', { chatMessagePolicy: value as ChatMessagePolicy })
 }
 
 async function applyLegacy() {
@@ -236,6 +250,25 @@ const widenDescription = computed(() => pendingWiden.value
       <Info class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>{{ t('settings.privacy.profileScope') }}</span>
     </p>
+
+    <section v-if="settings" class="mt-8" aria-labelledby="chat-permissions-title" data-test="chat-permissions">
+      <h3 id="chat-permissions-title" class="text-sm font-semibold text-base-content">{{ t('settings.privacy.chatTitle') }}</h3>
+      <p class="mt-1 text-sm text-base-content/60">{{ t('settings.privacy.chatHint') }}</p>
+      <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <label id="chat-permissions-label" class="text-sm font-semibold">{{ t('settings.privacy.chatLabel') }}</label>
+        <SiteSelect
+          class="w-full sm:w-44"
+          :model-value="settings.chatMessagePolicy ?? 'everyone'"
+          :options="chatOptions"
+          :label="t('settings.privacy.chatLabel')"
+          :disabled="saving !== null"
+          @update:model-value="chooseChatPolicy"
+        />
+      </div>
+      <p v-if="failedSection === 'chatMessagePolicy'" role="alert" class="mt-1 text-xs text-error">{{ t('settings.privacy.saveFailed') }}</p>
+      <p v-else-if="saving === 'chatMessagePolicy'" role="status" class="mt-1 text-xs text-base-content/60">{{ t('common.loading') }}</p>
+      <p v-else-if="savedSection === 'chatMessagePolicy'" role="status" class="mt-1 text-xs text-success">{{ t('settings.privacy.saved') }}</p>
+    </section>
 
     <DialogRoot :open="pendingWiden !== null" @update:open="value => { if (!value) pendingWiden = null }">
       <DialogPortal>

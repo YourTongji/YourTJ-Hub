@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -44,6 +45,7 @@ func setupMCPServiceTestDB(t *testing.T) *gorm.DB {
 		&badges.Entity{},
 		&userBadges.Entity{},
 		&topics.Entity{},
+		&fileUsage.Entity{},
 		&topicUserStat.Entity{},
 		&postRevisions.Entity{},
 		&posts.Entity{},
@@ -66,6 +68,7 @@ func setupMCPServiceTestDB(t *testing.T) *gorm.DB {
 }
 
 func cleanMCPServiceTables(conn *gorm.DB) {
+	conn.Where("1 = 1").Delete(&fileUsage.Entity{})
 	conn.Where("1 = 1").Delete(&topicUserStat.Entity{})
 	conn.Where("1 = 1").Delete(&posts.Entity{})
 	conn.Where("1 = 1").Delete(&topicCategoryIndex.Entity{})

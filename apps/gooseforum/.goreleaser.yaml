@@ -13,6 +13,10 @@ builds:
   - id: unix
     env:
       - CGO_ENABLED=0
+    # nodynamic: the AVIF decoder (sticker market) always runs as sandboxed WASM
+    # and never loads a system libavif.
+    tags:
+      - nodynamic
     flags:
       - -trimpath
     ldflags:
@@ -29,6 +33,10 @@ builds:
   - id: windows
     env:
       - CGO_ENABLED=0
+    # nodynamic: the AVIF decoder (sticker market) always runs as sandboxed WASM
+    # and never loads a system libavif.
+    tags:
+      - nodynamic
     flags:
       - -trimpath
     ldflags:

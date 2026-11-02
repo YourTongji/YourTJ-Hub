@@ -73,11 +73,13 @@ func nearSquare(width, height float64) bool {
 	return min(width, height) >= max(width, height)*0.85
 }
 
+// validateRaster 与上传路径同口径，以文件头判定的真实类型为准（issue #1393）；
+// 装饰资源仍要求真实类型与声明格式一致（管理端资源不做改名）。
 func validateRaster(data []byte, contentType string, frame bool) error {
 	if contentType != "image/png" && contentType != "image/webp" && contentType != "image/gif" {
 		return ErrInvalid
 	}
-	if imagepolicy.ValidateContent(bytes.NewReader(data), contentType) != nil {
+	if detected, err := imagepolicy.DetectContentType(bytes.NewReader(data)); err != nil || detected != contentType {
 		return ErrInvalid
 	}
 	config, _, err := image.DecodeConfig(bytes.NewReader(data))

@@ -17,7 +17,8 @@ class ScheduleWidgetProjection {
     required String dayKind,
     required String? adjustmentLabel,
     required List<ScheduleWidgetCourse> courses,
-  }) : days = [
+  }) : blocks = const [],
+       days = [
          ScheduleWidgetDay(
            date: schoolDate,
            week: week,
@@ -34,6 +35,7 @@ class ScheduleWidgetProjection {
     required this.semesterId,
     required this.sectionTimes,
     required this.days,
+    this.blocks = const [],
   });
 
   static const schemaVersion = 2;
@@ -46,6 +48,10 @@ class ScheduleWidgetProjection {
   final String semesterId;
   final List<SectionTime> sectionTimes;
   final List<ScheduleWidgetDay> days;
+
+  /// The user's own timetable blocks, kept so a later school refresh can lay
+  /// them out again without the app's local store.
+  final List<ScheduleWidgetBlock> blocks;
 
   String get schoolDate => days.first.date;
   int? get week => days.first.week;
@@ -102,7 +108,7 @@ class ScheduleWidgetProjection {
     return ScheduleWidgetProjection._(
       identity: ScheduleWidgetIdentity(
         siteKey: _opaque(scope.site),
-        accountScope: _opaque('${scope.site}:${scope.accountId}'),
+        accountScope: ScheduleWidgetIdentity.accountScopeFor(scope),
         bindingRevision: snapshot.bindingRevision,
       ),
       generatedAt: snapshot.committedAt,
@@ -145,6 +151,11 @@ class ScheduleWidgetProjection {
       semesterId: _optionalText(semester['id']) ?? '',
       sectionTimes: sectionTimes,
       days: parsedDays,
+      blocks: json['blocks'] is List
+          ? _list(
+              json['blocks'],
+            ).map(ScheduleWidgetBlock.tryFromJson).nonNulls.toList()
+          : const [],
     );
   }
 
@@ -160,9 +171,57 @@ class ScheduleWidgetProjection {
         {'section': time.section, 'start': time.start, 'end': time.end},
     ],
     'days': [for (final day in days) day.toJson()],
+    if (blocks.isNotEmpty)
+      'blocks': [for (final block in blocks) block.toJson()],
   };
 
   String encode() => jsonEncode(toJson());
+
+  /// Lays [blocks] over the published days, replacing earlier ones. A block
+  /// lands on its weekday in each teaching week it covers; holidays, days
+  /// outside the term and unresolved days stay as the school published them.
+  ScheduleWidgetProjection withBlocks(List<ScheduleWidgetBlock> blocks) {
+    final baseWeek = days.first.week;
+    final baseMonday = _monday(_calendarDate(days.first.date)!);
+    final laid = <ScheduleWidgetDay>[];
+    for (final day in days) {
+      final date = _calendarDate(day.date)!;
+      final week = baseWeek == null || day.week == null
+          ? null
+          : baseWeek + _monday(date).difference(baseMonday).inDays ~/ 7;
+      final own = <ScheduleWidgetCourse>[
+        if (week != null &&
+            day.kind != 'holiday' &&
+            day.kind != 'moved' &&
+            day.kind != 'unknown')
+          for (final block in blocks)
+            if (block.days.contains(date.weekday) && block.occursIn(week))
+              ?_courseFromBlock(block, day.date, sectionTimes),
+      ];
+      laid.add(
+        ScheduleWidgetDay(
+          date: day.date,
+          week: day.week,
+          source: day.source,
+          kind: day.kind,
+          adjustmentLabel: day.adjustmentLabel,
+          courses: [
+            for (final course in day.courses)
+              if (!course.custom) course,
+            ...own,
+          ]..sort((a, b) => a.startAt.compareTo(b.startAt)),
+        ),
+      );
+    }
+    return ScheduleWidgetProjection._(
+      identity: identity,
+      generatedAt: generatedAt,
+      semesterId: semesterId,
+      sectionTimes: sectionTimes,
+      days: laid,
+      blocks: List.unmodifiable(blocks),
+    );
+  }
 
   ScheduleWidgetStatus statusAt(DateTime value) {
     final now = value.toUtc();
@@ -317,6 +376,10 @@ class ScheduleWidgetIdentity {
   final String accountScope;
   final String bindingRevision;
 
+  /// Opaque key of one account on one site; the widget never stores either.
+  static String accountScopeFor(CampusCacheScope scope) =>
+      _opaque('${scope.site}:${scope.accountId}');
+
   factory ScheduleWidgetIdentity.fromJson(Map<String, dynamic> json) {
     final value = ScheduleWidgetIdentity(
       siteKey: _optionalText(json['siteKey']) ?? '',
@@ -350,6 +413,7 @@ class ScheduleWidgetCourse {
     required this.startAt,
     required this.endAt,
     required this.colorSlot,
+    this.custom = false,
   });
 
   final String stableId;
@@ -362,6 +426,9 @@ class ScheduleWidgetCourse {
   final DateTime startAt;
   final DateTime endAt;
   final int colorSlot;
+
+  /// Drawn by the user rather than published by the school.
+  final bool custom;
 
   static ScheduleWidgetCourse? tryFromJson(Map<String, dynamic> json) {
     final stableId = _optionalText(json['stableId']);
@@ -396,6 +463,7 @@ class ScheduleWidgetCourse {
       startAt: startAt,
       endAt: endAt,
       colorSlot: colorSlot,
+      custom: json['custom'] == true,
     );
   }
 
@@ -410,6 +478,83 @@ class ScheduleWidgetCourse {
     'startAt': _shanghaiIso(startAt),
     'endAt': _shanghaiIso(endAt),
     'colorSlot': colorSlot,
+    if (custom) 'custom': true,
+  };
+}
+
+/// A block the user drew on the timetable, as the widget needs it.
+class ScheduleWidgetBlock {
+  const ScheduleWidgetBlock({
+    required this.id,
+    required this.title,
+    required this.place,
+    required this.colorSlot,
+    required this.days,
+    required this.start,
+    required this.end,
+    required this.weeks,
+  });
+
+  final String id;
+  final String title;
+  final String place;
+
+  /// 1-based, like [ScheduleWidgetCourse.colorSlot].
+  final int colorSlot;
+
+  /// Weekdays 1 (Monday) to 7.
+  final List<int> days;
+  final int start;
+  final int end;
+
+  /// Teaching weeks; empty repeats every week.
+  final List<int> weeks;
+
+  bool occursIn(int week) => weeks.isEmpty || weeks.contains(week);
+
+  static ScheduleWidgetBlock? tryFromJson(Object? value) {
+    if (value is! Map) return null;
+    List<int> ints(Object? list) =>
+        list is List ? list.whereType<int>().toList() : const [];
+    final id = _optionalText(value['id']);
+    final title = _optionalText(value['title']);
+    final colorSlot = value['colorSlot'];
+    final start = value['start'];
+    final end = value['end'];
+    final days = ints(value['days']).where((d) => d >= 1 && d <= 7).toList();
+    if (id == null ||
+        title == null ||
+        colorSlot is! int ||
+        colorSlot < 1 ||
+        colorSlot > 8 ||
+        start is! int ||
+        end is! int ||
+        start < 1 ||
+        end < start ||
+        days.isEmpty) {
+      return null;
+    }
+    return ScheduleWidgetBlock(
+      id: id,
+      title: title,
+      place: _optionalText(value['place']) ?? '',
+      colorSlot: colorSlot,
+      days: days,
+      start: start,
+      end: end,
+      weeks: ints(value['weeks']).where((w) => w > 0).toList(),
+    );
+  }
+
+  Map<String, Object> toJson() => {
+    'id': id,
+    'title': title,
+    'place': place,
+    'colorSlot': colorSlot,
+    'days': days,
+    'start': start,
+    'end': end,
+    'weeks': weeks,
   };
 }
 
@@ -589,6 +734,29 @@ ScheduleWidgetCourse? _courseFromEvent(
   );
 }
 
+ScheduleWidgetCourse? _courseFromBlock(
+  ScheduleWidgetBlock block,
+  String date,
+  List<SectionTime> times,
+) {
+  final title = _optionalText(block.title);
+  if (title == null || block.start > times.length) return null;
+  final end = block.end.clamp(block.start, times.length);
+  return ScheduleWidgetCourse(
+    stableId: _opaque('block|${block.id}|$date'),
+    name: title,
+    teacher: '',
+    room: block.place.trim(),
+    campus: '',
+    startSection: block.start,
+    endSection: end,
+    startAt: _schoolInstant(date, times[block.start - 1].start),
+    endAt: _schoolInstant(date, times[end - 1].end),
+    colorSlot: block.colorSlot,
+    custom: true,
+  );
+}
+
 bool _validEvent(
   CampusEvent event,
   int weeks,
@@ -731,6 +899,9 @@ DateTime? _calendarDate(String value) {
   }
   return parsed;
 }
+
+DateTime _monday(DateTime date) =>
+    date.subtract(Duration(days: date.weekday - DateTime.monday));
 
 String _dateOnly(DateTime value) =>
     value.toUtc().toIso8601String().substring(0, 10);

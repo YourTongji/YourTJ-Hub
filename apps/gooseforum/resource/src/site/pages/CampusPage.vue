@@ -97,9 +97,18 @@ const todayAdjustment = computed(() => {
   if (!todayIsCurrent.value || !day || day.kind === 'none') return ''
   return t(`campus.today${day.kind === 'makeup' ? 'Makeup' : day.kind === 'holiday' ? 'Holiday' : 'Moved'}`, { name: day.label, date: day.sourceDate })
 })
-const totalCredits = computed(() => Number(summary.value.find(m => m.label === '要求学分')?.value) || 0)
-const completedCredits = computed(() => Number(summary.value.find(m => m.label === '已修学分')?.value) || 0)
-const creditProgress = computed(() => totalCredits.value ? Math.max(0, Math.min(100, completedCredits.value / totalCredits.value * 100)) : 0)
+function summaryCredit(label: string): number | null {
+  const value = summary.value.find(m => m.label === label)?.value?.trim()
+  if (!value) return null
+  const credit = Number(value)
+  return Number.isFinite(credit) ? credit : null
+}
+const totalCredits = computed(() => summaryCredit('要求学分'))
+const completedCredits = computed(() => summaryCredit('已修学分'))
+const creditProgress = computed(() => {
+  if (totalCredits.value === null || totalCredits.value <= 0 || completedCredits.value === null) return null
+  return Math.max(0, Math.min(100, completedCredits.value / totalCredits.value * 100))
+})
 const messages = computed(() => data.value.messages?.messages || [])
 const recentMessages = computed(() => messages.value.slice(0, 5))
 const filteredMessages = computed(() => messages.value.filter(m => `${m.title} ${m.publisher}`.toLowerCase().includes(filter.value.toLowerCase())))
@@ -536,7 +545,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
             <dl class="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
               <div v-for="metric in summary" :key="metric.label" class="bg-base-100 p-4"><dt class="text-xs text-base-content/55">{{ fieldLabel(metric.label) }}</dt><dd class="mt-2 text-2xl font-semibold tabular-nums">{{ displayMetric(metric.value) }}<span class="ml-1 text-xs font-normal text-base-content/55">{{ fieldLabel(metric.unit) }}</span></dd></div>
             </dl>
-            <div v-if="totalCredits" class="border-t border-line px-4 py-3"><div class="mb-2 flex justify-between text-xs text-base-content/55"><span>{{ t('campus.creditProgress') }}</span><span>{{ t('campus.creditsProgress', { completed: completedCredits, total: totalCredits }) }}</span></div><div class="h-2 overflow-hidden rounded-full bg-base-300"><div class="h-full rounded-full bg-primary/75" :style="{ width: `${creditProgress}%` }"></div></div></div>
+            <div v-if="creditProgress !== null" class="border-t border-line px-4 py-3"><div class="mb-2 flex justify-between text-xs text-base-content/55"><span>{{ t('campus.creditProgress') }}</span><span>{{ t('campus.creditsProgress', { completed: completedCredits, total: totalCredits }) }}</span></div><div class="h-2 overflow-hidden rounded-full bg-base-300"><div class="h-full rounded-full bg-primary/75" :style="{ width: `${creditProgress}%` }"></div></div></div>
           </div>
           <p v-if="tab === 'grades' && failures.summary" class="gf-status-message gf-status-message-error m-4">{{ failures.summary }}</p>
           <dl v-if="current?.metrics.length" class="flex flex-wrap gap-x-8 gap-y-4 border-b border-line p-4">

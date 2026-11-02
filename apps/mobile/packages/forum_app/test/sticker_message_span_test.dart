@@ -46,6 +46,27 @@ void main() {
     expect(buildStickerMessageSpan('[:sticker:ghost:]', urlByName), isNull);
   });
 
+  test('dropUnknownStickers 省略未识别 token,而非原文展示', () {
+    expect(
+      buildStickerMessageSpan(
+        '[:sticker:ghost:]',
+        urlByName,
+        dropUnknownStickers: true,
+      ),
+      isNull,
+    );
+    final InlineSpan? span = buildStickerMessageSpan(
+      '前 [:sticker:ghost:] 后 [:sticker:smile:]',
+      urlByName,
+      dropUnknownStickers: true,
+    );
+    expect(span, isNotNull);
+    final TextSpan textSpan = span! as TextSpan;
+    expect((textSpan.children![0] as TextSpan).text, '前  后 ');
+    expect(textSpan.children![1], isA<WidgetSpan>());
+    expect(textSpan.toPlainText(), isNot(contains('[:sticker:')));
+  });
+
   test('已知 token 生成含 WidgetSpan 的富文本', () {
     final InlineSpan? span = buildStickerMessageSpan(
       '前 [:sticker:smile:] 后',

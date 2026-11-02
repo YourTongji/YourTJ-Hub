@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import UnreadDisplaySettings from '@/site/components/UnreadDisplaySettings.vue'
+import ActivationEmailAction from '@/site/components/ActivationEmailAction.vue'
 import DecorationEditor from '@/site/components/DecorationEditor.vue'
 import UserNickname from '@/site/components/UserNickname.vue'
 import type { UserDecoration } from '@gooseforum/client'
@@ -33,6 +35,7 @@ import {
   RotateCcw,
   Settings2,
   Shield,
+  Smile,
   Sparkles,
   Sun,
   Trash2,
@@ -47,7 +50,6 @@ import {
   getTotpSetup,
   getTotpStatus,
   listSessions,
-  resendActivationEmail,
   revokeAllSessions,
   revokeSession,
   getDeletedContent,
@@ -96,6 +98,7 @@ import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
 import { useCoverCropUpload, COVER_ASPECT_RATIO } from '@/site/composables/useCoverCropUpload'
 import AvatarImageEditor from '@/site/components/AvatarImageEditor.vue'
 import CoverImageEditor from '@/site/components/CoverImageEditor.vue'
+import MyStickersManager from '@/site/components/MyStickersManager.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import GfSwitch from '@/site/components/GfSwitch.vue'
@@ -131,7 +134,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'notifications', 'binding', 'security', 'content', 'deleted', 'general'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'notifications', 'binding', 'security', 'content', 'stickers', 'deleted', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -141,7 +144,6 @@ const sensitiveWords = ref<string[]>([])
 const savingProfile = ref(false)
 const savingUsername = ref(false)
 const savingEmail = ref(false)
-const sendingActivationEmail = ref(false)
 const savingPassword = ref(false)
 const loadingBindings = ref(false)
 const bindingAction = ref('')
@@ -446,6 +448,7 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
   if (key === 'content') return t('settings.tabs.content')
+  if (key === 'stickers') return t('settings.tabs.stickers')
   if (key === 'deleted') return t('settings.tabs.deleted')
   if (key === 'general') return t('settings.tabs.general')
   return fallback || key
@@ -1004,17 +1007,6 @@ function cancelEmailEdit() {
   emailForm.email = page.props.user.email
   emailForm.password = ''
   editingEmail.value = false
-}
-
-async function sendActivationEmail() {
-  sendingActivationEmail.value = true
-  try {
-    showStatus(await resendActivationEmail())
-  } catch (err) {
-    showError(err instanceof Error ? err.message : t('api.activationEmailSendFailed'))
-  } finally {
-    sendingActivationEmail.value = false
-  }
 }
 
 async function submitPassword() {
@@ -1981,16 +1973,6 @@ async function toggleBinding(provider: string) {
                     <span class="font-semibold">{{ t('settings.emailVerification.title') }}</span>
                     <span class="ml-1 text-warning">{{ t('settings.emailVerification.description') }}</span>
                   </span>
-                  <button
-                    type="button"
-                    class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-base-100 px-3 text-sm font-semibold text-warning hover:bg-warning/15 disabled:cursor-wait disabled:opacity-70"
-                    :disabled="sendingActivationEmail"
-                    @click="sendActivationEmail"
-                  >
-                    <Loader2 v-if="sendingActivationEmail" class="h-4 w-4 animate-spin" />
-                    <Mail v-else class="h-4 w-4" />
-                    {{ sendingActivationEmail ? t('settings.emailVerification.sending') : t('settings.emailVerification.action') }}
-                  </button>
                 </div>
                 <!-- 两阶段换绑（issue #678）：暂存期内提示去新邮箱确认；旧邮箱保持可登录/找回。 -->
                 <div v-if="pendingEmail" class="mt-2 flex flex-col gap-2 border-l-2 border-info bg-info/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1998,17 +1980,8 @@ async function toggleBinding(provider: string) {
                     <span class="font-semibold">{{ t('settings.emailChangePending.title') }}</span>
                     <span class="ml-1">{{ t('settings.emailChangePending.description', { email: pendingEmail }) }}</span>
                   </span>
-                  <button
-                    type="button"
-                    class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-info/30 bg-base-100 px-3 text-sm font-semibold text-info hover:bg-info/15 disabled:cursor-wait disabled:opacity-70"
-                    :disabled="sendingActivationEmail"
-                    @click="sendActivationEmail"
-                  >
-                    <Loader2 v-if="sendingActivationEmail" class="h-4 w-4 animate-spin" />
-                    <Mail v-else class="h-4 w-4" />
-                    {{ t('settings.emailChangePending.resend') }}
-                  </button>
                 </div>
+                <ActivationEmailAction v-if="layout.viewer.requiresEmailVerification || pendingEmail" :account-id="page.props.user.id" class="mt-3" />
               </div>
             </div>
           </section>
@@ -2189,6 +2162,7 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'notifications'">
             <SectionHeader :icon="Bell" :title="t('settings.privacy.notificationsTitle')" />
             <div class="max-w-2xl divide-y divide-line p-4">
+              <UnreadDisplaySettings />
               <div v-if="pushPreferences" class="py-3">
                 <h3 class="text-sm font-semibold">{{ t('notifications.pushGroups.title') }}</h3>
                 <label v-for="group in pushGroups" :key="group" class="flex items-center justify-between gap-4 py-2">
@@ -2443,6 +2417,13 @@ async function toggleBinding(provider: string) {
                 </button>
                 <p class="mt-2 text-xs text-base-content/45">{{ t('settings.security.revokeAllHint') }}</p>
               </div>
+            </div>
+          </section>
+
+          <section v-if="activeTab === 'stickers'">
+            <SectionHeader :icon="Smile" :title="t('stickers.mine.title')" :description="t('stickers.mine.description')" />
+            <div class="p-4">
+              <MyStickersManager />
             </div>
           </section>
 

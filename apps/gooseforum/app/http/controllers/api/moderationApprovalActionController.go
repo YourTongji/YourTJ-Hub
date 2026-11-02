@@ -35,7 +35,7 @@ const (
 const approvalActionExcerptRunes = 200
 
 // ModerationApprovalActionReq 确认页请求：token 放在 POST body，不进入访问日志。
-// Reason 只用于申诉复核：驳回必填，作者会看到；其他动作忽略。
+// Reason 用于话题／回复及申诉的拒绝说明；作者在站内查看，其他动作忽略。
 type ModerationApprovalActionReq struct {
 	Token  string `json:"token" validate:"required,max=2048"`
 	Reason string `json:"reason" validate:"max=2048"`
@@ -82,7 +82,11 @@ func ModerationApprovalActionExecute(req component.BetterRequest[ModerationAppro
 			Id:         claims.ID,
 			RevisionId: revisionID,
 			Approve:    claims.Action == httpnotifyservice.ApprovalActionApprove,
+			Reason:     req.Params.Reason,
 		}, req.UserId, false)
+		if response.Data.MessageCode == component.MessageRequestInvalidParams {
+			return response
+		}
 		switch {
 		case response.Data.Code == component.SUCCESS:
 			view.State = forum.QuickActionDone

@@ -11,6 +11,7 @@ import { formatDateTime } from '@/runtime/format'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
+import UnreadIndicator from '@/site/components/UnreadIndicator.vue'
 import type { LayoutPayload, NotificationCategory, NotificationFilter, NotificationPayload, NotificationsPageProps } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -183,7 +184,7 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
     list.hasNext = payload.hasNext
     list.loaded = true
     unreadCount.value = payload.unreadCount
-    unreadStatus.setNotifications(payload.unreadCount > 0)
+    unreadStatus.setNotifications(payload.unreadCount > 0, payload.unreadCount)
   } catch (error) {
     if (generation !== categoryGeneration) return
     actionError.value = error instanceof Error ? error.message : t('api.notificationsLoadFailed')
@@ -359,14 +360,14 @@ function markItemRead(item: NotificationPayload) {
   lists.all.items = lists.all.items.map((notification) => notification.id === notificationId ? { ...notification, isRead: true } : notification)
   lists.unread.items = lists.unread.items.filter((notification) => notification.id !== notificationId)
   unreadCount.value = Math.max(unreadCount.value - 1, 0)
-  unreadStatus.setNotifications(unreadCount.value > 0)
+  unreadStatus.setNotifications(unreadCount.value > 0, unreadCount.value)
 
   void markNotificationRead(notificationId).catch(() => {
     if (generation === categoryGeneration) {
       lists.all.items = previousAll
       lists.unread.items = previousUnread
       unreadCount.value = previousUnreadCount
-      unreadStatus.setNotifications(previousUnreadCount > 0)
+      unreadStatus.setNotifications(previousUnreadCount > 0, previousUnreadCount)
     }
     void unreadStatus.refresh(true).catch(() => undefined)
   })
@@ -379,11 +380,10 @@ function markItemReadAndNavigate(item: NotificationPayload) {
 
 <template>
   <main class="min-w-0 pb-8">
-    <PageHeader :title="t('notifications.title')" :description="t('notifications.summary', { total: loadedCount })" compact>
+    <PageHeader :title="t('notifications.title')" :description="unreadStatus.badgeStyle.value === 'dot' ? t('notifications.summaryWithoutCounts') : t('notifications.summary', { total: loadedCount })" compact>
       <template #badge>
-        <span v-if="unreadCount" class="gf-badge gf-badge-info h-5 tabular-nums">
-          {{ t('notifications.unread', { count: unreadCount }) }}
-        </span>
+        <span v-if="unreadCount > 0 && unreadStatus.badgeStyle.value === 'number'" data-unread-summary class="gf-badge gf-badge-info h-5 tabular-nums" :aria-label="t('notifications.unread', { count: unreadCount })">{{ t('notifications.unread', { count: unreadCount > 99 ? '99+' : unreadCount }) }}</span>
+        <UnreadIndicator v-else :unread="unreadCount > 0" badge-style="dot" />
       </template>
       <template #meta>
         <p v-if="actionError" class="mt-1 text-xs text-error">{{ actionError }}</p>

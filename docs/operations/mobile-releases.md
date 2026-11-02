@@ -23,12 +23,36 @@ configuration and the remaining GPL compatibility verification.
 `Partial`: native push delivery and signed upgrade/device journeys need candidate-specific evidence;
 public availability does not establish the full physical-device acceptance matrix.
 
+## iOS build requirements
+
+`Current`: the Runner, ScheduleWidgets extension and the local home_widget bridge require iOS 15
+or later. CocoaPods builds dependencies with at least that floor, preserving higher dependency
+minimums. iOS 13/14 devices cannot install new builds from this source.
+
+`Current`: native iOS CI, new iOS preview and formal builds use the `xcode-27` runner image with Xcode 27.2
+release build `27B52` explicitly selected by `setup-ios-toolchain`. The action checks the device SDK before signing;
+the IPA validator independently checks that Runner and ScheduleWidgets were built with an
+iOS 27.2 device SDK, Xcode build `27B52`, and have an iOS 15 or later deployment floor. Existing-artifact
+recovery and existing-build promotion do not rebuild or replace their reviewed binaries.
+
+`Partial`: full-screen iPhone Duo acceptance requires actual candidate evidence. A candidate
+built with an older SDK is not Duo acceptance evidence. Simulator and physical-device
+coverage is recorded with the candidate; see the [Duo compatibility decision](../decisions/0109-ios-15-floor-for-duo.md).
+The runner's [documented Xcode inventory](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)
+lists available toolchains, which may lag Apple's [release availability](https://developer.apple.com/news/releases/).
+The `Xcode_27.2.app` alias can refer to an RC on an older image: both the action and exported-bundle
+validator reject `27B48` and other unapproved builds. An unavailable toolchain fails instead of
+silently falling back; runner availability is not proof that a signed build has run.
+
 ## Version and activation
 
 Dev-connected TestFlight/Android previews and production configuration rehearsals follow the
 [release-cycle runbook](release-cycles.md). They have environment/SHA badges, isolated dev storage,
 and no stable update/catalog publication. Their dedicated internal TestFlight group does not replace
-the formal production TestFlight group. Source QA and production configuration QA precede Prepare.
+the formal production TestFlight group. Builds defining `YOURTJ_ENVIRONMENT=dev` use the Android
+package `tj.yourtj.forum_app.dev`, label `YourTJ Dev` and the badged icon in
+`android/app/src/devIdentity`; the publisher verifies that package. Source QA and production
+configuration QA precede Prepare.
 
 Use [Release / Prepare and the portable release CLI](releases.md). Source must already be in main;
 release preparation does not promote dev. Choose Android, iOS or both. iOS defaults to TestFlight;
@@ -355,9 +379,11 @@ set the `mobile-release/FCM_GOOGLE_SERVICES_JSON` secret to the matching Firebas
 `google-services.json`. The preparation script writes ignored `android/push.properties` and selected
 provider configuration files after checking their package names. It rejects missing parameters for
 selected adapters, unknown fields and provider server secrets. Signed releases require a valid JPush
-AppKey but do not require an offline adapter. Ordinary debug builds without a `push.properties` AppKey
-show push as unavailable. Local dev APKs can use the same `prepare_push.py` inputs before running
-`apps/mobile/scripts/build_dev_apk.sh`; generated JSON files are ignored by Git.
+AppKey but do not require an offline adapter. Android dev previews skip this step because their
+package has no provider registration and dev push is disabled. They, and ordinary debug builds
+without a `push.properties` AppKey, show push as unavailable. Local dev APKs can use the same
+`prepare_push.py` inputs before running `apps/mobile/scripts/build_dev_apk.sh`; generated JSON
+files are ignored by Git.
 
 FCM is an optional transport inside JPush; it does not bypass a disabled server JPush channel.
 Keep Firebase Messaging auto initialization and Analytics collection disabled in the Android manifest:
@@ -422,6 +448,11 @@ CocoaPods both include the SDK resource. The exported IPA validator checks those
 for the App Group UserDefaults reason; a source-only declaration does not satisfy this gate.
 Runner also declares the first-party account, user content, message, device and campus data
 categories. The local-only Widget/SDK do not collect data off device.
+Account-linked recommendation measurement and ranking use User ID for App Functionality,
+Analytics and Product Personalization; Product Interaction has those same purposes. These are
+distinct from anonymous Umami coarse-location Analytics. Keep their purposes synchronized with
+App Store Connect when verifying the deployed recommendation configuration; none of these
+first-party uses imply cross-company advertising tracking.
 
 `Current`: the [App privacy supplement](../../apps/gooseforum/app/models/defaultconfig/pageconfig/app_privacy.md)
 is embedded in the forum binary and appended to enabled `/privacy` pages, including persisted

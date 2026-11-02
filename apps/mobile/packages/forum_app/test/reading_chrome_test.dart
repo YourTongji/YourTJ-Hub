@@ -66,11 +66,13 @@ void main() {
             onRefresh: () async {
               refreshed++;
             },
-            child: GfTopicList(
-              loading: false,
-              topics: const [],
-              hasMore: false,
-              onLoadMore: () {},
+            child: ProviderScope(
+              child: GfTopicList(
+                loading: false,
+                topics: const [],
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
         ),

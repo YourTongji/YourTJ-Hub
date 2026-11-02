@@ -31,14 +31,16 @@ type UserCard struct {
 	CollectionCount   uint                       `json:"collectionCount"`
 	IsOnline          bool                       `json:"isOnline"`
 	// IsFollowing and IsSelf are viewer-specific and filled by the controller.
-	IsFollowing    bool                      `json:"isFollowing"`
-	ExternalInfo   users.ExternalInformation `json:"externalInformation"`
-	IsSelf         bool                      `json:"isSelf"`
-	DisplayBadges  []badgeservice.UserBadge  `json:"displayBadges"`
-	Badges         []badgeservice.UserBadge  `json:"badges"`
-	WornBadge      *badgeservice.UserBadge   `json:"wornBadge,omitempty"`
-	LastActiveTime time.Time                 `json:"lastActiveTime"`
-	CreatedAt      time.Time                 `json:"createdAt"`
+	IsFollowing bool `json:"isFollowing"`
+	// IsMutualFollowing 为 viewer 视角：true 仅当已登录的 viewer 关注该用户且对方也关注 viewer（双向）。
+	IsMutualFollowing bool                      `json:"isMutualFollowing"`
+	ExternalInfo      users.ExternalInformation `json:"externalInformation"`
+	IsSelf            bool                      `json:"isSelf"`
+	DisplayBadges     []badgeservice.UserBadge  `json:"displayBadges"`
+	Badges            []badgeservice.UserBadge  `json:"badges"`
+	WornBadge         *badgeservice.UserBadge   `json:"wornBadge,omitempty"`
+	LastActiveTime    time.Time                 `json:"lastActiveTime"`
+	CreatedAt         time.Time                 `json:"createdAt"`
 	// IsAccountClosed 标识该账号已注销（软删），前端渲染专门的注销用户卡片。
 	IsAccountClosed bool `json:"isAccountClosed"`
 }

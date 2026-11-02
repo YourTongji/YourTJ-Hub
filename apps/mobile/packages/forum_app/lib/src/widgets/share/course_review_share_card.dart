@@ -295,7 +295,7 @@ class CourseReviewShareCard extends StatelessWidget {
         color: theme.brightness == Brightness.dark
             ? colors.base300
             : colors.base200,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(GfRadius.md),
         border: Border.all(color: colors.line.withValues(alpha: 0.7)),
       ),
       child: IntrinsicHeight(
@@ -342,7 +342,7 @@ class CourseReviewShareCard extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(color: colors.line),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(GfRadius.md),
             ),
             clipBehavior: Clip.antiAlias,
             child: ShareImageNetworkImage(

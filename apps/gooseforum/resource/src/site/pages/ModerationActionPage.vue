@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { Ban, ExternalLink, Loader2, ShieldCheck } from '@lucide/vue'
 import { executeModerationApprovalAction, previewModerationApprovalAction } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
+import RejectionReasonFields from '@/site/components/RejectionReasonFields.vue'
+import { emptyRejectionDraft, rejectionReason, rejectionError } from '@/runtime/review-rejection'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { LayoutPayload, ModerationActionPageProps, ModerationApprovalActionView } from '@gooseforum/client'
 
@@ -22,6 +24,8 @@ const executing = ref(false)
 const error = ref('')
 
 const reason = ref('')
+const rejectDraft = ref(emptyRejectionDraft())
+const contentReject = computed(() => ['review.topic', 'review.post'].includes(view.value?.subject ?? '') && view.value?.action === 'reject')
 const reasonError = ref('')
 const appeal = computed(() => view.value?.subject === 'appeal')
 const destructive = computed(() => ['ban', 'hide', 'reject'].includes(view.value?.action ?? ''))
@@ -62,6 +66,13 @@ onMounted(async () => {
     loading.value = false
     return
   }
+  await refreshPreview()
+})
+
+async function refreshPreview() {
+  if (executing.value) return
+  loading.value = true
+  error.value = ''
   try {
     view.value = await previewModerationApprovalAction(token.value)
   } catch (err) {
@@ -69,10 +80,15 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
 
 async function confirmAction() {
   if (executing.value || view.value?.state !== 'ready') return
+  const explanation = contentReject.value ? rejectionReason(t, rejectDraft.value) : appeal.value ? reason.value.trim() : ''
+  if (contentReject.value) {
+    reasonError.value = rejectionError(t, explanation)
+    if (reasonError.value) { document.getElementById('moderation-content-rejection-preset')?.focus(); return }
+  }
   if (reasonRequired.value && !reason.value.trim()) {
     reasonError.value = t('moderationAction.appealReasonRequired')
     document.getElementById('moderation-action-reason')?.focus()
@@ -82,7 +98,7 @@ async function confirmAction() {
   error.value = ''
   reasonError.value = ''
   try {
-    view.value = await executeModerationApprovalAction(token.value, appeal.value ? reason.value.trim() : '')
+    view.value = await executeModerationApprovalAction(token.value, explanation)
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('api.moderationActionFailed')
   } finally {
@@ -138,13 +154,15 @@ async function confirmAction() {
             </template>
           </dl>
 
-          <div v-if="appeal && view.state === 'ready'" class="space-y-1.5">
+          <RejectionReasonFields v-if="contentReject && (view.state === 'ready' || view.state === 'failed')" v-model="rejectDraft" id-prefix="moderation-content-rejection" :disabled="executing || view.state !== 'ready'" :error="reasonError" />
+          <div v-if="appeal && (view.state === 'ready' || view.state === 'failed')" class="space-y-1.5">
             <label for="moderation-action-reason" class="text-sm font-medium">
               {{ t(reasonRequired ? 'moderationAction.appealRejectReasonLabel' : 'moderationAction.appealApproveReasonLabel') }}
             </label>
             <textarea
               id="moderation-action-reason"
               v-model="reason"
+              :disabled="view.state !== 'ready'"
               rows="3"
               maxlength="512"
               class="gf-textarea w-full text-base sm:text-sm"
@@ -160,10 +178,11 @@ async function confirmAction() {
           </div>
 
           <div class="flex flex-wrap items-center gap-2 pt-2">
+            <button v-if="view.state === 'failed'" data-testid="moderation-recheck" type="button" class="gf-button gf-button-md h-auto max-w-full whitespace-normal py-2 text-center [overflow-wrap:anywhere] gf-button-secondary" @click="refreshPreview">{{ t('common.retry') }}</button>
             <button
               v-if="view.state === 'ready'"
               type="button"
-              class="gf-button gf-button-md"
+              class="gf-button gf-button-md h-auto max-w-full whitespace-normal py-2 text-center [overflow-wrap:anywhere]"
               :class="destructive ? 'gf-button-danger' : 'gf-button-primary'"
               :disabled="executing"
               @click="confirmAction"
@@ -172,18 +191,18 @@ async function confirmAction() {
               <component :is="destructive ? Ban : ShieldCheck" v-else class="h-4 w-4" />
               {{ executing ? t('moderationAction.executing') : actionLabel }}
             </button>
-            <a v-if="view.targetUrl" :href="view.targetUrl" class="gf-button gf-button-md gf-button-secondary" target="_blank" rel="noopener noreferrer">
+            <a v-if="view.targetUrl" :href="view.targetUrl" class="gf-button gf-button-md h-auto max-w-full whitespace-normal py-2 text-center [overflow-wrap:anywhere] gf-button-secondary" target="_blank" rel="noopener noreferrer">
               <ExternalLink class="h-4 w-4" />
               {{ t('moderationAction.viewTarget') }}
             </a>
-            <a :href="view.workbenchUrl || '/moderation'" class="gf-button gf-button-md gf-button-ghost">
+            <a :href="view.workbenchUrl || '/moderation'" class="gf-button gf-button-md h-auto max-w-full whitespace-normal py-2 text-center [overflow-wrap:anywhere] gf-button-ghost">
               {{ t('moderationAction.openWorkbench') }}
             </a>
           </div>
         </template>
         <!-- 预览失败（未登录、网络错误等）时仍给出去处，从通知跳进来的版主不会困在本页 -->
         <div v-else class="flex flex-wrap items-center gap-2 pt-2">
-          <a href="/moderation" class="gf-button gf-button-md gf-button-ghost">
+          <a href="/moderation" class="gf-button gf-button-md h-auto max-w-full whitespace-normal py-2 text-center [overflow-wrap:anywhere] gf-button-ghost">
             {{ t('moderationAction.openWorkbench') }}
           </a>
         </div>

@@ -7,6 +7,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/content/content_page.dart';
 import 'package:forum_app/src/pages/topic/post_editor.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/realtime/realtime_updates.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
@@ -91,6 +92,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          currentUserProvider.overrideWith(
+            (ref) async => const CurrentUser(id: 1, username: 'author'),
+          ),
           postRepositoryProvider.overrideWithValue(repo),
           contentRepositoryProvider.overrideWithValue(
             _Content(

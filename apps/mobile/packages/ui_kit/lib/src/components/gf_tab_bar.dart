@@ -114,6 +114,9 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
     offset: 0,
   );
   double _settlingExtension = 0;
+
+  /// Index direction (+1 or -1) of the travel [_settlingExtension] trails.
+  double _settlingDirection = 1;
   double _returningOffset = 0;
   int? _returningIndex;
   bool _reduceMotion = false;
@@ -195,6 +198,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
       final progress = _lastSwipeProgress;
       if (progress.originIndex == _controller.index && progress.offset != 0) {
         _settlingExtension = _indicatorExtension(progress);
+        _settlingDirection = progress.offset.sign;
         _returningIndex = null;
         _settleController.forward(from: 0);
       }
@@ -217,6 +221,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
           progress.originIndex == _controller.index &&
           !_controller.indexIsChanging) {
         _settlingExtension = _indicatorExtension(previous);
+        _settlingDirection = previous.offset.sign;
         _returningOffset = previous.offset;
         _returningIndex = previous.originIndex;
         _settleController.forward(from: 0);
@@ -472,7 +477,14 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
                     tabs.length <=
                 constraints.maxWidth;
         _cellWidth = fill ? constraints.maxWidth / tabs.length : null;
-        final double extension = dragExtension();
+        final double drag = dragExtension();
+        final bool dragging = drag > 0;
+        // The underline's centre tracks the controller linearly; the extra
+        // length only reaches back toward the tab it left, so the trailing
+        // edge holds during a drag and catches up after release.
+        final double travel =
+            (dragging ? currentProgress!.offset.sign : _settlingDirection) *
+            (Directionality.of(context) == TextDirection.rtl ? -1 : 1);
         final Widget bar = SizedBox(
           height: height,
           child: TabBar(
@@ -480,11 +492,12 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
             controller: _controller,
             isScrollable: !fill,
             tabAlignment: fill ? TabAlignment.fill : TabAlignment.start,
-            indicatorAnimation: TabIndicatorAnimation.elastic,
+            indicatorAnimation: TabIndicatorAnimation.linear,
             indicatorSize: TabBarIndicatorSize.label,
             indicator: _FixedWidthTabIndicator(
               color: colors.primary,
-              width: 28 + (extension > 0 ? extension : settleExtension),
+              width: 28,
+              trailing: (dragging ? drag : settleExtension) * -travel,
             ),
             dividerColor: Colors.transparent,
             dividerHeight: 0,
@@ -606,13 +619,21 @@ class _GfTabEdgeFadeState extends State<_GfTabEdgeFade> {
 }
 
 class _FixedWidthTabIndicator extends Decoration {
-  const _FixedWidthTabIndicator({required this.color, required this.width});
+  const _FixedWidthTabIndicator({
+    required this.color,
+    required this.width,
+    this.trailing = 0,
+  });
 
   static const double _height = 4;
   static const double _radius = 2;
 
   final Color color;
   final double width;
+
+  /// Extra length beyond [width], in logical pixels along the x axis:
+  /// negative extends the left end, positive the right end.
+  final double trailing;
 
   @override
   BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
@@ -622,6 +643,7 @@ class _FixedWidthTabIndicator extends Decoration {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties.add(DoubleProperty('width', width));
+    properties.add(DoubleProperty('trailing', trailing, defaultValue: 0));
   }
 }
 
@@ -635,11 +657,13 @@ class _FixedWidthTabIndicatorPainter extends BoxPainter {
     final Size? size = configuration.size;
     if (size == null) return;
 
-    final Rect rect = Rect.fromLTWH(
-      offset.dx + (size.width - decoration.width) / 2,
+    final double center = offset.dx + size.width / 2;
+    final double trailing = decoration.trailing;
+    final Rect rect = Rect.fromLTRB(
+      center - decoration.width / 2 + math.min(0, trailing),
       offset.dy + size.height - _FixedWidthTabIndicator._height,
-      decoration.width,
-      _FixedWidthTabIndicator._height,
+      center + decoration.width / 2 + math.max(0, trailing),
+      offset.dy + size.height,
     );
     final RRect rounded = RRect.fromRectAndRadius(
       rect,

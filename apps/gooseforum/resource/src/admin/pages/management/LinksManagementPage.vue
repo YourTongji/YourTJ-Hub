@@ -327,7 +327,7 @@ onMounted(() => {
       </div>
 
       <Dialog :open="groupDialog !== null" @update:open="(open) => !open && (groupDialog = null)">
-        <DialogContent class="sm:max-w-md">
+        <DialogContent class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{{ groupDialog?.mode === 'edit' ? adminText('k006z') : adminText('k006w') }}</DialogTitle>
             <DialogDescription>{{ adminText('k00ab') }}</DialogDescription>
@@ -362,7 +362,7 @@ onMounted(() => {
       </Dialog>
 
       <Dialog :open="linkDialog !== null" @update:open="(open) => !open && (linkDialog = null)">
-        <DialogContent class="sm:max-w-md">
+        <DialogContent class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{{ linkDialog?.mode === 'edit' ? adminText('k0070') : adminText('k0071') }}</DialogTitle>
             <DialogDescription>{{ adminText('k00ae') }}</DialogDescription>

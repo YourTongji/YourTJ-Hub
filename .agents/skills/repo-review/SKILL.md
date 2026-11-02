@@ -18,6 +18,18 @@ Read the diff, the owning docs, the decision log, and enough surrounding code to
 - [docs/development/testing.md](../../../docs/development/testing.md): verification strategy, test layout and actual commands.
 - [docs/architecture/system-overview.md](../../../docs/architecture/system-overview.md): the module map and seams.
 
+## Presentation reconciliation before detailed code review
+
+For UI-impacting changes, follow the
+[visual-change contract](../../../docs/development/pull-requests.md#visual-change-declaration) before detailed
+code review. First independently inventory the actual presentation deltas from the complete changed-file
+inventory and affected shared-component callers; do not use the author's declaration as the inspection
+checklist. Then map each observed old → new change to a declaration row and report the unmatched set,
+inaccurate declarations, unverified surfaces, and any mechanical-reskin sampling evidence.
+An unmatched perceptible change is a **process blocker**: identify it and request a corrected declaration
+or restoration of the undeclared feature, not a redesign. Follow the owning rule's scope, sampling and
+batch-rejection criteria; preserve independent correctness, safety, behavior and visual-evidence checks.
+
 ## Blocking requirements
 
 ### Universal (applies to any repository)

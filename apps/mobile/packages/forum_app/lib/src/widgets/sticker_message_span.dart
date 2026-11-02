@@ -22,31 +22,46 @@ bool isStickerOnlyMessage(String content, Map<String, String> urlByName) {
 ///
 /// 无 token、或 token 全部未知/停用时返回 null,调用方回退纯文本路径
 /// (对齐 web 消息气泡的安全分段渲染语义:未识别 token 保持原文)。
+///
+/// [dropUnknownStickers] 面向只读摘要(列表行/卡片):未识别 token 直接省略而
+/// 不是原文展示,省略后无内容可渲染时返回 null 表示该摘要应整段隐藏。
+/// [collectible] 关闭表情收藏入口;列表行由外层负责点击与长按。
 InlineSpan? buildStickerMessageSpan(
   String content,
   Map<String, String> urlByName, {
   bool deferLongPress = false,
+  bool collectible = true,
+  bool dropUnknownStickers = false,
   double stickerSize = StickerImage.readingSize,
 }) {
   if (!containsStickerToken(content)) return null;
+  String strip(String value) =>
+      dropUnknownStickers ? value.replaceAll(stickerTokenPattern, '') : value;
   final List<StickerMessageSegment> segments = parseStickerSegments(
     content,
     urlByName,
   );
   if (segments.length == 1 && segments.single is StickerTextSegment) {
-    return null;
+    // Token-free content keeps the caller's plain path; an excerpt whose tokens
+    // were all unresolved has nothing left to show.
+    if (!dropUnknownStickers) return null;
+    final String remaining = strip(
+      (segments.single as StickerTextSegment).text,
+    );
+    return remaining.trim().isEmpty ? null : TextSpan(text: remaining);
   }
   return TextSpan(
     children: <InlineSpan>[
       for (final StickerMessageSegment segment in segments)
         switch (segment) {
-          StickerTextSegment(:final text) => TextSpan(text: text),
+          StickerTextSegment(:final text) => TextSpan(text: strip(text)),
           StickerImageSegment(:final name, :final url) => WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: StickerImage(
               name: name,
               url: url,
               size: stickerSize,
+              collectible: collectible,
               deferLongPress: deferLongPress,
             ),
           ),

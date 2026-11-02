@@ -31,7 +31,7 @@ Class: architecture
 
 每次快照提交后由 Dart 生成 `ScheduleWidgetProjection` schema 2。投影保留服务端已解析的当日结果，并在主 App 成功读取管理员校历规则时生成从当日起八天的紧凑窗口；Android/iOS 按上海自然日从窗口选择今天与明天。规则、校历或课表无法可靠解析时仍提交服务端当日结果，未来日期明确标为 `unknown`，不猜普通教学周。原生 decoder 继续接受 schema 1，并安全降级为单日数据。
 
-投影只含不可展示的 site/account scope、绑定版本、生成时间、教学日期、学期周、节次、调休状态和课程显示字段，不含 token、cookie、学号、邮箱、姓名、成绩或消息正文。Dart 生成端及 Android/iOS 读取端均清洗可选文本，JSON null、字面量 `null`/`undefined` 与纯空白不会成为可见文案。写入采用临时 key 校验后替换正式 key，再请求系统 reload；刷新失败保留上一个完整投影。
+投影只含不可展示的 site/account scope、绑定版本、生成时间、教学日期、学期周、节次、调休状态和课程显示字段，不含 token、cookie、学号、邮箱、姓名、成绩或消息正文。用户在课表画的自定义格子以 `custom: true` 课程并入对应日期（按星期与教学周展开，节假日与未知日期不放），其名称、地点、星期、节次、周次与色槽另存于投影 `blocks` 字段，供之后的校园刷新在本机备忘未加载时原样重排；格子备注不进入投影。原生端忽略未知字段，无需改动。Dart 生成端及 Android/iOS 读取端均清洗可选文本，JSON null、字面量 `null`/`undefined` 与纯空白不会成为可见文案。写入采用临时 key 校验后替换正式 key，再请求系统 reload；刷新失败保留上一个完整投影。
 
 Flutter 与原生桥使用 `home_widget`。Android 使用与当前 minSdk 24、AGP 9.0.1、Kotlin 2.3.20 兼容的 Jetpack Glance 1.2.0；iOS 使用 WidgetKit/SwiftUI 与 App Group。原生 Widget 不包含任何网络客户端，只按 Projection、课程起止时刻和上海午夜建立本地 timeline/alarm。官方校园课表是唯一数据源，排课器 `/schedule` 与其 `ScheduleStore` 不在本数据域中。
 

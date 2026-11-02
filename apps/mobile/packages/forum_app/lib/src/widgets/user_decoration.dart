@@ -3,7 +3,14 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
-List<Color> decorationColors(BuildContext context, DecorationStyle? style) {
+// WCAG large-text floor; the Go authority (NicknameContrastMin) and Web mirror it.
+const nicknameContrastMin = 3.0;
+
+List<Color> decorationColors(
+  BuildContext context,
+  DecorationStyle? style, {
+  Color? background,
+}) {
   if (style == null || !style.isEnabled) return const [];
   // Colour and image frames are two separate kinds: an image frame never paints
   // a gradient ring, so a loading or failed asset cannot leak the fallback
@@ -24,13 +31,14 @@ List<Color> decorationColors(BuildContext context, DecorationStyle? style) {
       .map((c) => Color(int.parse(c.substring(1), radix: 16) | 0xff000000))
       .toList();
   if (style.kind == 'nicknameStyle') {
-    final background = GfTheme.colorsOf(context).base100.computeLuminance();
+    final backgroundLuminance =
+        (background ?? GfTheme.colorsOf(context).base100).computeLuminance();
     if (colors.any((color) {
       final luminance = color.computeLuminance();
-      return (luminance > background
-              ? (luminance + .05) / (background + .05)
-              : (background + .05) / (luminance + .05)) <
-          4.5;
+      return (luminance > backgroundLuminance
+              ? (luminance + .05) / (backgroundLuminance + .05)
+              : (backgroundLuminance + .05) / (luminance + .05)) <
+          nicknameContrastMin;
     })) {
       return const [];
     }

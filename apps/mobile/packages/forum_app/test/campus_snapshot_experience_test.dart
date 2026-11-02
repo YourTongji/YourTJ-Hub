@@ -17,7 +17,7 @@ import 'package:forum_app/src/pages/settings/schedule_widget_settings_page.dart'
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
-import 'campus_native_test.dart' show CampusPkRepository;
+import 'campus_native_test.dart' show CampusPkRepository, CampusTestCourses;
 
 import 'package:forum_app/src/offline/campus_snapshot_store.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
@@ -57,6 +57,7 @@ Widget testApp(
     campusRepositoryProvider.overrideWithValue(repo),
     scheduleWidgetBridgeProvider.overrideWithValue(bridge),
     pkRepositoryProvider.overrideWithValue(CampusPkRepository()),
+    courseRepositoryProvider.overrideWithValue(CampusTestCourses()),
     currentUserProvider.overrideWith(
       (ref) async => const CurrentUser(id: 7, username: 'demo'),
     ),
@@ -160,7 +161,10 @@ void main() {
   test(
     'persisted timetable tab reuse does not restart school requests after five minutes',
     () async {
-      final now = DateTime.now();
+      // Exercise reuse within one teaching day, independent of the wall clock.
+      // Shanghai-midnight refresh is covered by campus_daily_refresh_test.dart.
+      final now = DateTime.utc(2026, 11, 1, 4);
+      final store = CampusSnapshotStore(db, now: () => now);
       final fetched = now.subtract(const Duration(minutes: 6));
       await store.write(
         scope,

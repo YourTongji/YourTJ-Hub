@@ -99,7 +99,15 @@ void main() {
     final decoration =
         tester.widget<Container>(find.byKey(bubbleKey)).decoration!
             as BoxDecoration;
-    expect(decoration.borderRadius, BorderRadius.circular(20));
+    expect(
+      decoration.borderRadius,
+      const BorderRadiusDirectional.only(
+        topStart: Radius.circular(GfRadius.lg),
+        topEnd: Radius.circular(GfRadius.lg),
+        bottomStart: Radius.circular(GfRadius.xs),
+        bottomEnd: Radius.circular(GfRadius.lg),
+      ),
+    );
     expect(decoration.boxShadow, isNull);
   });
 }

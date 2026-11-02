@@ -40,17 +40,16 @@ class GfChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
 
     final Widget chip = Container(
       constraints: const BoxConstraints(minHeight: 24),
       padding: const EdgeInsets.symmetric(
-        horizontal: 8,
+        horizontal: GfSpace.sm + 1,
         vertical: _verticalPadding,
       ),
       decoration: BoxDecoration(
-        color: colors.base300,
-        borderRadius: BorderRadius.circular(radii.selector),
+        color: colors.fill,
+        borderRadius: BorderRadius.circular(GfRadius.full),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -60,14 +59,14 @@ class GfChip extends StatelessWidget {
             height: 6,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: GfSpace.xs + 1),
           Flexible(
             child: GfText(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: colors.baseContent.withValues(alpha: 0.72),
+                color: colors.textSecondary,
                 fontSize: _fontSize,
                 height: _lineHeight,
                 fontWeight: FontWeight.w500,
@@ -83,7 +82,7 @@ class GfChip extends StatelessWidget {
       button: true,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(radii.selector),
+        customBorder: const StadiumBorder(),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minWidth: 44,

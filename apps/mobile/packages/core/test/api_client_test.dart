@@ -702,6 +702,46 @@ void main() {
 
   group('repositories 请求体', () {
     test(
+      'activation status is an authenticated read with relative server quota',
+      () async {
+        final storage = _MemoryTokenStorage();
+        await storage.write('owner-session');
+        final dio = Dio();
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        final cancellation = CancelToken();
+        final adapter = MockAdapter((request) async {
+          expect(request.method, 'GET');
+          expect(request.path, '/api/resend-activation-email');
+          expect(request.headers['Authorization'], 'Bearer owner-session');
+          expect(request.cancelToken, same(cancellation));
+          expect(request.queryParameters, isEmpty);
+          return ResponseData(200, {
+            'code': 0,
+            'result': {
+              'currentEmail': 'old@example.test',
+              'pendingEmail': 'new@example.test',
+              'targetEmail': 'new@example.test',
+              'targetKind': 'pending',
+              'state': 'cooldown',
+              'remainingToday': 2,
+              'dailyLimit': 3,
+              'retryAfterSeconds': 59,
+            },
+          });
+        });
+        dio.httpClientAdapter = adapter;
+        final status = await AuthRepository(
+          client,
+        ).getActivationStatus(cancelToken: cancellation);
+        expect(status.targetEmail, 'new@example.test');
+        expect(status.state, 'cooldown');
+        expect(status.remainingToday, 2);
+        expect(status.retryAfterSeconds, 59);
+        expect(adapter.requests, hasLength(1));
+      },
+    );
+
+    test(
       'AuthRepository.resendActivationEmail preserves success metadata',
       () async {
         final storage = _MemoryTokenStorage();

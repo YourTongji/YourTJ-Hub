@@ -13,6 +13,7 @@ import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/compose_menu.dart';
 import '../publish/publish_type.dart';
+import '../topic/post_editor.dart';
 import '../content/content_password_dialog.dart';
 
 enum _DraftFilter { all, local, cloud, replies }
@@ -141,18 +142,34 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     if (mounted) await _load(silent: true);
   }
 
-  Future<void> _openLocal(LocalDraft draft) => _open(
-    draft.kind == DraftKind.reply
-        ? '/p/${draft.topicId}'
-        : Uri(
-            path: '/publish',
-            queryParameters: {
-              'local': draft.key,
-              'type': '${draft.contentType}',
-              if (draft.topicId > 0) 'id': '${draft.topicId}',
-            },
-          ).toString(),
-  );
+  Future<void> _openLocal(LocalDraft draft) async {
+    if (draft.kind == DraftKind.postEdit) {
+      setState(() {
+        _deleted = null;
+        _cloudDeletedTitle = null;
+      });
+      FocusManager.instance.primaryFocus?.unfocus();
+      await showPostEditor(
+        context,
+        postId: draft.postId,
+        content: draft.postOriginalContent ?? '',
+      );
+      if (mounted) await _load(silent: true);
+      return;
+    }
+    await _open(
+      draft.kind == DraftKind.reply
+          ? '/p/${draft.topicId}'
+          : Uri(
+              path: '/publish',
+              queryParameters: {
+                'local': draft.key,
+                'type': '${draft.contentType}',
+                if (draft.topicId > 0) 'id': '${draft.topicId}',
+              },
+            ).toString(),
+    );
+  }
 
   String _title(LocalDraft draft, AppLocalizations l10n) =>
       draft.title.trim().isNotEmpty
@@ -375,6 +392,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
         DraftKind.serverDraft => l10n.draftKindServer,
         DraftKind.topicEdit => l10n.draftKindEdit,
         DraftKind.reply => l10n.draftKindReply,
+        DraftKind.postEdit => l10n.topicEditReply,
       };
 
   String _filterLabel(_DraftFilter filter, AppLocalizations l10n) =>
@@ -419,7 +437,8 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     return ListTile(
       key: ValueKey(draft.key),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: draft.kind == DraftKind.reply
+      leading:
+          (draft.kind == DraftKind.reply || draft.kind == DraftKind.postEdit)
           ? const GfSymbol('corner-down-left')
           : PublishTypeIcon(PublishType.fromValue(draft.contentType), size: 32),
       title: GfText(
@@ -436,7 +455,8 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
           GfText(
             [
               _kindLabel(draft, l10n),
-              if (draft.kind != DraftKind.reply)
+              if (draft.kind != DraftKind.reply &&
+                  draft.kind != DraftKind.postEdit)
                 PublishType.fromValue(draft.contentType).label(l10n),
               timeAgo(updated, l10n: l10n),
             ].join(' · '),
@@ -483,7 +503,8 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               .where(
                 (draft) =>
                     (_filter != _DraftFilter.replies ||
-                        draft.kind == DraftKind.reply) &&
+                        (draft.kind == DraftKind.reply ||
+                            draft.kind == DraftKind.postEdit)) &&
                     matches(draft.title, draft.content),
               )
               .toList()
@@ -580,7 +601,8 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               .where(
                 (draft) =>
                     (_filter != _DraftFilter.replies ||
-                        draft.kind == DraftKind.reply) &&
+                        (draft.kind == DraftKind.reply ||
+                            draft.kind == DraftKind.postEdit)) &&
                     matches(draft.title, draft.content),
               )
               .toList()

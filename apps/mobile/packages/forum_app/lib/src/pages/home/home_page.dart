@@ -12,7 +12,7 @@ import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../asset_url.dart';
-import '../../widgets/app_refresh_indicator.dart';
+import '../../widgets/logo_pull_refresh.dart';
 import '../../widgets/cache_snapshot_hint.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
@@ -94,8 +94,12 @@ class _HomeFeedState {
   final scrollToTop = GfScrollToTopController();
 }
 
-class _HomePageState extends ConsumerState<HomePage> {
+class _HomePageState extends ConsumerState<HomePage>
+    with SingleTickerProviderStateMixin {
   static const String _feedModeKey = 'goose:home-feed-mode';
+  late final LogoRefreshController _pullRefresh = LogoRefreshController(
+    vsync: this,
+  );
 
   String _sort = '';
   CategoryNavPayload? _category;
@@ -112,7 +116,6 @@ class _HomePageState extends ConsumerState<HomePage> {
   String? _swipeLoadingFeedKey;
   int _interactionRevision = 0;
   bool _firstCardFrameRecorded = false;
-  bool _discoveryRequested = false;
   final _pendingInteractions = <(int, bool)>{};
   final _interactionOverrides = <(int, bool), _InteractionOverride>{};
   final _returnedTopicOverrides =
@@ -186,6 +189,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   void dispose() {
+    _pullRefresh.dispose();
     for (final feed in _feeds.values) {
       feed.cancel();
     }
@@ -916,7 +920,6 @@ class _HomePageState extends ConsumerState<HomePage> {
       _navigationProps = null;
       _dailyRanking = false;
       _categories = [];
-      _discoveryRequested = false;
       _tabScrollRegistry.register(
         GfShellDestination.home,
         _scrollToTopController,
@@ -940,9 +943,14 @@ class _HomePageState extends ConsumerState<HomePage> {
     final sortKeys = [
       for (final tab in _homeSortTabs(toolbarProps, _category)) tab.key,
     ];
+    // A chosen sort that is still loading must stay selected: the fallback
+    // navigation props describe the previous sort, and following them would
+    // pull the underline back before the new feed arrives.
     final selectedSort =
-        toolbarProps?.actualSort ??
-        (_sort.isEmpty ? (toolbarProps?.sort ?? 'latest') : _sort);
+        _activeFeed.page.valueOrNull?.actualSort ??
+        (_sort.isEmpty
+            ? (toolbarProps?.actualSort ?? toolbarProps?.sort ?? 'latest')
+            : _sort);
     final selectedSortPosition = sortKeys.indexOf(selectedSort);
     final selectedSortIndex = selectedSortPosition < 0
         ? 0
@@ -962,8 +970,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         tooltip: l10n.commonBackToTop,
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints.tightFor(width: 48, height: 48),
-        icon: const GfLogo(size: 32),
+        icon: RefreshingLogo(controller: _pullRefresh),
       ),
+      headerStretch: _pullRefresh.stretch,
+      contentShift: _pullRefresh.contentShift,
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
@@ -1016,190 +1026,45 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final scale = math.max(
-          1.0,
-          MediaQuery.textScalerOf(context).scale(16) / 16,
+        final media = MediaQuery.of(context);
+        final colors = GfTheme.colorsOf(context);
+        final gutter = math.max(0.0, (constraints.maxWidth - 720) / 2);
+        // Centering already absorbs some or all of the side safe area. Pass
+        // only the part that still reaches the reading column to its controls.
+        EdgeInsets columnInsets(EdgeInsets insets) => insets.copyWith(
+          left: math.max(0, insets.left - gutter),
+          right: math.max(0, insets.right - gutter),
         );
-        final wide = constraints.maxWidth >= 900 * scale;
-        if (wide && !_discoveryRequested) {
-          _discoveryRequested = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            final hot = _feeds.putIfAbsent('hot', () => _HomeFeedState('hot'));
-            if (!hot.page.hasValue && hot.loadCancel == null) {
-              unawaited(_load(target: hot));
-            }
-          });
-        }
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
+        return ColoredBox(
+          color: colors.canvasGrouped,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: gutter > 0
+                      ? Border.symmetric(
+                          vertical: BorderSide(color: colors.separator),
+                        )
+                      : null,
+                ),
+                position: DecorationPosition.foreground,
                 child: LayoutBuilder(
                   builder: (context, constraints) => MediaQuery(
-                    data: MediaQuery.of(context).copyWith(
+                    data: media.copyWith(
                       size: Size(constraints.maxWidth, constraints.maxHeight),
+                      padding: columnInsets(media.padding),
+                      viewPadding: columnInsets(media.viewPadding),
                     ),
                     child: surface,
                   ),
                 ),
               ),
             ),
-            Offstage(
-              offstage: !wide,
-              child: TickerMode(
-                enabled: wide && TickerMode.valuesOf(context).enabled,
-                child: SizedBox(width: 324, child: _buildDiscovery(context)),
-              ),
-            ),
-          ],
+          ),
         );
       },
-    );
-  }
-
-  Widget _buildDiscovery(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final colors = GfTheme.colorsOf(context);
-    final hot = _feeds['hot'];
-    return NotificationListener<ScrollNotification>(
-      onNotification: (_) => true,
-      child: SafeArea(
-        child: ListView(
-          key: const ValueKey('home-discovery-panel'),
-          padding: const EdgeInsets.fromLTRB(24, 12, 16, 24),
-          children: [
-            Material(
-              color: colors.base300,
-              borderRadius: BorderRadius.circular(28),
-              clipBehavior: Clip.antiAlias,
-              child: Semantics(
-                button: true,
-                child: InkWell(
-                  key: const ValueKey('home-discovery-search'),
-                  onTap: () => context.push('/search'),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        GfSymbol('search', color: colors.iconMuted),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: GfText(
-                            l10n.commonSearch,
-                            style: GfTheme.typographyOf(
-                              context,
-                            ).body.copyWith(color: colors.iconMuted),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            GfCard(
-              showDivider: false,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: GfText(
-                      l10n.sortHot,
-                      style: GfTheme.typographyOf(
-                        context,
-                      ).title2.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  if (hot?.cached == true)
-                    CacheSnapshotHint(
-                      savedAt: hot!.snapshotTime,
-                      refreshing: hot.refreshing,
-                      onRetry: () => _load(silent: true, target: hot),
-                    ),
-                  if (hot?.cleared == true)
-                    CacheSnapshotHint(
-                      cleared: true,
-                      onRetry: () => _load(target: hot),
-                    )
-                  else if (hot == null || hot.page.isLoading)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: GfLoading(),
-                    )
-                  else if (hot.page.hasError && !hot.page.hasValue)
-                    GfErrorRetry(
-                      message: resolveErrorMessage(l10n, hot.page.error!),
-                      onRetry: () => _load(target: hot),
-                    )
-                  else if (hot.topics.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: GfText(l10n.topicEmpty),
-                    )
-                  else
-                    for (final topic in hot.topics.take(5))
-                      Semantics(
-                        button: true,
-                        child: InkWell(
-                          onTap: () async {
-                            await context.push('/p/${topic.id}');
-                            if (mounted) unawaited(_refreshAfterReturn(hot));
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (topic.categories.isNotEmpty)
-                                  GfText(
-                                    topic.categories.first.name,
-                                    style: GfTheme.typographyOf(
-                                      context,
-                                    ).caption.copyWith(color: colors.iconMuted),
-                                  ),
-                                const SizedBox(height: 4),
-                                GfText(
-                                  topicDisplayTitle(topic),
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GfTheme.typographyOf(
-                                    context,
-                                  ).body.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 4),
-                                GfText(
-                                  l10n.topicReplies(topic.replyCount),
-                                  style: GfTheme.typographyOf(
-                                    context,
-                                  ).caption.copyWith(color: colors.iconMuted),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                  TextButton(
-                    onPressed: () {
-                      _switchCategory(null);
-                      _switchSort('hot');
-                    },
-                    child: GfText(l10n.searchSeeAll),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1237,8 +1102,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           onRetry: () => _load(target: feed),
         ),
       ),
-      data: (props) => AppRefreshIndicator(
-        edgeOffset: top,
+      data: (props) => LogoPullRefresh(
+        controller: _pullRefresh,
+        enabled: !swipePreview,
         onRefresh: () => _load(silent: true, target: feed),
         child: GfTopicList(
           loadMoreError: feed.loadMoreError,
@@ -1267,6 +1133,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           topics: feed.topics,
           hiddenCategoryId: feed.category?.id,
           onCategorySelected: _filterCategory,
+          stickerLibrary: ref.watch(stickerLibraryProvider),
           feedMode: _feedMode,
           collapsePinned: feed.category == null && feed.sort != 'following',
           onFirstMediaFrame: recordFirstHomeMediaFrame,
@@ -1326,6 +1193,7 @@ class _HomeToolbar extends ConsumerWidget {
     return ColoredBox(
       color: colors.base100,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
@@ -1342,15 +1210,23 @@ class _HomeToolbar extends ConsumerWidget {
                   onSelected: (value) => onSelected(value as String),
                 ),
               ),
+              // Two layouts, so one tap switches; the glyph and label name the
+              // layout the tap switches to.
               IconButton(
-                tooltip: l10n.homeFeedOptions,
+                tooltip: feedMode == GfTopicFeedMode.card
+                    ? l10n.homeFeedSwitchToList
+                    : l10n.homeFeedSwitchToCard,
                 icon: GfSymbol(
                   feedMode == GfTopicFeedMode.card
-                      ? 'layout-grid'
-                      : 'list-square',
+                      ? 'list-square'
+                      : 'layout-grid',
                   size: 20,
                 ),
-                onPressed: () => _showOptions(context),
+                onPressed: () => onFeedModeSelected(
+                  feedMode == GfTopicFeedMode.card
+                      ? GfTopicFeedMode.list
+                      : GfTopicFeedMode.card,
+                ),
               ),
               const SizedBox(width: 4),
             ],
@@ -1364,61 +1240,6 @@ class _HomeToolbar extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _showOptions(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
-    final selected = await showGfBottomSheet<GfTopicFeedMode>(
-      context,
-      builder: (sheetContext) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-              child: GfText(
-                l10n.homeFeedOptions,
-                style: GfTheme.typographyOf(context).title2,
-              ),
-            ),
-            for (final mode in GfTopicFeedMode.values)
-              ListTile(
-                // Same glyphs as the toolbar button, so the sheet previews it.
-                title: Row(
-                  children: [
-                    GfSymbol(
-                      mode == GfTopicFeedMode.card
-                          ? 'layout-grid'
-                          : 'list-square',
-                      size: 22,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GfText(
-                        mode == GfTopicFeedMode.card
-                            ? l10n.topicFeedModeCard
-                            : l10n.topicFeedModeList,
-                      ),
-                    ),
-                  ],
-                ),
-                trailing: feedMode == mode
-                    ? const GfSymbol('check', size: 20)
-                    : null,
-                selected: feedMode == mode,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                onTap: () => Navigator.pop(sheetContext, mode),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (!context.mounted) return;
-    if (selected != null) onFeedModeSelected(selected);
   }
 
   /// Known feed labels follow the app locale; custom server tabs retain their label.
@@ -1573,7 +1394,7 @@ class _CategoryPill extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(GfRadius.md),
           child: Center(
             child: AnimatedContainer(
               duration: duration,
@@ -1584,7 +1405,7 @@ class _CategoryPill extends StatelessWidget {
                 color: selected
                     ? colors.primary.withValues(alpha: .10)
                     : colors.base200,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(GfRadius.md),
                 border: Border.all(
                   color: selected
                       ? colors.primary.withValues(alpha: .35)

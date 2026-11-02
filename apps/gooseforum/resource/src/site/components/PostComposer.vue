@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WriteRecoveryActions from '@/site/components/WriteRecoveryActions.vue'
 import IdentityPicker from '@/site/components/IdentityPicker.vue'
 import GfSwitch from '@/site/components/GfSwitch.vue'
 import { userDisplayName } from '@/runtime/private-notes'
@@ -12,13 +13,16 @@ import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import StickerPicker from '@/site/components/StickerPicker.vue'
 import { useMentionAutocomplete } from '@/site/composables/useMentionAutocomplete'
 import { useKeyboardVisualViewportOffset } from '@/runtime/visual-viewport'
-import type { PostPayload } from '@gooseforum/client'
+import type { PostPayload, ViewerPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
+type ComposerViewer = Pick<ViewerPayload, 'username' | 'avatarUrl' | 'decoration'> & Partial<Pick<ViewerPayload, 'id'>>
+
 const props = defineProps<{
-  viewer?: {id?:number;username:string;avatarUrl:string}
+  viewer?: ComposerViewer
   authenticated: boolean
   errorMessage: string
+  recoveryCode?: string
   mode?: 'create' | 'edit'
   open: boolean
   submitting: boolean
@@ -379,6 +383,7 @@ function submit() {
             </div>
 
             <p v-if="errorMessage" class="mt-2 text-sm text-error">{{ errorMessage }}</p>
+            <WriteRecoveryActions v-if="errorMessage" :code="recoveryCode" />
             <p v-if="successMessage" class="mt-2 text-sm text-success">{{ successMessage }}</p>
             <div v-if="captchaRequired" class="mt-2 flex flex-wrap items-center gap-2 shrink-0">
               <p v-if="captchaExplanation" class="w-full text-xs text-base-content/65">{{ t('auth.publishCaptchaExplanation') }}</p>

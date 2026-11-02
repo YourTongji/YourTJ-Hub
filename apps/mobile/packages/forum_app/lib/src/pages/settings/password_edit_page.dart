@@ -83,10 +83,12 @@ class _PasswordEditPageState extends State<PasswordEditPage> {
       child: Scaffold(
         appBar: GfAppBar(
           title: GfText(l.settingsChangePassword),
-          leading: IconButton(
+          leading: GfIconButton(
+            symbol: 'chevron-left',
+            iconSize: GfIconSize.lg,
+            color: GfTheme.colorsOf(context).textPrimary,
             tooltip: l.commonBack,
             onPressed: _saving ? null : _close,
-            icon: const GfSymbol('chevron-left'),
           ),
         ),
         body: SafeArea(
@@ -99,7 +101,7 @@ class _PasswordEditPageState extends State<PasswordEditPage> {
                 key: _form,
                 child: AutofillGroup(
                   child: ListView(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(GfSpace.gutter),
                     children: [
                       TextFormField(
                         key: const Key('settings-old-password'),
@@ -117,7 +119,7 @@ class _PasswordEditPageState extends State<PasswordEditPage> {
                             ? l.settingsFillComplete
                             : null,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: GfSpace.md),
                       TextFormField(
                         key: const Key('settings-new-password'),
                         controller: _next,
@@ -137,14 +139,18 @@ class _PasswordEditPageState extends State<PasswordEditPage> {
                       ),
                       if (_error != null)
                         Padding(
-                          padding: const EdgeInsets.only(top: 16),
+                          padding: const EdgeInsets.only(top: GfSpace.lg),
                           child: Semantics(
                             liveRegion: true,
-                            child: GfText(
-                              _error!,
-                              key: const Key('password-save-error'),
-                              style: TextStyle(
-                                color: GfTheme.colorsOf(context).error,
+                            child: GfAlert(
+                              tone: GfTone.error,
+                              symbol: 'circle-alert',
+                              child: GfText(
+                                _error!,
+                                key: const Key('password-save-error'),
+                                style: TextStyle(
+                                  color: GfTheme.colorsOf(context).error,
+                                ),
                               ),
                             ),
                           ),
@@ -152,6 +158,8 @@ class _PasswordEditPageState extends State<PasswordEditPage> {
                       const SizedBox(height: 24),
                       GfButton(
                         label: l.commonSave,
+                        size: GfButtonSize.extraLarge,
+                        expanded: true,
                         loading: _saving,
                         onPressed: _save,
                       ),

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
@@ -51,11 +52,21 @@ func InitDirectImageUpload(c *gin.Context) {
 		c.JSON(http.StatusOK, failure.Data)
 		return
 	}
-	contentType, failure := policy.Validate(request.Filename, request.Size, request.ContentType)
-	if failure != nil {
+	if failure := policy.validateDeclaredFilename(request.Filename, request.Size); failure != nil {
 		c.JSON(http.StatusOK, failure.Data)
 		return
 	}
+	if failure := policy.validateDeclaredExtension(request.Filename); failure != nil {
+		c.JSON(http.StatusOK, failure.Data)
+		return
+	}
+	// init 阶段只有客户端声明（尚无字节），因此仍按声明 MIME 与扩展名的一致性预检；
+	// 真实类型在 complete 阶段以文件头为准，冲突时改名而不是拒绝。
+	if failure := policy.validateReportedContentType(request.Filename, request.ContentType); failure != nil {
+		c.JSON(http.StatusOK, failure.Data)
+		return
+	}
+	contentType, _ := imagepolicy.ContentTypeForFilename(request.Filename)
 	name := storageservice.NewUploadName(request.Filename, time.Now().Format("2006/01/02"))
 	session, err := storageservice.BeginDirectUpload(c.Request.Context(), storageservice.DirectUploadRequest{
 		Name: name, ContentType: contentType, Size: request.Size, UserId: userId,
@@ -78,15 +89,20 @@ func CompleteDirectImageUpload(c *gin.Context) {
 		return
 	}
 	userId := c.GetUint64("userId")
+	// complete 只需要生效 allowlist：账号/额度门禁已在 init 与中间件校验过。
+	policy := imageUploadPolicy{AllowedExts: effectiveUploadExtensions()}
 	metadata, err := storageservice.CompleteDirectUpload(c.Request.Context(), storageservice.CompleteDirectUploadRequest{
 		Name: request.Name, UserId: userId,
-		Validator: func(reader io.Reader, contentType string) error {
-			err := validateUploadedImage(reader, contentType)
-			if imageContentViolation(err) {
+		Validator: func(reader io.Reader) (string, error) {
+			contentType, detectErr := detectUploadedImageContent(reader)
+			if detectErr != nil {
 				// 保留原始 sentinel，让 writeDirectUploadError 能映射到具体稳定码。
-				return errors.Join(storageservice.ErrDirectUploadInvalidObject, err)
+				return "", errors.Join(storageservice.ErrDirectUploadInvalidObject, detectErr)
 			}
-			return err
+			if failure := policy.validateDetectedContentType(contentType); failure != nil {
+				return "", &uploadFailureError{failure: failure}
+			}
+			return contentType, nil
 		},
 	})
 	if err != nil {
@@ -140,8 +156,14 @@ func AbortDirectImageUpload(c *gin.Context) {
 func writeDirectUploadError(c *gin.Context, err error) {
 	// 业务失败统一走 200 信封（仓库约定）：未知/越权 name 返回 page.notFound，
 	// 伪造/无效对象按内容校验 sentinel 返回具体稳定码（empty/unsupported/
-	// invalidContent），存储失败返回 upload.saveFailed。
+	// invalidContent），检测到的类型不在 allowlist 时与其它出口一样回
+	// upload.extension.unsupported，存储失败返回 upload.saveFailed。
 	// 400 仅保留给请求解析失败（ShouldBindJSON）。
+	var failureErr *uploadFailureError
+	if errors.As(err, &failureErr) {
+		c.JSON(http.StatusOK, failureErr.failure.Data)
+		return
+	}
 	switch {
 	case errors.Is(err, storageservice.ErrDirectUploadMetadataNotFound):
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessagePageNotFound, nil))

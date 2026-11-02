@@ -440,7 +440,10 @@ moderationReviewAction:
       Same semantics as the admin review action. Versioned approval quietly publishes
       the candidate and its images; rejection retains any previous public version and
       notifies the author with a content-management link. The exact `revisionId` from
-      the queue is required for versioned submissions.
+      the queue is required for versioned submissions. Manual rejection requires a nonblank
+      plain-text `reason` of at most 512 Unicode characters. The reason is visible only through
+      the author's existing signed-in content-management view; notifications and push omit it.
+      Missing/blank or overlong reasons fail with common.request.invalidParams without deciding.
       Callers without moderation access fail with `permission.denied`; targets outside
       the caller's category scope fail with `admin.review.notFound` so the content's
       state is not revealed. First-post edits require scope over both the current and
@@ -467,6 +470,8 @@ moderationReviewAction:
                 - $ref: ../components/schemas.yaml#/ApiSuccess
                 - $ref: ../components/schemas.yaml#/ApiFailure
             examples:
+              reasonRequired:
+                externalValue: ../fixtures/invalid-params.json
               notFound:
                 externalValue: ../fixtures/admin-review-action-not-found.json
               permissionDenied:
@@ -566,6 +571,8 @@ moderationApprovalActionExecute:
       same checks as the preview yield `state=ready`; otherwise the current state
       (`processed`, `changed`, `forbidden`, `expired`, `invalid`, `notFound`) is returned
       unchanged. Pending topics/posts reuse the workbench review action (`approve`/`reject`);
+      rejection requires a nonblank author-visible `reason` of at most 512 Unicode characters.
+      Missing/blank or overlong explanations return common.request.invalidParams without deciding;
       reports reuse the workbench ban/hide/report-status logic (`ban` for topic/post,
       `hide` for course reviews, `dismiss`) and close the report with a compare-and-set, so a
       repeated or concurrent click never overwrites the first handler. `handler_id` and the

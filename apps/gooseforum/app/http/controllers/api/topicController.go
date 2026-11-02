@@ -218,7 +218,12 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 
 	// 图集数量上限：与快捷发布选择器/契约描述一致（服务端单一事实源）。
 	// 超限按参数错误拒绝，防止单请求撑爆 image_urls 列与 usage 行。
-	if len(req.Params.Images) > fileusageservice.MaxGalleryImagesPerTopicWrite {
+	// 上限按站内候选计（先于归属过滤的粗筛）：能解析出 /file/img/ 文件名的才算
+	// 候选，是否真实存在/是否本人/是否就绪由下面的归属过滤判断；外链这类解析
+	// 不出文件名的 URL 既不计入上限也不会落库，计入会让正常正文发不出去
+	// （issue #1315）。
+	gallery := fileusageservice.GalleryImageURLs(req.Params.Images)
+	if len(gallery) > fileusageservice.MaxGalleryImagesPerTopicWrite {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
 
@@ -359,6 +364,10 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 	}
 	topic.CategoryIds = req.Params.CategoryId
 	topic.Status = req.Params.TopicStatus
+	images, err := fileusageservice.ResolveOwnedInlineImages(req.UserId, req.Params.Content, gallery)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
 	topic.Title = req.Params.Title
 	topic.Excerpt = markdown2html.ExtractDescription(req.Params.Content, 200)
 	topic.FirstImageURL = markdown2html.ExtractFirstImageURL(req.Params.Content)
@@ -367,7 +376,7 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 		// 显式图集仅接受当前用户自己已上传且就绪的文件：非本人条目在此丢弃，
 		// 避免把他人文件登记成 ACTIVE 内容引用（否则删除/隐私清除后文件仍会
 		// 因活引用被 GC 跳过并持续公网可读，见 fileusageservice.FilterOwnedImageURLs）。
-		topic.ImageUrls = fileusageservice.FilterOwnedImageURLs(req.UserId, req.Params.Images)
+		topic.ImageUrls = fileusageservice.FilterOwnedImageURLs(req.UserId, gallery)
 		if topic.FirstImageURL == "" && len(topic.ImageUrls) > 0 {
 			topic.FirstImageURL = topic.ImageUrls[0]
 		}
@@ -541,6 +550,10 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 		if err := topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, req.Params.CategoryId); err != nil {
 			return err
 		}
+		if err := fileusageservice.RegisterTopicInlineImagesTx(tx, topic.Id, req.UserId, images,
+			topic.ProcessStatus == topics.ProcessStatusPending || topic.Status == 0); err != nil {
+			return err
+		}
 		if err := searchservice.EnqueueTopicSearchTask(tx, topic.Id); err != nil {
 			return err
 		}
@@ -566,10 +579,6 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 
-	// PENDING keeps both drafts and review candidates private. File reads also
-	// check the submitted content/version before granting moderator preview.
-	fileusageservice.RegisterTopicInlineImagesOwned(topic.Id, req.UserId, firstPost.Content, topic.ImageUrls,
-		topic.ProcessStatus == topics.ProcessStatusPending || topic.Status == 0)
 	finishAIModeration(aiCheck, topic.Id)
 	categoryIDs := append(append([]uint64(nil), oldCategoryIds...), topic.CategoryIds...)
 	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
@@ -869,6 +878,13 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	if pendingReview {
 		postEntity.ProcessStatus = posts.ProcessStatusPending
 	}
+	images, resolveErr := fileusageservice.ResolveOwnedInlineImages(req.UserId, postEntity.Content, nil)
+	if resolveErr != nil {
+		return component.FailResponseCode(component.MessageCommentCreateFailed, nil)
+	}
+	registerImages := func(tx *gorm.DB) error {
+		return fileusageservice.RegisterPostInlineImagesTx(tx, postEntity.Id, req.UserId, images, pendingReview)
+	}
 
 	if agent {
 		var reservation *agentwriteservice.Reservation
@@ -879,6 +895,11 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 			return beginErr
 		}
 		after := func(tx *gorm.DB) error {
+			if !pendingReview {
+				if err := registerImages(tx); err != nil {
+					return err
+				}
+			}
 			return agentwriteservice.FinishTx(betterRequestContext(req), tx, req.UserId, reservation, postEntity.TopicId, postEntity.Id)
 		}
 		if pendingReview {
@@ -892,7 +913,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	} else if pendingReview {
 		err = publicationservice.Submit(betterRequestContext(req), &topicEntity, postEntity)
 	} else {
-		err = postservice.CreateTopicPost(postEntity, topicEntity)
+		err = postservice.CreateTopicPostWithHooks(postEntity, topicEntity, nil, registerImages)
 	}
 	if err != nil {
 		if errors.Is(err, topicpolicyservice.ErrAgentRepliesDisabled) {
@@ -911,7 +932,6 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		slog.Warn("mark created post visited failed", "userId", req.UserId, "topicId", topicEntity.Id, "postId", postEntity.Id, "error", err)
 	}
 	if !pendingReview {
-		fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content, false)
 		finishAIModeration(aiCheck, postEntity.Id)
 	}
 	if !pendingReview {
@@ -1101,6 +1121,17 @@ func updatePostWithMaintenance(req component.BetterRequest[UpdatePostReq], maint
 		topicEntity.ProcessStatus = topics.ProcessStatusNormal
 	}
 
+	images, imageErr := fileusageservice.ResolveOwnedInlineImages(req.UserId, postEntity.Content, nil)
+	if imageErr != nil {
+		return component.FailResponseCode(component.MessagePostUpdateFailed, nil)
+	}
+	var topicImages []fileusageservice.Usage
+	if isFirstPost {
+		topicImages, imageErr = fileusageservice.ResolveOwnedInlineImages(req.UserId, postEntity.Content, topicEntity.ImageUrls)
+		if imageErr != nil {
+			return component.FailResponseCode(component.MessagePostUpdateFailed, nil)
+		}
+	}
 	now := time.Now()
 	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
 		if maintenance != nil {
@@ -1146,6 +1177,16 @@ func updatePostWithMaintenance(req component.BetterRequest[UpdatePostReq], maint
 		if err := agenteventservice.CapturePublicTx(tx, &postEntity, plan); err != nil {
 			return err
 		}
+		if isFirstPost {
+			if err := fileusageservice.RegisterTopicInlineImagesTx(tx, topicEntity.Id, req.UserId, topicImages,
+				topicEntity.ProcessStatus == topics.ProcessStatusPending || topicEntity.Status == 0); err != nil {
+				return err
+			}
+		}
+		if err := fileusageservice.RegisterPostInlineImagesTx(tx, postEntity.Id, req.UserId, images,
+			postEntity.ProcessStatus == posts.ProcessStatusPending || topicEntity.Status == 0); err != nil {
+			return err
+		}
 		if maintenance != nil {
 			return maintenance.AuditTx(tx)
 		}
@@ -1162,11 +1203,7 @@ func updatePostWithMaintenance(req component.BetterRequest[UpdatePostReq], maint
 	postEntity.LastEditorId = maintenanceEditor(req.UserId, maintenance)
 	postEntity.LastEditedAt = &now
 
-	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content,
-		postEntity.ProcessStatus == posts.ProcessStatusPending || topicEntity.Status == 0)
 	if isFirstPost {
-		fileusageservice.RegisterTopicInlineImagesOwned(topicEntity.Id, req.UserId, postEntity.Content, topicEntity.ImageUrls,
-			topicEntity.ProcessStatus == topics.ProcessStatusPending || topicEntity.Status == 0)
 		finishAIModeration(aiCheck, topicEntity.Id)
 	} else {
 		finishAIModeration(aiCheck, postEntity.Id)
@@ -1490,6 +1527,19 @@ type FollowUserReq struct {
 	Action int    `json:"action" validate:"min=1,max=2"` // 1 关注，2 取消
 }
 
+// FollowUserResult 反映动作执行后的真实关注状态；幂等重复调用返回同一形状。
+type FollowUserResult struct {
+	IsFollowing       bool `json:"isFollowing"`
+	IsMutualFollowing bool `json:"isMutualFollowing"`
+}
+
+// followUserResult 从库中读取执行后的状态，保存失败时不会谎报已关注。
+func followUserResult(userID, targetID uint64) component.Response {
+	following := userFollow.IsFollowing(userID, targetID)
+	mutual := following && userFollow.MutualFollowingMap(userID, []uint64{targetID})[targetID]
+	return component.SuccessResponse(FollowUserResult{IsFollowing: following, IsMutualFollowing: mutual})
+}
+
 func FollowUser(req component.BetterRequest[FollowUserReq]) component.Response {
 	// 不能关注自己（issue #594）：在触碰关注关系、统计与通知前直接拒绝。
 	// 仅拦截 action=1（关注）；action=2（取消）保持幂等成功，便于存量自关注行自愈。
@@ -1513,7 +1563,7 @@ func FollowUser(req component.BetterRequest[FollowUserReq]) component.Response {
 	}
 
 	if userFollowEntity.Status == targetStatus {
-		return component.SuccessResponse(true)
+		return followUserResult(req.UserId, req.Params.Id)
 	}
 	userFollowEntity.Status = targetStatus
 	if userFollow.SaveOrCreateById(&userFollowEntity) > 0 {
@@ -1537,5 +1587,5 @@ func FollowUser(req component.BetterRequest[FollowUserReq]) component.Response {
 			userservice.InvalidateUserPublicProfileCache(req.Params.Id)
 		}
 	}
-	return component.SuccessResponse(true)
+	return followUserResult(req.UserId, req.Params.Id)
 }

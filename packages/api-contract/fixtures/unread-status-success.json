@@ -3,6 +3,9 @@
     "notifications": true,
     "messages": false,
     "moderationReports": false,
+    "badgeStyle": "number",
+    "notificationCount": 1,
+    "messageCount": 0,
     "latestNotificationType": "post_reply",
     "latestUnreadId": 6001
   },

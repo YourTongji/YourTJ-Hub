@@ -64,6 +64,7 @@ class GfTopicCard extends StatefulWidget {
     this.likeCount = 0,
     this.onTap,
     this.onAuthorTap,
+    this.onAvatarTap,
     this.imageSemanticLabelBuilder,
     this.onSaveImage,
     this.saveImageLabel = 'Save image',
@@ -83,10 +84,22 @@ class GfTopicCard extends StatefulWidget {
     this.unseen = false,
     this.hot = false,
     this.feedContext,
+    this.descriptionSpan,
+    this.titleSpan,
   });
 
   final String title;
   final String description;
+
+  /// Prebuilt rich title: an untitled moment's excerpt lands in the title slot
+  /// and keeps its sticker images. When present it owns the text and [title]
+  /// is ignored. Inline images are not tappable, like the excerpt.
+  final InlineSpan? titleSpan;
+
+  /// Prebuilt rich excerpt (page-level sticker resolution): when present it
+  /// owns the text and [description] stays empty. Sticker images inside it are
+  /// not tappable so the card's own tap target stays the only one.
+  final InlineSpan? descriptionSpan;
   final String avatarFrameAssetUrl;
   final double avatarFrameScale;
   final String authorName;
@@ -100,6 +113,7 @@ class GfTopicCard extends StatefulWidget {
   final int likeCount;
   final VoidCallback? onTap;
   final VoidCallback? onAuthorTap;
+  final VoidCallback? onAvatarTap;
   final String Function(int index, int count)? imageSemanticLabelBuilder;
   final Future<void> Function(String imageUrl)? onSaveImage;
   final String saveImageLabel;
@@ -191,6 +205,33 @@ class _GfTopicCardState extends State<GfTopicCard> {
     );
   }
 
+  /// Sticker spans carry their own image widget; the card owns taps, so inline
+  /// content must not compete for them.
+  Widget _excerpt(GfColors colors) {
+    final TextStyle style = TextStyle(
+      color: colors.baseContent.withValues(alpha: 0.85),
+      fontSize: 17,
+      height: 1.4,
+    );
+    final InlineSpan? span = widget.descriptionSpan;
+    if (span == null) {
+      return GfText(
+        widget.description,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+    return IgnorePointer(
+      child: GfText.rich(
+        span,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
@@ -254,18 +295,24 @@ class _GfTopicCardState extends State<GfTopicCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       // 无标题瞬间（title 为空串）不渲染标题，未读圆点保持右对齐。
-                      if (widget.title.isNotEmpty)
+                      if (widget.titleSpan case final InlineSpan span)
+                        Expanded(
+                          child: IgnorePointer(
+                            child: GfText.rich(
+                              span,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GfTheme.typographyOf(context).title3,
+                            ),
+                          ),
+                        )
+                      else if (widget.title.isNotEmpty)
                         Expanded(
                           child: GfText(
                             widget.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.baseContent,
-                              fontSize: 17,
-                              height: 1.35,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: GfTheme.typographyOf(context).title3,
                           ),
                         )
                       else
@@ -284,18 +331,10 @@ class _GfTopicCardState extends State<GfTopicCard> {
                       ],
                     ],
                   ),
-                  if (widget.description.isNotEmpty) ...<Widget>[
+                  if (widget.description.isNotEmpty ||
+                      widget.descriptionSpan != null) ...<Widget>[
                     const SizedBox(height: 2),
-                    GfText(
-                      widget.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.85),
-                        fontSize: 17,
-                        height: 1.4,
-                      ),
-                    ),
+                    _excerpt(colors),
                   ],
                 ],
               ),
@@ -420,11 +459,11 @@ class _GfTopicCardState extends State<GfTopicCard> {
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Semantics(
-            button: widget.onAuthorTap != null,
+            button: (widget.onAvatarTap ?? widget.onAuthorTap) != null,
             label: widget.authorName,
             child: InkWell(
-              onTap: widget.onAuthorTap,
-              borderRadius: BorderRadius.circular(24),
+              onTap: widget.onAvatarTap ?? widget.onAuthorTap,
+              borderRadius: BorderRadius.circular(GfRadius.xl),
               child: SizedBox(
                 width: 44,
                 height: 44,
@@ -575,9 +614,7 @@ class _FeedReasonState extends State<_FeedReason>
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: ShapeDecoration(color: fill, shape: pill),
       textStyle: TextStyle(
-        color: newReplies
-            ? colors.primary
-            : colors.baseContent.withValues(alpha: 0.72),
+        color: newReplies ? colors.primary : colors.textSecondary,
         fontSize: 12,
         height: 1.35,
         fontWeight: FontWeight.w500,
@@ -809,8 +846,9 @@ class _AuthorMeta extends StatelessWidget {
       ),
     );
     final dateStyle = DefaultTextStyle.of(context).style.copyWith(
-      color: colors.baseContent.withValues(alpha: 0.55),
+      color: colors.textSecondary,
       fontSize: 13,
+      height: 18 / 13,
     );
     final markers = <Widget>[
       for (final category in categories)
@@ -824,20 +862,24 @@ class _AuthorMeta extends StatelessWidget {
       if (hot)
         Container(
           height: 20,
-          padding: const EdgeInsets.symmetric(horizontal: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
-            color: colors.warning.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(999),
+            color: colors.toneSoft(GfTone.warning),
+            borderRadius: BorderRadius.circular(GfRadius.xs),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              GfSymbol('sparkles', size: 12, color: colors.warning),
+              GfSymbol(
+                'sparkles',
+                size: 12,
+                color: colors.toneOnSoft(GfTone.warning),
+              ),
               const SizedBox(width: 3),
               GfText(
                 'hot',
                 style: TextStyle(
-                  color: colors.warning,
+                  color: colors.toneOnSoft(GfTone.warning),
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -900,11 +942,9 @@ class _AuthorMeta extends StatelessWidget {
                             colors: nicknameColors,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.baseContent,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: GfTheme.typographyOf(
+                              context,
+                            ).bodyStrong.copyWith(height: 20 / 16),
                           ),
                         ),
                       ),
@@ -981,7 +1021,7 @@ class _TopicImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(GfRadius.md),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final logicalWidth = width != null && width!.isFinite
@@ -1115,13 +1155,14 @@ class _Metric extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          GfSymbol(icon, size: 18, color: color ?? colors.iconMuted),
-          const SizedBox(width: 5),
+          GfSymbol(icon, size: 18, color: color ?? colors.textSecondary),
+          const SizedBox(width: GfSpace.xs),
           GfText(
             value,
             style: TextStyle(
-              color: color ?? colors.baseContent.withValues(alpha: 0.55),
+              color: color ?? colors.textSecondary,
               fontSize: 13,
+              height: 18 / 13,
             ),
           ),
         ],
@@ -1137,7 +1178,7 @@ class _ImageCount extends StatelessWidget {
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       color: Colors.black.withValues(alpha: 0.65),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(GfRadius.lg),
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

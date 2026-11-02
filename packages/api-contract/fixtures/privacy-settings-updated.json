@@ -5,6 +5,7 @@
     "profileActivity": "everyone",
     "profileLikes": "everyone",
     "followingList": "everyone",
-    "followersList": "mutual"
+    "followersList": "mutual",
+    "chatMessagePolicy": "everyone"
   }
 }

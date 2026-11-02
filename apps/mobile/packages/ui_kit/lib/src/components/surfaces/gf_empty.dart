@@ -40,47 +40,40 @@ class GfEmpty extends StatelessWidget {
                 const GfLoadingIndicator()
               else
                 Container(
-                  width: 56,
-                  height: 56,
+                  width: 64,
+                  height: 64,
                   decoration: BoxDecoration(
-                    color: colors.base200,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: colors.line.withValues(alpha: .5),
-                    ),
+                    color: colors.fill,
+                    borderRadius: BorderRadius.circular(GfRadius.lg),
                   ),
                   child: Center(
                     child: GfSymbol(
                       symbol ?? 'inbox',
                       size: 28,
-                      color: colors.iconMuted,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ),
-              const SizedBox(height: 24),
+              const SizedBox(height: GfSpace.xl),
               GfText(
                 message,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  height: 1.35,
-                  fontWeight: FontWeight.w600,
-                  color: colors.baseContent,
-                ),
+                style: GfTheme.typographyOf(context).title3,
               ),
               if (description != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: GfSpace.sm - 2),
                 GfText(
                   description!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    height: 1.5,
-                    color: colors.baseContent.withValues(alpha: 0.72),
-                  ),
+                  style: GfTheme.typographyOf(
+                    context,
+                  ).small.copyWith(color: colors.textSecondary),
                 ),
               ],
-              if (action != null) ...[const SizedBox(height: 24), action!],
+              if (action != null) ...[
+                const SizedBox(height: GfSpace.xxl),
+                action!,
+              ],
             ],
           ),
         ),

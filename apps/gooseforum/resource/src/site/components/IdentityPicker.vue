@@ -4,11 +4,14 @@ import { Check, ChevronDown, EyeOff, RefreshCw, Settings, UserRound } from '@luc
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import { getIdentityState, type IdentityState, type Persona } from '@/runtime/anonymous-identity'
+import UserAvatar from './UserAvatar.vue'
+import type { ViewerPayload } from '@gooseforum/client'
 import AnonymousIdentityDialog from './AnonymousIdentityDialog.vue'
+type IdentityViewer = Pick<ViewerPayload, 'username' | 'avatarUrl' | 'decoration'>
 const identity = defineModel<'member' | 'persona'>({ default: 'member' })
 const props = defineProps<{
   disabled?: boolean
-  viewer?: { username: string; avatarUrl: string }
+  viewer?: IdentityViewer
 }>()
 const state = ref<IdentityState>()
 const error = ref('')
@@ -69,7 +72,19 @@ onMounted(loadState)
           :title="name"
           class="inline-flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-full ps-1.5 pe-2.5 text-base-content/80 transition-colors duration-150 hover:bg-base-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-default disabled:hover:bg-transparent"
         >
-          <img v-if="avatar" :src="avatar" alt="" class="h-7 w-7 shrink-0 rounded-full outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10" /><span
+          <UserAvatar
+            v-if="avatar && identity === 'member'"
+            :src="avatar"
+            alt=""
+            :frame="viewer?.decoration?.avatarFrame"
+            class="h-7 w-7 shrink-0 rounded-full outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
+            img-class="rounded-full"
+          /><img
+            v-else-if="avatar"
+            :src="avatar"
+            alt=""
+            class="h-7 w-7 shrink-0 rounded-full outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
+          /><span
             v-else
             class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-base-200 text-base-content/55"
             ><EyeOff v-if="identity === 'persona'" class="h-4 w-4" /><UserRound v-else class="h-4 w-4"
@@ -103,7 +118,14 @@ onMounted(loadState)
             class="flex w-full min-w-0 items-center gap-3 rounded-xl p-2.5 text-start transition-colors duration-150 hover:bg-base-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
             @click="choose('member')"
           >
-            <img v-if="viewer?.avatarUrl" :src="viewer.avatarUrl" alt="" class="h-8 w-8 shrink-0 rounded-full" /><UserRound
+            <UserAvatar
+              v-if="viewer?.avatarUrl"
+              :src="viewer.avatarUrl"
+              alt=""
+              :frame="viewer.decoration?.avatarFrame"
+              class="h-8 w-8 shrink-0 rounded-full"
+              img-class="rounded-full"
+            /><UserRound
               v-else
               class="h-5 w-5 shrink-0 text-base-content/60"
             /><span class="min-w-0 flex-1"

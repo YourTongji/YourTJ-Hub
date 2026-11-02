@@ -284,6 +284,81 @@ func TestInvalidGenerationRequestKeyDoesNotCharge(t *testing.T) {
 	}
 }
 
+func exerciseSetDisabledGovernanceGuard(t *testing.T, s Service) {
+	t.Helper()
+	cases := []struct {
+		name       string
+		governance bool
+		disabled   bool
+		wantErr    error
+	}{
+		{name: "governed persona cannot self-enable", governance: true, disabled: false, wantErr: ErrUnavailable},
+		{name: "governed persona can self-disable", governance: true, disabled: true},
+		{name: "unrestricted persona can self-enable", governance: false, disabled: false},
+	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			owner := uint64(i + 1)
+			p := identity.Persona{
+				UID:                   fmt.Sprintf("%032d", owner),
+				Name:                  "同学",
+				AvatarSeed:            strings.Repeat("a", 32),
+				NameSelectedAt:        s.Now(),
+				NameChangeAvailableAt: anonymousnames.Anniversary(s.Now()),
+				Disabled:              !tc.disabled,
+				GovernanceDisabled:    tc.governance,
+			}
+			binding := identity.Binding{OwnerID: owner, PersonaUID: p.UID}
+			if err := s.DB.Create(&p).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := s.DB.Create(&binding).Error; err != nil {
+				t.Fatal(err)
+			}
+			// Govern blocks the owner too, which would reject the request before
+			// SetDisabled reaches its independent persona-level governance guard.
+			if err := s.DB.Transaction(func(tx *gorm.DB) error {
+				_, err := users.LockAnonymousOwnerTx(tx, owner)
+				return err
+			}); err != nil {
+				t.Fatalf("fixture owner is not writable: %v", err)
+			}
+			if err := s.DB.First(&p, "uid = ?", p.UID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SetDisabled(owner, tc.disabled); !errors.Is(err, tc.wantErr) {
+				t.Fatalf("SetDisabled(%v) = %v, want %v", tc.disabled, err, tc.wantErr)
+			}
+			want := p
+			if tc.wantErr == nil {
+				want.Disabled = tc.disabled
+			}
+			var got identity.Persona
+			if err := s.DB.First(&got, "uid = ?", p.UID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if got != want {
+				t.Fatalf("persona changed unexpectedly: got %+v, want %+v", got, want)
+			}
+			var gotBinding identity.Binding
+			if err := s.DB.First(&gotBinding, "owner_id = ?", owner).Error; err != nil {
+				t.Fatal(err)
+			}
+			if gotBinding != binding {
+				t.Fatalf("toggle changed owner binding: got %+v, want %+v", gotBinding, binding)
+			}
+		})
+	}
+}
+
+func TestSetDisabledGovernanceGuard(t *testing.T) {
+	exerciseSetDisabledGovernanceGuard(t, setup(t, false))
+}
+
+func TestPostgreSQLSetDisabledGovernanceGuard(t *testing.T) {
+	exerciseSetDisabledGovernanceGuard(t, setup(t, true))
+}
+
 func exerciseGovernanceAndClosure(t *testing.T, s Service) {
 	t.Helper()
 	day, _ := anonymousnames.Day(s.Now())
@@ -306,8 +381,8 @@ func exerciseGovernanceAndClosure(t *testing.T, s Service) {
 	if _, err := s.Resolve(1, "persona"); err == nil {
 		t.Fatal("governance bypass")
 	}
-	if err := s.SetDisabled(1, false); err == nil {
-		t.Fatal("self reactivation bypass")
+	if err := s.SetDisabled(1, false); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("governance-blocked owner should fail before persona lookup: %v", err)
 	}
 	state, err := s.State(1)
 	if err != nil || !state.GovernanceDisabled || state.Persona.PublicUID != p.PublicUID {
@@ -506,5 +581,42 @@ func TestMidnightAfterOwnerLock(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestConfirmRejectsDisabledPersona(t *testing.T) {
+	s := setup(t, false)
+	day, _ := anonymousnames.Day(s.Now())
+	first, err := s.Generate(1, day, "first-request")
+	if err != nil {
+		t.Fatal(err)
+	}
+	persona, err := s.Confirm(1, first.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := s.State(1)
+	if err != nil || state.NameChangeAvailableAt == nil {
+		t.Fatal(state, err)
+	}
+	// The rename window stays open, so only the disabled guard can refuse this confirmation.
+	s.Now = func() time.Time { return *state.NameChangeAvailableAt }
+	day, _ = anonymousnames.Day(s.Now())
+	rename, err := s.Generate(1, day, "rename-request")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDisabled(1, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Confirm(1, rename.ID, 1); ErrorCode(err) != "anonymous.unavailable" {
+		t.Fatalf("disabled persona confirmation: %v", err)
+	}
+	var stored identity.Persona
+	if err := s.DB.First(&stored, "uid = ?", persona.PublicUID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Name != persona.Name || !stored.Disabled {
+		t.Fatalf("disabled persona was renamed: %+v", stored)
 	}
 }

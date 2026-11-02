@@ -84,6 +84,7 @@ import type {
   ManageHomeProps,
   AdminTaskRow,
   AnnouncementConfig,
+  AnnouncementItemConfig,
   HttpNotifyEndpoint,
   HttpNotifySettings,
   MailSettings,
@@ -102,6 +103,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
+import Draggable from 'vuedraggable'
 import { safeUrl } from '@/runtime/safe-url'
 import { createUuidV4 } from '@/runtime/uuid'
 import { isValidCron5Field } from '@/admin/cron'
@@ -352,7 +354,7 @@ const httpNotifyEvents = computed(() => {
   ]
 })
 
-// 审批事件（issue #1049）：飞书通道只投递这些事件与「举报创建」聚合事件，卡片带快捷审批链接。
+// 审批事件带快捷审批链接；新用户注册在同一飞书端点使用独立的只读摘要。
 const approvalNotifyEvents = [
   'moderation.review.topic.requested',
   'moderation.review.post.requested',
@@ -372,8 +374,8 @@ const approvalNotifyEventLabels: Record<(typeof approvalNotifyEvents)[number], s
   'moderation.report.course_review.created': 'k00x5',
 }
 
-function isApprovalNotifyEvent(eventName: string) {
-  return eventName === 'moderation.report.created' || (approvalNotifyEvents as readonly string[]).includes(eventName)
+function isFeishuNotifyEvent(eventName: string) {
+  return eventName === 'user.signup' || eventName === 'moderation.report.created' || (approvalNotifyEvents as readonly string[]).includes(eventName)
 }
 
 const httpChannelLabels: Record<HttpNotifyEndpoint['channelType'], string> = {
@@ -388,7 +390,7 @@ function toHttpChannel(value: unknown): HttpNotifyEndpoint['channelType'] {
 
 function endpointEventOptions(endpoint: HttpNotifyEndpoint) {
   return endpoint.channelType === 'feishu'
-    ? httpNotifyEvents.value.filter(item => isApprovalNotifyEvent(item.value))
+    ? httpNotifyEvents.value.filter(item => isFeishuNotifyEvent(item.value))
     : httpNotifyEvents.value
 }
 
@@ -408,6 +410,14 @@ const announcementForm = reactive<AnnouncementConfig>({
   content: '',
   items: [],
 })
+
+// 公告卡片默认折叠（只留排名/标题/启用/删除），新添加的公告默认展开。
+const expandedAnnouncementIds = reactive(new Set<string>())
+
+function toggleAnnouncementItem(item: AnnouncementItemConfig) {
+  if (expandedAnnouncementIds.has(item.id)) expandedAnnouncementIds.delete(item.id)
+  else expandedAnnouncementIds.add(item.id)
+}
 
 const pageMeta = computed(() => {
   locale.value
@@ -662,7 +672,7 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
     secret: endpoint.secret ?? '',
     secretConfigured: toBool(endpoint.secretConfigured, false),
     urlConfigured: toBool(endpoint.urlConfigured, false),
-    events: channelType === 'feishu' ? events.filter(isApprovalNotifyEvent) : events,
+    events: channelType === 'feishu' ? events.filter(isFeishuNotifyEvent) : events,
     timeoutSeconds: Math.min(Math.max(Number(endpoint.timeoutSeconds ?? 2), 1), 15),
     failureCount: enabled ? 0 : Number(endpoint.failureCount ?? 0),
     lastError: enabled ? '' : endpoint.lastError ?? '',
@@ -730,55 +740,19 @@ function validateHttpEndpoint(endpoint: HttpNotifyEndpoint) {
 
 function addAnnouncementItem() {
   if (!announcementForm.items) announcementForm.items = []
+  const id = `ann-${Date.now().toString(36)}`
   announcementForm.items.push({
-    id: `ann-${Date.now().toString(36)}`,
+    id,
     title: '',
     content: '',
     enabled: true,
   })
+  expandedAnnouncementIds.add(id)
 }
 
 function removeAnnouncementItem(index: number) {
-  announcementForm.items?.splice(index, 1)
-}
-
-// 拖拽排序状态：dragstart 记录源下标，dragover 记录目标下标
-const draggingAnnouncementIndex = ref<number | null>(null)
-const dragOverAnnouncementIndex = ref<number | null>(null)
-
-function onAnnouncementDragStart(index: number, event: DragEvent) {
-  if (!event.dataTransfer) return
-  draggingAnnouncementIndex.value = index
-  event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.setData('text/plain', String(index))
-}
-
-function onAnnouncementDragOver(index: number, event: DragEvent) {
-  event.preventDefault()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-  if (index !== draggingAnnouncementIndex.value) {
-    dragOverAnnouncementIndex.value = index
-  }
-}
-
-function onAnnouncementDrop(index: number, event: DragEvent) {
-  event.preventDefault()
-  moveAnnouncementItem(draggingAnnouncementIndex.value, index)
-  dragOverAnnouncementIndex.value = null
-}
-
-function onAnnouncementDragEnd() {
-  draggingAnnouncementIndex.value = null
-  dragOverAnnouncementIndex.value = null
-}
-
-// 将公告从 fromIndex 移动到 toIndex（数组顺序即首页轮播的展示顺序）
-function moveAnnouncementItem(fromIndex: number | null, toIndex: number) {
-  if (fromIndex === null || fromIndex === toIndex) return
-  const items = announcementForm.items ?? []
-  if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex > items.length) return
-  const [moved] = items.splice(fromIndex, 1)
-  items.splice(toIndex, 0, moved)
+  const [removed] = announcementForm.items?.splice(index, 1) ?? []
+  if (removed) expandedAnnouncementIds.delete(removed.id)
 }
 
 function normalizeStorage(settings: Partial<StorageSettings> = {}) {
@@ -911,7 +885,10 @@ async function load() {
       await Promise.all([loadOnesystem(), refreshSyncStatus(), loadPkSchedule()])
     }
     else if (props.kind === 'schedule') Object.assign(scheduleForm, normalizeSchedule(await getScheduleSettings()))
-    else Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
+    else {
+      Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
+      expandedAnnouncementIds.clear()
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : adminText('k000d')
   } finally {
@@ -1297,7 +1274,7 @@ function onEndpointChannelChange(endpoint: HttpNotifyEndpoint, channelType: Http
   if (endpoint.channelType === channelType) return
   endpoint.channelType = channelType
   if (channelType === 'feishu') {
-    endpoint.events = endpoint.events.filter(isApprovalNotifyEvent)
+    endpoint.events = endpoint.events.filter(isFeishuNotifyEvent)
     if (endpoint.events.length === 0) endpoint.events = ['moderation.report.post.created']
   }
   endpoint.urlConfigured = false
@@ -1604,7 +1581,7 @@ onUnmounted(stopSyncPolling)
       </form>
 
       <form v-else-if="kind === 'security'" class="max-w-2xl space-y-8" @submit.prevent="save">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-4">
           <div><div class="text-base font-medium">{{ adminText('k008y') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k008z') }}</p></div>
           <Switch v-model="securityForm.enableSignup" />
         </div>
@@ -1613,12 +1590,12 @@ onUnmounted(stopSyncPolling)
           <p class="text-sm text-muted-foreground">{{ adminText('k00ll') }}</p>
           <Input v-model.number="securityForm.maxDailySignups" type="number" min="-1" step="1" class="max-w-sm" />
         </div>
-        <div class="flex items-center justify-between">
-          <div><div class="flex items-center gap-2 text-base font-medium"><MailCheck class="size-4" />{{ adminText('k0090') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k0091') }}</p></div>
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0"><div class="flex flex-wrap items-center gap-2 text-base font-medium"><MailCheck class="size-4" />{{ adminText('k0090') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k0091') }}</p></div>
           <Switch v-model="securityForm.enableEmailVerification" />
         </div>
-        <div class="flex items-center justify-between">
-          <div><div class="flex items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00it') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00iu') }}</p></div>
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0"><div class="flex flex-wrap items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00it') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00iu') }}</p></div>
           <Switch v-model="securityForm.captchaRequired" />
         </div>
         <div class="space-y-4">
@@ -1708,8 +1685,8 @@ onUnmounted(stopSyncPolling)
             </button>
           </div>
         </div>
-        <RouterLink to="/admin/settings/ai-moderation" class="flex items-center justify-between gap-3 rounded-lg border bg-muted/10 p-4 transition-colors hover:bg-muted/30">
-          <span>
+        <RouterLink to="/admin/settings/ai-moderation" class="flex flex-col items-start justify-between gap-3 rounded-lg border bg-muted/10 p-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center">
+          <span class="min-w-0">
             <span class="flex items-center gap-2 text-base font-medium"><Sparkles class="size-4" />{{ t('aiModerationAdmin.title') }}</span>
             <span class="mt-1 block text-sm text-muted-foreground">{{ t('aiModerationAdmin.securityEntryHint') }}</span>
           </span>
@@ -1723,7 +1700,7 @@ onUnmounted(stopSyncPolling)
           <Switch v-model="rateLimitForm.enabled" />
         </div>
         <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
-          <div><div class="text-base font-medium">{{ adminText('k00il') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00ij') }}</p></div>
+          <div><div class="text-base font-medium">{{ adminText('k00il') }}</div><p class="text-sm text-muted-foreground">{{ t('statsAdmin.rateLimitExemptionHint') }}</p></div>
           <Switch v-model="rateLimitForm.skipAdmin" :disabled="!rateLimitForm.enabled" />
         </div>
         <section class="space-y-3">
@@ -1785,8 +1762,8 @@ onUnmounted(stopSyncPolling)
         </label>
         <label class="grid gap-2 text-sm font-medium">
           {{ adminText('k00pl') }}
-          <div class="flex items-center gap-2">
-            <Input v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled" :placeholder="adminText('k00pe')" class="flex-1" />
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <Input v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled" :placeholder="adminText('k00pe')" class="min-w-0 flex-1 basis-full sm:basis-0" />
             <Select v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled || aiSummaryModels.length === 0">
               <SelectTrigger class="h-9 w-44 shrink-0">
                 <SelectValue :placeholder="adminText('k00pe')" />
@@ -2122,7 +2099,7 @@ onUnmounted(stopSyncPolling)
             <CheckCircle2 v-else class="size-4" />
             {{ adminText('k00g6') }}
           </Button>
-          <Button type="button" variant="outline" :disabled="storageForm.provider !== 's3'" @click="migrateConfirm = true">
+          <Button type="button" variant="outline" class="h-auto max-w-full whitespace-normal py-2 text-start" :disabled="storageForm.provider !== 's3'" @click="migrateConfirm = true">
             <HardDrive class="size-4" />
             {{ adminText('k00g9') }}
           </Button>
@@ -2300,7 +2277,7 @@ onUnmounted(stopSyncPolling)
           </div>
 
           <div class="space-y-4 border-t border-border/70 pt-6">
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
               <span class="text-sm font-medium">{{ adminText('k00tl') }}</span>
               <Button type="button" variant="ghost" size="sm" @click="refreshSyncStatus">
                 <RefreshCw class="size-3.5" />
@@ -2414,45 +2391,56 @@ onUnmounted(stopSyncPolling)
         </div>
 
         <div class="space-y-4">
-          <div
-            v-for="(item, index) in announcementForm.items"
-            :key="item.id"
-            draggable="true"
-            class="rounded-lg border border-border bg-card p-4 transition-[opacity,box-shadow] duration-150"
-            :class="[
-              draggingAnnouncementIndex === index && 'opacity-50',
-              dragOverAnnouncementIndex === index && 'ring-2 ring-primary/60',
-            ]"
-            @dragstart="onAnnouncementDragStart(index, $event)"
-            @dragover="onAnnouncementDragOver(index, $event)"
-            @drop="onAnnouncementDrop(index, $event)"
-            @dragend="onAnnouncementDragEnd"
+          <Draggable
+            v-model="announcementForm.items"
+            item-key="id"
+            handle=".js-announcement-handle"
+            :animation="180"
+            :delay="180"
+            :delay-on-touch-only="true"
+            :touch-start-threshold="10"
+            ghost-class="opacity-40"
+            class="space-y-4"
           >
-            <div class="mb-3 flex items-center justify-between gap-2">
-              <div class="flex items-center gap-2 text-sm font-medium">
-                <GripVertical class="size-4 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing" :title="adminText('k00j2')" />
-                {{ adminText('k0009') }} #{{ index + 1 }}
+            <template #item="{ element: item, index }">
+              <div class="rounded-lg border border-border bg-card">
+                <div class="flex items-center gap-3 p-4">
+                  <button type="button" class="js-announcement-handle cursor-grab rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:outline-none active:cursor-grabbing" :aria-label="adminText('k00bf')" :title="adminText('k00bf')">
+                    <GripVertical class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    class="group flex min-w-0 flex-1 items-center gap-3 rounded-md text-start outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    :aria-expanded="expandedAnnouncementIds.has(item.id)"
+                    :aria-controls="`announcement-${item.id}`"
+                    @click="toggleAnnouncementItem(item)"
+                  >
+                    <span class="shrink-0 truncate text-sm font-medium">{{ adminText('k0009') }} #{{ index + 1 }}</span>
+                    <span class="min-w-0 flex-1 truncate text-sm">{{ item.title || adminText('k00j0') }}</span>
+                    <ChevronDown class="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-aria-expanded:rotate-180 motion-reduce:transition-none" />
+                  </button>
+                  <label class="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    {{ adminText('k00e2') }}
+                    <Switch v-model="item.enabled" />
+                  </label>
+                  <Button variant="ghost" type="button" class="size-8" @click="removeAnnouncementItem(index)">
+                    <Trash2 class="size-4" />
+                    <span class="sr-only">{{ adminText('k00j1') }}</span>
+                  </Button>
+                </div>
+                <div v-show="expandedAnnouncementIds.has(item.id)" :id="`announcement-${item.id}`" class="space-y-3 border-t p-4">
+                  <label class="grid gap-1.5 text-sm font-medium">
+                    {{ adminText('k00j0') }}
+                    <Input v-model="item.title" class="mt-0" :placeholder="adminText('k00j0')" />
+                  </label>
+                  <label class="grid gap-1.5 text-sm font-medium">
+                    {{ adminText('k009l') }}
+                    <Textarea v-model="item.content" class="min-h-32 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
+                  </label>
+                </div>
               </div>
-              <div class="flex items-center gap-3">
-                <label class="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  {{ adminText('k00e2') }}
-                  <Switch v-model="item.enabled" />
-                </label>
-                <Button variant="ghost" type="button" class="size-8" @click="removeAnnouncementItem(index)">
-                  <Trash2 class="size-4" />
-                  <span class="sr-only">{{ adminText('k00j1') }}</span>
-                </Button>
-              </div>
-            </div>
-            <label class="grid gap-1.5 text-sm font-medium">
-              {{ adminText('k00j0') }}
-              <Input v-model="item.title" class="mt-0" :placeholder="adminText('k00j0')" />
-            </label>
-            <label class="mt-3 grid gap-1.5 text-sm font-medium">
-              {{ adminText('k009l') }}
-              <Textarea v-model="item.content" class="min-h-32 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
-            </label>
-          </div>
+            </template>
+          </Draggable>
 
           <Button variant="outline" type="button" @click="addAnnouncementItem">
             <Plus class="size-4" />

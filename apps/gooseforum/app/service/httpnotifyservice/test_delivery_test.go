@@ -132,7 +132,8 @@ func TestSendTestGenericSignsWebhookTestEvent(t *testing.T) {
 		w.WriteHeader(status)
 	}))
 	t.Cleanup(server.Close)
-	endpoint := pageConfig.HttpNotifyEndpoint{Id: "ep1", Name: "测试", URL: server.URL + "/hook", Secret: "s3cret", TimeoutSeconds: 2}
+	base := useLocalNotifyServer(t, server)
+	endpoint := pageConfig.HttpNotifyEndpoint{Id: "ep1", Name: "测试", URL: base + "/hook", Secret: "s3cret", TimeoutSeconds: 2}
 	now := time.Unix(1_800_000_000, 0)
 	if err := SendTest(endpoint, "https://hub.example.test", now); err != nil {
 		t.Fatal(err)
@@ -167,7 +168,8 @@ func TestSendTestFeishuReportsBusinessErrorsWithoutURL(t *testing.T) {
 		_, _ = w.Write([]byte(reply))
 	}))
 	t.Cleanup(server.Close)
-	endpoint := pageConfig.HttpNotifyEndpoint{ChannelType: pageConfig.HttpNotifyChannelFeishu, URL: server.URL + "/open-apis/bot/v2/hook/secret-token"}
+	base := useLocalNotifyServer(t, server)
+	endpoint := pageConfig.HttpNotifyEndpoint{ChannelType: pageConfig.HttpNotifyChannelFeishu, URL: base + "/open-apis/bot/v2/hook/secret-token"}
 	if err := SendTest(endpoint, "https://hub.example.test", time.Now()); err != nil {
 		t.Fatal(err)
 	}

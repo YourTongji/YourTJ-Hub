@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/gf_theme.dart';
+import '../gf_symbol.dart';
+
 import 'gf_bottom_sheet.dart';
 
-/// A [PopupMenuItem] that can mark a destructive action.
+/// A [PopupMenuItem] with an optional leading widget and destructive marker.
 class GfPopupMenuItem<T> extends PopupMenuItem<T> {
   const GfPopupMenuItem({
     super.key,
@@ -10,9 +13,34 @@ class GfPopupMenuItem<T> extends PopupMenuItem<T> {
     super.enabled,
     required super.child,
     this.destructive = false,
+    this.leading,
   });
 
   final bool destructive;
+
+  /// Optional icon before [child]. Keep [child] as the label when using this
+  /// slot; existing custom rows without [leading] are rendered unchanged.
+  final Widget? leading;
+
+  Widget? _content() => leading == null
+      ? child
+      : Row(
+          children: [
+            leading!,
+            const SizedBox(width: GfSpace.md),
+            Expanded(child: child ?? const SizedBox()),
+          ],
+        );
+
+  @override
+  PopupMenuItemState<T, GfPopupMenuItem<T>> createState() =>
+      _GfPopupMenuItemState<T>();
+}
+
+class _GfPopupMenuItemState<T>
+    extends PopupMenuItemState<T, GfPopupMenuItem<T>> {
+  @override
+  Widget? buildChild() => widget._content();
 }
 
 Future<T?> showGfMenu<T>({
@@ -96,25 +124,59 @@ Future<T?> showGfActionSheet<T>(
     context,
     keyboardAware: true,
     builder: (context) {
+      final colors = GfTheme.colorsOf(context);
       final content = ListView(
         shrinkWrap: true,
-        padding: EdgeInsets.zero,
+        padding: const EdgeInsets.fromLTRB(
+          GfSpace.sm,
+          0,
+          GfSpace.sm,
+          GfSpace.sm,
+        ),
         children: [
           if (title != null)
-            Padding(padding: const EdgeInsets.all(16), child: title),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                GfSpace.md,
+                GfSpace.xs,
+                GfSpace.md,
+                GfSpace.md,
+              ),
+              child: DefaultTextStyle.merge(
+                style: GfTheme.typographyOf(context).title3,
+                child: title,
+              ),
+            ),
           for (final item in items)
             if (item is PopupMenuItem<T>)
               ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(GfRadius.md),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: GfSpace.md,
+                ),
+                minTileHeight: GfControl.row,
                 title: DefaultTextStyle.merge(
                   style: item is GfPopupMenuItem<T> && item.destructive
-                      ? TextStyle(color: Theme.of(context).colorScheme.error)
+                      ? TextStyle(color: colors.error)
                       : const TextStyle(),
-                  child: item.child ?? const SizedBox(),
+                  child:
+                      (item is GfPopupMenuItem<T>
+                          ? item._content()
+                          : item.child) ??
+                      const SizedBox(),
                 ),
                 enabled: item.enabled,
                 selected: initialValue != null && item.value == initialValue,
+                selectedColor: colors.primary,
+                selectedTileColor: colors.primarySoft,
                 trailing: initialValue != null && item.value == initialValue
-                    ? const Icon(Icons.check)
+                    ? GfSymbol(
+                        'check',
+                        size: GfIconSize.md,
+                        color: colors.primary,
+                      )
                     : null,
                 onTap: () => Navigator.pop(context, item.value),
               ),

@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { textBeforeCaret, isInsideFencedCode, replaceMentionTokenInElement } from "@/runtime/mention-dom"
+import { deleteStickerAtCaret, stickerBeforeInputDirection, stickerDeleteDirection } from "@/runtime/sticker-atomic"
+import { decorateStickerTokens, type StickerInlineAsset } from "@/runtime/sticker-inline-editor"
+import StickerSuggestions from '@/site/components/StickerSuggestions.vue'
+import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
+import { useStickerSuggest } from '@/site/composables/useStickerSuggest'
+import { isPersonalStickerName } from '@/site/utils/sticker-token'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
@@ -46,6 +52,9 @@ import { createLinkPreviewHintController, formatLinkPreviewHintDomains, type Lin
  * 站点集成：v-model 双向、上传经 upload 事件交宿主处理、卸载销毁。
  * 不做任何样式覆盖或功能裁剪——保持官版外观与行为。
  */
+// 模板根是 Vditor 挂载点 + 贴纸候选浮层（Teleport），宿主 attrs 显式落到挂载点上
+defineOptions({ inheritAttrs: false })
+
 const props = defineProps<{
   modelValue: string
   placeholder: string
@@ -129,11 +138,120 @@ function syncLinkPreviewHint() {
 }
 
 function handleCompositionStart() {
+  composing = true
   linkPreviewHintController.compositionStart()
 }
 
 function handleCompositionEnd() {
+  composing = false
   linkPreviewHintController.compositionEnd(editor?.getValue() ?? props.modelValue)
+  scheduleStickerDecoration()
+}
+
+/**
+ * 编辑区贴纸所见即所得（sticker-inline-editor）：完整且可解析的 token 显示为与正文
+ * 同尺寸的贴纸图，Markdown 不变。Vditor 每次输入按块重渲染会把块还原成纯文本，
+ * MutationObserver 回调在绘制前（微任务）重新装饰，用户看不到原始 token 闪现。
+ * 只装饰 wysiwyg：ir/sv 是显式的 Markdown 源码视图，保持 token 原文。
+ * IME 组合期间不改 DOM（会打断输入法），组合结束后补一次。
+ */
+const { resolvedUrls, ensureContentStickers } = useResolvedStickers()
+let composing = false
+let stickerObserver: MutationObserver | null = null
+let stickerResolveTimer: ReturnType<typeof setTimeout> | undefined
+let stickerDecorationFrame = 0
+
+function stickerAsset(name: string): StickerInlineAsset | undefined {
+  const url = resolvedUrls.value.get(name)
+  if (!url) return undefined
+  return { url, label: isPersonalStickerName(name) || /^m_[0-9a-f]{40}$/.test(name) ? t('stickers.custom') : name }
+}
+
+function decorateStickers() {
+  if (!editor || !ready || destroyed || composing || editor.vditor.currentMode !== 'wysiwyg') return
+  const element = editor.vditor.wysiwyg?.element
+  if (!element) return
+  decorateStickerTokens(element, stickerAsset)
+  // 丢弃装饰自身产生的变更记录，避免回调自我触发
+  stickerObserver?.takeRecords()
+}
+
+function scheduleStickerDecoration() {
+  if (stickerDecorationFrame) return
+  stickerDecorationFrame = requestAnimationFrame(() => {
+    stickerDecorationFrame = 0
+    decorateStickers()
+  })
+}
+
+function attachStickerDecoration() {
+  const element = editor?.vditor.wysiwyg?.element
+  if (!element || stickerObserver) return
+  stickerObserver = new MutationObserver(() => decorateStickers())
+  stickerObserver.observe(element, { childList: true, subtree: true, characterData: true })
+  decorateStickers()
+  void ensureContentStickers([props.modelValue])
+}
+
+/** 手动输入或粘贴的 token 名字未知时，静默 300ms 后批量解析；已知/60s 内查过的不重复请求。 */
+function scheduleStickerResolve(value: string) {
+  clearTimeout(stickerResolveTimer)
+  if (!value.includes('[:sticker:')) return
+  stickerResolveTimer = setTimeout(() => {
+    void ensureContentStickers([value])
+  }, 300)
+}
+
+const stickerSuggest = useStickerSuggest({
+  bridge: () => (props.stickerPicker ? { getMentionContext, replaceStickerQuery } : null),
+  label: (item) => item.displayName || (isPersonalStickerName(item.name) || /^m_[0-9a-f]{40}$/.test(item.name) ? t('stickers.custom') : item.name),
+})
+let stickerSuggestFrame = 0
+
+/** 光标移动（输入、点击、方向键）统一经 selectionchange 重检候选；不在编辑区内即关闭 */
+function handleSelectionChange() {
+  if (!props.stickerPicker || stickerSuggestFrame) return
+  stickerSuggestFrame = requestAnimationFrame(() => {
+    stickerSuggestFrame = 0
+    if (!composing) stickerSuggest.refresh()
+  })
+}
+
+function handleEditorFocusOut(event: FocusEvent) {
+  const next = event.relatedTarget as Node | null
+  if (next && root.value?.contains(next)) return
+  stickerSuggest.close()
+}
+
+/**
+ * 贴纸 token 原子删除（issue #1332）：token 是纯文本，默认 Backspace/Delete 会
+ * 逐字符拆开留下残缺原文。捕获阶段截获已命中并完成的按键，stopPropagation
+ * 让 Vditor 自己的 keydown 逻辑不再按删除后的光标位置二次处理（如在块首合并上一块）。
+ */
+function handleStickerKeydown(event: KeyboardEvent) {
+  const element = currentModeElement()
+  // 按键目标必须在编辑区内：listener 挂在 Vditor 根上，toolbar 与 popover 里的输入框也会冒泡到这里
+  if (!element || !(event.target instanceof Node) || !element.contains(event.target)) return
+  // 候选打开时上下/回车/Tab/Esc 归候选：捕获阶段截住，Vditor 不再换行或缩进
+  if (stickerSuggest.handleKeydown(event)) {
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+  const direction = stickerDeleteDirection(event)
+  if (!direction) return
+  if (!deleteStickerAtCaret(element, direction)) return
+  event.preventDefault()
+  event.stopPropagation()
+}
+
+function handleStickerBeforeInput(event: InputEvent) {
+  const element = currentModeElement()
+  if (!element || !(event.target instanceof Node) || !element.contains(event.target)) return
+  const direction = stickerBeforeInputDirection(event)
+  if (!direction || !deleteStickerAtCaret(element, direction)) return
+  event.preventDefault()
+  event.stopPropagation()
 }
 
 // 暴露给浏览器测试 fixture：等待提示协调器静默（无防抖挂起、无在途请求），
@@ -890,7 +1008,14 @@ function refreshOutlineAndToggles(I: typeof window.VditorI18n) {
  *  不能复用 attachToolbarLabels（L393-407）——它内部 attachTooltipSmartPosition 会重绑
  *  mouseenter、guardFullscreenToolbarLabel 会重建 observer，多调几次叠监听器。 */
 function refreshToolbarLabelText() {
-  if (!root.value || window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
+  if (!root.value) return
+  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
+    // Keep the main row icon-only while refreshing every visible folded label.
+    // Reusing the nodes also preserves their native Vditor listeners.
+    root.value.querySelectorAll<HTMLElement>('.hub-fold-region .vditor-tooltipped')
+      .forEach(ensureToolbarButtonLabel)
+    return
+  }
   root.value
     .querySelectorAll<HTMLElement>('.vditor-toolbar__item .vditor-tooltipped')
     .forEach(ensureToolbarButtonLabel)
@@ -996,6 +1121,9 @@ function foldItem(item: HTMLElement) {
   // 原次序内跨组：左邻是分隔符 → 打组分隔标记（region 首个项由 CSS 抑制顶线）
   item.classList.toggle('hub-fold-group-start', !!left?.classList.contains('vditor-toolbar__divider'))
   foldRegion!.insertBefore(item, foldRegion!.firstChild) // 插到最前 → 折叠区保持主行左→右次序
+  // Mobile main-row icons need their translated label once they become menu rows.
+  const button = item.querySelector<HTMLElement>(':scope > [data-type]')
+  if (button) ensureToolbarButtonLabel(button)
   syncAdjacentDividers(item)
 }
 
@@ -1016,7 +1144,8 @@ function unfoldItem(item: HTMLElement) {
 function measureToolbar() {
   foldRaf = 0
   if (destroyed || !toolbarEl?.isConnected || !foldRegion) return
-  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
+  // Mobile presets can still exceed a narrow host once the counter grows.
+  // Reuse node-preserving folding so every action remains available in More.
   // 恒覆盖工具栏左 padding（防 vditor setPadding 按「内容 padding + 大纲宽度」
   // 在窄屏/大纲展开时把图标挤到右端）；再按宽度滞回切换标签显隐。
   syncToolbarLeftPadding()
@@ -1490,6 +1619,10 @@ onMounted(async () => {
   root.value.insertAdjacentElement('afterend', linkPreviewHintElement)
   root.value.addEventListener('compositionstart', handleCompositionStart, true)
   root.value.addEventListener('compositionend', handleCompositionEnd, true)
+  root.value.addEventListener('keydown', handleStickerKeydown, true)
+  root.value.addEventListener('beforeinput', handleStickerBeforeInput, true)
+  root.value.addEventListener('focusout', handleEditorFocusOut)
+  document.addEventListener('selectionchange', handleSelectionChange)
   linkPreviewHintController.schedule(props.modelValue)
   const language = languageAssets[currentLocale()]
 
@@ -1603,12 +1736,18 @@ onMounted(async () => {
           pendingLocaleRefresh = false
           void refreshVditorLocale()
         }
-        if (props.modelValue && props.modelValue !== nextEditor?.getValue()) {
+        // 服务端不解析 `:alias:` emoji 简码；Lute 默认解析会让编辑区与发布结果不一致，
+        // 还会改写贴纸 token（`[:sticker:b:]` 被存成 `[:sticker🅱️]`）。初值在 after 之前
+        // 已按默认选项渲染过一次，含简码样式文本时关掉后重渲染。
+        // Lute 运行时提供 SetEmoji，Vditor 的类型声明里没有列出
+        ;(nextEditor?.vditor.lute as { SetEmoji?: (enabled: boolean) => void } | undefined)?.SetEmoji?.(false)
+        if (props.modelValue && (props.modelValue !== nextEditor?.getValue() || /:[^\s:]+:/.test(props.modelValue))) {
           nextEditor?.setValue(props.modelValue, true)
         }
         initPopoverPositionCorrection(nextEditor!)
         initToolbarPanelPositionCorrection(nextEditor!)
         attachSensitiveModeRefresh()
+        attachStickerDecoration()
       },
       input(value) {
         clearSensitiveHighlights()
@@ -1629,6 +1768,7 @@ onMounted(async () => {
 
 watch(() => props.modelValue, (value) => {
   linkPreviewHintController.schedule(value)
+  scheduleStickerResolve(value)
   if (!editor || !ready || value === editor.getValue()) return
   editor.setValue(value, true)
 })
@@ -1644,6 +1784,9 @@ watch(
 )
 
 watch(isDark, syncEditorTheme)
+
+// 解析结果到达（或贴纸被停用）后就地更新已渲染的块
+watch(resolvedUrls, scheduleStickerDecoration)
 
 // #8：语言切换 → 重载 vditor i18n 脚本并就地刷新全部界面文案。
 // SPA 内 setLocale 只改 vue-i18n ref，绝不 location.reload()（AppShell.setLang）。
@@ -1666,6 +1809,17 @@ onBeforeUnmount(() => {
   linkPreviewHintController.dispose()
   root.value?.removeEventListener('compositionstart', handleCompositionStart, true)
   root.value?.removeEventListener('compositionend', handleCompositionEnd, true)
+  root.value?.removeEventListener('keydown', handleStickerKeydown, true)
+  root.value?.removeEventListener('beforeinput', handleStickerBeforeInput, true)
+  root.value?.removeEventListener('focusout', handleEditorFocusOut)
+  document.removeEventListener('selectionchange', handleSelectionChange)
+  stickerObserver?.disconnect()
+  stickerObserver = null
+  clearTimeout(stickerResolveTimer)
+  if (stickerDecorationFrame) cancelAnimationFrame(stickerDecorationFrame)
+  if (stickerSuggestFrame) cancelAnimationFrame(stickerSuggestFrame)
+  stickerDecorationFrame = stickerSuggestFrame = 0
+  stickerSuggest.close()
   linkPreviewHintElement?.remove()
   linkPreviewHintElement = null
   detachSensitiveModeRefresh()
@@ -1785,6 +1939,12 @@ function replaceMentionToken(queryLength: number, replacement: string): boolean 
   return element ? replaceMentionTokenInElement(element, queryLength, replacement) : false
 }
 
+/** 贴纸候选选中：整段替换 `[:sticker:query` 片段为完整 token，不补空格（贴纸本身就是间隔） */
+function replaceStickerQuery(length: number, token: string): boolean {
+  const element = currentModeElement()
+  return element ? replaceMentionTokenInElement(element, length, token, false) : false
+}
+
 function getValue() {
   return editor && ready ? editor.getValue() : props.modelValue
 }
@@ -1808,7 +1968,17 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 <template>
   <!-- 用 data-locale 属性而非 :class 驱动语言样式：Vue 动态 class 重渲染会抹掉
        Vditor 命令式添加的 .vditor 类（编辑器边框/工具栏样式依赖它），属性则不影响 className -->
-  <div ref="root" class="vditor-official" :class="{ 'vditor-official--slim': slimMobile }" :data-locale="locale" />
+  <div v-bind="$attrs" ref="root" class="vditor-official" :class="{ 'vditor-official--slim': slimMobile }" :data-locale="locale" />
+  <StickerSuggestions
+    v-if="stickerPicker"
+    :open="stickerSuggest.open.value"
+    :query="stickerSuggest.query.value"
+    :candidates="stickerSuggest.candidates.value"
+    :active-index="stickerSuggest.activeIndex.value"
+    :loading="stickerSuggest.loading.value"
+    :panel-style="stickerSuggest.panelStyle.value"
+    @select="stickerSuggest.select"
+  />
 </template>
 
 <style>
@@ -1819,6 +1989,27 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
  */
 .vditor-official .vditor-reset ol {
   list-style-type: decimal;
+}
+
+/*
+ * 编辑区里的贴纸（sticker-inline-editor）：与正文 .gf-prose img[data-gf-sticker]
+ * 同一个 2.5em 方框、同一条基线偏移，编辑时看到的行距与发布后一致。块内保留的
+ * token 原文透明且推出方框外，只有背景图可见；不可编辑，整体选中/删除。
+ */
+.vditor-official .vditor-reset .gf-sticker-inline {
+  display: inline-block;
+  width: 2.5em;
+  height: 2.5em;
+  margin: 0 0.1em;
+  overflow: hidden;
+  vertical-align: -0.87em;
+  color: transparent;
+  white-space: nowrap;
+  text-indent: 2.5em;
+  background: center / contain no-repeat;
+  cursor: default;
+  -webkit-user-select: all;
+  user-select: all;
 }
 
 .gf-link-preview-editor-hint {
@@ -2559,6 +2750,11 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 @media (max-width: 640px) {
   .vditor-official .vditor-toolbar {
     overflow: visible !important;
+  }
+  /* Link fields must wrap inside the bounded inline popover. */
+  .vditor-official .vditor-wysiwyg > .vditor-panel {
+    white-space: normal;
+    opacity: 1;
   }
   .vditor-official .vditor-panel {
     padding: 3px 4px !important;

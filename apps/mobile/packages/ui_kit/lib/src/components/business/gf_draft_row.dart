@@ -87,10 +87,7 @@ class GfDraftRow extends StatelessWidget {
                 description,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: colors.baseContent.withValues(alpha: 0.55),
-                ),
+                style: TextStyle(fontSize: 13, color: colors.textSecondary),
               ),
             ],
             const SizedBox(height: 6),
@@ -103,10 +100,7 @@ class GfDraftRow extends StatelessWidget {
                   GfChip(label: category.name, color: category.color),
                 GfText(
                   meta,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.baseContent.withValues(alpha: 0.55),
-                  ),
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
                 ),
               ],
             ),
@@ -117,10 +111,7 @@ class GfDraftRow extends StatelessWidget {
               children: <Widget>[
                 GfText(
                   updatedTime,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.baseContent.withValues(alpha: 0.55),
-                  ),
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
                 ),
                 if (onEdit != null)
                   TextButton(

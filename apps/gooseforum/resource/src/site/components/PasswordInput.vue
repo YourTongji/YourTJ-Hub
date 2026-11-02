@@ -15,6 +15,7 @@ defineProps<{
   autocomplete?: string
   /** 可访问名称（sr-only label 的文本），同时作为切换按钮的 aria-label 来源 */
   label?: string
+  descriptionId?: string
 }>()
 
 const { t } = useI18n()
@@ -31,6 +32,7 @@ const show = ref(false)
       :placeholder="placeholder"
       :autocomplete="autocomplete"
       :aria-label="label"
+      :aria-describedby="descriptionId"
     />
     <button
       type="button"

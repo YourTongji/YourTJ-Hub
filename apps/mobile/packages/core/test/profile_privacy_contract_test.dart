@@ -67,6 +67,25 @@ void main() {
     expect(updated.audienceOf('followersList'), 'mutual');
   });
 
+  test(
+    'chat policy defaults only for old responses and reads the new value',
+    () {
+      expect(
+        UserPrivacySettingsPayload.fromJson({
+          for (final key in profilePrivacyAudiences.keys) key: 'everyone',
+        }).chatMessagePolicy,
+        'everyone',
+      );
+      expect(
+        UserPrivacySettingsPayload.fromJson({
+          for (final key in profilePrivacyAudiences.keys) key: 'everyone',
+          'chatMessagePolicy': 'nobody',
+        }).chatMessagePolicy,
+        'nobody',
+      );
+    },
+  );
+
   test('allowed audiences mirror the server', () {
     expect(profilePrivacyAudiences['profileLikes'], [
       'everyone',

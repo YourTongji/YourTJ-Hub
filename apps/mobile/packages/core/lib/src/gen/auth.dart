@@ -6,10 +6,12 @@ part 'auth.g.dart';
 @freezed
 abstract class LoginPageProps with _$LoginPageProps {
   const factory LoginPageProps({
+    @Default('open') String passwordSignupState,
     @Default(false) bool tongjiRegistration,
     required String initialMode,
     required String redirectUrl,
     required String githubUrl,
+    @Default(false) bool githubReady,
     required bool googleReady,
     @Default(false) bool appleReady,
     @Default(false) bool tongjiReady,

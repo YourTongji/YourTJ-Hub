@@ -8,9 +8,14 @@ adminUploadImage:
       (SiteManager group); callers without it fail with HTTP 403 and
       `permission.denied`. This is a bare gin handler (not the UpButterReq
       wrapper), but the request/response envelope is still the standard
-      ResultStruct JSON. The multipart field is `file`; the content must
-      sniff as a real image (JPEG/PNG/GIF/WebP/BMP signatures) and pass the
-      posting-settings extension allowlist and size cap. Role-bearing
+      ResultStruct JSON. The multipart field is `file`; the extension passes the
+      posting-settings allowlist and size cap first, then the bytes decide the
+      stored type: the header must decode as a supported image
+      (JPEG/PNG/GIF/WebP/BMP) and that detected type must also be allowed. A
+      detected type that conflicts with the declared extension is accepted and
+      the object is stored under the detected type's canonical extension, so
+      the returned `url` extension is authoritative while `filename` stays the
+      original multipart filename. Role-bearing
       callers (any admin role, including SiteManager) skip the new-user
       cooldown, the daily upload quota and the configured size cap downstep
       (the hard 4MB ceiling still applies). On success the image is stored

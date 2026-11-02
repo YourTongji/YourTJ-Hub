@@ -41,8 +41,13 @@ class _GatedFollowRepository implements TopicRepository {
   final Completer<bool> result;
 
   @override
-  Future<bool> followUser({required int userId, required bool isFollowing}) =>
-      result.future;
+  Future<({bool isFollowing, bool isMutualFollowing})> followUser({
+    required int userId,
+    required bool isFollowing,
+  }) async {
+    final applied = await result.future;
+    return (isFollowing: applied, isMutualFollowing: applied);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -64,6 +69,46 @@ void main() {
     await mutation;
     expect(state.following, isTrue);
     expect(state.busy, isFalse);
+  });
+
+  test('a late read carrying the mutual flag cannot overwrite the optimistic value',
+      () async {
+    final response = Completer<bool>();
+    final state = UserFollowState(_GatedFollowRepository(response));
+    addTearDown(state.dispose);
+    final read = state.beginRead();
+
+    final mutation = state.toggle(userId: 42, fallback: false);
+    expect(state.following, isTrue);
+    expect(state.mutualFollowing, isFalse);
+
+    // busy 期间的迟到 read 连互关位也不能写入。
+    state.acceptServerValue(true, read, mutual: true);
+    expect(state.following, isTrue);
+    expect(state.mutualFollowing, isFalse);
+
+    response.complete(true);
+    await mutation;
+    // 成功后以服务端返回的 applied 状态为准，互关位同样被写入。
+    expect(state.following, isTrue);
+    expect(state.mutualFollowing, isTrue);
+  });
+
+  test('a failed follow toggle rolls back the mutual flag too', () async {
+    final response = Completer<bool>();
+    final state = UserFollowState(_GatedFollowRepository(response));
+    addTearDown(state.dispose);
+    state.following = true;
+    state.mutualFollowing = true;
+
+    final mutation = state.toggle(userId: 42, fallback: true);
+    expect(state.following, isFalse);
+    expect(state.mutualFollowing, isFalse);
+
+    response.completeError(StateError('offline'));
+    await expectLater(mutation, throwsA(isA<StateError>()));
+    expect(state.following, isTrue);
+    expect(state.mutualFollowing, isTrue);
   });
 
   group('tokenStorageProvider', () {

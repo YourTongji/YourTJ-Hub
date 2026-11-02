@@ -45,7 +45,7 @@ jobs:
           DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
           YOURTJ_IOS_BUILD_PURPOSE: ${{ inputs.purpose }}
         run: bash .ios-controller/scripts/mobile-release/select_ios_toolchain.sh
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         if: matrix.platform == 'android'
         with:
           distribution: temurin
@@ -60,7 +60,9 @@ jobs:
       - name: Bootstrap
         working-directory: apps/mobile/packages/forum_app
         # Generate Flutter plugin/SwiftPM files on a clean checkout before --no-pub.
-        run: flutter pub get
+        run: |
+          flutter pub get --enforce-lockfile
+          git diff --exit-code -- ':(top)apps/mobile/pubspec.lock'
       - name: Check effective iOS distribution signing settings
         if: matrix.platform == 'ios'
         run: python3 -m unittest discover -s scripts/mobile-release -p test_ios_signing_settings.py
@@ -89,7 +91,8 @@ jobs:
           from pathlib import Path
           Path('android/key.properties').write_text('storeFile=' + os.environ['RUNNER_TEMP'] + '/build-only.jks\nstorePassword=android\nkeyPassword=android\nkeyAlias=build-only\n')
           PYTHON
-          flutter build apk --release --target-platform android-arm64 --split-per-abi --analyze-size --code-size-directory "$RUNNER_TEMP/mobile-code-size"
+          flutter build apk --no-pub --release --target-platform android-arm64 --split-per-abi --analyze-size --code-size-directory "$RUNNER_TEMP/mobile-code-size"
+          python3 ../../../../scripts/ci/check_android_entrypoint.py build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
       - name: Collect Android release size analysis
         if: matrix.platform == 'android'
         working-directory: apps/mobile/packages/forum_app
@@ -112,10 +115,11 @@ jobs:
           shutil.copy2(candidates[-1], artifact_dir / 'android-arm64-apk-size-analysis.json')
           apk = Path('build/app/outputs/flutter-apk/app-arm64-v8a-release.apk')
           metadata = {
-              'gitSha': os.environ['GITHUB_SHA'],
+              'gitSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'flutterVersion': json.loads(subprocess.check_output(['flutter', '--version', '--machine']))['frameworkVersion'],
               'buildMode': 'release',
               'targetPlatform': 'android-arm64',
+              'androidBuildConfigSha256': subprocess.check_output(['python3', '../../../../scripts/ci/check_android_apk_size.py', '--build-config-sha256'], text=True).strip(),
               'apkBytes': apk.stat().st_size,
           }
           (artifact_dir / 'build-metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
@@ -128,6 +132,10 @@ jobs:
           path: ${{ runner.temp }}/mobile-release-size/
           if-no-files-found: error
           retention-days: 90
+      - name: Check Android release APK size budget
+        if: matrix.platform == 'android'
+        run: |
+          python3 scripts/ci/check_android_apk_size.py "$RUNNER_TEMP/mobile-release-size/build-metadata.json"
       - name: Compile iOS APNs bridge
         if: matrix.platform == 'ios'
         working-directory: apps/mobile/packages/forum_app

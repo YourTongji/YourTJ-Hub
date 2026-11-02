@@ -30,6 +30,17 @@ export interface FindCandidateOptions {
   includeEnhanced?: boolean
 }
 
+function linkLabelWithTwemoji(anchor: HTMLAnchorElement): string {
+  if (!anchor.querySelector('img.twemoji')) return anchor.textContent?.trim() ?? ''
+  // Twemoji is text rendered as an image: recover its complete Unicode sequence
+  // before comparing URLs, without changing the live link or its fallback image.
+  const copy = anchor.cloneNode(true) as HTMLAnchorElement
+  for (const image of copy.querySelectorAll<HTMLImageElement>('img.twemoji')) {
+    image.replaceWith(document.createTextNode(image.dataset.emoji ?? image.alt))
+  }
+  return copy.textContent?.trim() ?? ''
+}
+
 export function findRenderedLinkCandidates(root: HTMLElement, options: FindCandidateOptions = {}): RenderedLinkCandidate[] {
   const candidates: RenderedLinkCandidate[] = []
   for (const paragraph of root.querySelectorAll<HTMLParagraphElement>('p')) {
@@ -39,12 +50,13 @@ export function findRenderedLinkCandidates(root: HTMLElement, options: FindCandi
     const elements = Array.from(paragraph.children)
     if (elements.length !== 1 || !(elements[0] instanceof HTMLAnchorElement)) continue
     const anchor = elements[0]
+    if (paragraph.textContent?.trim() !== anchor.textContent?.trim()) continue
+    if (anchor.querySelector('img:not(.twemoji)')) continue
     const href = safeUrl(anchor.getAttribute('href'), 'site-link')
-    const label = anchor.textContent?.trim()
+    const label = linkLabelWithTwemoji(anchor)
     const labelUrl = safeUrl(label, 'external')
-    if (!href || !labelUrl || paragraph.textContent?.trim() !== label) continue
+    if (!href || !labelUrl) continue
     if (new URL(href, document.baseURI).href !== new URL(labelUrl, document.baseURI).href) continue
-    if (anchor.querySelector('img')) continue
     candidates.push({ paragraph, anchor, url: href })
   }
   return candidates

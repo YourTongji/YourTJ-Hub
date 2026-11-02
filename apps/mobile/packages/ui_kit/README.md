@@ -29,6 +29,29 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 `GfUserCard` 的 `coloredBadges` 使用纯图标入口，保留名称语义、提示和详情回调；
 `GfAchievementCard` 使用同一徽章图案、居中名称与说明，随字号增高，点击详情由应用层处理。
 
+`Current`: `GfNavigationSurface` 为底部 Dock 和宽屏侧栏提供共用的半透明材质、模糊、
+高光与仅在轮廓外绘制的阴影；调用方提供有界尺寸和圆角。高对比度、减少动态效果和
+无障碍导航模式统一回退到不透明表面；组件不持有导航状态或手势。
+`GfNavigationBarSurface` 是贴边整宽底栏的磨砂材质（较薄着色、顶部细线与内侧高光），
+`GfNavigationMorphSurface` 在两种导航样式切换时把两种材质与形状混合在同一层模糊上。
+
+`Current`: `GfNavigationStyle`（`dock`／`bar`）经 `GfNavigationStyleScope` 下发，
+`GfBottomNavigation`、`heightFor` 与 `metricsOf` 读取同一作用域，页面内容避让与导航始终一致；
+也可用 `style` 参数单独指定（如设置预览）。样式变化时 Dock 胶囊与整宽底栏互相形变，
+目的地淡出淡入，各自状态保留；减少动态效果时立即切换。底栏的长按菜单从底栏上沿
+在该目的地上方展开，整条底栏不被遮罩，按住的目的地保持中性底板高亮。
+
+`Current`: `GfBottomNavigationItem.badgeCount` 可选；提供正数时显示封顶 `99+` 的计数，
+缺省沿用圆点。`GfCountBadge.showCount` 与 `GfConversationRow.showUnreadCount` 控制数字／圆点，
+业务层提供账号偏好；圆点不在辅助功能标签中泄露数量。`GfSwitchRow.enabled` 同时禁用行点击和原生开关。
+
+`Current`: `GfBadgedGlyph` 把未读圆点或计数胶囊嵌在导航图标的右上角（RTL 镜像），在图标上
+挖出细缝而不用描边，数字为等宽并随增减上下滚动；Dock 两层与宽屏侧栏共用。
+`GfBottomNavigationItem.menu` 按需构建 `GfDockMenuEntry` 列表：长按该目的地时
+`showGfDockMenu` 以根 Overlay（不推路由，以免取消仍按住的指针）在底部 Dock 上方、
+竖向侧栏的内容侧展开快捷菜单。`GfDockMenuPress` 共用长按及滑动松手选择手势；
+窗口、安全区、字号或键盘变化会取消旧锚点的菜单。组件不持有业务状态，选中与跳转由回调完成。
+
 ## Token 与主题规则
 
 - 主题数据来自 `lib/src/theme/tokens.json`(light/dark 双主题);`GfThemeData` 生成 `ThemeData`,`GfTheme.colorsOf(context)` 提供语义色。
@@ -71,7 +94,12 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 调用方不再叠加 `viewInsets`。`enableDrag: false` 可保护未保存的编辑。
 `showGfMenu` / `GfPopupMenuButton` / `showGfActionSheet`、`GfDropdownButton(FormField)`、`GfRadioListTile`
 在所有平台都使用 Material 呈现（见 MADR 0100）；`useRootNavigator` 选择根导航器或最近的导航器。
-`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用24px圆角、原生焦点和单层滚动内容；
+`GfPopupMenuItem.leading` 是可选的独立图标槽：在菜单和短选择底部面板中使用
+12dp 间隔与可换行标签。使用该槽时 `child` 只提供标签，不再重复包含图标；
+不传 `leading` 的纯文字或自定义 `Row` 保持原有布局。图标的大小和显式颜色由调用方保留。
+`destructive` 仍只控制短选择面板中的标签色；选中勾选、禁用与取消行为不变。
+
+`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用 28dp 圆角、原生焦点和单层滚动内容；
 `GfDialogAction` 显式标记破坏性动作。
 回归测试包含刘海、底部手势区、长列表和键盘；应用层补充小屏双倍字号表单测试。
 
@@ -104,3 +132,16 @@ icons use `GfSymbol` and retain at least 44px independent targets. Component-spe
 is owned here and does not change the Web/mobile token mirror.
 
 `GfGlassSurface` / `GfGlassIconButton` 为封面上的操作提供局部毛玻璃圆形底板、细描边和至少 44px 点击区域，沿用原有按钮语义。`GfUserCardHeader` 将封面、重叠头像和操作带放在同一绘制层，可用于折叠导航；`GfUserCard(showHeader: false)` 只展示后续资料。公开页与编辑页使用同一封面尺寸计算。
+
+## Mobile roles and gallery
+
+`Current`: `GfSpace`, `GfRadius`, `GfControl`, `GfIconSize`, `GfElevation` and `GfColorRoles`
+are the mobile component layer above the unchanged `tokens.json` palette mirror. Use role names for
+new controls rather than copying sizes or opacity constants. `GfRadii.standard` remains the Web token
+mirror for consumers that require that geometry. The UI typography ramp is independent of rich reading.
+
+`Current`: [the component gallery](example/README.md) runs as a separate preview with synthetic data.
+It includes foundation, input, overlay, content and sample-screen compositions in light and dark themes.
+For forms, use `GfListSection` on the grouped canvas; give icon rows its `iconRowIndent` separator inset.
+Interactive targets remain at least 44dp even when a control paints smaller. Production-page navigation,
+account boundaries and recovery still require the owning forum tests and simulator checks.

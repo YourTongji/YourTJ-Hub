@@ -237,89 +237,121 @@ ScrollPosition _position(WidgetTester tester) => tester
     .position;
 
 void main() {
-  testWidgets('feed display options lead each mode with its glyph', (
+  testWidgets('open Duo keeps one centered feed and one search entry', (
     tester,
   ) async {
-    await _mount(tester, _Pages());
-    await tester.tap(find.byTooltip('显示方式'));
+    final pages = _Pages();
+    final router = await _mount(tester, pages, size: const Size(951, 669));
+    final feed = tester.getRect(find.byType(GfTopicList));
+    expect(feed.width, 720);
+    expect(feed.center.dx, 951 / 2);
+    expect(find.byKey(const ValueKey('home-discovery-panel')), findsNothing);
+    expect(pages.calls, ['home:']);
+    await tester.tap(find.byTooltip('搜索'));
     await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/search');
+  });
+
+  testWidgets('feed toggle shows the destination layout glyph', (tester) async {
+    await _mount(tester, _Pages());
     for (final (label, symbol) in [
-      ('卡片', 'layout-grid'),
-      ('列表', 'list-square'),
+      ('切换为列表', 'list-square'),
+      ('切换为卡片', 'layout-grid'),
     ]) {
-      final row = find
-          .ancestor(of: find.text(label), matching: find.byType(Row))
-          .first;
+      final button = find.byTooltip(label);
       expect(
         find.descendant(
-          of: row,
+          of: button,
           matching: find.byWidgetPredicate(
             (widget) => widget is GfSymbol && widget.name == symbol,
           ),
         ),
         findsOneWidget,
-        reason: '$label option needs its leading $symbol glyph',
       );
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
     }
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'discovery retains untitled moments and respects cache clearing',
-    (tester) async {
-      final pages = _Pages()..hotMoment = true;
-      await _mount(tester, pages, size: const Size(1120, 900));
-      final panel = find.byKey(const ValueKey('home-discovery-panel'));
-      expect(
-        find.descendant(of: panel, matching: find.text('这是一条用于 smoke 测试的话题摘要')),
-        findsNWidgets(5),
-      );
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(HomePage)),
-      );
-      final calls = List<String>.of(pages.calls);
-      container.read(cacheClearEpochProvider.notifier).invalidate({
-        CacheCategory.forum,
-      });
-      await tester.pumpAndSettle();
-      expect(pages.calls, calls);
-      expect(
-        find.descendant(of: panel, matching: find.byType(CacheSnapshotHint)),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: panel, matching: find.text('这是一条用于 smoke 测试的话题摘要')),
-        findsNothing,
-      );
-    },
-  );
+  testWidgets('Hot remains reachable in the retained single feed', (
+    tester,
+  ) async {
+    final pages = _Pages()..hotMoment = true;
+    await _mount(
+      tester,
+      pages,
+      size: const Size(951, 669),
+      tickersEnabled: true,
+    );
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    expect(pages.calls.where((call) => call == 'home:hot'), hasLength(1));
+    expect(_feed(tester).topics.first.title, isEmpty);
+    expect(find.text('这是一条用于 smoke 测试的话题摘要'), findsWidgets);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(HomePage)),
+    );
+    final calls = List<String>.of(pages.calls);
+    container.read(cacheClearEpochProvider.notifier).invalidate({
+      CacheCategory.forum,
+    });
+    await tester.pumpAndSettle();
+    expect(pages.calls, calls);
+    expect(find.byType(CacheSnapshotHint), findsOneWidget);
+    expect(find.text('这是一条用于 smoke 测试的话题摘要'), findsNothing);
+  });
 
-  testWidgets(
-    'tablet discovery uses real hot feed and preserves reading on resize',
-    (tester) async {
-      final pages = _Pages();
-      final router = await _mount(tester, pages, size: const Size(1120, 900));
-      final panel = find.byKey(const ValueKey('home-discovery-panel'));
-      expect(panel, findsOneWidget);
-      expect(pages.calls.where((call) => call == 'home:hot'), hasLength(1));
-      expect(find.text('All hot 0'), findsOneWidget);
-      _position(tester).jumpTo(210);
-      await tester.pumpAndSettle();
-      final position = _position(tester);
-      final offset = position.pixels;
-      for (final width in [600.0, 1120.0]) {
-        tester.view.physicalSize = Size(width, 900);
-        await tester.pumpAndSettle();
-        expect(_position(tester), same(position));
-        expect(position.pixels, offset);
-        expect(pages.calls.where((call) => call == 'home:hot'), hasLength(1));
+  for (final right in [true, false]) {
+    testWidgets(
+      'wide Home absorbs the ${right ? 'right' : 'left'} safe area in its gutter',
+      (tester) async {
+        final padding = FakeViewPadding(
+          left: right ? 0 : 82,
+          right: right ? 82 : 0,
+        );
+        tester.view.padding = padding;
+        tester.view.viewPadding = padding;
+        await _mount(tester, _Pages(), size: const Size(951, 669));
+        final feed = tester.getRect(find.byType(GfTopicList));
+        final toolbar = tester.getRect(
+          find.byKey(const ValueKey('home-category-rail')),
+        );
+        expect(feed.width, 720);
+        expect(feed.left, (951 - 720) / 2);
+        expect(feed.right, 951 - (951 - 720) / 2);
+        expect(toolbar.left, feed.left);
+        expect(toolbar.right, feed.right);
         expect(tester.takeException(), isNull);
-      }
-      await tester.tap(find.byKey(const ValueKey('home-discovery-search')));
+      },
+    );
+  }
+
+  testWidgets('folding a single Home feed retains its reading position', (
+    tester,
+  ) async {
+    final pages = _Pages();
+    await _mount(tester, pages, size: const Size(951, 669));
+    _position(tester).jumpTo(210);
+    await tester.pumpAndSettle();
+    final position = _position(tester);
+    final calls = List<String>.of(pages.calls);
+    for (final size in [
+      const Size(466, 678),
+      const Size(669, 951),
+      const Size(951, 669),
+      const Size(1120, 900),
+    ]) {
+      tester.view.physicalSize = size;
       await tester.pumpAndSettle();
-      expect(router.state.uri.path, '/search');
-    },
-  );
+      expect(_position(tester), same(position));
+      expect(position.pixels, 210);
+      expect(pages.calls, calls);
+      expect(find.byKey(const ValueKey('home-discovery-panel')), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   testWidgets(
     'tablet categories stay above the feed and resize retains reading state',

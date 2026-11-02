@@ -17,6 +17,11 @@ cdn_url = ""
 # 容器内固定; 对外端口由 compose 的 MAIN_PORT/DEV_PORT 决定
 url = {{SERVER_URL}}
 port = 5234
+# 会话 Cookie 的 Secure 策略: auto(默认) 由 server.url 推导(https 或回环 host 带 Secure,
+# 明文非回环 host 不带，空/无 scheme/无法解析时保持 Secure 并告警), on/off 强制。
+# auto 依赖 server.url 带 scheme; 写成 10.0.0.5:5234 会被当作无法判定。
+# off 会让生产会话凭证走明文 http(CWE-614), 仅限内网或临时使用。
+cookieSecure = "auto"
 accessLog = false
 gzip = true
 # 信任的反向代理网段: nginx 容器在 compose 网络(默认 172.16.0.0/12)内访问本服务,

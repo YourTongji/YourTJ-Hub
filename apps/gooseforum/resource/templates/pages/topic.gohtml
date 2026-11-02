@@ -8,7 +8,7 @@
 <main class="gf-crawler-topic-page">
     <article class="gf-crawler-topic-head">
         {{if .Payload.Props.Topic.Title}}<h1>{{.Payload.Props.Topic.Title}}</h1>{{end}}
-        {{if .Payload.Props.Topic.Description}}<p class="gf-crawler-topic-summary">{{.Payload.Props.Topic.Description}}</p>{{end}}
+        {{with topicListDescription .Payload.Props.Topic.Description}}<p class="gf-crawler-topic-summary">{{.}}</p>{{end}}
         <p class="gf-crawler-post-meta">
             {{if .Payload.Props.Topic.Categories}}
             {{range .Payload.Props.Topic.Categories}}

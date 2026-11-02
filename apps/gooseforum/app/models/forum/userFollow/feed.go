@@ -1,6 +1,10 @@
 package userFollow
 
-import "context"
+import (
+	"context"
+
+	"gorm.io/gorm"
+)
 
 func FollowingAmong(ctx context.Context, viewer uint64, authors []uint64) (map[uint64]bool, error) {
 	out := map[uint64]bool{}
@@ -17,11 +21,16 @@ func FollowingAmong(ctx context.Context, viewer uint64, authors []uint64) (map[u
 
 // MutualState reads both active follow edges between two users in one query.
 func MutualState(viewer, owner uint64) (viewerFollows, ownerFollows bool, err error) {
+	return MutualStateWithDB(builder(), viewer, owner)
+}
+
+// MutualStateWithDB keeps an authorization read in its business transaction.
+func MutualStateWithDB(conn *gorm.DB, viewer, owner uint64) (viewerFollows, ownerFollows bool, err error) {
 	if viewer == 0 || owner == 0 || viewer == owner {
 		return false, false, nil
 	}
 	var rows []Entity
-	err = builder().Select("user_id", "follow_user_id").
+	err = conn.Model(&Entity{}).Select("user_id", "follow_user_id").
 		Where("status = 1 AND ((user_id = ? AND follow_user_id = ?) OR (user_id = ? AND follow_user_id = ?))", viewer, owner, owner, viewer).
 		Find(&rows).Error
 	for _, r := range rows {

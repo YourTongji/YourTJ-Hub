@@ -20,10 +20,26 @@ abstract final class AppConfig {
       '${isDev ? 'DEV' : 'PROD TEST'} ${sourceSha.length >= 7 ? sourceSha.substring(0, 7) : 'local'}';
 
   static void validate() {
+    validateValues(
+      environment: environment,
+      preview: preview,
+      apiBaseUrl: apiBaseUrl,
+      oidcIssuer: oidcIssuer,
+    );
+  }
+
+  @visibleForTesting
+  static void validateValues({
+    required String environment,
+    required bool preview,
+    required String apiBaseUrl,
+    required String oidcIssuer,
+  }) {
     if (environment != 'dev' && environment != 'production') {
       throw StateError('Unknown build environment');
     }
-    if (isDev &&
+    final isDevBuild = environment == 'dev';
+    if (isDevBuild &&
         (!preview ||
             apiBaseUrl != 'https://dev.yourtj.de' ||
             oidcIssuer != 'https://dev.yourtj.de/api/oauth')) {
@@ -31,7 +47,7 @@ abstract final class AppConfig {
         'Dev builds require dev API, OIDC and preview distribution',
       );
     }
-    if (!isDev && apiBaseUrl == 'https://dev.yourtj.de') {
+    if (!isDevBuild && apiBaseUrl == 'https://dev.yourtj.de') {
       throw StateError('Dev API requires the dev environment');
     }
   }

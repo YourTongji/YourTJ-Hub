@@ -31,7 +31,7 @@ func SendTest(endpoint pageConfig.HttpNotifyEndpoint, baseURI string, now time.T
 	if err != nil {
 		return errors.New(deliveryErrorMessage(err))
 	}
-	resp, err := sendRequest(req, endpointTimeout(endpoint))
+	resp, err := notifyFetch.DoNotify(req.Context(), req, endpointTimeout(endpoint))
 	if err != nil {
 		return errors.New(deliveryErrorMessage(err))
 	}

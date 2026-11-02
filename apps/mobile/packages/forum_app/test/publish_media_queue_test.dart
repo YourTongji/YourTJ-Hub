@@ -13,7 +13,6 @@ import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/images/image_upload.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
-import 'package:forum_app/src/pages/publish/publish_type.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:image_picker/image_picker.dart';
@@ -134,6 +133,14 @@ class _Pages extends PageRepository {
       });
 }
 
+/// Picker cells show only the image; their accessible label names them.
+Finder _pickerSticker(String label) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.label == label &&
+      widget.child is InkWell,
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   late ProviderContainer container;
@@ -239,13 +246,18 @@ void main() {
       final caret = editor.selection.baseOffset;
       expect(caret, greaterThan(7));
       final before = editor.document.toPlainText();
-      await tester.ensureVisible(find.text('Smile').last);
+      await tester.ensureVisible(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Smile').last);
+      await tester.tap(_pickerSticker('Smile').last);
       await tester.pumpAndSettle();
+      // Rich editors hold the pick as one sticker embed at the caret.
       expect(
         editor.document.toPlainText(),
-        before.replaceRange(caret, caret, '[:sticker:smile:]'),
+        before.replaceRange(caret, caret, '\uFFFC'),
+      );
+      expect(
+        editor.document.toDelta().toList().map((op) => op.data),
+        contains(equals({stickerEmbedType: 'smile'})),
       );
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(seconds: 1));
@@ -302,12 +314,6 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(files.names, ['first.jpg']);
-      expect(
-        tester
-            .widget<PublishTypeSwitcher>(find.byType(PublishTypeSwitcher))
-            .onChanged,
-        isNull,
-      );
       expect(
         tester
             .widget<PopScope>(

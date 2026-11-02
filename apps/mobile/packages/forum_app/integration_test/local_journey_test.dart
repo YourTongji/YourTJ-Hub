@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:core/core.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -13,10 +15,12 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:forum_app/src/app.dart';
 import 'package:forum_app/src/app_config.dart';
+import 'package:forum_app/src/startup_experience.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/push/push_service.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/pages/settings/profile_image_editor.dart';
 import 'package:forum_app/src/widgets/profile_image_crop.dart';
@@ -25,8 +29,13 @@ import 'package:forum_app/src/pages/settings/oauth_bindings_sheet.dart';
 
 /// Opt-in against an isolated, seeded local server. Never point this journey at
 /// a shared deployment: it signs in, saves a draft, and opens the real console.
-void main() {
+void main() => registerLocalJourney();
+
+/// Optional platform baseline for focused read/layout acceptance. The ordinary
+/// journey retains the real permission driver.
+void registerLocalJourney({PushDriver? pushDriver}) {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
   const username = String.fromEnvironment('YOURTJ_TEST_USERNAME');
   const password = String.fromEnvironment('YOURTJ_TEST_PASSWORD');
   final origin = Uri.tryParse(AppConfig.apiBaseUrl);
@@ -41,7 +50,12 @@ void main() {
       contains(origin!.host),
       reason: 'This test may only mutate an isolated local database',
     );
-    final container = ProviderContainer();
+    final container = ProviderContainer(
+      overrides: [
+        if (pushDriver != null)
+          pushDriverProvider.overrideWithValue(pushDriver),
+      ],
+    );
     await container.read(tokenStorageProvider).clear();
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -51,14 +65,35 @@ void main() {
     );
     appRouter.go('/login');
 
+    var captureSurfaceReady = false;
     Future<void> capture(String name) async {
       if (!const bool.fromEnvironment('YOURTJ_TEST_SCREENSHOTS')) return;
+      if (Platform.isAndroid && !captureSurfaceReady) {
+        await binding.convertFlutterSurfaceToImage();
+        captureSurfaceReady = true;
+      }
+      // Surface conversion can temporarily deactivate Android's Flutter view.
+      // Paint its new surface and wait for the actual foreground state.
       await tester.pump(const Duration(milliseconds: 300));
+      final activeDeadline = DateTime.now().add(const Duration(minutes: 3));
+      while (binding.lifecycleState != AppLifecycleState.resumed &&
+          DateTime.now().isBefore(activeDeadline)) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(
+        binding.lifecycleState,
+        AppLifecycleState.resumed,
+        reason: 'Dismiss system permission prompts before capturing the app',
+      );
       await binding.takeScreenshot(name);
     }
 
-    Future<void> until(bool Function() ready, String description) async {
-      final deadline = DateTime.now().add(const Duration(seconds: 30));
+    Future<void> until(
+      bool Function() ready,
+      String description, {
+      Duration timeout = const Duration(seconds: 30),
+    }) async {
+      final deadline = DateTime.now().add(timeout);
       while (!ready() && DateTime.now().isBefore(deadline)) {
         await tester.pump(const Duration(milliseconds: 200));
       }
@@ -78,7 +113,12 @@ void main() {
       () => find.byType(LoginPage).evaluate().isNotEmpty,
       'Login page opens',
     );
-    await tester.pump(const Duration(seconds: 1));
+    await until(
+      () =>
+          binding.lifecycleState == AppLifecycleState.resumed &&
+          !startupBrandCovering.value,
+      'The visible login surface is active after startup',
+    );
     await tester.enterText(find.byType(TextField).at(0), username);
     await tester.enterText(find.byType(TextField).at(1), password);
     final login = find.byWidgetPredicate(
@@ -92,10 +132,24 @@ void main() {
           find.byType(HomePage).evaluate().isNotEmpty,
       'Password login reaches home',
     );
+    debugPrint(
+      'NATIVE_PERMISSION_CHECKPOINT: dismiss system prompts on the isolated device',
+    );
+    await until(
+      () =>
+          binding.lifecycleState == AppLifecycleState.resumed &&
+          !startupBrandCovering.value,
+      'Dismiss native system permission prompts after sign-in',
+      timeout: const Duration(minutes: 3),
+    );
     expect(await container.read(tokenStorageProvider).read(), isNotEmpty);
+    debugPrint(
+      'Native surface: lifecycle=${binding.lifecycleState}, physical=${tester.view.physicalSize}, dpr=${tester.view.devicePixelRatio}',
+    );
+    await tester.pumpAndSettle();
     await capture('home');
 
-    appRouter.push('/publish');
+    appRouter.push('/publish?type=article');
     await until(
       () =>
           find.byType(PublishPage).evaluate().isNotEmpty &&
@@ -104,23 +158,41 @@ void main() {
     );
     final title =
         'Mobile device draft ${DateTime.now().millisecondsSinceEpoch}';
-    await tester.enterText(find.byType(TextField).first, title);
-    await tester.enterText(
-      find.byKey(const Key('publish-editor')),
-      'A local integration test of mobile content publishing.',
-    );
+    await tester.enterText(find.byKey(const Key('publish-title')), title);
+    // Quill owns a custom text client. Seed its public document, then exercise
+    // preview and server persistence through the actual native UI below.
+    final editor = find.byType(QuillEditor);
+    expect(editor, findsOneWidget);
+    const body = 'A local integration test of mobile content publishing.';
+    final document = tester.widget<QuillEditor>(editor).controller.document;
+    document.insert(0, body);
+    expect(document.toPlainText(), contains(body));
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('publish-appbar-submit')));
     await until(
       () => find.byKey(const Key('publish-preview')).evaluate().isNotEmpty,
       'Next opens the classification preview',
     );
-    final chips = find.byType(GfSelectTag);
-    await until(
-      () => chips.evaluate().isNotEmpty,
-      'Preview offers server categories',
+    final categoryMenu = find.byKey(const Key('publish-category-menu'));
+    await tester.ensureVisible(categoryMenu);
+    await tester.pumpAndSettle();
+    await tester.tap(categoryMenu);
+    final category = find.byWidgetPredicate(
+      (widget) =>
+          widget is MenuItemButton &&
+          widget.key is ValueKey<String> &&
+          (widget.key! as ValueKey<String>).value.startsWith(
+            'publish-category-',
+          ),
     );
-    await tester.ensureVisible(chips.first);
-    await tester.tap(chips.first);
+    await until(
+      () => category.evaluate().isNotEmpty,
+      'The category menu offers server categories',
+    );
+    await tester.tap(category.first);
+    await tester.tap(categoryMenu);
+    await tester.pumpAndSettle();
     await capture('publish-preview');
     final save = find.byKey(const Key('publish-save-draft'));
     await tester.ensureVisible(save);
@@ -238,6 +310,9 @@ void main() {
         loaded = ready == true || ready.toString() == 'true';
       }
     }
+    debugPrint(
+      'WebView metrics: ${await web.runJavaScriptReturningResult("JSON.stringify({width:innerWidth,height:innerHeight,scroll:document.documentElement.scrollWidth,dpr:devicePixelRatio,screen:screen.width})")}',
+    );
     expect(
       loaded,
       isTrue,
@@ -252,17 +327,24 @@ void main() {
             ? <String>[]
             : [
                 '/admin/users',
+                '/admin/feed-statistics',
                 '/admin/agents',
+                '/admin/agent-comment-policy',
                 '/admin/roles',
                 '/admin/categories',
                 '/admin/posts',
                 '/admin/links',
                 '/admin/wiki',
                 '/admin/sponsors',
+                '/admin/decorations',
+                '/admin/user-decorations',
                 '/admin/badges',
+                '/admin/stickers',
+                '/admin/sticker-market',
                 '/admin/files/resources',
                 '/admin/opt-records',
                 '/admin/review-queue',
+                '/admin/search',
                 '/admin/data',
                 '/admin/settings/site-chrome',
                 '/admin/settings/site-info',
@@ -279,6 +361,9 @@ void main() {
                 '/admin/settings/privacy',
                 '/admin/settings/onesystem',
                 '/admin/settings/schedule',
+                '/admin/settings/campus-calendar',
+                '/admin/settings/ai-moderation',
+                '/admin/unknown',
               ]) {
       await web.runJavaScript("window.location.assign('$path')");
       var ready = false;
@@ -375,7 +460,22 @@ void main() {
       final fits = await web.runJavaScriptReturningResult(
         'document.documentElement.scrollWidth <= window.innerWidth + 1',
       );
+      if (path == '/admin/badges') {
+        final glyphsFit = await web.runJavaScriptReturningResult(
+          "(()=>{const node=document.querySelector('button[title*=first_post] .truncate'); if(!node)return false; const range=document.createRange(); range.selectNodeContents(node); return range.getBoundingClientRect().width<=parseFloat(getComputedStyle(node).fontSize)*Array.from(node.textContent.trim()).length*1.25;})()",
+        );
+        expect(
+          glyphsFit == true || glyphsFit.toString() == 'true',
+          isTrue,
+          reason:
+              'Chinese badge text uses readable glyphs with normal advances',
+        );
+      }
+      await capture(path.replaceAll('/', '-'));
       if (fits != true && fits.toString() != 'true') {
+        debugPrint(
+          'Failed metrics $path: ${await web.runJavaScriptReturningResult("JSON.stringify({width:innerWidth,scroll:document.documentElement.scrollWidth,body:document.body.getBoundingClientRect().toJSON()})")}',
+        );
         debugPrint(
           (await web.runJavaScriptReturningResult(
             "JSON.stringify([...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>window.innerWidth+1).slice(0,12).map(e=>({tag:e.tagName,classes:e.className,width:e.getBoundingClientRect().width})))",

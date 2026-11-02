@@ -9,6 +9,7 @@ export 'gf_colors.dart';
 export 'gf_theme_extensions.dart';
 export 'gf_shadows.dart';
 export 'gf_typography.dart';
+export 'gf_design.dart';
 
 /// Convenience accessors for the Gf design-token theme extensions.
 ///

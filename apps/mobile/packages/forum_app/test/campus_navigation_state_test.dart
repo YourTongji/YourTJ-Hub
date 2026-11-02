@@ -99,6 +99,30 @@ class _DelayedResume extends FakeCampusRepository {
 }
 
 void main() {
+  for (final scale in [0.8, 1.0, 1.5, 2.0]) {
+    testWidgets('campus directory keeps scaled 900px boundary at $scale', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final threshold = 900 * (scale < 1 ? 1.0 : scale);
+      tester.view.physicalSize = Size(threshold - 1, 900);
+      await tester.pumpWidget(
+        campusTestApp(FakeCampusRepository(), scale: scale),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('campus-module-directory')), findsNothing);
+      final state = tester.state(find.byType(CampusPage));
+      tester.view.physicalSize = Size(threshold, 900);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('campus-module-directory')), findsOneWidget);
+      expect(tester.state(find.byType(CampusPage)), same(state));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    });
+  }
+
   testWidgets('iPad campus has persistent modules and a two-column today', (
     tester,
   ) async {

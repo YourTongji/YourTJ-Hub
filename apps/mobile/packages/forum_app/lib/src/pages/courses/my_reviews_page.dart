@@ -209,7 +209,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                   decoration: BoxDecoration(
                     color: colors.base100,
                     border: Border.all(color: colors.line),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(GfRadius.lg),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,9 +238,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: type.caption.copyWith(
-                                    color: colors.baseContent.withValues(
-                                      alpha: .55,
-                                    ),
+                                    color: colors.textSecondary,
                                   ),
                                 ),
                               ],
@@ -290,7 +288,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                                 ? l10n.myCourseReviewHidden
                                 : l10n.myCourseReviewUnavailable,
                             style: type.caption.copyWith(
-                              color: colors.baseContent.withValues(alpha: .55),
+                              color: colors.textSecondary,
                             ),
                           ),
                         ),

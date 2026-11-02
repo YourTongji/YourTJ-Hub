@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/google/uuid"
 )
 
@@ -48,12 +49,12 @@ type DirectUploadSession struct {
 }
 
 // CompleteDirectUploadRequest identifies the pending upload being completed or
-// aborted. Validator, when set, reads the uploaded object and validates its
-// content before the row is marked ready.
+// aborted. Validator, when set, reads the uploaded object and returns the
+// byte-authoritative content type before the row is marked ready.
 type CompleteDirectUploadRequest struct {
 	Name      string
 	UserId    uint64
-	Validator func(io.Reader, string) error
+	Validator func(io.Reader) (contentType string, err error)
 }
 
 // FileMetadata is the subset of file metadata rows the direct upload lifecycle
@@ -69,13 +70,17 @@ type FileMetadata struct {
 	UpdatedAt time.Time
 }
 
-// DirectUploadMetadataStore abstracts the pending/ready file metadata rows used
+// DirectUploadMetadataStore abstracts upload, copy and cleanup metadata rows used
 // by the direct upload lifecycle. Implemented by the file model package and
 // registered through RegisterDirectUploadMetadataStore to avoid an import cycle.
 type DirectUploadMetadataStore interface {
 	CreateFileMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*FileMetadata, error)
+	CreateFileCopyMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*FileMetadata, error)
 	GetPendingFileMetadataByName(ctx context.Context, name string) (*FileMetadata, error)
 	GetFileMetadataByName(ctx context.Context, name string) (*FileMetadata, error)
+	// PublishRenamedFileMetadata atomically retires the source pending row to
+	// cleanup and publishes the separately reserved copy. Only one caller wins.
+	PublishRenamedFileMetadata(ctx context.Context, oldName, newName string) (*FileMetadata, error)
 	MarkFileReady(ctx context.Context, name string) (*FileMetadata, error)
 	ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([]FileMetadata, error)
 	DeleteByName(ctx context.Context, name string) error
@@ -188,51 +193,83 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 		return nil, err
 	}
 	if request.Validator != nil {
-		// Validate only a bounded header: the object's full size and content
-		// type were already checked by VerifyUpload (StatObject), so the server
-		// never downloads the whole (up to the upload cap) object during a
-		// direct upload publish. Providers that support range reads are
-		// preferred; others fall back to a full Get.
-		headerReader, contentType, err := readObjectHeader(ctx, request.Name)
+		// Validate only a bounded header: the object's full size was already
+		// checked by VerifyUpload (StatObject), so the server never downloads
+		// the whole (up to the upload cap) object during a direct upload
+		// publish. Providers that support range reads are preferred; others
+		// fall back to reading the whole object.
+		headerReader, err := readObjectHeader(ctx, request.Name)
 		if err != nil {
 			return nil, err
 		}
-		validationErr := request.Validator(headerReader, contentType)
+		detectedType, validationErr := request.Validator(headerReader)
 		if validationErr != nil {
 			if errors.Is(validationErr, ErrDirectUploadInvalidObject) {
 				return nil, rollbackDirectUpload(ctx, metadataRepo, request.Name, validationErr)
 			}
 			return nil, validationErr
 		}
+		return normalizeDirectUploadType(ctx, metadataRepo, metadata, detectedType)
 	}
-	return metadataRepo.MarkFileReady(ctx, request.Name)
+	return metadataRepo.MarkFileReady(ctx, metadata.Name)
 }
 
-// ImageHeaderSniffBytes is the header window read for content validation of a
-// direct-uploaded object. Only enough bytes to sniff and decode an image
-// header are needed (a few hundred bytes in practice); 512KB is far more than
-// any supported format requires, and avoids downloading the whole object.
-const ImageHeaderSniffBytes = 512 * 1024
+// normalizeDirectUploadType publishes a verified upload. A type conflict uses a
+// unique copy key reserved in metadata before any object write. Failed copies
+// remain pending; a published copy leaves a cleanup row for the old key until
+// its object is deleted. CleanupPending can therefore retry either failure.
+func normalizeDirectUploadType(ctx context.Context, metadataRepo DirectUploadMetadataStore, metadata *FileMetadata, contentType string) (*FileMetadata, error) {
+	ext, ok := imagepolicy.ExtForContentType(contentType)
+	if !ok {
+		return nil, fmt.Errorf("detected content type %q has no canonical extension", contentType)
+	}
+	if declaredType, known := imagepolicy.ContentTypeForFilename(metadata.Name); known && declaredType == contentType {
+		return metadataRepo.MarkFileReady(ctx, metadata.Name)
+	}
+	data, _, err := Current().Get(ctx, metadata.Name)
+	if err != nil {
+		return nil, fmt.Errorf("read direct upload object %q: %w", metadata.Name, err)
+	}
+	// Each attempt owns a different key, so rolling back a losing copy cannot
+	// delete a winner's object. Reserve its cleanup record before writing bytes.
+	newName := NewUploadName("image"+ext, path.Dir(metadata.Name))
+	if _, err := metadataRepo.CreateFileCopyMetadata(ctx, metadata.UserId, newName, contentType, metadata.Size); err != nil {
+		return nil, fmt.Errorf("reserve renamed direct upload %q: %w", newName, err)
+	}
+	if err := Current().Save(ctx, newName, data, contentType); err != nil {
+		return nil, rollbackDirectUpload(ctx, metadataRepo, newName, fmt.Errorf("save renamed direct upload object %q: %w", newName, err))
+	}
+	renamed, err := metadataRepo.PublishRenamedFileMetadata(ctx, metadata.Name, newName)
+	if err != nil {
+		// A commit can succeed even when its acknowledgement fails. Do not
+		// delete this copy here: its pending row is swept, or it is already ready.
+		return nil, fmt.Errorf("rename direct upload metadata %q: %w", metadata.Name, err)
+	}
+	// Keep the retired key tracked until expiry even if deletion succeeds: an
+	// already issued presigned POST can still write the old key again meanwhile.
+	_ = Current().Delete(ctx, metadata.Name)
+	return renamed, nil
+}
 
 // readObjectHeader returns a reader over a bounded prefix of the object. When
 // the provider implements ObjectRangeReader the server only pulls the header
 // bytes; otherwise it falls back to reading the whole object and truncating.
-func readObjectHeader(ctx context.Context, name string) (io.Reader, string, error) {
+func readObjectHeader(ctx context.Context, name string) (io.Reader, error) {
 	if rangeReader, ok := Current().(ObjectRangeReader); ok {
-		data, contentType, err := rangeReader.GetRange(ctx, name, 0, ImageHeaderSniffBytes)
+		data, _, err := rangeReader.GetRange(ctx, name, 0, imagepolicy.ImageHeaderSniffBytes)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		return bytes.NewReader(data), contentType, nil
+		return bytes.NewReader(data), nil
 	}
-	data, contentType, err := Current().Get(ctx, name)
+	data, _, err := Current().Get(ctx, name)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	if int64(len(data)) > ImageHeaderSniffBytes {
-		data = data[:ImageHeaderSniffBytes]
+	if len(data) > imagepolicy.ImageHeaderSniffBytes {
+		data = data[:imagepolicy.ImageHeaderSniffBytes]
 	}
-	return bytes.NewReader(data), contentType, nil
+	return bytes.NewReader(data), nil
 }
 
 // AbortDirectUpload verifies ownership and removes both the object and the
@@ -267,8 +304,8 @@ func DeleteDirectUpload(ctx context.Context, name string) error {
 	return rollbackDirectUpload(ctx, metadataRepo, name, nil)
 }
 
-// CleanupPending removes pending uploads older than before, deleting their
-// objects and rows. Returns the number of uploads removed.
+// CleanupPending removes unpublished uploads/copies and retired source keys
+// older than before, deleting objects before rows. Ready uploads are excluded.
 func CleanupPending(ctx context.Context, before time.Time, limit int) (int, error) {
 	metadataRepo := metadataStore()
 	if metadataRepo == nil {

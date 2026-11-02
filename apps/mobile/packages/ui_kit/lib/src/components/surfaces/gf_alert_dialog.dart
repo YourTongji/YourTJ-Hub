@@ -14,12 +14,17 @@ Future<T?> showGfAlertDialog<T>(
     useRootNavigator: true,
     barrierColor: Theme.of(context).colorScheme.scrim,
     builder: (context) => Dialog(
-      backgroundColor: GfTheme.colorsOf(context).base100,
+      backgroundColor: GfTheme.colorsOf(context).surfaceRaised,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(GfRadius.xl),
+      ),
       clipBehavior: Clip.antiAlias,
-      insetPadding: const EdgeInsets.all(16),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: GfSpace.xxl,
+        vertical: GfSpace.xxl,
+      ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
         child: Builder(builder: builder),
@@ -46,8 +51,14 @@ class GfAlertDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
+    final typography = GfTheme.typographyOf(context);
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(
+        GfSpace.xxl,
+        GfSpace.xxl,
+        GfSpace.xxl,
+        GfSpace.xl,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -62,23 +73,18 @@ class GfAlertDialog extends StatelessWidget {
                     Semantics(
                       namesRoute: true,
                       child: DefaultTextStyle.merge(
-                        style: TextStyle(
-                          color: colors.baseContent,
-                          fontSize: 20,
-                          height: 1.3,
-                          fontWeight: FontWeight.w700,
+                        style: typography.title2.copyWith(
+                          color: colors.textPrimary,
                         ),
                         child: title!,
                       ),
                     ),
-                    if (content != null) const SizedBox(height: 12),
+                    if (content != null) const SizedBox(height: GfSpace.sm),
                   ],
                   if (content != null)
                     DefaultTextStyle.merge(
-                      style: TextStyle(
-                        color: colors.baseContent,
-                        fontSize: 15,
-                        height: 1.45,
+                      style: typography.small.copyWith(
+                        color: colors.textSecondary,
                       ),
                       child: content!,
                     ),
@@ -87,14 +93,29 @@ class GfAlertDialog extends StatelessWidget {
             ),
           ),
           if (actions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            OverflowBar(
-              alignment: MainAxisAlignment.end,
-              overflowAlignment: OverflowBarAlignment.end,
-              spacing: 8,
-              overflowSpacing: 8,
-              children: actions,
-            ),
+            const SizedBox(height: GfSpace.xxl),
+            // One or two actions share the width; more stack vertically with
+            // the confirming action first.
+            if (actions.length <= 2)
+              Row(
+                children: [
+                  for (int i = 0; i < actions.length; i++) ...[
+                    if (i > 0) const SizedBox(width: GfSpace.md),
+                    Expanded(child: actions[i]),
+                  ],
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int i = actions.length - 1; i >= 0; i--) ...[
+                    if (i < actions.length - 1)
+                      const SizedBox(height: GfSpace.sm),
+                    actions[i],
+                  ],
+                ],
+              ),
           ],
         ],
       ),
@@ -118,15 +139,28 @@ class GfDialogAction extends StatelessWidget {
   final bool filled;
 
   @override
-  Widget build(BuildContext context) => filled
-      ? FilledButton(onPressed: onPressed, child: child)
-      : TextButton(
-          onPressed: onPressed,
-          style: destructive
-              ? TextButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.error,
-                )
-              : null,
-          child: child,
-        );
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final (Color background, Color foreground) = switch ((
+      filled,
+      destructive,
+    )) {
+      (true, true) => (colors.error, colors.errorContent),
+      (true, false) => (colors.primary, colors.primaryContent),
+      (false, true) => (colors.fill, colors.error),
+      (false, false) => (colors.fill, colors.textPrimary),
+    };
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        disabledBackgroundColor: colors.fill,
+        disabledForegroundColor: colors.textDisabled,
+        minimumSize: const Size(64, GfControl.large),
+        padding: const EdgeInsets.symmetric(horizontal: GfSpace.lg),
+      ),
+      child: child,
+    );
+  }
 }

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-18
+> Last verified: 2026-10-22
 
 ## Supported behavior
 
@@ -16,7 +16,19 @@ notifications, profiles, course reviews, Wiki content, and other app text share
 the renderer. Unicode remains the stored and transmitted content; rendering does
 not rewrite existing or new content.
 
-The pinned release contributes 4,008 official 72×72 PNGs. A generated sequence
+The renderer follows Unicode 17.0 `Emoji_Presentation` defaults. A character
+whose default style is text stays Unicode text unless a valid `FE0F` variation
+sequence requests Emoji style; `FE0E` keeps text style. This preserves readable
+text forms such as bare ©, ®, ™, and ♥, while their explicit Emoji variants
+continue to use Twemoji artwork. The Unicode 17.0 default-presentation data is
+kept in the manifest generator and shared with both runtimes.
+
+The Taiwan regional flag sequence (`🇹🇼`, `1f1f9-1f1fc`) remains its original
+Unicode text and uses the system font fallback. Its PNG is excluded from the
+asset source, generated Web output, manifest, and Flutter sequence map. Other
+regional flag sequences continue to use Twemoji.
+
+The pinned release contributes 4,007 official 72×72 PNGs. A generated sequence
 manifest is shared by Web and Flutter; both match complete sequences, including
 ZWJ families and professions, variation selectors, skin tones, regional flags,
 keycaps, and tag sequences. The longest complete matching sequence wins. A
@@ -43,6 +55,10 @@ images retain the original Unicode in their `alt` text and fall back to text on
 load failure. Text fields remain native Flutter controls during IME
 composition; their post-submit display uses the shared renderer.
 
+Web Vue template text and interpolations use the shared `TwemojiText` component.
+The home topic list, card preview, and delayed hover preview share this renderer,
+so titles and summaries keep the same Emoji presentation across feed views.
+
 ## Boundaries
 
 `Partial`: The operating system draws notification center content, native
@@ -63,9 +79,11 @@ Both license texts and required attribution are retained with the assets:
 [MIT](../../apps/mobile/packages/ui_kit/assets/twemoji-licenses/LICENSE-MIT.txt),
 [CC BY 4.0](../../apps/mobile/packages/ui_kit/assets/twemoji-licenses/LICENSE-CC-BY-4.0.txt),
 and [attribution](../../apps/mobile/packages/ui_kit/assets/twemoji-licenses/ATTRIBUTION.md).
-The asset inventory records the generator command.
+The asset inventory records the generator command. The default-presentation
+table is derived from [Unicode 17.0 `emoji-data.txt`](https://www.unicode.org/Public/17.0.0/ucd/emoji/emoji-data.txt),
+which distinguishes `Emoji` from `Emoji_Presentation`.
 
-The pinned 4,008 PNGs total **4,247,435 bytes (4.051 MiB)** as source files. The generated
+The pinned 4,007 PNGs total **4,247,021 bytes (4.051 MiB)** as source files. The generated
 Web asset tree and Flutter bundle include the same PNG set. The Android release
 workflow records the arm64 APK byte count and size-analysis artifact for each
 build; the compressed APK/IPA increment depends on the platform build and is
@@ -77,4 +95,5 @@ not equal to the source-file total.
 - [Web renderer tests](../../apps/gooseforum/resource/test/twemoji.test.ts)
 - [Flutter UI Kit Twemoji tests](../../apps/mobile/packages/ui_kit/test/gf_twemoji_test.dart)
 - [Asset generator](../../apps/mobile/packages/ui_kit/tool/generate_twemoji_manifest.mjs)
+- [Unicode default-text source data](../../apps/mobile/packages/ui_kit/tool/data/unicode-emoji-17-default-text.txt)
 - [Mobile CI size artifact](../../.github/workflows/ci-mobile-native.yml)

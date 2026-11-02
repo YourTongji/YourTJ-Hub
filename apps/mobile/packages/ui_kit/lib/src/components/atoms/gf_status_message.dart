@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 import '../../twemoji/twemoji_text.dart';
+import 'gf_alert.dart';
 
 /// Inline status message, mirroring web `.gf-status-message` (components.css):
 /// radius 6, px-3 py-2, 14px w500. Tint fills use the 10% alpha semantic color.
@@ -27,29 +28,21 @@ class GfStatusMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-
-    final (Color background, Color foreground) = switch (variant) {
-      GfStatusMessageVariant.error => (
-        colors.error.withValues(alpha: 0.10),
-        colors.error,
-      ),
-      GfStatusMessageVariant.success => (
-        colors.success.withValues(alpha: 0.10),
-        colors.success,
-      ),
+    final GfTone tone = switch (variant) {
+      GfStatusMessageVariant.error => GfTone.error,
+      GfStatusMessageVariant.success => GfTone.success,
     };
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(6),
-      ),
+    return GfAlert(
+      tone: tone,
+      symbol: variant == GfStatusMessageVariant.error
+          ? 'circle-alert'
+          : 'circle-check',
+      padding: const EdgeInsets.symmetric(horizontal: GfSpace.md, vertical: 10),
       child: GfText(
         message,
         style: TextStyle(
-          color: foreground,
-          fontSize: 14,
+          color: colors.toneOnSoft(tone),
           fontWeight: FontWeight.w500,
         ),
       ),

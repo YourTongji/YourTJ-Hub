@@ -5,6 +5,9 @@ import 'package:home_widget/home_widget.dart';
 
 import 'schedule_widget_projection.dart';
 
+/// Home-screen widgets the app can ask the launcher to place.
+enum ScheduleWidgetKind { nextClass, today, timeline }
+
 class ScheduleWidgetBridge {
   static const appGroupId = 'group.tj.yourtj.forumApp.widgets';
   static const projectionKey = 'schedule_widget_projection';
@@ -21,8 +24,32 @@ class ScheduleWidgetBridge {
   static const _timelineReceiver =
       'tj.yourtj.forum_app.widget.CourseTimelineWidgetReceiver';
 
+  static const _receivers = {
+    ScheduleWidgetKind.nextClass: _nextReceiver,
+    ScheduleWidgetKind.today: _todayReceiver,
+    ScheduleWidgetKind.timeline: _timelineReceiver,
+  };
+
+  /// Android 8+ launchers may place a widget on request. iOS has no such API;
+  /// users add widgets from the Home Screen gallery.
+  Future<bool> canRequestPin() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await HomeWidget.isRequestPinWidgetSupported() ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Opens the launcher's placement dialog; the user still confirms there.
+  Future<void> requestPin(ScheduleWidgetKind kind) =>
+      HomeWidget.requestPinWidget(qualifiedAndroidName: _receivers[kind]);
+
   int generation = 0;
   Future<void> _tail = Future.value();
+
+  /// Latest timetable blocks per account scope, from the app's local store.
+  final _blocks = <String, List<ScheduleWidgetBlock>>{};
   void invalidate() => generation++;
 
   /// The native widget container is shared by dev and production app installs.
@@ -51,9 +78,47 @@ class ScheduleWidgetBridge {
     });
   }
 
-  Future<void> _write(ScheduleWidgetProjection projection) async {
+  /// Publishes the user's own blocks: the stored projection is laid out
+  /// again now, and every later school refresh carries them.
+  Future<void> setBlocks(
+    String accountScope,
+    List<ScheduleWidgetBlock> blocks,
+  ) {
+    final previous = _blocks[accountScope];
+    if (previous != null && _sameBlocks(previous, blocks)) {
+      return Future.value();
+    }
+    _blocks[accountScope] = List.unmodifiable(blocks);
+    final fence = generation;
+    return _serialize(() async {
+      if (fence != generation) return;
+      final current = await read();
+      if (current?.identity.accountScope != accountScope) return;
+      await _write(current!);
+    });
+  }
+
+  static bool _sameBlocks(
+    List<ScheduleWidgetBlock> a,
+    List<ScheduleWidgetBlock> b,
+  ) =>
+      jsonEncode([for (final x in a) x.toJson()]) ==
+      jsonEncode([for (final x in b) x.toJson()]);
+
+  Future<void> _write(ScheduleWidgetProjection published) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
     await HomeWidget.setAppGroupId(appGroupId);
+    var projection = published;
+    final scope = projection.identity.accountScope;
+    // Before the local store loads, keep the blocks already published.
+    final blocks =
+        _blocks[scope] ??
+        switch (await read()) {
+          final stored? when stored.identity.accountScope == scope =>
+            stored.blocks,
+          _ => null,
+        };
+    if (blocks != null) projection = projection.withBlocks(blocks);
     final encoded = projection.encode();
     await HomeWidget.saveWidgetData<String>(_temporaryKey, encoded);
     final staged = await HomeWidget.getWidgetData<String>(_temporaryKey);

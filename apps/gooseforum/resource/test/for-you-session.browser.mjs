@@ -47,6 +47,7 @@ async function setupPage(width, { failRefresh = false, expired = false, empty = 
     if (path.endsWith('/feed/events')) { applySeen(data.seenPatches); return json(route, { code: 0, result: data.seenPatches?.length ? { seenConfirmed: true } : true }) }
     if (path.endsWith('/feed/reconcile')) {
       state.reconciles++
+      if (state.reconcileDelay) await new Promise((resolve) => setTimeout(resolve, state.reconcileDelay))
       const ids = data.topicIds.filter((id) => !state.removed.includes(id))
       const proofs = []
       for (let i = 0; i < ids.length; i += 20) { const group = ids.slice(i, i + 20); const token = `reconciled-${state.reconciles}-${i}`; state.tokens.set(token, group); proofs.push(proof(group, token)) }
@@ -170,6 +171,13 @@ test('a removed scroll anchor advances to the next surviving card without rerank
     await page.locator('[data-feed-id="10"] a[href="/p/post/10"]').first().click()
     await page.locator('[data-testid="detail"]').waitFor()
     state.removed = [10]
+    state.reconcileDelay = 500
+    // History restoration can reach the next animation frame after the
+    // activation reconcile timer on a busy or throttled browser.
+    await page.evaluate(() => {
+      const frame = window.requestAnimationFrame.bind(window)
+      window.requestAnimationFrame = (callback) => frame((time) => setTimeout(() => callback(time), 300))
+    })
     await page.goBack()
     await page.waitForFunction(() => !document.querySelector('[data-feed-id="10"]'))
     await page.waitForFunction(() => {
@@ -177,6 +185,7 @@ test('a removed scroll anchor advances to the next surviving card without rerank
       return next && Math.abs(next.getBoundingClientRect().top - 80) < 3
     })
     assert.equal(state.firstPages, 0); assert.equal(state.refreshes.length, 0)
+    await page.screenshot({ path: join(screenshots, 'removed-anchor-390.png'), animations: 'disabled' })
   } finally { await page.close() }
 })
 

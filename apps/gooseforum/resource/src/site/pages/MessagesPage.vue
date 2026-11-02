@@ -11,6 +11,7 @@ import { maskPersonalStickerTokens, parseStickerSegments, stickerPreviewLabel } 
 import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import UserAvatar from '@/site/components/UserAvatar.vue'
+import UnreadIndicator from '@/site/components/UnreadIndicator.vue'
 import ForwardedMessageCard from '@/site/components/ForwardedMessageCard.vue'
 import type { ChatItemPayload, LayoutPayload, MessagesPageProps, UserConnectionPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
@@ -332,11 +333,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
             >
               <span class="relative h-10 w-10 shrink-0">
                 <UserAvatar :frame="conversation.peerDecoration?.avatarFrame" :src="conversation.peerAvatar" :alt="conversation.peerUsername" class="h-10 w-10 rounded-full object-cover ring-1 ring-line" />
-                <span
-                  v-if="conversation.unreadCount"
-                  class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-error/100 ring-2 ring-base-100"
-                  aria-hidden="true"
-                />
+                <UnreadIndicator :unread="conversation.unreadCount > 0" :count="conversation.unreadCount" :badge-style="unreadStatus.badgeStyle.value" class="absolute -right-0.5 -top-0.5 ring-2 ring-base-100" />
               </span>
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline justify-between gap-2">

@@ -118,6 +118,87 @@ test('home shows the personal day and latest messages without loading academic r
   } finally { wrapper.unmount() }
 })
 
+function creditSetup(completed: string | undefined, required: string | undefined) {
+  const wrapper = setup()
+  const original = api.dataset.getMockImplementation()!
+  api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({ ...await original(key),
+    metrics: key === 'summary' ? [
+      ...(required === undefined ? [] : [{ label: '要求学分', value: required, unit: '学分' }]),
+      ...(completed === undefined ? [] : [{ label: '已修学分', value: completed, unit: '学分' }]),
+    ] : key === 'grades' ? [{ label: '已获学分', value: '60', unit: '学分' }] : [],
+  }))
+  return wrapper
+}
+
+test.each([undefined, '', ' \t ', 'N/A', 'NaN', 'Infinity', '-Infinity'])(
+  'academic progress does not turn unknown completed credits (%s) into zero', async completed => {
+    const wrapper = creditSetup(completed, '160')
+    try {
+      await flushPromises()
+      await clickTab(wrapper, '学业记录')
+      expect(wrapper.text()).toContain('160')
+      expect(wrapper.text()).toContain('60')
+      expect(wrapper.text()).not.toContain('学分进度')
+      expect(wrapper.text()).not.toContain('0 / 160 学分')
+    } finally { wrapper.unmount() }
+  },
+)
+
+test.each([undefined, '', ' \t ', 'N/A', 'NaN', 'Infinity', '-Infinity', '0', '-160'])(
+  'academic progress requires a known positive total (%s)', async required => {
+    const wrapper = creditSetup('40', required)
+    try {
+      await flushPromises()
+      await clickTab(wrapper, '学业记录')
+      expect(wrapper.text()).toContain('40')
+      expect(wrapper.text()).not.toContain('学分进度')
+    } finally { wrapper.unmount() }
+  },
+)
+
+test.each([
+  { completed: '0', display: '0', width: '0%' },
+  { completed: '0.00', display: '0', width: '0%' },
+  { completed: ' 40.5 ', display: '40.5', width: '25.3125%' },
+  { completed: '200', display: '200', width: '100%' },
+  { completed: '-2', display: '-2', width: '0%' },
+])('academic progress preserves known credits and bounds its bar: $completed', async ({ completed, display, width }) => {
+  const wrapper = creditSetup(completed, '160')
+  try {
+    await flushPromises()
+    await clickTab(wrapper, '学业记录')
+    expect(wrapper.text()).toContain(`${display} / 160 学分`)
+    expect(wrapper.get('.h-2 > div').attributes('style')).toBe(`width: ${width};`)
+  } finally { wrapper.unmount() }
+})
+
+test('academic progress clears missing credits after refresh and restores an explicit zero', async () => {
+  const wrapper = creditSetup('40', '160')
+  const original = api.dataset.getMockImplementation()!
+  let completed: string | undefined = '40'
+  api.dataset.mockImplementation(async (key: CampusDatasetKey) => {
+    const value = await original(key)
+    if (key !== 'summary') return value
+    return { ...value, metrics: [
+      { label: '要求学分', value: '160', unit: '学分' },
+      ...(completed === undefined ? [] : [{ label: '已修学分', value: completed, unit: '学分' }]),
+    ] }
+  })
+  try {
+    await flushPromises()
+    await clickTab(wrapper, '学业记录')
+    expect(wrapper.text()).toContain('40 / 160 学分')
+    completed = undefined
+    await wrapper.get('button[aria-label="刷新校园数据"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('学分进度')
+    completed = '0'
+    await wrapper.get('button[aria-label="刷新校园数据"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('0 / 160 学分')
+  } finally { wrapper.unmount() }
+})
+
 test('refresh after another tab changes identity clears the old identity even when new data fails', async () => {
   const wrapper = setup()
   try {

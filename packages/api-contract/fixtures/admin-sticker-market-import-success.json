@@ -1,0 +1,25 @@
+{
+  "result": {
+    "id": 9202,
+    "source": "fluxdo",
+    "upstreamId": "group-2",
+    "name": "Pack Two",
+    "topic": "anime",
+    "upstreamCount": 2,
+    "archived": false,
+    "missing": false,
+    "status": "queued",
+    "published": false,
+    "sortOrder": 0,
+    "itemCount": 0,
+    "failedCount": 0,
+    "importTotal": 0,
+    "lastError": "",
+    "coverUrl": "",
+    "iconUrl": "/api/admin/sticker-market-cover?id=9202",
+    "iconText": "",
+    "syncedAt": "2026-10-29T08:00:00Z",
+    "importedAt": null
+  },
+  "code": 0
+}

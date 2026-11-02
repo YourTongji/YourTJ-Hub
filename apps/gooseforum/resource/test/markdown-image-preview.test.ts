@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
-import { getMarkdownImagePreview } from '@/runtime/markdown-image-preview'
+import { getMarkdownImagePreview, getMarkdownSticker } from '@/runtime/markdown-image-preview'
 
 afterEach(() => { document.body.innerHTML = '' })
 
@@ -67,5 +67,23 @@ describe('Markdown image preview boundaries', () => {
     const preview = getMarkdownImagePreview(first)!
     expect(preview.images[0]).toEqual({ src: 'https://cdn.example.test/photo-large.png', alt: 'Photo one' })
     expect(preview.index).toBe(0)
+  })
+})
+
+describe('Markdown sticker card target', () => {
+  it('opens renderer-marked stickers only', () => {
+    const byId = images()
+    expect(getMarkdownSticker(byId('official'))).toEqual({ name: 'smile', src: expect.stringContaining('/official.png') })
+    expect(getMarkdownSticker(byId('personal'))?.name).toBe('u_abc')
+    for (const id of ['first', 'emoji', 'second']) expect(getMarkdownSticker(byId(id))).toBeNull()
+  })
+
+  it('ignores author-written sticker alt text and linked stickers', () => {
+    document.body.innerHTML = `<div class="gf-prose-post">
+      <img id="fake" src="/same.png" alt="sticker:smile">
+      <a href="https://example.test"><img id="linked" src="/s.png" data-gf-sticker="smile"></a>
+    </div>`
+    expect(getMarkdownSticker(document.getElementById('fake'))).toBeNull()
+    expect(getMarkdownSticker(document.getElementById('linked'))).toBeNull()
   })
 })

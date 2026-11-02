@@ -13,7 +13,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/httputil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
@@ -23,11 +22,13 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
 )
 
 func GetFileByFileName(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 	filename := c.Param("filename")
 	if filename == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -37,20 +38,27 @@ func GetFileByFileName(c *gin.Context) {
 		return
 	}
 	filename = strings.TrimPrefix(filename, "/")
-	// 附件引用被标记为 RECOVERING（内容删除后 30 天窗口）或 PURGED 时不再允许公开下载。
-	// 已删除内容的附件只应在恢复（回 ACTIVE）后重新可见；RECOVERING 只是为清理协调保留引用，
-	// 不构成公开访问授权。
+	// Reads must be reauthorized after publication, withdrawal or deletion.
 	referenceName := filedata.ReferenceName(filename)
-	privatePreview := false
-	if fileusageservice.HasAnyReferences(referenceName) && !fileusageservice.HasActiveReferences(referenceName) {
-		// 待审内容（issue #975）的图片对匿名与其他用户 fail-closed；上传者本人与
-		// 有审核权限的站点管理员可授权预览（不进入任何共享缓存）。
-		privatePreview = fileusageservice.HasPendingReferences(referenceName) && canPreviewPendingFile(c, referenceName)
+	access, err := fileusageservice.ResolveReadAccess(referenceName)
+	if err != nil {
+		c.Status(http.StatusServiceUnavailable)
+		return
+	}
+	// 只有已登记 usage、又不构成公开授权的文件才判权。完全没有 usage 行的历史文件
+	// （迁移前的帖子图片等）没有 upload_owner 行，保持公开可读；头像、官方贴纸、装扮／
+	// 徽章资源有各自的公开引用，个人贴纸在审核通过前是 PENDING（同样不公开）。
+	if access.Tracked && !access.Public {
+		c.Header("Cache-Control", "private, no-store")
+		privatePreview := false
+		if access.Pending {
+			privatePreview = canPreviewPendingFile(c, referenceName)
+		} else if !access.Content && access.UploadOwnerID != 0 {
+			// 已上传但从未被任何内容引用（issue #1365）：只对上传者本人可见。
+			privatePreview = previewUserID(c) == access.UploadOwnerID
+		}
 		if !privatePreview {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":       "File not found",
-				"messageCode": component.MessagePageNotFound,
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "File not found", "messageCode": component.MessagePageNotFound})
 			return
 		}
 	}
@@ -63,8 +71,14 @@ func GetFileByFileName(c *gin.Context) {
 		})
 		return
 	}
-	// 响应类型由存储对象名的规范化扩展名权威决定（issue #408），不采信
-	// 客户端声明或行内 assert_type——合法图片对象名必然带可映射扩展名。
+	// Market sticker objects are named by their content hash, so the bytes behind
+	// a public name never change. A one-day public lifetime lets Web and the app
+	// reuse them while bounding how long a withdrawn image stays cached (issue #1429).
+	if access.Public && strings.HasPrefix(referenceName, stickerservice.MarketAssetPrefix) {
+		c.Header("Cache-Control", "public, max-age=86400")
+	}
+	// 响应类型由存储对象名的规范化扩展名权威决定（issue #408）：对象名在入库时已按
+	// 文件头判定的真实类型改写（issue #1393），因此名字扩展名即真实类型，无需嗅探。
 	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
 	if !ok {
 		// 未知/危险对象（历史残留、无扩展名等）：octet-stream + 附件下载，
@@ -82,19 +96,23 @@ func GetFileByFileName(c *gin.Context) {
 		}
 		c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": base}))
 	}
-	if privatePreview {
-		c.Header("Cache-Control", "private, no-store")
-	} else {
-		httputil.SetLongPublic(c)
-	}
 	c.Data(http.StatusOK, contentType, entity.Data)
 }
 
-// canPreviewPendingFile 待审图片的授权预览：仅在文件已处于待审状态时才解析会话
-// （不刷新令牌、不记活跃），普通公开图片读取路径不受影响。
-func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
+// previewUserID 解析授权预览的会话用户，匿名或无效令牌返回 0。只在私有读取
+// 分支调用（不刷新令牌、不记活跃），普通公开图片读取路径不受影响。
+func previewUserID(c *gin.Context) uint64 {
 	userID, _, _, ok := authsessionservice.ValidateToken(jwtopt.GetGinAccessToken(c))
-	if !ok || userID == 0 {
+	if !ok {
+		return 0
+	}
+	return userID
+}
+
+// canPreviewPendingFile 待审图片的授权预览：仅在有权限的会话下放行。
+func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
+	userID := previewUserID(c)
+	if userID == 0 {
 		return false
 	}
 	if owner := filedata.GetByName(referenceName); owner.Id != 0 && owner.UserId == userID {
@@ -194,8 +212,11 @@ func saveImgByGinContext(c *gin.Context, adminUpload bool) {
 		return
 	}
 
-	contentType, failure := policy.Validate(file.Filename, file.Size, "")
-	if failure != nil {
+	if failure := policy.validateDeclaredFilename(file.Filename, file.Size); failure != nil {
+		c.JSON(failure.Status, failure.Data)
+		return
+	}
+	if failure := policy.validateDeclaredExtension(file.Filename); failure != nil {
 		c.JSON(failure.Status, failure.Data)
 		return
 	}
@@ -218,21 +239,33 @@ func saveImgByGinContext(c *gin.Context, adminUpload bool) {
 			component.MessageParams{"maxSizeKb": policy.MaxSize / 1024}))
 		return
 	}
-	// 内容校验与直传完成同口径：sniff 类型 + 解码格式都必须与扩展名推出的类型一致，
-	// 伪造 MIME/扩展与字节不符在此拒绝，错误只回稳定 messageCode，不回解析细节。
-	if err := validateUploadedImage(bytes.NewReader(fileData), contentType); err != nil {
+	// 内容校验与直传完成同口径（issue #1393）：真实类型只由文件头决定，与声明扩展名
+	// 冲突时以真实类型入库/命名；错误只回稳定 messageCode，不回解析细节。
+	contentType, err := detectUploadedImageContent(bytes.NewReader(fileData))
+	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(imageContentFailureCode(err), nil))
+		return
+	}
+	if failure := policy.validateDetectedContentType(contentType); failure != nil {
+		c.JSON(failure.Status, failure.Data)
 		return
 	}
 
 	folderName := time.Now().Format("2006/01/02")
 
-	entity, err := filedata.SaveFileFromUpload(userId, fileData, file.Filename, folderName)
+	entity, err := filedata.SaveFileFromUpload(userId, fileData, contentType, folderName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, component.FailDataCode(
 			component.MessageUploadSaveFailed,
 
 			component.MessageParams{"error": err.Error()}))
+		return
+	}
+	if err := fileusageservice.AddUploadOwner(userId, entity.Name); err != nil {
+		if cleanupErr := filedata.DeleteByName(entity.Name); cleanupErr != nil {
+			slog.Error("clean up image after ownership registration failure")
+		}
+		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageUploadSaveFailed, nil))
 		return
 	}
 	media, mediaErr := filedata.ProcessUploadedImage(entity.Name, fileData)

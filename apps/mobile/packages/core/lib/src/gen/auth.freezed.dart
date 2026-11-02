@@ -21,10 +21,12 @@ LoginPageProps _$LoginPagePropsFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$LoginPageProps {
+  String get passwordSignupState => throw _privateConstructorUsedError;
   bool get tongjiRegistration => throw _privateConstructorUsedError;
   String get initialMode => throw _privateConstructorUsedError;
   String get redirectUrl => throw _privateConstructorUsedError;
   String get githubUrl => throw _privateConstructorUsedError;
+  bool get githubReady => throw _privateConstructorUsedError;
   bool get googleReady => throw _privateConstructorUsedError;
   bool get appleReady => throw _privateConstructorUsedError;
   bool get tongjiReady => throw _privateConstructorUsedError;
@@ -55,10 +57,12 @@ abstract class $LoginPagePropsCopyWith<$Res> {
   ) = _$LoginPagePropsCopyWithImpl<$Res, LoginPageProps>;
   @useResult
   $Res call({
+    String passwordSignupState,
     bool tongjiRegistration,
     String initialMode,
     String redirectUrl,
     String githubUrl,
+    bool githubReady,
     bool googleReady,
     bool appleReady,
     bool tongjiReady,
@@ -86,10 +90,12 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? passwordSignupState = null,
     Object? tongjiRegistration = null,
     Object? initialMode = null,
     Object? redirectUrl = null,
     Object? githubUrl = null,
+    Object? githubReady = null,
     Object? googleReady = null,
     Object? appleReady = null,
     Object? tongjiReady = null,
@@ -102,6 +108,10 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
   }) {
     return _then(
       _value.copyWith(
+            passwordSignupState: null == passwordSignupState
+                ? _value.passwordSignupState
+                : passwordSignupState // ignore: cast_nullable_to_non_nullable
+                      as String,
             tongjiRegistration: null == tongjiRegistration
                 ? _value.tongjiRegistration
                 : tongjiRegistration // ignore: cast_nullable_to_non_nullable
@@ -118,6 +128,10 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
                 ? _value.githubUrl
                 : githubUrl // ignore: cast_nullable_to_non_nullable
                       as String,
+            githubReady: null == githubReady
+                ? _value.githubReady
+                : githubReady // ignore: cast_nullable_to_non_nullable
+                      as bool,
             googleReady: null == googleReady
                 ? _value.googleReady
                 : googleReady // ignore: cast_nullable_to_non_nullable
@@ -170,10 +184,12 @@ abstract class _$$LoginPagePropsImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    String passwordSignupState,
     bool tongjiRegistration,
     String initialMode,
     String redirectUrl,
     String githubUrl,
+    bool githubReady,
     bool googleReady,
     bool appleReady,
     bool tongjiReady,
@@ -200,10 +216,12 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? passwordSignupState = null,
     Object? tongjiRegistration = null,
     Object? initialMode = null,
     Object? redirectUrl = null,
     Object? githubUrl = null,
+    Object? githubReady = null,
     Object? googleReady = null,
     Object? appleReady = null,
     Object? tongjiReady = null,
@@ -216,6 +234,10 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$LoginPagePropsImpl(
+        passwordSignupState: null == passwordSignupState
+            ? _value.passwordSignupState
+            : passwordSignupState // ignore: cast_nullable_to_non_nullable
+                  as String,
         tongjiRegistration: null == tongjiRegistration
             ? _value.tongjiRegistration
             : tongjiRegistration // ignore: cast_nullable_to_non_nullable
@@ -232,6 +254,10 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
             ? _value.githubUrl
             : githubUrl // ignore: cast_nullable_to_non_nullable
                   as String,
+        githubReady: null == githubReady
+            ? _value.githubReady
+            : githubReady // ignore: cast_nullable_to_non_nullable
+                  as bool,
         googleReady: null == googleReady
             ? _value.googleReady
             : googleReady // ignore: cast_nullable_to_non_nullable
@@ -277,10 +303,12 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$LoginPagePropsImpl implements _LoginPageProps {
   const _$LoginPagePropsImpl({
+    this.passwordSignupState = 'open',
     this.tongjiRegistration = false,
     required this.initialMode,
     required this.redirectUrl,
     required this.githubUrl,
+    this.githubReady = false,
     required this.googleReady,
     this.appleReady = false,
     this.tongjiReady = false,
@@ -297,6 +325,9 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
   @override
   @JsonKey()
+  final String passwordSignupState;
+  @override
+  @JsonKey()
   final bool tongjiRegistration;
   @override
   final String initialMode;
@@ -304,6 +335,9 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   final String redirectUrl;
   @override
   final String githubUrl;
+  @override
+  @JsonKey()
+  final bool githubReady;
   @override
   final bool googleReady;
   @override
@@ -340,7 +374,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
   @override
   String toString() {
-    return 'LoginPageProps(tongjiRegistration: $tongjiRegistration, initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, appleReady: $appleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
+    return 'LoginPageProps(passwordSignupState: $passwordSignupState, tongjiRegistration: $tongjiRegistration, initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, githubReady: $githubReady, googleReady: $googleReady, appleReady: $appleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
   }
 
   @override
@@ -348,6 +382,8 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LoginPagePropsImpl &&
+            (identical(other.passwordSignupState, passwordSignupState) ||
+                other.passwordSignupState == passwordSignupState) &&
             (identical(other.tongjiRegistration, tongjiRegistration) ||
                 other.tongjiRegistration == tongjiRegistration) &&
             (identical(other.initialMode, initialMode) ||
@@ -356,6 +392,8 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
                 other.redirectUrl == redirectUrl) &&
             (identical(other.githubUrl, githubUrl) ||
                 other.githubUrl == githubUrl) &&
+            (identical(other.githubReady, githubReady) ||
+                other.githubReady == githubReady) &&
             (identical(other.googleReady, googleReady) ||
                 other.googleReady == googleReady) &&
             (identical(other.appleReady, appleReady) ||
@@ -382,10 +420,12 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    passwordSignupState,
     tongjiRegistration,
     initialMode,
     redirectUrl,
     githubUrl,
+    githubReady,
     googleReady,
     appleReady,
     tongjiReady,
@@ -416,10 +456,12 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
 abstract class _LoginPageProps implements LoginPageProps {
   const factory _LoginPageProps({
+    final String passwordSignupState,
     final bool tongjiRegistration,
     required final String initialMode,
     required final String redirectUrl,
     required final String githubUrl,
+    final bool githubReady,
     required final bool googleReady,
     final bool appleReady,
     final bool tongjiReady,
@@ -435,6 +477,8 @@ abstract class _LoginPageProps implements LoginPageProps {
       _$LoginPagePropsImpl.fromJson;
 
   @override
+  String get passwordSignupState;
+  @override
   bool get tongjiRegistration;
   @override
   String get initialMode;
@@ -442,6 +486,8 @@ abstract class _LoginPageProps implements LoginPageProps {
   String get redirectUrl;
   @override
   String get githubUrl;
+  @override
+  bool get githubReady;
   @override
   bool get googleReady;
   @override

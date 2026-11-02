@@ -3,9 +3,12 @@ import { createBrowserApp as createApp } from './create-app'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import PublishPage from '../../../src/site/pages/PublishPage.vue'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
+import { applyThemeTemporary, type SiteTheme } from '../../../src/runtime/site-theme'
 import '../../../src/styles/resource.css'
-await setLocale('zh')
-document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'gf-light'
+await setLocale((new URLSearchParams(location.search).get('lang') || 'zh') as 'zh' | 'en' | 'ja' | 'de')
+applyThemeTemporary((new URLSearchParams(location.search).get('theme') || 'gf-light') as SiteTheme)
+;(window as unknown as { testSetLocale: typeof setLocale }).testSetLocale = setLocale
+;(window as unknown as { testToolbarLabels: () => Record<string,string> }).testToolbarLabels = () => Object.fromEntries(['code','link','list','quote','italic','bold','upload'].map(type => [type, i18n.global.t('editor.toolbar.' + type)]))
 const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
 await router.push('/')
 await router.isReady()

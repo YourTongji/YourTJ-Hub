@@ -61,7 +61,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get navPublish => 'Veröffentlichen';
 
   @override
-  String get navMessages => 'Nachrichten';
+  String get navMessages => 'Direktnachrichten';
 
   @override
   String get navProfile => 'Mein Profil';
@@ -234,6 +234,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authUsernameOrEmail => 'Benutzername oder E-Mail';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 Zeichen: englische Buchstaben, Ziffern, Unterstriche (_) und Bindestriche (-).';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 Zeichen mit mindestens einem englischen Buchstaben (A–Z/a–z) und einer Ziffer (0–9). Weitere Zeichen sind erlaubt.';
+
+  @override
   String get authUsername => 'Benutzername';
 
   @override
@@ -296,7 +304,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      'Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach. Keine E-Mail erhalten? Melde dich an und sende sie unter Kontosicherheit erneut.';
+      'Konto erstellt. Bestätige deine E-Mail über dein Postfach. Kommt keine Nachricht an, kannst du sie unter Kontosicherheit erneut anfordern oder die Adresse ändern.';
 
   @override
   String get authActivationRequired =>
@@ -306,8 +314,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authResendActivationEmail => 'Bestätigungs-E-Mail erneut senden';
 
   @override
-  String get authRegisterSuccess =>
-      'Registrierung erfolgreich. Bitte anmelden.';
+  String get authRegisterSuccess => 'Konto erstellt.';
 
   @override
   String get authResetEmailSent =>
@@ -548,7 +555,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileNotLoggedIn => 'Nicht angemeldet';
 
   @override
-  String get messagesTitle => 'Nachrichten';
+  String get messagesTitle => 'Direktnachrichten';
 
   @override
   String get messagesEmpty => 'Noch keine Unterhaltungen';
@@ -653,7 +660,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsTabProfile => 'Profil';
 
   @override
-  String get settingsTabAccount => 'Konto, Sicherheit und Datenschutz';
+  String get settingsTabAccount => 'Konto und Sicherheit';
 
   @override
   String get settingsTabPrivacy => 'Datenschutz';
@@ -761,7 +768,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsOAuth => 'Verknüpfte Konten';
 
   @override
-  String get settingsOAuthSub => 'Anmeldung über GitHub und Google';
+  String get settingsOAuthSub => 'GitHub-, Google- und Apple-Anmeldungen';
 
   @override
   String get settingsOAuthManage => 'Kontoverknüpfungen verwalten';
@@ -841,6 +848,49 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsAppearance => 'Darstellung';
 
   @override
+  String get decorationAppearance => 'Aussehen';
+
+  @override
+  String get decorationTitle => 'Avatarrahmen & farbige Namen';
+
+  @override
+  String get decorationFrame => 'Avatarrahmen';
+
+  @override
+  String get decorationNickname => 'Farbige Namen';
+
+  @override
+  String get decorationGrant => 'Stile werden von Administratoren vergeben.';
+
+  @override
+  String get decorationNone => 'Keine';
+
+  @override
+  String get decorationPreview => 'Vorschau';
+
+  @override
+  String get decorationEquip => 'Diesen Stil verwenden';
+
+  @override
+  String get decorationLocked => 'Nicht erworben';
+
+  @override
+  String get decorationEquipped => 'Angelegt';
+
+  @override
+  String get decorationAvailable => 'Verfügbar';
+
+  @override
+  String get decorationCurrent => 'Aktuelles Aussehen';
+
+  @override
+  String get decorationPreviewOnly => 'Nur Vorschau';
+
+  @override
+  String get decorationLockedHint =>
+      'Nicht erworben. Du kannst diesen Stil ansehen.';
+
+  @override
   String get settingsDarkMode => 'Dunkler Modus';
 
   @override
@@ -850,7 +900,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsLightCurrent => 'Aktuell: hell';
 
   @override
-  String get settingsAbout => 'Info';
+  String get settingsAbout => 'Über die Community';
 
   @override
   String get settingsAboutVersion =>
@@ -1033,6 +1083,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get topicJumpToFloor => 'Zum Beitrag springen';
+
+  @override
   String topicFloorSelected(Object floor) {
     return 'Zu Beitrag $floor gesprungen';
   }
@@ -1066,16 +1119,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get topicLaterReplies => 'Neuere Antworten laden';
 
   @override
-  String get topicFeedModeList => 'Liste';
-
-  @override
-  String get topicFeedModeCard => 'Karten';
-
-  @override
   String get topicNewTopic => 'Neues Thema';
 
   @override
-  String get scheduleTitle => 'Stundenplaner';
+  String get scheduleTitle => 'Kursplaner';
+
+  @override
+  String get scheduleFilters => 'Filter';
+
+  @override
+  String get scheduleCandidates => 'Kurse';
 
   @override
   String get scheduleTabTimetable => 'Planvorschau';
@@ -1205,7 +1258,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scheduleOptional => 'Wahlkurs';
 
   @override
-  String get scheduleSearchHint => 'Name, Kennung oder Lehrkraft suchen';
+  String get scheduleSearchHint => 'Kursnamen suchen';
 
   @override
   String get scheduleStaged => 'Ausstehend';
@@ -1366,6 +1419,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsFollowSiteThemeDesc => 'Farben der Website verwenden';
 
   @override
+  String get settingsNavigationStyle => 'Navigation';
+
+  @override
+  String get settingsNavigationDock => 'Schwebendes Dock';
+
+  @override
+  String get settingsNavigationBar => 'Klassische Leiste';
+
+  @override
+  String get settingsNavigationStyleDesc =>
+      'Breite Fenster behalten die Seitenleiste.';
+
+  @override
   String get richContentCopyCode => 'Code kopieren';
 
   @override
@@ -1436,6 +1502,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get navCampus => 'Campus';
+
+  @override
+  String get navShortcutsHint => 'Gedrückt halten für Schnellzugriffe';
 
   @override
   String get campusTitle => 'Mein Campus';
@@ -1539,13 +1608,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileMore => 'Weitere Optionen';
 
   @override
-  String get profileContent => 'Inhalte verwalten';
+  String get profileContent => 'Meine Inhalte';
 
   @override
   String get profileTrash => 'Papierkorb';
-
-  @override
-  String get profileSecurity => 'Konto, Sicherheit und Datenschutz';
 
   @override
   String get profileAdmin => 'Administration';
@@ -1602,7 +1668,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get publishGalleryTooMany =>
-      'Bis zu 9 Bilder sind möglich. Entferne Bilder oder verwende den Artikeleditor.';
+      'Bis zu 9 Bilder sind möglich. Verwende weniger Bilder und versuche es erneut.';
 
   @override
   String get profileActivity => 'Aktivität';
@@ -1833,7 +1899,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die beiden Passwörter stimmen nicht überein';
 
   @override
-  String get schedulerWebTitle => 'Vollständigen Stundenplaner im Web nutzen';
+  String get schedulerWebTitle => 'Vollständigen Kursplaner im Web nutzen';
 
   @override
   String get schedulerWebAction => 'f.yourtj.de öffnen';
@@ -2589,13 +2655,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get campusToday => 'Heute';
 
   @override
-  String get campusTimetable => 'Mein Stundenplan';
+  String get campusTimetable => 'Schulstundenplan';
 
   @override
   String get campusAcademics => 'Studienleistungen';
 
   @override
-  String get campusMessages => 'Campus-Mitteilungen';
+  String get campusMessages => 'Hochschulmitteilungen';
 
   @override
   String get campusCalendars => 'Semesterkalender';
@@ -2971,7 +3037,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.';
+      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan sowie Titel und Orte selbst erstellter Blöcke (Notizen bleiben verborgen). Wenn du zustimmst, wird der Startbildschirm beim Aktualisieren des Stundenplans ebenfalls aktualisiert.';
 
   @override
   String get scheduleWidgetRefresh => 'Aus Offline-Stundenplan aktualisieren';
@@ -3229,9 +3295,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get notificationsUnreadEmptyDescription =>
       'Du hast alle Mitteilungen gelesen.';
-
-  @override
-  String get homeFeedOptions => 'Darstellung';
 
   @override
   String get homeAllCategories => 'Alle Kategorien';
@@ -4218,4 +4281,589 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'Vorschau-Status';
+
+  @override
+  String get timetableOptions => 'Stundenplan-Optionen';
+
+  @override
+  String get timetableWeekPicker => 'Woche wählen';
+
+  @override
+  String timetableDateRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String timetableUpdatedAt(String time) {
+    return 'Aktualisiert $time';
+  }
+
+  @override
+  String get timetableShowingSnapshot => 'Gespeicherte Kopie';
+
+  @override
+  String get timetablePartlyUpdated => 'Teilweise aktualisiert';
+
+  @override
+  String get timetableMayBeOutdated => 'Evtl. veraltet';
+
+  @override
+  String get timetableFocusDay => 'Diesen Tag hervorheben';
+
+  @override
+  String get timetableUnfocusDay => 'Ganze Woche anzeigen';
+
+  @override
+  String get timetableAddBlockHere => 'Hier einen Block hinzufügen';
+
+  @override
+  String get timetableOtherWeek => 'Andere Woche';
+
+  @override
+  String get timetableBlock => 'Eigener Block';
+
+  @override
+  String get timetableInProgress => 'Läuft gerade';
+
+  @override
+  String get timetableEmptyWeek =>
+      'Diese Woche keine Kurse. Tippe auf eine leere Zelle, um einen Block hinzuzufügen.';
+
+  @override
+  String get timetableDayFree =>
+      'Nichts geplant. Tippe auf eine leere Zelle, um einen Block hinzuzufügen.';
+
+  @override
+  String get timetableGestureTip =>
+      'Tippe auf einen Wochentag, um ihn hervorzuheben. Tippe auf eine leere Zelle, um einen Block hinzuzufügen, oder halte gedrückt und ziehe über mehrere Stunden.';
+
+  @override
+  String get timetableDisplay => 'Anzeige';
+
+  @override
+  String get timetableAlwaysShowWeekend => 'Wochenenden immer anzeigen';
+
+  @override
+  String get timetableAlwaysShowWeekendHint =>
+      'Wenn aus, werden Wochenenden ohne Termine ausgeblendet.';
+
+  @override
+  String get timetableShowOtherWeeks => 'Kurse anderer Wochen anzeigen';
+
+  @override
+  String get timetableShowOtherWeeksHint =>
+      'Sie erscheinen blass in freien Zellen.';
+
+  @override
+  String get timetableShowSectionTimes => 'Unterrichtszeiten anzeigen';
+
+  @override
+  String get timetableFocusToday => 'Beim Öffnen heute hervorheben';
+
+  @override
+  String get timetableMemos => 'Blöcke und Notizen';
+
+  @override
+  String get timetableNoMemos =>
+      'Noch keine Blöcke oder Notizen. Füge Blöcke für Treffen, Lernzeit oder Erinnerungen hinzu.';
+
+  @override
+  String get timetableAddBlock => 'Block hinzufügen';
+
+  @override
+  String get timetableEditBlock => 'Block bearbeiten';
+
+  @override
+  String get timetableBlockTitle => 'Titel';
+
+  @override
+  String get timetableBlockTitleHint => 'Vereinstreffen';
+
+  @override
+  String get timetableBlockPlace => 'Ort';
+
+  @override
+  String get timetableBlockPlaceHint => 'Bibliothek, 3. OG';
+
+  @override
+  String get timetableBlockNote => 'Notiz';
+
+  @override
+  String get timetableBlockDays => 'Tage';
+
+  @override
+  String get timetableBlockStart => 'Erste Stunde';
+
+  @override
+  String get timetableBlockEnd => 'Letzte Stunde';
+
+  @override
+  String timetableWeeksOnly(int week) {
+    return 'Nur Woche $week';
+  }
+
+  @override
+  String get timetableWeeksEvery => 'Jede Woche';
+
+  @override
+  String get timetableWeeksOdd => 'Ungerade Wochen';
+
+  @override
+  String get timetableWeeksEven => 'Gerade Wochen';
+
+  @override
+  String get timetableBlockColor => 'Farbe';
+
+  @override
+  String timetableColorN(int number) {
+    return 'Farbe $number';
+  }
+
+  @override
+  String get timetableSaveBlock => 'Speichern';
+
+  @override
+  String get timetableDeleteBlock => 'Block löschen';
+
+  @override
+  String get timetableDeleteNote => 'Notiz löschen';
+
+  @override
+  String timetableCredits(String credits) {
+    return '$credits Credits';
+  }
+
+  @override
+  String get timetableCourseNote => 'Notiz für jede Woche';
+
+  @override
+  String get timetableCourseNoteHint => 'Taschenrechner mitbringen';
+
+  @override
+  String timetableWeekNote(int week) {
+    return 'Notiz für Woche $week';
+  }
+
+  @override
+  String get timetableWeekNoteHint => 'Test, Abgabe';
+
+  @override
+  String get timetableNotesLocal => 'Notizen bleiben auf diesem Gerät.';
+
+  @override
+  String get timetableNotesSaved => 'Auf diesem Gerät gespeichert.';
+
+  @override
+  String get timetableNotesUnsaved =>
+      'Speichern auf diesem Gerät nicht möglich. Bearbeite die Notiz, um es erneut zu versuchen.';
+
+  @override
+  String get timetableWidgets => 'Homescreen-Widgets';
+
+  @override
+  String get timetableWidgetNext => 'Nächster Kurs';
+
+  @override
+  String get timetableWidgetNextHint => 'Der nächste Kurs mit Zeit und Raum';
+
+  @override
+  String get timetableWidgetToday => 'Kurse heute';
+
+  @override
+  String get timetableWidgetTodayHint => 'Alle heutigen Kurse in einer Liste';
+
+  @override
+  String get timetableWidgetTimeline => 'Kurs-Zeitleiste';
+
+  @override
+  String get timetableWidgetTimelineHint =>
+      'Heutige Kurse auf einer Zeitleiste';
+
+  @override
+  String get timetableWidgetAdd => 'Hinzufügen';
+
+  @override
+  String timetableWidgetAddNamed(String name) {
+    return 'Widget „$name“ hinzufügen';
+  }
+
+  @override
+  String get timetableWidgetRequested =>
+      'Bestätige im Systemdialog, um das Widget abzulegen.';
+
+  @override
+  String get timetableWidgetManual =>
+      'Um ein Widget hinzuzufügen, halte eine leere Stelle des Startbildschirms gedrückt, öffne „Widgets“ und wähle YourTJ.';
+
+  @override
+  String get timetableWidgetIosSteps =>
+      'Um ein Widget hinzuzufügen, halte eine leere Stelle des Home-Bildschirms gedrückt, tippe auf +, suche nach YourTJ und wähle eine Größe.';
+
+  @override
+  String get timetableCalendarSection => 'Kurskalender';
+
+  @override
+  String get timetableMore => 'Mehr';
+
+  @override
+  String get timetableMemosNone => 'Noch keine Blöcke oder Notizen';
+
+  @override
+  String timetableMemoSummary(int blocks, int notes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      blocks,
+      locale: localeName,
+      other: '$blocks Blöcke',
+      one: '1 Block',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      notes,
+      locale: localeName,
+      other: '$notes Notizen',
+      one: '1 Notiz',
+    );
+    return '$_temp0 · $_temp1';
+  }
+
+  @override
+  String get timetableMemosIntro =>
+      'Blöcke und Notizen bleiben auf diesem Gerät. Tippe auf einen Kurs, um eine Notiz hinzuzufügen.';
+
+  @override
+  String get timetableBlocksHeading => 'Blöcke';
+
+  @override
+  String get timetableNotesHeading => 'Kursnotizen';
+
+  @override
+  String get timetableWidgetsHint =>
+      'Lege den nächsten Kurs oder die heutigen Kurse auf den Startbildschirm.';
+
+  @override
+  String get timetableExportHint =>
+      'Als .ics-Datei für deine Kalender-App speichern.';
+
+  @override
+  String get timetableBlockWhen => 'Wann';
+
+  @override
+  String get timetableAddNote => 'Notiz hinzufügen';
+
+  @override
+  String timetableWeeksRange(String range) {
+    return 'Wochen $range';
+  }
+
+  @override
+  String get timetableListSeparator => ', ';
+
+  @override
+  String get timetableConfirmDelete => 'Zum Löschen erneut tippen';
+
+  @override
+  String get profileMutualFollowing => 'Gegenseitig';
+
+  @override
+  String get homeFeedSwitchToList => 'Als Liste anzeigen';
+
+  @override
+  String get homeFeedSwitchToCard => 'Als Karten anzeigen';
+
+  @override
+  String get profileStreamManage => 'Verwalten';
+
+  @override
+  String get searchFilterInCatalog => 'Im Kurskatalog filtern';
+
+  @override
+  String get profileEditAddCover => 'Titelbild hinzufügen';
+
+  @override
+  String get profileEditAddSocialLinks => 'Soziale Links hinzufügen';
+
+  @override
+  String get profileEditAddWebsite => 'Website hinzufügen';
+
+  @override
+  String get profileEditBasics => 'Grundinformationen';
+
+  @override
+  String get profileEditBioHint => 'Erzähle etwas über dich';
+
+  @override
+  String get profileEditChangeAvatar => 'Profilbild ändern';
+
+  @override
+  String get profileEditChangeCover => 'Titelbild ändern';
+
+  @override
+  String get profileEditDisplay => 'Darstellung';
+
+  @override
+  String get profileEditDone => 'Fertig';
+
+  @override
+  String get profileEditFromPhotos => 'Aus Fotos auswählen';
+
+  @override
+  String get profileEditLinks => 'Links';
+
+  @override
+  String get profileEditNicknameHint => 'Dein Anzeigename';
+
+  @override
+  String get profileEditSignatureHint => 'Kurze Signatur hinzufügen';
+
+  @override
+  String get profileEditSocialHint => 'Benutzername oder HTTPS-Link';
+
+  @override
+  String get profileEditTakePhoto => 'Foto aufnehmen';
+
+  @override
+  String get profileEditWebsiteUrl => 'Website-URL';
+
+  @override
+  String get profileLanguageHint =>
+      'Sprache deines öffentlichen Profils, unabhängig von der App-Sprache.';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return 'Getragen: $name · $count angezeigt';
+  }
+
+  @override
+  String get contentMineTitle => 'Meine Inhalte';
+
+  @override
+  String get settingsManageBadges => 'Abzeichen verwalten';
+
+  @override
+  String get campusSettings => 'Campus-Einstellungen';
+
+  @override
+  String get scheduleStatusHelp => 'Planstatus und Hilfe';
+
+  @override
+  String get courseAddToPlanner => 'Zum Kursplaner hinzufügen';
+
+  @override
+  String get coursePlannerSelectTerm =>
+      'Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.';
+
+  @override
+  String get coursePlannerUnavailable =>
+      'Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.';
+
+  @override
+  String get coursePlannerCalendarsFailed =>
+      'Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.';
+
+  @override
+  String get authCheckEmailVerification => 'E-Mail-Bestätigung prüfen';
+
+  @override
+  String get authWriteRecoveryHint =>
+      'Eingaben bleiben erhalten. Kehre nach der Bestätigung zurück und fahre manuell fort.';
+
+  @override
+  String get activationStatusRefresh => 'Status aktualisieren';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return 'Keine Kursnamen passen zu „$query“';
+  }
+
+  @override
+  String get scheduleNoOptional =>
+      'Keine Wahlkurse für dieses Semester zurückgegeben';
+
+  @override
+  String get scheduleMajorSearchHint => 'Studiengang oder Code suchen';
+
+  @override
+  String get chatMessagePolicyLabel => 'Wer darf ein Gespräch beginnen';
+
+  @override
+  String get activationStatusMailUnavailable =>
+      'E-Mail-Dienst nicht verfügbar. Später aktualisieren.';
+
+  @override
+  String get activationStatusMissingEmail =>
+      'Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen';
+
+  @override
+  String get chatMessagePolicyTitle => 'Private Nachrichten';
+
+  @override
+  String get campusTimetableNotConnected =>
+      'Tongji-Identität noch nicht verbunden';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return 'Kursnamen suchen in $term';
+  }
+
+  @override
+  String get scheduleConfigureScope => 'Kursbereich festlegen';
+
+  @override
+  String get chatMessagePolicySaved =>
+      'Nachrichtenberechtigungen im Konto gespeichert';
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Beim Ändern werden $planCount Pläne mit $courseCount Kursen und $eventCount eigenen Terminen geleert. Abbrechen behält die bisherige Konfiguration und alle Pläne.';
+  }
+
+  @override
+  String get activationStatusDailyLimit =>
+      'Tageslimit erreicht. Morgen erneut versuchen.';
+
+  @override
+  String get activationStatusDisabled =>
+      'E-Mail-Bestätigung ist derzeit deaktiviert';
+
+  @override
+  String get authVerificationPendingHint =>
+      'Nutze den Link in deinem Postfach und aktualisiere diese Seite. Kommt keine Nachricht an, fordere sie erneut an oder ändere die Adresse. Einige Aktionen bleiben bis zur Bestätigung gesperrt.';
+
+  @override
+  String get scheduleChangeMajorUpdated =>
+      'Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return 'In $seconds Sekunden erneut senden';
+  }
+
+  @override
+  String get authVerificationPending => 'E-Mail-Bestätigung ausstehend';
+
+  @override
+  String get activationStatusFrozen =>
+      'Dieses Konto kann keine E-Mail erneut senden';
+
+  @override
+  String get authRegistrationUnavailable =>
+      'Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get imageViewerThumbnails => 'Bildminiaturen';
+
+  @override
+  String activationStatusTarget(String email) {
+    return 'Empfänger: $email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return 'Heute verbleibend: $count / $limit';
+  }
+
+  @override
+  String get chatMessagePolicyNobody => 'Keine neuen Gespräche';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return 'Aktueller Bereich: $scope';
+  }
+
+  @override
+  String get activationStatusVerified =>
+      'E-Mail bestätigt. Erneutes Senden ist nicht nötig.';
+
+  @override
+  String get authCheckSignupAvailability => 'Registrierung erneut prüfen';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return 'Wähle $fields, bevor du Kurse oder Lehrveranstaltungen suchst.';
+  }
+
+  @override
+  String get imageViewerOriginalSize => 'Originalgröße';
+
+  @override
+  String get imageViewerFitPreview => 'Vorschau einpassen';
+
+  @override
+  String get scheduleChangeMajorConfirm => 'Ändern und leeren';
+
+  @override
+  String get campusTimetableConnectBody =>
+      'Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.';
+
+  @override
+  String get chatMessagePolicyHint =>
+      'Gespräche mit vorhandenen Nachrichten können fortgesetzt werden; leere Gespräche zählen nicht. Sperren haben Vorrang, auch für Bots.';
+
+  @override
+  String get scheduleSearchReady => 'Gib einen Kursnamen ein';
+
+  @override
+  String get scheduleNoCompulsory =>
+      'Keine Pflichtkurse für diesen Bereich zurückgegeben';
+
+  @override
+  String get scheduleMajorNoMatch => 'Keine passenden Studiengänge';
+
+  @override
+  String get scheduleChangeMajorTitle => 'Studiengang ändern und Pläne leeren?';
+
+  @override
+  String get scheduleEmptyCourseHint =>
+      'Ändere den Kursbereich oder suche nach Kursnamen.';
+
+  @override
+  String get scheduleSetupTitle => 'Zuerst den Kursbereich festlegen';
+
+  @override
+  String get scheduleConfigChangeTitle => 'Planung ändern?';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'Kurse und eigene Termine werden aus allen Plänen entfernt. $planCount Pläne enthalten $courseCount Kurse und $eventCount Termine. Die Plannamen bleiben erhalten.';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name: $courseCount Kurse, $eventCount Termine';
+  }
+
+  @override
+  String get scheduleConfigChangeSync =>
+      'Bei bereits synchronisierten Plänen wird das Leeren auch auf andere Geräte übertragen.';
+
+  @override
+  String get scheduleConfigChangeConfirm => 'Leeren und wechseln';
+
+  @override
+  String get scheduleConfigChangeUpdated =>
+      'Die Pläne wurden geändert. Bitte erneut auswählen und die Auswirkungen prüfen.';
+
+  @override
+  String get unreadStyleTitle => 'Ungelesen-Anzeige';
+
+  @override
+  String get unreadStyleNumbers => 'Anzahl anzeigen';
+
+  @override
+  String get unreadStyleHint =>
+      'Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.';
+
+  @override
+  String get unreadStyleSaving => 'Anzeige wird gespeichert…';
 }

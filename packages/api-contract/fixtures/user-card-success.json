@@ -20,6 +20,7 @@
     "collectionCount": 3,
     "isOnline": false,
     "isFollowing": false,
+    "isMutualFollowing": false,
     "externalInformation": {
       "github": { "link": "https://github.com/tongji-user" },
       "weibo": { "link": "" },

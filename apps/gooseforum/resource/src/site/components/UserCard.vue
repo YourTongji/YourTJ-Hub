@@ -10,11 +10,12 @@ import {
   Feather,
   Loader2,
   Radio,
+  UserRoundCheck,
   UserX,
 } from '@lucide/vue'
 import { getUserCard, followUser } from '@/runtime/api'
 // 关注状态单一事实源：卡片缓存的可变状态必须经它登记/广播，跨 surface 才能一致（issue #593）
-import { broadcastFollowChange, getFollowChangeSeq, getKnownFollowState, onFollowChange, recordFollowState } from '@/runtime/follow-state'
+import { broadcastFollowChange, getFollowChangeSeq, getKnownFollowState, getKnownMutualFollowState, onFollowChange, recordFollowState } from '@/runtime/follow-state'
 import { formatDate, formatNumber, timeAgo } from '@/runtime/format'
 import type { UserCardShowDetail } from '@/runtime/user-card-events'
 import type { UserCardPayload } from '@gooseforum/client'
@@ -56,6 +57,8 @@ const coverStyle = computed(() => {
     : {}
 })
 const isFollowing = ref(false)
+// viewer 视角：双向关注时按钮展示「已互关」（issue #1320）
+const isMutualFollowing = ref(false)
 const followLoading = ref(false)
 const followError = ref('')
 const externalLinks = computed(() => {
@@ -125,7 +128,7 @@ function placeCard(target: HTMLElement) {
 function storeInCache(userId: number, payload: UserCardPayload) {
   cache.set(userId, payload)
   cacheFetchedAt.set(userId, Date.now())
-  recordFollowState(userId, payload.isFollowing)
+  recordFollowState(userId, payload.isFollowing, payload.isMutualFollowing)
 }
 
 // 回源落地（PR #600 review 2）：若请求飞行期间发生了同 tab 关注变更广播，
@@ -134,6 +137,8 @@ function adoptFreshCard(userId: number, fresh: UserCardPayload, seqAtRequest: nu
   if (getFollowChangeSeq(userId) !== seqAtRequest) {
     const known = getKnownFollowState(userId)
     if (known !== undefined) fresh.isFollowing = known
+    const knownMutual = getKnownMutualFollowState(userId)
+    if (knownMutual !== undefined) fresh.isMutualFollowing = knownMutual
   }
   storeInCache(userId, fresh)
 }
@@ -150,6 +155,7 @@ async function revalidateCard(userId: number, token: number) {
     if (card.value?.userId === userId) {
       card.value = result
       isFollowing.value = result.isFollowing
+      isMutualFollowing.value = result.isMutualFollowing
     }
   } catch {
     // 重验失败保留缓存展示，下次打开再试
@@ -165,12 +171,14 @@ async function show(event: Event) {
   error.value = ''
   followError.value = ''
   isFollowing.value = getKnownFollowState(detail.user.id) ?? Boolean(detail.user.isFollowing)
+  isMutualFollowing.value = getKnownMutualFollowState(detail.user.id) ?? Boolean(detail.user.isMutualFollowing)
   requestAnimationFrame(() => placeCard(detail.target))
 
   const cached = cache.get(detail.user.id)
   if (cached) {
     card.value = cached
     isFollowing.value = getKnownFollowState(detail.user.id) ?? cached.isFollowing
+    isMutualFollowing.value = getKnownMutualFollowState(detail.user.id) ?? cached.isMutualFollowing
     loading.value = false
     const fetchedAt = cacheFetchedAt.get(detail.user.id) || 0
     if (Date.now() - fetchedAt >= CACHE_REVALIDATE_TTL_MS) {
@@ -189,6 +197,7 @@ async function show(event: Event) {
     if (token !== requestToken) return
     card.value = result
     isFollowing.value = result.isFollowing
+    isMutualFollowing.value = result.isMutualFollowing
     requestAnimationFrame(() => placeCard(detail.target))
   } catch {
     if (token !== requestToken) return
@@ -201,30 +210,39 @@ async function show(event: Event) {
 async function toggleFollow() {
   const userCard = card.value
   if (!userCard || userCard.isSelf || followLoading.value) return
+  // 快照目标：飞行期间卡片可能被关闭并切到另一个用户（show() 会重置共享 ref），
+  // 响应只能落到发起请求的那张卡与其缓存条目上，不能覆盖新卡的按钮态。
+  const targetId = userCard.userId
   followLoading.value = true
   followError.value = ''
   try {
-    await followUser(userCard.userId, isFollowing.value)
+    const result = await followUser(targetId, isFollowing.value)
+    if (card.value?.userId === targetId) {
+      isFollowing.value = result.isFollowing
+      isMutualFollowing.value = result.isMutualFollowing
+    }
+    userCard.isFollowing = result.isFollowing
+    userCard.isMutualFollowing = result.isMutualFollowing
+    broadcastFollowChange(targetId, result.isFollowing, result.isMutualFollowing)
   } catch (e) {
-    // 只有关注操作本身的失败才算「关注失败」，保持原状态并内联提示
-    followError.value = e instanceof Error ? e.message : t('api.followFailed')
+    // 只有关注操作本身的失败才算「关注失败」，保持原状态并内联提示；
+    // 卡已切到别的用户时静默丢弃，错误只属于发起请求的那张卡。
+    if (card.value?.userId === targetId) {
+      followError.value = e instanceof Error ? e.message : t('api.followFailed')
+    }
     followLoading.value = false
     return
   }
-  // 以下不再有「关注失败」：POST 已成功，翻转与广播是本地的即时反馈
-  const target = !isFollowing.value
-  isFollowing.value = target
-  userCard.isFollowing = target
-  broadcastFollowChange(userCard.userId, target)
   // 回源拿权威结果与粉丝数；失败只代表资料未刷新，不算关注失败（PR #600 review 1），
   // 计数等字段由 SWR/TTL 下次重验兜底。loading 保持到回源结束，避免飞行期间再次点击发出反向 action
-  const seqAtRequest = getFollowChangeSeq(userCard.userId)
+  const seqAtRequest = getFollowChangeSeq(targetId)
   try {
-    const fresh = await getUserCard(userCard.userId)
-    adoptFreshCard(userCard.userId, fresh, seqAtRequest)
-    if (card.value?.userId === userCard.userId) {
+    const fresh = await getUserCard(targetId)
+    adoptFreshCard(targetId, fresh, seqAtRequest)
+    if (card.value?.userId === targetId) {
       card.value = fresh
       isFollowing.value = fresh.isFollowing
+      isMutualFollowing.value = fresh.isMutualFollowing
     }
   } catch {
     // 回源失败保留乐观状态，静默等待下次重验
@@ -253,10 +271,16 @@ onMounted(() => {
   window.addEventListener('resize', hideNow)
   window.addEventListener('goose:page', hideNow)
   // 用户主页等处关注/取关后，同步纠正打开中的卡片与缓存条目
-  offFollowChange = onFollowChange(({ userId, isFollowing: following }) => {
+  offFollowChange = onFollowChange(({ userId, isFollowing: following, isMutualFollowing: mutual }) => {
     const cached = cache.get(userId)
-    if (cached) cached.isFollowing = following
-    if (card.value?.userId === userId) isFollowing.value = following
+    if (cached) {
+      cached.isFollowing = following
+      cached.isMutualFollowing = mutual
+    }
+    if (card.value?.userId === userId) {
+      isFollowing.value = following
+      isMutualFollowing.value = mutual
+    }
   })
 })
 
@@ -463,7 +487,8 @@ onBeforeUnmount(() => {
               @click="toggleFollow"
             >
               <Loader2 v-if="followLoading" class="h-3.5 w-3.5 animate-spin" />
-              {{ isFollowing ? t('userCard.following') : t('userCard.follow') }}
+              <UserRoundCheck v-else-if="isFollowing && isMutualFollowing" class="h-3.5 w-3.5" />
+              {{ isFollowing ? (isMutualFollowing ? t('userCard.mutualFollowing') : t('userCard.following')) : t('userCard.follow') }}
             </button>
             <a
               :href="profileUrl"

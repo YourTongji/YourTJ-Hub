@@ -8,6 +8,8 @@ import (
 	"image/jpeg"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
@@ -37,9 +39,8 @@ func encodeTestJPEG(t *testing.T) []byte {
 
 // encodeLargeTestJPEG returns a valid JPEG larger than the header sniff bound
 // (and larger than the old 1MB cap) to prove that a legal image whose body
-// exceeds the header sniff bound is not rejected during validation. 1024x1024
-// with a noise pattern lands ~1.1MB: above the sniff bound yet below the 4MB
-// upload cap, so the route-level upload gate stays satisfied.
+// exceeds the header sniff bound is not rejected: only the bounded header is
+// read, the full size is enforced by the upload path.
 func encodeLargeTestJPEG(t *testing.T) []byte {
 	t.Helper()
 	const side = 1024
@@ -53,118 +54,101 @@ func encodeLargeTestJPEG(t *testing.T) []byte {
 	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
 		t.Fatalf("encode large test jpeg: %v", err)
 	}
-	if buf.Len() <= storageservice.ImageHeaderSniffBytes {
-		t.Fatalf("large test jpeg is %d bytes, want > %d", buf.Len(), storageservice.ImageHeaderSniffBytes)
+	if buf.Len() <= imagepolicy.ImageHeaderSniffBytes {
+		t.Fatalf("large test jpeg is %d bytes, want > %d", buf.Len(), imagepolicy.ImageHeaderSniffBytes)
 	}
 	return buf.Bytes()
 }
 
-func TestValidateUploadedImage(t *testing.T) {
+// TestDetectUploadedImageContent pins the issue #1393 contract change: the
+// bytes alone decide the type, so PNG bytes under a `.jpg` claim still detect as
+// image/png; only unusable bytes fail.
+func TestDetectUploadedImageContent(t *testing.T) {
 	jpegData := encodeTestJPEG(t)
+	heic := []byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'h', 'e', 'i', 'c', 0x00, 0x00, 0x00, 0x00}
 	tests := []struct {
-		name        string
-		data        []byte
-		contentType string
-		wantErr     bool
+		name    string
+		data    []byte
+		want    string
+		wantErr error
 	}{
-		{name: "valid jpeg", data: jpegData, contentType: "image/jpeg"},
-		{name: "png bytes with wrong content type", data: tinyPNG, contentType: "image/jpeg", wantErr: true},
+		{name: "valid jpeg", data: jpegData, want: "image/jpeg"},
+		{name: "valid png", data: tinyPNG, want: "image/png"},
+		{name: "large legal jpeg over the sniff bound", data: encodeLargeTestJPEG(t), want: "image/jpeg"},
+		{name: "empty bytes report empty", data: nil, wantErr: imagepolicy.ErrEmptyImageContent},
+		{name: "text bytes report invalid", data: []byte("this is definitely not an image"), wantErr: imagepolicy.ErrInvalidImageContent},
+		{name: "oversized non-image reports invalid", data: make([]byte, imagepolicy.ImageHeaderSniffBytes+1), wantErr: imagepolicy.ErrInvalidImageContent},
+		{name: "heic bytes report unsupported", data: heic, wantErr: imagepolicy.ErrUnsupportedImageFormat},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateUploadedImage(bytes.NewReader(tt.data), tt.contentType)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("validateUploadedImage() error = nil, want error")
-				}
-				if !errors.Is(err, errInvalidImageContent) {
-					t.Fatalf("validateUploadedImage() error = %v, want errInvalidImageContent", err)
+			got, err := detectUploadedImageContent(bytes.NewReader(tt.data))
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("detectUploadedImageContent() error = %v, want %v", err, tt.wantErr)
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("validateUploadedImage() error = %v, want nil", err)
+			if err != nil || got != tt.want {
+				t.Fatalf("detectUploadedImageContent() = %q, %v; want %q, nil", got, err, tt.want)
 			}
 		})
 	}
 }
 
-func TestValidateUploadedImageAcceptsLargeLegalImage(t *testing.T) {
-	// A valid image larger than the header sniff bound (and the old 1MB cap)
-	// must validate: size consistency is enforced by the upload path, not by
-	// the header validator, which only reads the bounded header.
-	data := encodeLargeTestJPEG(t)
-	err := validateUploadedImage(bytes.NewReader(data), "image/jpeg")
-	if err != nil {
-		t.Fatalf("validateUploadedImage() error = %v, want nil for a legal >512KB image", err)
-	}
-}
-
-func TestValidateUploadedImageRejectsOversizedHeader(t *testing.T) {
-	// A blob larger than the sniff bound whose header is not a valid image
-	// (all zero bytes) must still be rejected by the sniff/decode check.
-	data := make([]byte, storageservice.ImageHeaderSniffBytes+1)
-	err := validateUploadedImage(bytes.NewReader(data), "image/png")
-	if !errors.Is(err, errInvalidImageContent) {
-		t.Fatalf("validateUploadedImage() error = %v, want errInvalidImageContent", err)
-	}
-}
-
-// tinyWebPLossless is a 1x1 pixel lossless VP8L WebP (exercises the vp8l
-// decoder path that CVE-2026-46603 / GO-2026-6222 covers).
-var tinyWebPLossless = []byte{
-	0x52, 0x49, 0x46, 0x46, 0x1c, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
-	0x56, 0x50, 0x38, 0x4c, 0x0f, 0x00, 0x00, 0x00, 0x2f, 0x00, 0x00, 0x00,
-	0x00, 0x07, 0x10, 0xfd, 0x8f, 0xfe, 0x07, 0x22, 0xa2, 0xff, 0x01, 0x00,
-}
-
-// tinyBMP is a 1x1 pixel 24-bit BMP.
-var tinyBMP = []byte{
-	0x42, 0x4d, 0x3a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00,
-	0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
-	0x00, 0x00, 0x01, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00,
-	0x00, 0x00, 0xc4, 0x0e, 0x00, 0x00, 0xc4, 0x0e, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x00,
-}
-
-// truncatedWebP is a WebP/VP8L header cut off mid-chunk, so the decoder must
-// report a stable error instead of panicking or hanging.
-var truncatedWebP = []byte{
-	0x52, 0x49, 0x46, 0x46, 0x1c, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
-	0x56, 0x50, 0x38, 0x4c, 0x0f, 0x00, 0x00, 0x00,
-}
-
-// TestValidateUploadedImageWebPAndBMP guards the x/image upgrade (issue #405,
-// CVE-2026-46603): lossless VP8L and BMP inputs must keep validating, and
-// truncated/corrupt WebP input must fail with the stable invalid-image error.
-func TestValidateUploadedImageWebPAndBMP(t *testing.T) {
+// TestImageContentFailureCode pins the stable code per sentinel.
+func TestImageContentFailureCode(t *testing.T) {
 	tests := []struct {
-		name        string
-		data        []byte
-		contentType string
-		wantErr     bool
+		err  error
+		want component.MessageCode
 	}{
-		{name: "valid lossless webp", data: tinyWebPLossless, contentType: "image/webp"},
-		{name: "valid bmp", data: tinyBMP, contentType: "image/bmp"},
-		{name: "webp bytes with wrong content type", data: tinyWebPLossless, contentType: "image/png", wantErr: true},
-		{name: "truncated webp", data: truncatedWebP, contentType: "image/webp", wantErr: true},
-		{name: "bmp bytes with wrong content type", data: tinyBMP, contentType: "image/webp", wantErr: true},
+		{err: imagepolicy.ErrEmptyImageContent, want: component.MessageUploadEmptyImage},
+		{err: imagepolicy.ErrUnsupportedImageFormat, want: component.MessageUploadUnsupportedImage},
+		{err: imagepolicy.ErrInvalidImageContent, want: component.MessageUploadInvalidImage},
+		{err: errors.New("unexpected read failure"), want: component.MessageUploadInvalidImage},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateUploadedImage(bytes.NewReader(tt.data), tt.contentType)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("validateUploadedImage() error = nil, want error")
-				}
-				if !errors.Is(err, errInvalidImageContent) {
-					t.Fatalf("validateUploadedImage() error = %v, want errInvalidImageContent", err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("validateUploadedImage() error = %v, want nil", err)
-			}
-		})
+		if got := imageContentFailureCode(tt.err); got != tt.want {
+			t.Fatalf("imageContentFailureCode(%v) = %q, want %q", tt.err, got, tt.want)
+		}
+	}
+}
+
+// TestValidateDetectedContentTypeAllowsConflict is the issue #1393 acceptance
+// rule for the allowlist: a detected type that is allowed is accepted even when
+// it conflicts with the declared extension.
+func TestValidateDetectedContentTypeAllowsConflict(t *testing.T) {
+	policy := imageUploadPolicy{AllowedExts: imagepolicy.DefaultExtensions()}
+	for _, contentType := range []string{"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"} {
+		if failure := policy.validateDetectedContentType(contentType); failure != nil {
+			t.Fatalf("validateDetectedContentType(%q) = %+v, want nil", contentType, failure)
+		}
+	}
+	// A format outside the configured allowlist is rejected with the same code
+	// as a declared extension outside it.
+	narrow := imageUploadPolicy{AllowedExts: []string{".png"}}
+	failure := narrow.validateDetectedContentType("image/jpeg")
+	if failure == nil || failure.Data.MessageCode != component.MessageUploadUnsupportedExt {
+		t.Fatalf("validateDetectedContentType(image/jpeg) = %+v, want upload.extension.unsupported", failure)
+	}
+}
+
+// TestUploadFailureErrorRollsBackDirectUpload pins the bridge that keeps the
+// direct-upload complete on the same code path: the wrapped failure still
+// unwraps to the storageservice invalid-object sentinel (so the object and the
+// pending row are rolled back) and stays extractable for the response.
+func TestUploadFailureErrorRollsBackDirectUpload(t *testing.T) {
+	policy := imageUploadPolicy{AllowedExts: []string{".png"}}
+	failure := policy.validateDetectedContentType("image/jpeg")
+	if failure == nil {
+		t.Fatal("validateDetectedContentType() = nil, want a failure")
+	}
+	err := error(&uploadFailureError{failure: failure})
+	if !errors.Is(err, storageservice.ErrDirectUploadInvalidObject) {
+		t.Fatalf("error = %v, want it to unwrap to ErrDirectUploadInvalidObject", err)
+	}
+	var failureErr *uploadFailureError
+	if !errors.As(err, &failureErr) || failureErr.failure != failure {
+		t.Fatalf("errors.As(*uploadFailureError) = %+v, want the original failure", failureErr)
 	}
 }

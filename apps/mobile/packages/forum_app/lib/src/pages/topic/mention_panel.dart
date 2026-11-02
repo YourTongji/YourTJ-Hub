@@ -294,7 +294,7 @@ class _MentionCandidateRow extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: colors.base200.withValues(alpha: 0.7),
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(GfRadius.full),
                       ),
                       child: GfText(
                         roleLabel,

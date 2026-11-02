@@ -256,7 +256,7 @@ const toneDot = { ok: 'bg-emerald-500', warn: 'bg-amber-500', muted: 'bg-muted-f
         <span>{{ t('feedAdmin.privacyNote') }}</span>
         <span v-if="loadedAt" class="hidden sm:inline">· {{ t('feedAdmin.loadedAt', { time: dateTime(loadedAt) }) }}</span>
       </p>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" :disabled="loading" @click="load">
           <RefreshCw class="size-4" :class="{ 'animate-spin': loading }" />{{ t('feedAdmin.refresh') }}
         </Button>

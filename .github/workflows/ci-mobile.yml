@@ -19,6 +19,11 @@ jobs:
         with:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .node-version
+      - name: Check shared token values and Twemoji generated assets
+        run: node --test apps/mobile/packages/ui_kit/tool/*.test.mjs
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
@@ -27,11 +32,33 @@ jobs:
       - name: Bootstrap
         working-directory: apps/mobile
         run: |
-          flutter pub get
+          flutter pub get --enforce-lockfile
           dart run melos bootstrap
+          git diff --exit-code -- ':(top)apps/mobile/pubspec.lock'
       - name: Analyze
         working-directory: apps/mobile
-        run: dart run melos run analyze
+        run: |
+          dart run melos run analyze
+          git diff --exit-code -- ':(top)apps/mobile/pubspec.lock'
+      - name: Check generated localizations
+        working-directory: apps/mobile/packages/forum_app
+        run: |
+          flutter gen-l10n
+          # Include new locale files as well as tracked changes from generation
+          # here or during bootstrap/analyze; git diff alone misses new files.
+          drift="$(git status --porcelain --untracked-files=all -- lib/l10n)"
+          if [[ -n "$drift" ]]; then
+            printf '%s\n' "$drift"
+            echo 'Localization output is stale. Run flutter gen-l10n in apps/mobile/packages/forum_app and commit the generated files.' >&2
+            exit 1
+          fi
+      # Filtered build_runner cleanup may remove other generated outputs.
+      # Keep this last so analysis checks the complete committed workspace.
+      - name: Require fresh generated login contract
+        working-directory: apps/mobile/packages/core
+        run: |
+          dart run build_runner build --delete-conflicting-outputs --build-filter='lib/src/gen/auth.*.dart'
+          git diff --exit-code -- lib/src/gen/auth.freezed.dart lib/src/gen/auth.g.dart ':(top)apps/mobile/pubspec.lock'
 
   test:
     name: Test / ${{ matrix.package }} / ${{ matrix.shard }}
@@ -59,9 +86,10 @@ jobs:
       - name: Bootstrap
         working-directory: apps/mobile
         run: |
-          flutter pub get
+          flutter pub get --enforce-lockfile
           dart run melos bootstrap
+          git diff --exit-code -- ':(top)apps/mobile/pubspec.lock'
       - name: Test
         working-directory: apps/mobile/packages/${{ matrix.package }}
         # Each runner owns a Flutter SDK, so package jobs do not contend for its startup lock.
-        run: flutter test --total-shards=${{ matrix.shards }} --shard-index=${{ matrix.shard }}
+        run: flutter test --no-pub --total-shards=${{ matrix.shards }} --shard-index=${{ matrix.shard }}

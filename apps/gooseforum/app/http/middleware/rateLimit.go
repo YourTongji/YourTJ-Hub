@@ -84,6 +84,9 @@ const (
 	// 每次写入开事务并对双方用户行加锁，独立配额防脚本高频写（备注编辑低频，
 	// 60s 窗口 per-IP 30 / per-User 10）。
 	RateLimitUserNote = "user.note"
+
+	// Admin-only aggregate reads share a budget even when SkipAdmin is enabled.
+	RateLimitAdminStats = "admin.stats"
 )
 
 // 配置（开关/配额/窗口）每次请求动态读取，管理面板保存后即时生效。
@@ -124,7 +127,7 @@ func applyRateLimitCost(c *gin.Context, action string, cost int) {
 	}
 
 	userId := c.GetUint64("userId")
-	if cfg.SkipAdmin && userId != 0 {
+	if cfg.SkipAdmin && action != RateLimitAdminStats && userId != 0 {
 		if roleId, ok := userservice.GetUserRoleId(userId); ok && permission.CheckRole(roleId, permission.Admin) {
 			c.Next()
 			return

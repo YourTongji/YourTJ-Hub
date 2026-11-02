@@ -88,7 +88,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
           final reply = find.byWidgetPredicate(
-            (w) => w is GfSymbol && w.name == 'corner-down-left',
+            (w) => w is GfSymbol && w.name == 'comment-plus',
           );
           await tester.tap(reply);
           expect(replies, 1);
@@ -878,7 +878,7 @@ void main() {
         );
         expect(
           (surface.decoration! as BoxDecoration).borderRadius,
-          BorderRadius.circular(24),
+          BorderRadius.circular(GfRadius.xl),
         );
         expect(
           tester

@@ -12,8 +12,10 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../current_user.dart';
+import '../../layout_breakpoints.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
+import '../../navigation/shell_sections.dart';
 import '../../navigation/reading_window.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../widgets/root_surface.dart';
@@ -21,11 +23,41 @@ import '../../widgets/logo_motion_loader.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/campus_shortcuts.dart';
 import 'campus_connection.dart';
+import 'campus_course_picks.dart';
+import 'campus_settings_page.dart';
 import 'campus_data_views.dart';
 import 'campus_helpers.dart';
 import 'campus_lifecycle.dart';
 import 'campus_message_page.dart';
 import 'campus_state.dart';
+import 'timetable/campus_timetable.dart' show campusTimetableHeaderHeight;
+import 'timetable/timetable_grid.dart';
+import 'timetable/timetable_layout.dart';
+import 'timetable/timetable_memo_store.dart' show TimetablePrefs;
+
+/// Campus tabs in display order with their glyphs, shared by the wide
+/// module directory and the dock's long-press menu. None repeats a campus
+/// tool's glyph or a shell destination's: the calendar glyph belongs to the
+/// course planner, and the bell to Notifications.
+const campusTabSymbols = <String, String>{
+  'today': 'sun',
+  // The weekly grid of class cells.
+  'timetable': 'layout-grid',
+  // Grades read as a trend; the section leads with one.
+  'academics': 'trend-up',
+  'messages': 'inbox',
+  // A calendar with one day ringed: the term's key dates, set apart from the
+  // planner's dotted calendar and the holiday rule's crossed-out one.
+  'calendars': 'calendar-mark',
+};
+
+Map<String, String> campusTabLabels(AppLocalizations l) => {
+  'today': l.campusToday,
+  'timetable': l.campusTimetable,
+  'academics': l.campusAcademics,
+  'messages': l.campusMessages,
+  'calendars': l.campusCalendars,
+};
 
 /// Only navigation choices survive the private response view. This object is
 /// never serialized and contains no school response, credential or notice body.
@@ -38,6 +70,10 @@ class _CampusNavigation {
   String? binding;
   bool bindingObserved = false;
   bool identityRejected = false;
+
+  /// Last home-screen widget tap already handled; [clear] keeps it so an
+  /// identity change cannot replay an old tap.
+  int widgetEntry = 0;
 
   void clear() {
     tab = 'today';
@@ -61,12 +97,15 @@ class _CampusPageState extends ConsumerState<CampusPage> {
 
   @override
   Widget build(BuildContext context) {
+    _CampusNavigation fresh() =>
+        _CampusNavigation()
+          ..widgetEntry = ref.read(scheduleWidgetEntryProvider);
     ref.listen(offlineCacheEpochProvider, (_, _) {
-      setState(() => _navigation = _CampusNavigation());
+      setState(() => _navigation = fresh());
     });
     final repository = ref.watch(campusRepositoryProvider);
     ref.listen(campusRepositoryProvider, (_, _) {
-      _navigation = _CampusNavigation();
+      _navigation = fresh();
     });
     return KeyedSubtree(
       key: ObjectKey(repository),
@@ -84,19 +123,14 @@ class _CampusAccount extends ConsumerWidget {
     Widget publicSurface(Widget content) => RootSurface(
       title: l.campusTitle,
       showComposeAction: false,
-      actions: [
-        IconButton(
-          tooltip: l.campusExplore,
-          icon: const GfSymbol('graduation-cap'),
-          onPressed: () => context.push('/campus/explore'),
-        ),
-      ],
       body: (top, bottom) => ListView(
         padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
         children: [
           const CampusShortcuts(),
           const SizedBox(height: 24),
           content,
+          const SizedBox(height: 24),
+          const CampusCoursePicks(),
         ],
       ),
     );
@@ -183,13 +217,17 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     _foreground = isCampusForeground(lifecycle);
     WidgetsBinding.instance.addObserver(this);
+    final requested = ref
+        .read(shellSectionsProvider)
+        .take(GfShellDestination.campus);
+    if (requested != null && campusTabSymbols.containsKey(requested)) {
+      _navigation.tab = requested;
+    }
     _searchFor(_tab);
     // A notice may have kept the controller alive while this page was hidden.
     // Verify its binding and refresh private data when the page returns.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _visible == true) {
-        unawaited(ref.read(campusControllerProvider.notifier).enterTab(_tab));
-      }
+      if (mounted && _visible == true) _enter();
     });
     _registry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.campus, _scroll);
@@ -236,11 +274,23 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     });
     if (wasVisible == false) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _visible == true) {
-          unawaited(ref.read(campusControllerProvider.notifier).enterTab(_tab));
-        }
+        if (mounted && _visible == true) _enter();
       });
     }
+  }
+
+  /// Page entry. A new home-screen widget tap opens the timetable from the
+  /// device snapshot and refreshes behind it; other entries keep their tab.
+  void _enter() {
+    final controller = ref.read(campusControllerProvider.notifier);
+    final entry = ref.read(scheduleWidgetEntryProvider);
+    if (entry == _navigation.widgetEntry) {
+      unawaited(controller.enterTab(_tab));
+      return;
+    }
+    _navigation.widgetEntry = entry;
+    _select('timetable', load: false);
+    unawaited(controller.enterFromWidget('timetable'));
   }
 
   Future<void> _loadTimes() async {
@@ -272,7 +322,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     super.dispose();
   }
 
-  void _select(String tab, {bool fromSwipe = false}) {
+  void _select(String tab, {bool fromSwipe = false, bool load = true}) {
     if (tab == _tab) return;
     FocusManager.instance.primaryFocus?.unfocus();
     _swipeLoadingTab = fromSwipe ? tab : null;
@@ -282,7 +332,9 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       _restoreScroll = true;
     });
     _registry.register(GfShellDestination.campus, _scrollFor(tab));
-    unawaited(ref.read(campusControllerProvider.notifier).loadTab(tab));
+    if (load) {
+      unawaited(ref.read(campusControllerProvider.notifier).loadTab(tab));
+    }
   }
 
   Widget _section(String title, Widget child, {Widget? action}) => Padding(
@@ -304,6 +356,29 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       ],
     ),
   );
+
+  /// The teaching week, advanced by the Mondays passed since a previewed
+  /// snapshot was saved so an earlier week never shows as current.
+  int _snapshotWeek(CampusViewState state) {
+    final calendar = state.data['calendar'];
+    final week = int.tryParse(campusMetric(calendar, '教学周')) ?? 1;
+    final snapshot = state.snapshot;
+    if (snapshot == null || !identical(calendar, snapshot.data['calendar'])) {
+      return week;
+    }
+    DateTime monday(DateTime instant) {
+      final day = campusNow(instant);
+      return DateTime.utc(day.year, day.month, day.day - (day.weekday - 1));
+    }
+
+    final weeks =
+        monday(
+          DateTime.now(),
+        ).difference(monday(snapshot.committedAt)).inDays ~/
+        7;
+    return week + math.max(0, weeks);
+  }
+
   Widget _dataset(
     CampusViewState state,
     String key,
@@ -421,6 +496,44 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
             GfText(l.campusSnapshotStale),
         ],
       ),
+    );
+  }
+
+  /// The freshness facts of [_snapshotNotice], condensed for one line.
+  CampusTimetableStatus? _timetableStatus(CampusViewState state) {
+    final l = AppLocalizations.of(context);
+    final snapshot = state.snapshot;
+    final stale =
+        snapshot != null &&
+        (DateTime.now().difference(snapshot.committedAt) >
+                const Duration(days: 1) ||
+            snapshot.data['today']?.teachingDay?.date !=
+                campusDateKey(DateTime.now()));
+    final (String, String)? warning =
+        state.errors.containsKey('status') && snapshot != null
+        ? (l.campusSnapshotOffline, l.timetableShowingSnapshot)
+        : state.error != null || state.errors.isNotEmpty
+        ? (l.campusSnapshotRefreshFailed, l.timetablePartlyUpdated)
+        : stale
+        ? (l.campusSnapshotStale, l.timetableMayBeOutdated)
+        : null;
+    if (warning == null && snapshot == null) return null;
+    final updated = snapshot == null
+        ? null
+        : l.campusSnapshotUpdated(
+            DateFormat.yMd(
+              l.localeName,
+            ).add_Hm().format(snapshot.committedAt.toLocal()),
+          );
+    return CampusTimetableStatus(
+      warning?.$2 ??
+          l.timetableUpdatedAt(
+            DateFormat.Md(
+              l.localeName,
+            ).add_Hm().format(snapshot!.committedAt.toLocal()),
+          ),
+      detail: [?updated, ?warning?.$1].join('\n'),
+      warning: warning != null,
     );
   }
 
@@ -612,6 +725,8 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
             );
           },
         ),
+        const SizedBox(height: 24),
+        const CampusCoursePicks(),
       ],
     );
   }
@@ -642,7 +757,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                   LinearProgressIndicator(
                     value: (done / required).clamp(0, 1),
                     minHeight: 8,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(GfRadius.xs),
                   ),
                 ],
               ],
@@ -707,6 +822,16 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    ref.listen(scheduleWidgetEntryProvider, (_, _) {
+      if (_visible == true) _enter();
+    });
+    ref.listen(shellSectionsProvider, (_, sections) {
+      final requested = sections.take(GfShellDestination.campus);
+      if (requested != null && campusTabSymbols.containsKey(requested)) {
+        _select(requested);
+      }
+    });
+    ref.read(shellSectionsProvider).report(GfShellDestination.campus, _tab);
     final privateVisible = _visible ?? false;
     final state = privateVisible
         ? ref.watch(campusControllerProvider)
@@ -738,23 +863,16 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       _navigation.bindingObserved = true;
       _navigation.identityRejected = identityRejected;
     }
-    final labels = {
-      'today': l.campusToday,
-      'timetable': l.campusTimetable,
-      'academics': l.campusAcademics,
-      'messages': l.campusMessages,
-      'calendars': l.campusCalendars,
-      'connection': l.campusConnection,
-    };
+    final labels = campusTabLabels(l);
     final tabKeys = labels.keys.toList(growable: false);
     final layoutScale = (MediaQuery.textScalerOf(context).scale(16) / 16).clamp(
       1.0,
       double.infinity,
     );
-    final hasDirectory = MediaQuery.sizeOf(context).width >= 900 * layoutScale;
+    final hasDirectory =
+        MediaQuery.sizeOf(context).width >= widePageBreakpoint * layoutScale;
     bool isPending(String tab) {
       if (!privateVisible ||
-          tab == 'connection' ||
           (state.status != null && state.status?.binding == null)) {
         return false;
       }
@@ -770,7 +888,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       _swipeLoadingTab = null;
     }
 
-    Widget contentFor(String tab) {
+    Widget contentFor(String tab, {double? fitHeight}) {
       if (isPending(tab) && tab == _swipeLoadingTab) {
         return const LogoMotionLoader(showMessage: true);
       }
@@ -778,6 +896,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
         return _CampusRefreshSkeleton(
           tab: tab,
           week: _navigation.week ?? 1,
+          timetableHeight: fitHeight,
           todayHeader: tab == 'today'
               ? _todayHeader(const CampusViewState())
               : null,
@@ -789,6 +908,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
         return _CampusRefreshSkeleton(
           tab: tab,
           week: _navigation.week ?? 1,
+          timetableHeight: fitHeight,
           todayHeader: tab == 'today'
               ? _todayHeader(const CampusViewState())
               : null,
@@ -802,14 +922,39 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
           onRetry: () => ref.read(campusControllerProvider.notifier).refresh(),
         );
       }
-      if (state.status?.binding == null || tab == 'connection') {
-        return const CampusConnection();
+      if (state.status?.binding == null) {
+        if (tab != 'timetable') return const CampusConnection(compact: true);
+        return GfEmpty(
+          message: l.campusTimetableNotConnected,
+          description: l.campusTimetableConnectBody,
+          symbol: 'calendar-days',
+          action: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CampusConnection(compact: true),
+              const SizedBox(height: 12),
+              TextButton(
+                key: const Key('campus-timetable-courses'),
+                onPressed: () => context.push('/courses'),
+                child: GfText(l.coursesTitle, textAlign: TextAlign.center),
+              ),
+              TextButton(
+                key: const Key('campus-timetable-schedule'),
+                onPressed: () => context.push('/schedule'),
+                child: GfText(l.scheduleTitle, textAlign: TextAlign.center),
+              ),
+            ],
+          ),
+        );
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _snapshotNotice(state),
-          if (state.refreshing)
+          // The timetable folds freshness and progress into its header so
+          // the week keeps the screen.
+          if (tab != 'timetable') _snapshotNotice(state),
+          if (state.refreshing && tab != 'timetable')
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: LinearProgressIndicator(semanticsLabel: l.commonLoading),
@@ -829,12 +974,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                   data: data,
                   selectedWeek: _navigation.week,
                   onWeekChanged: (week) => _navigation.week = week,
-                  week:
-                      (int.tryParse(
-                                campusMetric(state.data['calendar'], '教学周'),
-                              ) ??
-                              1)
-                          .clamp(1, 53),
+                  week: _snapshotWeek(state).clamp(1, 53),
                   maxWeek: math
                       .max(
                         int.tryParse(
@@ -847,6 +987,14 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                       )
                       .clamp(1, 53),
                   times: _times,
+                  height: fitHeight,
+                  status: _timetableStatus(state),
+                  refreshing: state.refreshing,
+                  onRefresh: state.refreshing || state.busy
+                      ? null
+                      : () => ref
+                            .read(campusControllerProvider.notifier)
+                            .refresh(),
                 ),
               ),
               'academics' => _academics(state, tab),
@@ -964,18 +1112,46 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                 edgeOffset: top,
                 onRefresh: () =>
                     ref.read(campusControllerProvider.notifier).refresh(),
-                child: ListView(
-                  key: PageStorageKey<String>('campus-list-$tab'),
-                  controller: controller,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
-                  children: [
-                    if (tab == 'today') ...[
-                      const CampusShortcuts(),
-                      const SizedBox(height: 24),
-                    ],
-                    contentFor(tab),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, viewport) {
+                    // The timetable fits one screen: tighter page margins and
+                    // the remaining viewport height handed to the grid.
+                    final timetable = tab == 'timetable';
+                    final inline = timetable && viewport.maxWidth < 600
+                        ? 12.0
+                        : 20.0;
+                    final padding = timetable
+                        ? EdgeInsets.fromLTRB(
+                            inline,
+                            top + 12,
+                            inline,
+                            bottom + 12,
+                          )
+                        : EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16);
+                    return ListView(
+                      key: PageStorageKey<String>('campus-list-$tab'),
+                      controller: controller,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: padding,
+                      children: [
+                        if (tab == 'today') ...[
+                          const CampusShortcuts(),
+                          const SizedBox(height: 24),
+                        ],
+                        contentFor(
+                          tab,
+                          fitHeight: timetable && viewport.hasBoundedHeight
+                              ? viewport.maxHeight - padding.vertical
+                              : null,
+                        ),
+                        if (tab == 'today' &&
+                            state.status?.binding == null) ...[
+                          const SizedBox(height: 24),
+                          const CampusCoursePicks(),
+                        ],
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -998,9 +1174,11 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       showComposeAction: false,
       actions: [
         IconButton(
-          tooltip: l.campusExplore,
-          icon: const GfSymbol('graduation-cap'),
-          onPressed: () => context.push('/campus/explore'),
+          tooltip: l.campusSettings,
+          icon: const GfSymbol('settings'),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const CampusSettingsPage()),
+          ),
         ),
       ],
       toolbarHeight: hasDirectory ? 0 : GfTabBar.heightFor(context),
@@ -1035,18 +1213,11 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                                   context,
                                 ).primary.withValues(alpha: .08)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(GfRadius.md),
                           clipBehavior: Clip.antiAlias,
                           child: GfSettingRow(
                             key: Key('campus-module-${entry.key}'),
-                            symbol: switch (entry.key) {
-                              'today' => 'sun',
-                              'timetable' => 'calendar-days',
-                              'academics' => 'graduation-cap',
-                              'messages' => 'bell',
-                              'calendars' => 'calendar-days',
-                              _ => 'link',
-                            },
+                            symbol: campusTabSymbols[entry.key] ?? 'link',
                             title: entry.value,
                             trailing: const SizedBox.shrink(),
                             onTap: () => _select(entry.key),
@@ -1079,10 +1250,12 @@ class _CampusRefreshSkeleton extends StatefulWidget {
     required this.animate,
     required this.onSelectMessages,
     this.todayHeader,
+    this.timetableHeight,
   });
 
   final String tab;
   final int week;
+  final double? timetableHeight;
   final bool animate;
   final Widget? todayHeader;
   final VoidCallback onSelectMessages;
@@ -1307,209 +1480,70 @@ class _CampusRefreshSkeletonState extends State<_CampusRefreshSkeleton>
     ),
   );
 
-  Widget _timetable(AppLocalizations l) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Align(
-        alignment: Alignment.centerLeft,
-        child: _shine(_bone(width: 144, height: 44, radius: 22)),
-      ),
-      const SizedBox(height: 12),
-      Wrap(
-        alignment: WrapAlignment.center,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 8,
-        children: [
-          _bone(width: 40, height: 40, radius: 20),
-          GfText(
-            l.scheduleWeekN(widget.week),
-            style: GfTheme.typographyOf(context).heading,
-          ),
-          _bone(width: 40, height: 40, radius: 20),
-          TextButton(onPressed: null, child: GfText(l.scheduleCurrentWeek)),
-        ],
-      ),
-      const SizedBox(height: 12),
-      _timetableGrid(l),
-    ],
-  );
-
-  Widget _timetableGrid(AppLocalizations l) => LayoutBuilder(
-    builder: (context, constraints) {
-      final scaler = MediaQuery.textScalerOf(context);
-      final scale = [
-        9.5,
-        10.0,
-        11.0,
-        12.0,
-      ].map((size) => scaler.scale(size) / size).fold(1.0, math.max);
-      final width = constraints.maxWidth;
-      final timeWidth = math.min(56 * scale, width * .4);
-      final available = width - timeWidth - 2;
-      final dayWidth = math.max(76 * scale, available / 7);
-      final rowHeight = 64 * scale;
-      final colors = GfTheme.colorsOf(context);
-      final days = [
-        l.scheduleDayMon,
-        l.scheduleDayTue,
-        l.scheduleDayWed,
-        l.scheduleDayThu,
-        l.scheduleDayFri,
-        l.scheduleDaySat,
-        l.scheduleDaySun,
-      ];
-      Widget header(String label, double width) => Container(
-        width: width,
-        height: 36 * scale,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: colors.base200.withValues(alpha: .7),
-          border: Border(
-            right: BorderSide(color: colors.line),
-            bottom: BorderSide(color: colors.line),
-          ),
-        ),
-        child: GfText(
-          label,
-          style: TextStyle(
-            // Text applies the ambient scaler; only grid geometry scales here.
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.baseContent,
-          ),
-        ),
-      );
-      Widget timeCell(int row) => Container(
-        width: timeWidth,
-        height: rowHeight,
-        padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 3),
-        decoration: BoxDecoration(
-          border: Border(
-            right: BorderSide(color: colors.line),
-            bottom: BorderSide(color: colors.line),
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            GfText(
-              '$row',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: colors.baseContent.withValues(alpha: .7),
-              ),
-            ),
-            SizedBox(height: 2 * scale),
-            _shine(
-              Column(
-                children: [
-                  _bone(width: 28 * scale, height: 8 * scale, radius: 3),
-                  SizedBox(height: 2 * scale),
-                  _bone(width: 28 * scale, height: 8 * scale, radius: 3),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-      Widget dayColumn(int day) => SizedBox(
-        width: dayWidth,
-        height: rowHeight * 12,
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                for (var row = 0; row < 12; row++)
-                  Container(
-                    width: dayWidth,
-                    height: rowHeight,
-                    decoration: BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: colors.line),
-                        bottom: BorderSide(color: colors.line),
+  /// Mirrors [CampusWeekTimetable]: the same header rhythm and the real grid
+  /// geometry in placeholder mode, so loading never shifts the layout.
+  Widget _timetable(AppLocalizations l) {
+    final header = campusTimetableHeaderHeight(timetableTextScale(context));
+    final height = widget.timetableHeight;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: header - 8,
+          child: Column(
+            children: [
+              Expanded(
+                flex: 44,
+                child: Row(
+                  children: [
+                    const SizedBox(width: 2),
+                    _bone(width: 40, height: 40, radius: 20),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: GfText(
+                          l.scheduleWeekN(widget.week),
+                          style: GfTheme.typographyOf(context).title3,
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            for (final (courseDay, row, span) in const [
-              (1, 1, 2),
-              (3, 4, 2),
-              (5, 7, 2),
-            ])
-              if (day == courseDay)
-                Positioned(
-                  top: row * rowHeight + 4,
-                  left: 4,
-                  right: 4,
-                  height: span * rowHeight - 8,
-                  child: _shine(_bone(radius: 8)),
+                    const SizedBox(width: 10),
+                    _bone(width: 40, height: 40, radius: 20),
+                    const Spacer(),
+                    _shine(_bone(width: 40, height: 40, radius: 20)),
+                  ],
                 ),
-          ],
-        ),
-      );
-      final scrolls = dayWidth * 7 > available + 1;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: colors.base100,
-              borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).box),
-              border: Border.all(color: colors.line),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: timeWidth,
-                  child: Column(
-                    children: [
-                      header(l.scheduleTimeAxis, timeWidth),
-                      for (var row = 1; row <= 12; row++) timeCell(row),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: dayWidth * 7,
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              for (final day in days) header(day, dayWidth),
-                            ],
-                          ),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              for (var day = 0; day < 7; day++) dayColumn(day),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (scrolls)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: GfText(
-                l.scheduleGridScrollHint,
-                style: GfTheme.typographyOf(context).caption,
               ),
-            ),
-        ],
-      );
-    },
-  );
+              Expanded(
+                flex: 26,
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 12),
+                    child: _shine(_bone(width: 168, height: 10, radius: 5)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        TimetableGrid(
+          layout: buildTimetableWeek(
+            events: const [],
+            week: widget.week,
+            blocks: const [],
+            prefs: const TimetablePrefs(),
+          ),
+          times: sectionTimesFor(11, null),
+          week: widget.week,
+          height: height == null ? null : math.max(0.0, height - header),
+          placeholder: _shine,
+        ),
+      ],
+    );
+  }
 
   Widget _body(AppLocalizations l) => switch (widget.tab) {
     'today' => Column(
@@ -1579,7 +1613,7 @@ class _CampusRefreshSkeletonState extends State<_CampusRefreshSkeleton>
       child: ExcludeSemantics(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [if (widget.tab != 'connection') _snapshot(), _body(l)],
+          children: [_snapshot(), _body(l)],
         ),
       ),
     );

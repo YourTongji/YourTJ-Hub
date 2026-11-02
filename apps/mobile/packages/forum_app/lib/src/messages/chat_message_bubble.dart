@@ -202,7 +202,7 @@ class _ChatReplyQuoteBlock extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
             decoration: BoxDecoration(
               color: fill.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(GfRadius.xs),
             ),
             child: IntrinsicHeight(
               child: Row(

@@ -23,6 +23,7 @@ export interface PostStreamTopicActions {
 </script>
 
 <script setup lang="ts">
+import { useWriteRecovery } from '@/site/composables/useWriteRecovery'
 import UserNickname from '@/site/components/UserNickname.vue'
 import PersonaTag from './PersonaTag.vue'
 import { authorURL, authorKey } from '@/runtime/anonymous-identity'
@@ -39,7 +40,8 @@ import { measurePostViewportProgressFromRects } from '@/runtime/post-viewport-pr
 import { usePostViewMode } from '@/runtime/post-view-mode'
 import { buildReplyForest, flattenReplyForest, postTreeIndentLevel, type ForestRow } from '@/runtime/reply-forest'
 import MarkdownImageViewer from '@/components/MarkdownImageViewer.vue'
-import { getMarkdownImagePreview } from '@/runtime/markdown-image-preview'
+import StickerCard from '@/site/components/StickerCard.vue'
+import { getMarkdownImagePreview, getMarkdownSticker } from '@/runtime/markdown-image-preview'
 import PostPositionRail from '@/site/components/PostPositionRail.vue'
 import PostReplyReference from '@/site/components/PostReplyReference.vue'
 import PostReplyRow from '@/site/components/PostReplyRow.vue'
@@ -209,10 +211,12 @@ const loadingPostDirection = ref<'before' | 'after' | 'anchor' | null>(null)
 const postWindowError = ref('')
 const deleteErrorMessage = ref('')
 const errorMessage = ref('')
+const { code: writeRecoveryCode, capture: captureWriteFailure } = useWriteRecovery(errorMessage)
 const successMessage = ref('')
 const sensitiveWords = ref<string[]>([])
 const postLoadMoreEl = ref<HTMLElement | null>(null)
 const markdownImageViewer = ref<InstanceType<typeof MarkdownImageViewer> | null>(null)
+const stickerCard = ref<InstanceType<typeof StickerCard> | null>(null)
 const composerOpen = ref(false)
 const composerMode = computed(() => editingPostId.value ? 'edit' : 'create')
 // PostComposer 首次打开后保持挂载：若随开合销毁重建，内层 <Transition> 首次挂载不播 enter、
@@ -1663,6 +1667,7 @@ async function savePostEdit() {
   } catch (error) {
     sensitiveWords.value = sensitiveWordsFromError(error)
     errorMessage.value = error instanceof Error ? error.message : t('api.replyUpdateFailed')
+    captureWriteFailure(error)
     showModerationBlocked(error)
   } finally {
     savingEditPostId.value = 0
@@ -1724,6 +1729,7 @@ async function submitPost() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(error)
       errorMessage.value = error instanceof Error ? error.message : t('api.replyFailed')
+      captureWriteFailure(error)
       showModerationBlocked(error)
     }
   } finally {
@@ -1825,6 +1831,13 @@ function requestReport(target: { targetType: 'topic' | 'post'; targetId: number;
 }
 
 function handleMarkdownImageClick(event: MouseEvent) {
+  const sticker = getMarkdownSticker(event.target)
+  if (sticker) {
+    event.preventDefault()
+    event.stopPropagation()
+    stickerCard.value?.open(sticker)
+    return
+  }
   const preview = getMarkdownImagePreview(event.target)
   if (!preview) return
   event.preventDefault()
@@ -2580,6 +2593,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
     :captcha-explanation="showPublishCaptchaExplanation"
     :current-user-id="viewer.id"
     :error-message="errorMessage"
+    :recovery-code="writeRecoveryCode"
     :mention-users="mentionUsers"
     :mode="composerMode"
     :submitting="editingPostId ? savingEditPostId > 0 : submitting"
@@ -2596,6 +2610,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
   />
 
   <MarkdownImageViewer ref="markdownImageViewer" />
+  <StickerCard ref="stickerCard" :user-id="viewer.isAuthenticated ? viewer.id : null" @sign-in="openLogin" />
 
   <Teleport to="body">
     <Transition name="gf-modal">
@@ -3035,7 +3050,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
   margin-bottom: 1.5rem;
 }
 
-.gf-prose-article img:not(.twemoji) {
+.gf-prose-article img:not(.twemoji, [data-gf-sticker]) {
   display: block;
   max-width: 100%;
   height: auto;
@@ -3066,7 +3081,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
   margin-bottom: 1rem;
 }
 
-.gf-prose-thought img:not(.twemoji) {
+.gf-prose-thought img:not(.twemoji, [data-gf-sticker]) {
   display: block;
   max-width: 100%;
   height: auto;

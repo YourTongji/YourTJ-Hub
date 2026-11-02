@@ -125,6 +125,32 @@ func TestIsAllowedExt(t *testing.T) {
 	}
 }
 
+// TestIsAllowedContentType pins the issue #1393 review rule: the allowlist is
+// checked by type, so every listed JPEG spelling allows image/jpeg while a
+// PNG-only list does not. Naming keeps using the canonical `.jpg`.
+func TestIsAllowedContentType(t *testing.T) {
+	cases := []struct {
+		name        string
+		allowed     []string
+		contentType string
+		want        bool
+	}{
+		{name: "jpeg-only list allows image/jpeg", allowed: []string{".jpeg"}, contentType: "image/jpeg", want: true},
+		{name: "upper-case jpeg entry allows image/jpeg", allowed: []string{".JPG"}, contentType: "image/jpeg", want: true},
+		{name: "dotless jpeg entry allows image/jpeg", allowed: []string{"jpeg"}, contentType: "image/jpeg", want: true},
+		{name: "png-only list rejects image/jpeg", allowed: []string{".png"}, contentType: "image/jpeg"},
+		{name: "png-only list allows image/png", allowed: []string{".png"}, contentType: "image/png", want: true},
+		{name: "empty list rejects nothing is allowed", allowed: nil, contentType: "image/png"},
+		{name: "dangerous entry never allows a type", allowed: []string{".svg"}, contentType: "image/svg+xml"},
+		{name: "case-insensitive type argument", allowed: []string{".png"}, contentType: "IMAGE/PNG", want: true},
+	}
+	for _, tc := range cases {
+		if got := IsAllowedContentType(tc.contentType, tc.allowed); got != tc.want {
+			t.Errorf("IsAllowedContentType(%q, %#v) = %v, want %v", tc.contentType, tc.allowed, got, tc.want)
+		}
+	}
+}
+
 func TestFilterConfiguredList(t *testing.T) {
 	kept, dropped := FilterConfiguredList([]string{"png", "jpg", ".svg", ".html", "avatar.png.exe"})
 	if want := []string{"png", "jpg"}; !reflect.DeepEqual(kept, want) {

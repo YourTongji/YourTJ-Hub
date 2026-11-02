@@ -60,36 +60,69 @@ func resolveImageUploadPolicy(userId uint64) (*imageUploadPolicy, *imageUploadFa
 	if !isRoleUser && configMaxSize > 0 && configMaxSize < maxSize {
 		maxSize = configMaxSize
 	}
-	// 生效 allowlist 永远只可能是内置图片扩展集合（imagepolicy）的子集：
-	// 配置里即使残留危险/非法项，也会在读取路径被过滤，空配置回退内置全集。
-	return &imageUploadPolicy{MaxSize: maxSize, AllowedExts: imagepolicy.EffectiveAllowedExtensions(postingConfig.UploadControl.AuthorizedExtensions)}, nil
+	return &imageUploadPolicy{MaxSize: maxSize, AllowedExts: effectiveUploadExtensions()}, nil
 }
 
-// Validate checks filename, size, extension and reported content type, and
-// returns the canonical image content type for the file.
-func (policy imageUploadPolicy) Validate(filename string, size int64, reportedContentType string) (string, *imageUploadFailure) {
+// effectiveUploadExtensions 是读取生效 allowlist 的唯一入口：配置列表的规范子集为空
+// 时回退内置全集，危险扩展永远进不来。
+func effectiveUploadExtensions() []string {
+	return imagepolicy.EffectiveAllowedExtensions(hotdataserve.GetPostingSettingsConfigCache().UploadControl.AuthorizedExtensions)
+}
+
+// validateDeclaredFilename 校验客户端声明的文件名与大小（不变的上传前置）。
+func (policy imageUploadPolicy) validateDeclaredFilename(filename string, size int64) *imageUploadFailure {
 	if strings.TrimSpace(filename) == "" {
-		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadFilenameRequired, nil)
+		return uploadFailure(http.StatusBadRequest, component.MessageUploadFilenameRequired, nil)
 	}
 	if size <= 0 {
-		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadEmptyImage, nil)
+		return uploadFailure(http.StatusBadRequest, component.MessageUploadEmptyImage, nil)
 	}
 	if size > policy.MaxSize {
-		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadFileTooLarge, component.MessageParams{"maxSizeKb": policy.MaxSize / 1024})
+		return uploadFailure(http.StatusBadRequest, component.MessageUploadFileTooLarge, component.MessageParams{"maxSizeKb": policy.MaxSize / 1024})
 	}
-	if !imagepolicy.IsAllowedExt(filepath.Ext(filename), policy.AllowedExts) {
-		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadUnsupportedExt, component.MessageParams{"extensions": strings.Join(policy.AllowedExts, ", ")})
+	return nil
+}
+
+// validateDeclaredExtension 仍按客户端文件名扩展名做 allowlist 前置拒绝：
+// 危险扩展（evil.svg 等）在读取内容之前就被拒，安全强度不因「字节权威」回退。
+func (policy imageUploadPolicy) validateDeclaredExtension(filename string) *imageUploadFailure {
+	if imagepolicy.IsAllowedExt(filepath.Ext(filename), policy.AllowedExts) {
+		return nil
 	}
-	// IsAllowedExt 已保证扩展名属于生效 allowlist（内置图片集合的子集），
-	// CheckImageType 在此不可能失败。
-	contentType, _ := filedata.CheckImageType(filename)
-	if reportedContentType != "" {
-		reported, _, err := mime.ParseMediaType(reportedContentType)
-		if err != nil || !strings.EqualFold(reported, contentType) {
-			return "", uploadFailure(http.StatusBadRequest, component.MessageUploadInvalidImage, nil)
-		}
+	return policy.extensionFailure()
+}
+
+// validateReportedContentType 只在尚无字节的 init 阶段使用：声明 MIME 必须与声明
+// 扩展名推出的类型一致；此时没有字节可依据，仍按同一允许集预检。
+func (policy imageUploadPolicy) validateReportedContentType(filename, reportedContentType string) *imageUploadFailure {
+	if reportedContentType == "" {
+		return nil
 	}
-	return contentType, nil
+	declared, ok := imagepolicy.ContentTypeForFilename(filename)
+	if !ok {
+		return policy.extensionFailure()
+	}
+	reported, _, err := mime.ParseMediaType(reportedContentType)
+	if err != nil || !strings.EqualFold(reported, declared) {
+		return uploadFailure(http.StatusBadRequest, component.MessageUploadInvalidImage, nil)
+	}
+	return nil
+}
+
+// validateDetectedContentType 是内容校验后的唯一判定：按字节判定的真实类型必须落在
+// 生效 allowlist 内。真实类型与声明扩展名冲突本身不再算失败（issue #1393）。判定按
+// 类型而非规范扩展名，所以只配 `.jpeg` 时真实 JPEG 仍通过；入库/命名的规范扩展名
+// （ExtForContentType → `.jpg`）与 allowlist 解耦。
+func (policy imageUploadPolicy) validateDetectedContentType(contentType string) *imageUploadFailure {
+	if imagepolicy.IsAllowedContentType(contentType, policy.AllowedExts) {
+		return nil
+	}
+	return policy.extensionFailure()
+}
+
+func (policy imageUploadPolicy) extensionFailure() *imageUploadFailure {
+	return uploadFailure(http.StatusBadRequest, component.MessageUploadUnsupportedExt,
+		component.MessageParams{"extensions": strings.Join(policy.AllowedExts, ", ")})
 }
 
 func uploadFailure(status int, code component.MessageCode, params component.MessageParams) *imageUploadFailure {

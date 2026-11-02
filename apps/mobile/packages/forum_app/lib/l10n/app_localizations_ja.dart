@@ -56,7 +56,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get navPublish => '投稿';
 
   @override
-  String get navMessages => 'メッセージ';
+  String get navMessages => 'ダイレクトメッセージ';
 
   @override
   String get navProfile => 'マイページ';
@@ -222,6 +222,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authUsernameOrEmail => 'ユーザー名またはメール';
 
   @override
+  String get authRegistrationUsernameRules =>
+      '6–32 文字。半角英字・数字・アンダースコア（_）・ハイフン（-）が使えます。';
+
+  @override
+  String get authRegistrationPasswordRules =>
+      '6–64 文字。半角英字（A–Z／a–z）と数字（0–9）を含めてください。他の文字も使えます。';
+
+  @override
   String get authUsername => 'ユーザー名';
 
   @override
@@ -284,7 +292,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get authRegisterEmailVerify =>
-      '登録が完了しました。確認メールを送信しました。受信箱を確認してください。メールが届かない場合は、ログイン後にアカウントのセキュリティから再送信できます。';
+      'アカウントを作成しました。受信メールから認証してください。届かない場合はアカウントのセキュリティで再送またはメールアドレスを変更できます。';
 
   @override
   String get authActivationRequired => '先に受信箱からアカウントを有効化してください。';
@@ -293,7 +301,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authResendActivationEmail => '確認メールを再送信';
 
   @override
-  String get authRegisterSuccess => '登録しました。ログインしてください';
+  String get authRegisterSuccess => 'アカウントを作成しました。';
 
   @override
   String get authResetEmailSent => '再設定メールを送信しました。受信箱をご確認ください';
@@ -529,7 +537,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileNotLoggedIn => 'ログインしていません';
 
   @override
-  String get messagesTitle => 'メッセージ';
+  String get messagesTitle => 'ダイレクトメッセージ';
 
   @override
   String get messagesEmpty => 'まだ会話はありません';
@@ -633,7 +641,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsTabProfile => 'プロフィール';
 
   @override
-  String get settingsTabAccount => 'アカウント・セキュリティ・プライバシー';
+  String get settingsTabAccount => 'アカウントとセキュリティ';
 
   @override
   String get settingsTabPrivacy => 'プライバシー';
@@ -740,7 +748,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsOAuth => '外部アカウント連携';
 
   @override
-  String get settingsOAuthSub => 'GitHubとGoogleのログイン連携';
+  String get settingsOAuthSub => 'GitHub・Google・Apple のログイン連携';
 
   @override
   String get settingsOAuthManage => 'アカウント連携を管理';
@@ -820,6 +828,48 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsAppearance => '外観';
 
   @override
+  String get decorationAppearance => '外観';
+
+  @override
+  String get decorationTitle => 'アバターフレームとカラーネーム';
+
+  @override
+  String get decorationFrame => 'アバターフレーム';
+
+  @override
+  String get decorationNickname => 'カラーネーム';
+
+  @override
+  String get decorationGrant => '装飾は管理者が付与します。';
+
+  @override
+  String get decorationNone => '装備しない';
+
+  @override
+  String get decorationPreview => 'プレビュー';
+
+  @override
+  String get decorationEquip => 'このスタイルを使う';
+
+  @override
+  String get decorationLocked => '未所有';
+
+  @override
+  String get decorationEquipped => '装備中';
+
+  @override
+  String get decorationAvailable => '使用可能';
+
+  @override
+  String get decorationCurrent => '現在の外観';
+
+  @override
+  String get decorationPreviewOnly => 'プレビューのみ';
+
+  @override
+  String get decorationLockedHint => '未所有です。見た目をプレビューできます。';
+
+  @override
   String get settingsDarkMode => 'ダークモード';
 
   @override
@@ -829,7 +879,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsLightCurrent => '現在：ライト';
 
   @override
-  String get settingsAbout => '情報';
+  String get settingsAbout => 'コミュニティについて';
 
   @override
   String get settingsAboutVersion => 'v0.1.0 · 同済大学キャンパスフォーラム';
@@ -1007,6 +1057,9 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get topicJumpToFloor => '階へ移動';
+
+  @override
   String topicFloorSelected(Object floor) {
     return '$floor階へ移動しました';
   }
@@ -1039,16 +1092,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get topicLaterReplies => '新しい返信を読み込む';
 
   @override
-  String get topicFeedModeList => 'リスト';
-
-  @override
-  String get topicFeedModeCard => 'カード';
-
-  @override
   String get topicNewTopic => '新規トピック';
 
   @override
-  String get scheduleTitle => '時間割プランナー';
+  String get scheduleTitle => '履修プランナー';
+
+  @override
+  String get scheduleFilters => '条件';
+
+  @override
+  String get scheduleCandidates => '候補';
 
   @override
   String get scheduleTabTimetable => 'プランのプレビュー';
@@ -1174,7 +1227,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get scheduleOptional => '選択';
 
   @override
-  String get scheduleSearchHint => '授業名・コード・教員名で検索';
+  String get scheduleSearchHint => '授業名を検索';
 
   @override
   String get scheduleStaged => '候補';
@@ -1333,6 +1386,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsFollowSiteThemeDesc => 'サイトで設定された配色を使用';
 
   @override
+  String get settingsNavigationStyle => 'ナビゲーション';
+
+  @override
+  String get settingsNavigationDock => 'フローティングドック';
+
+  @override
+  String get settingsNavigationBar => 'クラシックバー';
+
+  @override
+  String get settingsNavigationStyleDesc => 'ワイドウィンドウでは常にサイドレールを使用します。';
+
+  @override
   String get richContentCopyCode => 'コードをコピー';
 
   @override
@@ -1400,6 +1465,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get navCampus => 'キャンパス';
+
+  @override
+  String get navShortcutsHint => '長押しでショートカットを表示';
 
   @override
   String get campusTitle => 'マイキャンパス';
@@ -1495,13 +1563,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileMore => 'その他の操作';
 
   @override
-  String get profileContent => 'コンテンツ管理';
+  String get profileContent => '自分のコンテンツ';
 
   @override
   String get profileTrash => 'ごみ箱';
-
-  @override
-  String get profileSecurity => 'アカウント・セキュリティ・プライバシー';
 
   @override
   String get profileAdmin => '管理ワークスペース';
@@ -1553,7 +1618,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get adminDownloadFailed => 'エクスポートをダウンロードできませんでした。再試行してください。';
 
   @override
-  String get publishGalleryTooMany => '画像は最大9枚です。一部を削除するか、記事エディターを使用してください。';
+  String get publishGalleryTooMany => '画像は最大9枚です。枚数を減らしてもう一度お試しください。';
 
   @override
   String get profileActivity => 'アクティビティ';
@@ -1775,7 +1840,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authPasswordMismatch => '2つのパスワードが一致しません';
 
   @override
-  String get schedulerWebTitle => 'Webで時間割プランナーの全機能を使う';
+  String get schedulerWebTitle => 'Webで履修プランナーの全機能を使う';
 
   @override
   String get schedulerWebAction => 'f.yourtj.deを開く';
@@ -2482,13 +2547,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get campusToday => '今日';
 
   @override
-  String get campusTimetable => '時間割';
+  String get campusTimetable => '学校の時間割';
 
   @override
   String get campusAcademics => '学業記録';
 
   @override
-  String get campusMessages => '大学のお知らせ';
+  String get campusMessages => '学校のお知らせ';
 
   @override
   String get campusCalendars => '学年暦';
@@ -2842,7 +2907,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleWidgetPrivacyDescription =>
-      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。';
+      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所に加え、自分で作成した予定の名前と場所も表示されます（メモは含まれません）。同意すると、時間割の更新時にホーム画面にも反映されます。';
 
   @override
   String get scheduleWidgetRefresh => 'オフライン時間割から更新';
@@ -3080,9 +3145,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get notificationsUnreadEmptyDescription => 'すべての通知を確認しました。';
-
-  @override
-  String get homeFeedOptions => '表示方法';
 
   @override
   String get homeAllCategories => 'すべてのカテゴリ';
@@ -4021,4 +4083,549 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get previewStatusLink => 'プレビュー状況';
+
+  @override
+  String get timetableOptions => '時間割の設定';
+
+  @override
+  String get timetableWeekPicker => '週を選択';
+
+  @override
+  String timetableDateRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String timetableUpdatedAt(String time) {
+    return '$time に更新';
+  }
+
+  @override
+  String get timetableShowingSnapshot => '保存済みのデータを表示中';
+
+  @override
+  String get timetablePartlyUpdated => '一部のみ更新';
+
+  @override
+  String get timetableMayBeOutdated => '最新でない可能性';
+
+  @override
+  String get timetableFocusDay => 'この日にフォーカス';
+
+  @override
+  String get timetableUnfocusDay => '週全体を表示';
+
+  @override
+  String get timetableAddBlockHere => 'ここにブロックを追加';
+
+  @override
+  String get timetableOtherWeek => '他の週';
+
+  @override
+  String get timetableBlock => 'カスタムブロック';
+
+  @override
+  String get timetableInProgress => '授業中';
+
+  @override
+  String get timetableEmptyWeek => '今週は授業がありません。空いているマスをタップすると予定を追加できます。';
+
+  @override
+  String get timetableDayFree => '予定はありません。空いているマスをタップするとブロックを追加できます。';
+
+  @override
+  String get timetableGestureTip =>
+      '曜日をタップするとその日にフォーカスします。空いているマスをタップするとブロックを追加でき、長押ししてドラッグすると複数コマを選べます。';
+
+  @override
+  String get timetableDisplay => '表示';
+
+  @override
+  String get timetableAlwaysShowWeekend => '週末を常に表示';
+
+  @override
+  String get timetableAlwaysShowWeekendHint => 'オフのときは、予定のない週末を折りたたみます。';
+
+  @override
+  String get timetableShowOtherWeeks => '他の週の授業を表示';
+
+  @override
+  String get timetableShowOtherWeeksHint => '空いているマスに薄く表示します。';
+
+  @override
+  String get timetableShowSectionTimes => '授業時間を表示';
+
+  @override
+  String get timetableFocusToday => '開いたときに今日にフォーカス';
+
+  @override
+  String get timetableMemos => 'ブロックとメモ';
+
+  @override
+  String get timetableNoMemos => 'ブロックやメモはまだありません。サークル活動や自習、リマインダーを追加できます。';
+
+  @override
+  String get timetableAddBlock => 'ブロックを追加';
+
+  @override
+  String get timetableEditBlock => 'ブロックを編集';
+
+  @override
+  String get timetableBlockTitle => 'タイトル';
+
+  @override
+  String get timetableBlockTitleHint => 'サークルの集まり';
+
+  @override
+  String get timetableBlockPlace => '場所';
+
+  @override
+  String get timetableBlockPlaceHint => '図書館3階';
+
+  @override
+  String get timetableBlockNote => 'メモ';
+
+  @override
+  String get timetableBlockDays => '曜日';
+
+  @override
+  String get timetableBlockStart => '開始コマ';
+
+  @override
+  String get timetableBlockEnd => '終了コマ';
+
+  @override
+  String timetableWeeksOnly(int week) {
+    return '第$week週のみ';
+  }
+
+  @override
+  String get timetableWeeksEvery => '毎週';
+
+  @override
+  String get timetableWeeksOdd => '奇数週';
+
+  @override
+  String get timetableWeeksEven => '偶数週';
+
+  @override
+  String get timetableBlockColor => '色';
+
+  @override
+  String timetableColorN(int number) {
+    return '色 $number';
+  }
+
+  @override
+  String get timetableSaveBlock => '保存';
+
+  @override
+  String get timetableDeleteBlock => 'ブロックを削除';
+
+  @override
+  String get timetableDeleteNote => 'メモを削除';
+
+  @override
+  String timetableCredits(String credits) {
+    return '$credits 単位';
+  }
+
+  @override
+  String get timetableCourseNote => '毎週のメモ';
+
+  @override
+  String get timetableCourseNoteHint => '電卓を持参';
+
+  @override
+  String timetableWeekNote(int week) {
+    return '第$week週のメモ';
+  }
+
+  @override
+  String get timetableWeekNoteHint => '小テスト、課題提出';
+
+  @override
+  String get timetableNotesLocal => 'メモはこの端末にのみ保存されます。';
+
+  @override
+  String get timetableNotesSaved => 'この端末に保存しました。';
+
+  @override
+  String get timetableNotesUnsaved => 'この端末に保存できません。メモを編集すると再試行します。';
+
+  @override
+  String get timetableWidgets => 'ホーム画面ウィジェット';
+
+  @override
+  String get timetableWidgetNext => '次の授業';
+
+  @override
+  String get timetableWidgetNextHint => '次の授業と時間・教室';
+
+  @override
+  String get timetableWidgetToday => '今日の授業';
+
+  @override
+  String get timetableWidgetTodayHint => '今日の授業を一覧表示';
+
+  @override
+  String get timetableWidgetTimeline => '授業タイムライン';
+
+  @override
+  String get timetableWidgetTimelineHint => '今日の授業を時間軸で表示';
+
+  @override
+  String get timetableWidgetAdd => '追加';
+
+  @override
+  String timetableWidgetAddNamed(String name) {
+    return '「$name」ウィジェットを追加';
+  }
+
+  @override
+  String get timetableWidgetRequested => 'システムのダイアログで確認すると、ウィジェットが配置されます。';
+
+  @override
+  String get timetableWidgetManual =>
+      'ウィジェットを追加するには、ホーム画面の空いている場所を長押しし、「ウィジェット」を開いて YourTJ を選びます。';
+
+  @override
+  String get timetableWidgetIosSteps =>
+      'ウィジェットを追加するには、ホーム画面の空いている場所を長押しして＋をタップし、YourTJ を検索してサイズを選びます。';
+
+  @override
+  String get timetableCalendarSection => '授業カレンダー';
+
+  @override
+  String get timetableMore => 'その他';
+
+  @override
+  String get timetableMemosNone => 'ブロックやメモはまだありません';
+
+  @override
+  String timetableMemoSummary(int blocks, int notes) {
+    return 'ブロック $blocks 件 · メモ $notes 件';
+  }
+
+  @override
+  String get timetableMemosIntro => 'ブロックとメモはこの端末にだけ保存されます。授業をタップするとメモを書けます。';
+
+  @override
+  String get timetableBlocksHeading => 'ブロック';
+
+  @override
+  String get timetableNotesHeading => '授業メモ';
+
+  @override
+  String get timetableWidgetsHint => '次の授業や今日の授業をホーム画面に置けます。';
+
+  @override
+  String get timetableExportHint => '.ics ファイルとして保存し、カレンダーアプリに取り込めます。';
+
+  @override
+  String get timetableBlockWhen => '日時';
+
+  @override
+  String get timetableAddNote => 'メモを追加';
+
+  @override
+  String timetableWeeksRange(String range) {
+    return '第$range週';
+  }
+
+  @override
+  String get timetableListSeparator => '、';
+
+  @override
+  String get timetableConfirmDelete => 'もう一度タップで削除';
+
+  @override
+  String get profileMutualFollowing => '相互フォロー';
+
+  @override
+  String get homeFeedSwitchToList => 'リスト表示に切り替え';
+
+  @override
+  String get homeFeedSwitchToCard => 'カード表示に切り替え';
+
+  @override
+  String get profileStreamManage => '管理';
+
+  @override
+  String get searchFilterInCatalog => '講義一覧で絞り込む';
+
+  @override
+  String get profileEditAddCover => 'カバーを追加';
+
+  @override
+  String get profileEditAddSocialLinks => 'SNS リンクを追加';
+
+  @override
+  String get profileEditAddWebsite => 'ウェブサイトを追加';
+
+  @override
+  String get profileEditBasics => '基本情報';
+
+  @override
+  String get profileEditBioHint => '自己紹介を入力';
+
+  @override
+  String get profileEditChangeAvatar => 'アバターを変更';
+
+  @override
+  String get profileEditChangeCover => 'カバーを変更';
+
+  @override
+  String get profileEditDisplay => '表示';
+
+  @override
+  String get profileEditDone => '完了';
+
+  @override
+  String get profileEditFromPhotos => '写真から選ぶ';
+
+  @override
+  String get profileEditLinks => 'リンク';
+
+  @override
+  String get profileEditNicknameHint => '表示名を入力';
+
+  @override
+  String get profileEditSignatureHint => 'ひとことを追加';
+
+  @override
+  String get profileEditSocialHint => 'ユーザー名または HTTPS リンク';
+
+  @override
+  String get profileEditTakePhoto => '写真を撮る';
+
+  @override
+  String get profileEditWebsiteUrl => 'サイト URL';
+
+  @override
+  String get profileLanguageHint => '公開プロフィールの言語です。アプリの言語とは別に設定します。';
+
+  @override
+  String profileEditBadgeSummary(String name, int count) {
+    return '着用：$name · $count 個を表示';
+  }
+
+  @override
+  String get contentMineTitle => '自分のコンテンツ';
+
+  @override
+  String get settingsManageBadges => 'バッジを管理';
+
+  @override
+  String get campusSettings => 'キャンパス設定';
+
+  @override
+  String get scheduleStatusHelp => 'プランの状態とヘルプ';
+
+  @override
+  String get courseAddToPlanner => '履修プランナーに追加';
+
+  @override
+  String get coursePlannerSelectTerm =>
+      '同じ学期と専攻を選択してからクラスを確認してください。既存プランは自動変更されません。';
+
+  @override
+  String get coursePlannerUnavailable =>
+      'この学期のクラスは利用できません。講義詳細から別の開講記録を選択してください。';
+
+  @override
+  String get coursePlannerCalendarsFailed =>
+      '学期一覧の読み込みに失敗しました。ネットワークを確認して再試行してください。';
+
+  @override
+  String get authCheckEmailVerification => 'メール確認の状態を確認';
+
+  @override
+  String get authWriteRecoveryHint => '入力内容は残ります。確認後に戻り、手動で続けてください。';
+
+  @override
+  String get activationStatusRefresh => '状態を更新';
+
+  @override
+  String scheduleSearchNoMatch(String query) {
+    return '「$query」に一致する授業名はありません';
+  }
+
+  @override
+  String get scheduleNoOptional => 'この学期の選択科目は返されませんでした';
+
+  @override
+  String get scheduleMajorSearchHint => '専攻名またはコードを検索';
+
+  @override
+  String get chatMessagePolicyLabel => '新しい会話を開始できる人';
+
+  @override
+  String get activationStatusMailUnavailable => 'メールを利用できません。後で更新してください';
+
+  @override
+  String get activationStatusMissingEmail => '先にアカウント設定でメールを追加してください';
+
+  @override
+  String get chatMessagePolicyTitle => '私信の許可';
+
+  @override
+  String get campusTimetableNotConnected => '同済大学の本人認証が未接続です';
+
+  @override
+  String scheduleSearchScope(String term) {
+    return '授業名の検索範囲：$term';
+  }
+
+  @override
+  String get scheduleConfigureScope => '履修範囲を設定';
+
+  @override
+  String get chatMessagePolicySaved => 'メッセージの権限をアカウントに保存しました';
+
+  @override
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '専攻を変更すると、$planCount 件の計画にある $courseCount 科目と $eventCount 件の予定が消去されます。キャンセルすると元の設定と計画を保持します。';
+  }
+
+  @override
+  String get activationStatusDailyLimit => '本日の上限に達しました。明日お試しください';
+
+  @override
+  String get activationStatusDisabled => 'メール確認は現在無効です';
+
+  @override
+  String get authVerificationPendingHint =>
+      '受信メールのリンクで認証し、このページを更新してください。届かない場合は再送またはアドレスを変更できます。認証前は一部の操作が利用できません。';
+
+  @override
+  String get scheduleChangeMajorUpdated => '計画の内容が更新されました。専攻を選び直してください。';
+
+  @override
+  String activationStatusCooldown(int seconds) {
+    return '$seconds 秒後に再送できます';
+  }
+
+  @override
+  String get authVerificationPending => 'メールアドレスの認証待ち';
+
+  @override
+  String get activationStatusFrozen => 'このアカウントでは再送できません';
+
+  @override
+  String get authRegistrationUnavailable => '現在登録できません。しばらくしてからお試しください。';
+
+  @override
+  String get imageViewerThumbnails => '画像のサムネイル';
+
+  @override
+  String activationStatusTarget(String email) {
+    return '送信先：$email';
+  }
+
+  @override
+  String activationStatusRemaining(int count, int limit) {
+    return '本日の再送可能回数：$count / $limit';
+  }
+
+  @override
+  String get chatMessagePolicyNobody => '新しい私信を受け付けない';
+
+  @override
+  String scheduleCourseScope(String scope) {
+    return '現在の範囲：$scope';
+  }
+
+  @override
+  String get activationStatusVerified => 'メールは確認済みです。再送は不要です';
+
+  @override
+  String get authCheckSignupAvailability => '登録状況を再確認';
+
+  @override
+  String scheduleSetupMissing(String fields) {
+    return '$fields を選択してから科目や授業クラスを探してください。';
+  }
+
+  @override
+  String get imageViewerOriginalSize => '元のサイズ';
+
+  @override
+  String get imageViewerFitPreview => '画面に合わせる';
+
+  @override
+  String get scheduleChangeMajorConfirm => '変更して消去';
+
+  @override
+  String get campusTimetableConnectBody =>
+      '本人認証を接続すると、大学から提供される個人の時間割を表示できます。接続しなくても、科目一覧と時間割シミュレーターを利用できます。';
+
+  @override
+  String get chatMessagePolicyHint =>
+      '実際のメッセージがある会話は継続できます。空の会話は対象外です。ボットにも同じ設定が適用され、ブロックが優先されます。';
+
+  @override
+  String get scheduleSearchReady => '授業名を入力して検索';
+
+  @override
+  String get scheduleNoCompulsory => 'この範囲の必修科目は返されませんでした';
+
+  @override
+  String get scheduleMajorNoMatch => '一致する専攻はありません';
+
+  @override
+  String get scheduleChangeMajorTitle => '専攻を変更して計画を消去しますか？';
+
+  @override
+  String get scheduleEmptyCourseHint => '履修範囲を変更するか、授業名で検索してください。';
+
+  @override
+  String get scheduleSetupTitle => '先に履修範囲を設定してください';
+
+  @override
+  String get scheduleConfigChangeTitle => '時間割の設定を切り替えますか？';
+
+  @override
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  ) {
+    return 'すべてのプランの科目と予定を空にします。内容のある $planCount 件のプランに、科目 $courseCount 件と予定 $eventCount 件があります。プラン名は残ります。';
+  }
+
+  @override
+  String scheduleConfigChangePlan(
+    String name,
+    int courseCount,
+    int eventCount,
+  ) {
+    return '$name：科目 $courseCount 件、予定 $eventCount 件';
+  }
+
+  @override
+  String get scheduleConfigChangeSync => '同期済みのプランでは、内容の消去も他の端末に同期されます。';
+
+  @override
+  String get scheduleConfigChangeConfirm => 'プランを空にして切り替える';
+
+  @override
+  String get scheduleConfigChangeUpdated => 'プランが変更されました。再度選択して影響を確認してください。';
+
+  @override
+  String get unreadStyleTitle => '未読の表示';
+
+  @override
+  String get unreadStyleNumbers => '未読件数を表示';
+
+  @override
+  String get unreadStyleHint =>
+      'オフにすると点のみを表示します。このアカウントの Web と App で同期し、既読状態やプッシュ通知は変更しません。';
+
+  @override
+  String get unreadStyleSaving => '表示方法を保存中…';
 }

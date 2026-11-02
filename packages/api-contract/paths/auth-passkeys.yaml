@@ -79,6 +79,21 @@ loginBegin:
             examples:
               success:
                 externalValue: ../fixtures/passkey-login-begin-success.json
+      '429':
+        description: Login rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/login-rate-limited.json
 
 loginFinish:
   post:
@@ -113,10 +128,14 @@ loginFinish:
             required: true
             schema:
               type: integer
+              minimum: 1
         content:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/login-rate-limited.json
 
 reauth:
   post:
@@ -151,6 +170,21 @@ reauth:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Passkey-management rate limit exceeded (shared password.change quota).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/change-password-rate-limited.json
 
 registrationBegin:
   post:
@@ -179,6 +213,39 @@ registrationBegin:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          The account is frozen, pending activation, or cannot be resolved, or the
+          cookie-authenticated request is rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              pendingActivation:
+                externalValue: ../fixtures/permission-email-required.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Passkey-management rate limit exceeded (shared password.change quota).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/change-password-rate-limited.json
 
 registrationFinish:
   post:
@@ -207,6 +274,39 @@ registrationFinish:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          The account is frozen, pending activation, or cannot be resolved, or the
+          cookie-authenticated request is rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              pendingActivation:
+                externalValue: ../fixtures/permission-email-required.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Passkey-management rate limit exceeded (shared password.change quota).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/change-password-rate-limited.json
 
 credentials:
   get:
@@ -251,6 +351,45 @@ rename:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/PasskeyEmptyResponse
+      '401':
+        description: Missing, invalid, expired, or revoked session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          The account is frozen, pending activation, or cannot be resolved, or the
+          cookie-authenticated request is rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              pendingActivation:
+                externalValue: ../fixtures/permission-email-required.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Passkey-management rate limit exceeded (shared password.change quota).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/change-password-rate-limited.json
 
 revoke:
   post:
@@ -273,6 +412,45 @@ revoke:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/PasskeyEmptyResponse
+      '401':
+        description: Missing, invalid, expired, or revoked session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          The account is frozen, pending activation, or cannot be resolved, or the
+          cookie-authenticated request is rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              pendingActivation:
+                externalValue: ../fixtures/permission-email-required.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Passkey-management rate limit exceeded (shared password.change quota).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/change-password-rate-limited.json
 
 AppleAssociationResponse:
   type: object

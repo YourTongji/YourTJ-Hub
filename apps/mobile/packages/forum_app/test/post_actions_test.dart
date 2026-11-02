@@ -13,6 +13,7 @@ import 'package:forum_app/src/pages/topic/post_history_sheet.dart';
 import 'package:forum_app/src/pages/topic/post_editor.dart';
 import 'package:forum_app/src/widgets/share/share_image_preview.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/private_notes.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
@@ -22,16 +23,30 @@ import 'fixtures/sticker_fixtures.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
 class _Posts extends PostRepository {
-  _Posts(super.client);
+  _Posts(super.client) : _client = client;
+  final GfApiClient _client;
   final likes = <int>[];
   final bookmarks = <int>[];
+  final deleted = <int>[];
   final contents = <String>[];
   final cursors = <int>[];
   bool failEdit = true;
+
+  /// 让点赞请求挂起,用于断言忙碌态的图标颜色。
+  Completer<void>? likeGate;
+
+  @override
+  Future<bool> deletePost({required int postId}) async {
+    expect(postId, 42);
+    deleted.add(postId);
+    return true;
+  }
+
   @override
   Future<bool> likePost({required int postId, required int action}) async {
     expect(postId, 42);
     likes.add(action);
+    await likeGate?.future;
     return true;
   }
 
@@ -115,7 +130,14 @@ void main() {
     List<Override> overrides = const [],
   }) async {
     final container = ProviderContainer(
-      overrides: [postRepositoryProvider.overrideWithValue(repo), ...overrides],
+      overrides: [
+        apiClientProvider.overrideWithValue(repo._client),
+        currentUserProvider.overrideWith(
+          (ref) async => const CurrentUser(id: 1, username: 'author'),
+        ),
+        postRepositoryProvider.overrideWithValue(repo),
+        ...overrides,
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -195,10 +217,10 @@ void main() {
     final pending = Completer<void>();
     await pump(
       tester,
-      repo(),
+      repo()..likeGate = pending,
       PostActions(
         post: post(),
-        onChanged: () => pending.future,
+        onChanged: () async {},
         onReply: () {},
         onReport: () {},
       ),
@@ -262,8 +284,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Share'), findsNothing);
       expect(find.text('Generate share image'), findsNothing);
+      expect(find.text('Report post'), findsNothing);
     });
   }
+
+  testWidgets('own replies offer no report entry', (tester) async {
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post(),
+        onChanged: () async {},
+        onReply: null,
+        onReport: () => fail('own reply reported'),
+      ),
+    );
+    expect(find.byTooltip('Report post'), findsNothing);
+    await tester.tap(find.byType(GfPopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Report post'), findsNothing);
+  });
 
   testWidgets(
     'share actions are absent when the containing topic is unavailable',
@@ -409,9 +449,9 @@ void main() {
         of: actions,
         matching: find.byType(GfSymbol),
       );
-      expect(glyphs, findsNWidgets(5));
+      expect(glyphs, findsNWidgets(4));
       final centers = [
-        for (var index = 0; index < 5; index++)
+        for (var index = 0; index < 4; index++)
           tester.getCenter(glyphs.at(index)),
       ];
       expect(centers.first.dx - bounds.left, 22);
@@ -472,19 +512,12 @@ void main() {
     expect(symbols.map((symbol) => symbol.name), [
       'heart',
       'bookmark',
-      'corner-down-left',
+      'comment-plus',
       'ellipsis',
-      'flag',
     ]);
     expect(symbols.every((symbol) => symbol.size == 20), isTrue);
     final targets = <String, Rect>{};
-    for (final tooltip in [
-      'Like',
-      'Bookmark',
-      'Reply',
-      'More options',
-      'Report post',
-    ]) {
+    for (final tooltip in ['Like', 'Bookmark', 'Reply', 'More options']) {
       // Material 3 places an IconButton's Tooltip around its 40px surface,
       // inside the padded touch target. Measure the button, not that surface.
       final control = tooltip == 'Like'
@@ -501,17 +534,20 @@ void main() {
       expect(target.right, lessThanOrEqualTo(tester.getRect(actions).right));
     }
     // The outer margin must activate the action, not merely reserve layout.
-    for (final label in ['Like', 'Bookmark', 'Reply', 'Report post']) {
+    for (final label in ['Like', 'Bookmark', 'Reply']) {
       await tester.tapAt(targets[label]!.topLeft + const Offset(2, 2));
       await tester.pumpAndSettle();
     }
     expect(repository.likes, [1]);
     expect(repository.bookmarks, [1]);
     expect(replies, 1);
-    expect(reports, 1);
     await tester.tapAt(targets['More options']!.topLeft + const Offset(2, 2));
     await tester.pumpAndSettle();
     expect(find.text('Revision history'), findsOneWidget);
+    // Reporting a reply is a floor action, so it lives in the floor menu.
+    await tester.tap(find.text('Report post'));
+    await tester.pumpAndSettle();
+    expect(reports, 1);
     expect(tester.takeException(), isNull);
   });
   testWidgets(
@@ -582,10 +618,11 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
   testWidgets(
-    'reply likes and bookmarks call the API and refresh the server state',
+    'reply likes and bookmarks patch the floor in place without reloading',
     (tester) async {
       final repository = repo();
       var refreshes = 0;
+      final patches = <PostPayload>[];
       await pump(
         tester,
         repository,
@@ -594,6 +631,7 @@ void main() {
           onChanged: () async {
             refreshes++;
           },
+          onPostPatched: patches.add,
           onReply: () {},
           onReport: () {},
         ),
@@ -604,9 +642,73 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.likes, [1]);
       expect(repository.bookmarks, [1]);
-      expect(refreshes, 2);
+      // 点赞/收藏只回传本楼,不触发整窗重载(issue #1316)。
+      expect(refreshes, 0);
+      expect(patches, hasLength(2));
+      expect(patches.first.isLiked, isTrue);
+      expect(patches.first.likeCount, 4);
+      expect(patches.last.isBookmarked, isTrue);
     },
   );
+  testWidgets('unliking keeps the count at zero and patches the floor', (
+    tester,
+  ) async {
+    final repository = repo();
+    final patches = <PostPayload>[];
+    await pump(
+      tester,
+      repository,
+      PostActions(
+        // 计数为 0 却已点赞:取消赞时必须停在 0,不能写进负数(provider 与
+        // payload 都要守住下界)。
+        post: post().copyWith(isLiked: true, likeCount: 0),
+        onChanged: () async {},
+        onPostPatched: patches.add,
+        onReply: () {},
+        onReport: () {},
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PostActions)),
+    );
+    await tester.tap(find.byTooltip('Like'));
+    await tester.pumpAndSettle();
+
+    expect(repository.likes, [2]);
+    expect(patches, hasLength(1));
+    expect(patches.single.isLiked, isFalse);
+    expect(patches.single.likeCount, 0);
+    expect(container.read(postReturnStatesProvider)[42], (
+      liked: false,
+      bookmarked: false,
+      likeCount: 0,
+    ));
+  });
+  testWidgets('delete still reloads the comment window', (tester) async {
+    final repository = repo();
+    var refreshes = 0;
+    await pump(
+      tester,
+      repository,
+      PostActions(
+        post: post(),
+        onChanged: () async {
+          refreshes++;
+        },
+        onReply: () {},
+        onReport: () {},
+      ),
+    );
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repository.deleted, [42]);
+    expect(refreshes, 1);
+  });
   testWidgets(
     'failed reply edit retains text for retry and closes only on success',
     (tester) async {
@@ -750,16 +852,17 @@ void main() {
     }
     expect(find.byType(StickerPicker), findsNothing);
 
-    // A failed save reports beside Save and keeps the text.
+    // Failure remains readable above the input even when the action row has
+    // too little room for a long status at large text sizes.
     await tester.enterText(editorField, 'Edited once');
     await tester.tap(save);
     await tester.pumpAndSettle();
-    final status = find.byWidget(composer().status!);
-    expect(tester.getCenter(status).dy, closeTo(tester.getCenter(save).dy, 1));
+    final status = find.byWidget(composer().toolbar!);
     expect(
-      tester.getTopRight(status).dx,
-      lessThanOrEqualTo(tester.getTopLeft(save).dx),
+      tester.getBottomLeft(status).dy,
+      lessThan(tester.getTopLeft(editorField).dy),
     );
+    expect(tester.getSize(status).width, greaterThan(100));
     expect(find.text('Edited once'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

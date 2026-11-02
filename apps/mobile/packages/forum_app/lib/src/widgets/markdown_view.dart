@@ -1,3 +1,4 @@
+import 'image_viewer_labels.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -24,7 +25,8 @@ import 'stickers/sticker_strings.dart';
 import 'link_preview_card.dart';
 
 // 既有引用方（页面与测试）仍从这里拿卡片实现，避免为一次拆分改所有 import。
-export 'link_preview_card.dart' show GfLinkPreviewCard, LinkPreviewPlatformLabels;
+export 'link_preview_card.dart'
+    show GfLinkPreviewCard, LinkPreviewPlatformLabels;
 import 'share/share_image_readiness.dart';
 
 /// Body text comes from [GfRichContentTypography] so post bodies, publish
@@ -55,7 +57,8 @@ class GfMarkdownView extends ConsumerStatefulWidget {
     this.images,
     this.mentions = const <PostMention>[],
     this.selectable = false,
-    this.stickerSize = StickerImage.readingSize,
+    this.onTap,
+    this.stickerSize,
     this.screenshot = false,
     this.colors,
     this.compact = false,
@@ -69,8 +72,13 @@ class GfMarkdownView extends ConsumerStatefulWidget {
 
   final bool selectable;
 
-  /// Draft previews opt into thumbnails; posts and replies use reading size.
-  final double stickerSize;
+  /// 点击正文的快捷操作。仅在 [selectable] 为 true 时生效；手势位于选择区域
+  /// 内部，因此长按仍由选择区域接管，链接和图片继续优先处理自己的点击。
+  final VoidCallback? onTap;
+
+  /// Null sizes each sticker from its surrounding text
+  /// ([StickerImage.inlineScale]); callers may pin a fixed size instead.
+  final double? stickerSize;
 
   /// Uses stable raw Markdown links rather than deferred network link cards.
   final bool screenshot;
@@ -186,10 +194,11 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   void _openViewer(BuildContext context, List<String> urls, int index) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
+        builder: (viewerContext) => Scaffold(
           backgroundColor: const Color(0xFF000000),
           body: SafeArea(
             child: GfImageViewer(
+              labels: AppLocalizations.of(viewerContext).imageViewerLabels,
               images: urls,
               initialIndex: index,
               onSaveImage: (String url) => saveImageFromUrl(context, url),
@@ -272,11 +281,10 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
           marginLeft: profile.listIndent,
           marginBottom: profile.listSpacing,
         ),
+        // 正文链接无下划线、主题色（对齐 web prose.css）；外链图标与按压高亮
+        // 目前只有 Web 侧，移动端见 docs/product/forum.md 的 Planned 段。
         LinkConfig(
-          style: TextStyle(
-            color: colors.primary,
-            decoration: TextDecoration.underline,
-          ),
+          style: TextStyle(color: colors.primary),
           onTap: (String url) {
             // 标签与目标不符的链接按 suspicious 处理（对齐 Web linkRisk）：
             // 白名单与会话信任都不豁免，始终弹确认层（issue #1200）。
@@ -306,14 +314,6 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H6Config(style: profile.h6), // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
         ImgConfig(
           builder: (String url, Map<String, String> attributes) {
-            final sticker = stickerImages[url];
-            if (sticker != null) {
-              return StickerImage(
-                name: sticker.name,
-                url: sticker.url,
-                size: widget.stickerSize,
-              );
-            }
             final String resolvedUrl = resolveApiAssetUrl(url);
             readiness?.begin(resolvedUrl);
             var hasFrame = false;
@@ -346,7 +346,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
                       color: colors.line,
                       width: borders.width,
                     ),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(GfRadius.sm),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: GfNetworkImage(
@@ -421,6 +421,23 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       shrinkWrap: true,
       markdownGenerator: MarkdownGenerator(
         linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
+        generators: [
+          SpanNodeGeneratorWithTag(
+            tag: MarkdownTag.img.name,
+            generator: (element, config, visitor) {
+              final sticker = stickerImages[element.attributes['src']];
+              if (sticker == null) {
+                return ImageNode(element.attributes, config, visitor);
+              }
+              return _StickerSpanNode(
+                name: sticker.name,
+                url: sticker.url,
+                fallbackFontSize: profile.body.fontSize ?? 16,
+                size: widget.stickerSize,
+              );
+            },
+          ),
+        ],
         richTextBuilder: (span) => GfText.rich(span),
       ),
       // Embedded in the page scroll view: never repeat its safe-area insets.
@@ -440,6 +457,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
           : '';
       return GfSelectionArea(
         selectionSource: '$data$entityText$_linkPreviewSelectionSource',
+        onTap: widget.onTap,
         child: child,
       );
     }
@@ -598,6 +616,35 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
                 ? widget.fallback
                 : GfLinkPreviewCard(preview: preview);
           },
+    );
+  }
+}
+
+/// Places a token-generated sticker on the text line: centred on it and sized
+/// from the nearest styled ancestor (body, heading, quote).
+class _StickerSpanNode extends SpanNode {
+  _StickerSpanNode({
+    required this.name,
+    required this.url,
+    required this.fallbackFontSize,
+    this.size,
+  });
+
+  final String name;
+  final String url;
+  final double fallbackFontSize;
+  final double? size;
+
+  @override
+  InlineSpan build() {
+    final double fontSize = parentStyle?.fontSize ?? fallbackFontSize;
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: StickerImage(
+        name: name,
+        url: url,
+        size: size ?? fontSize * StickerImage.inlineScale,
+      ),
     );
   }
 }

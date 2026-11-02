@@ -110,8 +110,10 @@ pumpChat(
   String targetUsername = '',
   VisibleChatRepository Function(GfApiClient client)? repository,
   CountingPageRepository Function(GfApiClient client)? pages,
+  Widget Function(Widget page)? pageWrapper,
+  Size surfaceSize = const Size(390, 700),
 }) async {
-  await tester.binding.setSurfaceSize(const Size(390, 700));
+  await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   final storage = MemTokenStorage()..write('token');
   final client = GfApiClient(
@@ -151,7 +153,7 @@ pumpChat(
   final navigator = GlobalKey<NavigatorState>();
   final active = ValueNotifier(true);
   addTearDown(active.dispose);
-  Widget page() => ValueListenableBuilder<bool>(
+  Widget chat() => ValueListenableBuilder<bool>(
     valueListenable: active,
     builder: (_, value, _) => TickerMode(
       enabled: value,
@@ -161,6 +163,7 @@ pumpChat(
       ),
     ),
   );
+  Widget page() => pageWrapper?.call(chat()) ?? chat();
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,

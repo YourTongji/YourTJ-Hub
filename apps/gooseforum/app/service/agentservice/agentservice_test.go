@@ -9,6 +9,7 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -18,7 +19,8 @@ import (
 func setupAgentTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &userStatistics.Entity{}, &badges.Entity{}, &userBadges.Entity{}); err != nil {
+	// 封面/头像更新会写 file_usages 引用行（issue #1365），agent 测试库需要这张表。
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &userStatistics.Entity{}, &badges.Entity{}, &userBadges.Entity{}, &fileUsage.Entity{}); err != nil {
 		t.Fatalf("migrate agent tables: %v", err)
 	}
 	conn.Where("1 = 1").Delete(&badges.Entity{})
@@ -26,6 +28,7 @@ func setupAgentTestDB(t *testing.T) {
 	conn.Where("1 = 1").Delete(&agents.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
+	conn.Where("1 = 1").Delete(&fileUsage.Entity{})
 }
 
 func TestGenerateTokenShape(t *testing.T) {

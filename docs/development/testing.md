@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-07
+> Last verified: 2026-10-31
 
 ## Principles
 
@@ -28,9 +28,13 @@ cd apps/gooseforum && go vet ./... && go test ./...
 # Frontend (`pnpm check` = i18n gate: four-locale key consistency, static t() refs,
 # and serverMessages → mobile server_message_catalog.dart mirror freshness)
 cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm check && pnpm build
+# Here Node ≥26 needs vitest ≥5: Node ships localStorage/sessionStorage, vitest 4 read Node's
+# during happy-dom setup → false failures; ≥5 injects happy-dom's (Node versions: local-development.md).
 
-# Browser layout regressions (install Chromium once; Linux CI adds --with-deps)
-cd apps/gooseforum/resource && pnpm exec playwright install chromium && pnpm test:browser
+# Browser regressions: Go from apps/gooseforum/go.mod must be on PATH.
+# Build current production assets before each run; the initial-assets suite uses the real Go head.
+# Install Chromium once; Linux CI adds --with-deps.
+cd apps/gooseforum/resource && pnpm build && pnpm exec playwright install chromium && pnpm test:browser
 
 # PostgreSQL: use a disposable database; tests may DROP SCHEMA public CASCADE.
 cd apps/gooseforum
@@ -44,6 +48,10 @@ python3 -m unittest discover -s scripts/release -p test_archive_licenses.py -v
 
 # Action pin consistency (issue #1212): composite actions vs repository-root workflows
 node scripts/verify-action-pins.mjs
+
+# /login provider readiness: Go/Web/Dart declarations and generated JSON keys
+node --test scripts/test-login-provider-mirrors.mjs
+# Mobile CI also regenerates auth.freezed.dart/auth.g.dart and rejects a diff.
 
 # Full
 make test
@@ -89,7 +97,47 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 关闭或轮换唯一连接会丢失全部表，长时间运行的整包测试也必须保留该连接。
 `sqlconnect` 的虚拟时间回归覆盖超过一分钟后仍能读取测试数据的行为。
 
+## Isolated native backend journeys
+
+`Current`: `apps/mobile/packages/forum_app/integration_test/local_journey_test.dart` accepts
+`YOURTJ_API_BASE_URL`, `YOURTJ_TEST_USERNAME` and `YOURTJ_TEST_PASSWORD` for a seeded local
+server. It explicitly selects the article route, seeds body text through Quill's public
+document API, checks the document before saving a real server draft, and exercises image
+crop/upload and management browser handoff. `local_registration_test.dart` additionally needs
+`YOURTJ_TEST_LOCAL_REGISTRATION=true`; it creates a synthetic account and verifies the issued
+session against authenticated settings. Both reject non-loopback origins and remain opt-in.
+The journey waits for the app to resume after any native permission prompt; dismiss it on
+the isolated device. Android captures prepare and paint the real Flutter surface before
+checking foreground state and taking screenshots. Each management module gets a viewport
+check and an optional capture. The badge module also checks the rendered Han text's advance
+after the native writing flow: a small standalone HTML WebView does not reproduce the system
+font fallback failure. `local_admin_typography_test.dart` runs the same real-server journey
+with notifications denied by its test driver so font acceptance needs no OS permission prompt;
+it makes no push delivery claim. These journeys
+mutate only their isolated test database; external providers and physical-device delivery are
+separate checks.
+
 ## CI mapping
+
+`Current`: Web browser CI installs Chromium and WebKit. WebKit regressions cover native-browser layout differences such as long badge names inside grid cards.
+The translated-admin browser suite renders six production pages in four languages and both
+themes at 320 CSS pixels in both engines, including Wiki tab keyboard navigation.
+
+`Current`: Flutter CI installs the checked-in lock with `--enforce-lockfile`, rejects any
+lock changes from Flutter or Melos bootstrap, and uses `--no-pub` for native compilation.
+Hosted lock sources use `pub.dev`, matching CI's default registry; normalizing those URLs
+preserves package versions and hashes. This prevents a registry mismatch from silently
+resolving newer dependencies than the ones tested locally. A bootstrap-policy gate runs
+before job selection, with shell regressions for resolver failure and lock mutation.
+
+`Current`: **CI / Verify** also accepts a manual run on a selected ref and validates every
+CI domain, including PostgreSQL and both native platforms, without using a change-path subset.
+Manual full runs use a separate concurrency group so they can validate the same source without
+cancelling the push checks needed for dev deployment.
+The `ci-plan` artifact records this explicit full-validation reason. Deployment still follows
+its separate source/event eligibility gate. Local Twemoji CLI tests include filesystem aliases;
+the generator uses Node 24's entry-module detection so macOS temporary-directory aliases and
+symlink entry paths execute generation instead of silently exiting.
 
 All CI `push` triggers are limited to `dev` and `main`, so a push to an in-repository
 PR branch is validated once by its `pull_request` run rather than again by a duplicate
@@ -107,6 +155,10 @@ while required-check settings migrate. Docs/governance and current govulncheck r
 - ci-backend.yml: changed backend or contract-fixture paths run go vet + go test + go build
   (apps/gooseforum/app/**, main.go, go.mod, go.sum, embedded resource Go/GoHTML files,
   markdown compatibility fixtures, packages/api-contract/**).
+  Tests and the deploy build use `nodynamic` for the production AVIF/WASM path. The build also
+  disables cgo and executes the produced binary in Alpine through
+  `deploy/scripts/check-runtime-binary.sh`; a missing ELF interpreter or shared library fails
+  before deployment. The deploy artifact builder runs the same runtime check before upload.
 - ci-backend.yml also runs `ci-backend-pg` for model, migration, service, SQL-connection or Go module
   changes. It uses a disposable `postgres:16-alpine` service, sets both `YOURTJ_TEST_PG_URL` and
   `TEST_PG_DSN`, and runs every app package's tests matching `PostgreSQL|Postgres`. New PG tests
@@ -116,10 +168,13 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   JSON comparisons, index upgrades, uniqueness or concurrency behavior. Without a test DSN these
   integration cases skip locally, so ordinary `go test ./...` is not equivalent evidence.
 - ci-frontend.yml: changed frontend paths or the Go `page_component.go` registry run pnpm typecheck +
-  client/site unit tests + Chromium layout tests + build. `pnpm test` includes `packages/client/test`,
+  client/site unit tests + production build + Chromium layout tests. `pnpm test` includes `packages/client/test`,
   which checks the public component registry against Go, including order and exclusion of `admin.shell`.
-  Browser regressions live in `resource/test/*.browser.mjs`, render the production Vue components
-  and CSS through Vite, and stub API responses. These are separate from happy-dom component tests.
+  Browser regressions live in `resource/test/*.browser.mjs`. Most render production Vue components
+  and CSS through Vite and stub API responses. The initial-assets suite instead uses the current
+  production build plus an HTML head exported by Go; it requires the module's Go toolchain and a fresh
+  `pnpm build` before invocation so a missing or stale dist is never treated as current source evidence.
+  These suites are separate from happy-dom component tests.
   The campus-map suite uses a separate temporary Vite `cacheDir` and removes it after closing its
   server, because its dependency optimizer differs from the other suites. The Node runner caps concurrent suites at two because each suite starts its own Vite server
   and Chromium, and the map uses software WebGL rendering in CI. This bounds process/memory and
@@ -138,18 +193,47 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   TypeScript, client package manifest, and its own workflow configuration. The route-level HTTP
   contract fixture tests run inside the backend `go test ./...` gate.
 - ci-mobile.yml: Flutter source, tests, assets, dependency/tooling or native files trigger independent
-  analysis and test jobs. Dart paths include `integration_test`, `test_driver` and package-local `tool`
+  analysis and test jobs. Before Flutter bootstrap, its analysis job runs the dependency-free
+  UI-kit Node tool tests: Twemoji inventory/Unicode input → JSON manifest + Dart map freshness
+  (`generate_twemoji_manifest.mjs --check`), plus exact Web/mobile token key/value parity. The
+  frontend `pnpm test` runs the same tools, so changes on either side are gated. Token comparison
+  resolves root defaults and dark overrides; it normalizes opaque OKLCH/hex colors to the existing
+  clipped, rounded 8-bit sRGB representation and numeric rem/px values to the 16px design baseline.
+  Web-only course slots and typography sizes are explicitly excluded; mobile component roles and
+  runtime text scaling are not rewritten. Unsupported value syntax fails for review rather than
+  skipping parity. Run `node --test apps/mobile/packages/ui_kit/tool/*.test.mjs` from the repository
+  root, or `node apps/mobile/packages/ui_kit/tool/check_token_mirror.mjs` for just token parity.
+  Dart paths include `integration_test`, `test_driver` and package-local `tool`
   so these sources still receive analysis; device integration tests remain a separate manual run.
   Each package tests on its own runner; `forum_app` has two disjoint Flutter
   shards. All package suites run for a shared-code change, including dependent packages. The local
   `melos run test` remains serial to avoid sharing one SDK's startup lock across Flutter processes.
+  After bootstrap and analysis, the analysis job runs `flutter gen-l10n` in
+  `apps/mobile/packages/forum_app` and rejects tracked or untracked drift in `lib/l10n`.
+  This compares the generated output against the checkout even when bootstrap/analysis already
+  regenerated it; newly generated locale files cannot be missed by a tracked-only diff.
+  To repair a failure, run that command with the workflow's pinned Flutter version and commit the
+  generated files together with their ARB inputs. Keep this check before any filtered
+  `build_runner` invocation, which can clean unrelated generated files on its first run.
+  `node --test scripts/test-mobile-ci-l10n.mjs` exercises the exact workflow shell with a fixture
+  generator and real Git repositories, including tracked/untracked drift and generator failure;
+  the mobile job uses the real Flutter generator.
   Release-tool Python tests run in `ci-automation.yml` on Ubuntu without installing Flutter. Store metadata
   and documentation alone do not run Flutter checks.
 - ci-mobile-native.yml: Android or iOS source/configuration changes build only that platform; shared
   pubspecs/lockfiles, build hooks/scripts, release tooling or the native workflow itself build both.
   Plain Dart/test/asset changes do not compile either native app. The reusable workflow accepts an explicit platform list
   from the shared selector. Android retains R8/all-push-adapter
-  compilation and the arm64 size artifact, with a Gradle user-home cache. iOS runs the simulator
+  compilation and the arm64 size artifact, with a Gradle user-home cache. After the release APK
+  build, `scripts/ci/check_android_entrypoint.py` uses the installed Android SDK's `apkanalyzer`
+  to require a definition of `tj.yourtj.forum_app.MainActivity` across all DEX files. A missing
+  class, missing inspector or inspector failure fails the job; a successful Flutter build alone
+  cannot conceal missing app Kotlin compilation. The inspector is resolved from `PATH`, then
+  `ANDROID_HOME`/`ANDROID_SDK_ROOT` under `cmdline-tools/latest/bin`. This checks the packaged
+  entrypoint, not device startup or every Kotlin class, and does not change the Flutter/AGP pins
+  or Kotlin/DSL compatibility flags. Checker changes select an Android native build; fixture
+  regressions run with `python3 -m unittest discover -s scripts/ci -p 'test_*.py'`.
+  iOS runs the simulator
   build, native `RunnerTests` storage-policy and widget schedule regressions, and effective distribution-signing checks.
   Clean checkouts use `flutter pub get` before native compilation. Signed releases separately verify the fixed application source
   and build only the selected native platforms.

@@ -35,7 +35,7 @@ Future<bool> confirmCourseReviewDeletion(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: colors.base200,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(GfRadius.md),
                 ),
                 // 与服务端阅读态同源:预览是 contentHtml 摊平后的纯文本。
                 child: Consumer(

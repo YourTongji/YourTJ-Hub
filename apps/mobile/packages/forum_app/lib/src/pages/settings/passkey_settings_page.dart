@@ -79,7 +79,9 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
     final code = TextEditingController();
     final name = TextEditingController(text: initialName);
     try {
-      return await showDialog<({String password, String totpCode, String name})>(
+      return await showDialog<
+        ({String password, String totpCode, String name})
+      >(
         context: context,
         builder: (context) => AlertDialog(
           title: GfText(title),
@@ -92,7 +94,9 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
                     controller: name,
                     maxLength: 80,
                     textCapitalization: TextCapitalization.words,
-                    decoration: InputDecoration(labelText: l10n.settingsPasskeyName),
+                    decoration: InputDecoration(
+                      labelText: l10n.settingsPasskeyName,
+                    ),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -100,7 +104,9 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
                   controller: password,
                   obscureText: true,
                   autofillHints: const [AutofillHints.password],
-                  decoration: InputDecoration(labelText: l10n.settingsPasskeyPassword),
+                  decoration: InputDecoration(
+                    labelText: l10n.settingsPasskeyPassword,
+                  ),
                 ),
                 if (_totpEnabled) ...[
                   const SizedBox(height: 8),
@@ -108,7 +114,9 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
                     controller: code,
                     keyboardType: TextInputType.number,
                     autofillHints: const [AutofillHints.oneTimeCode],
-                    decoration: InputDecoration(labelText: l10n.settingsTotpCode),
+                    decoration: InputDecoration(
+                      labelText: l10n.settingsTotpCode,
+                    ),
                   ),
                 ],
               ],
@@ -126,14 +134,11 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
                     (includeName && name.text.trim().isEmpty)) {
                   return;
                 }
-                Navigator.pop(
-                  context,
-                  (
-                    password: password.text,
-                    totpCode: code.text.trim(),
-                    name: name.text.trim(),
-                  ),
-                );
+                Navigator.pop(context, (
+                  password: password.text,
+                  totpCode: code.text.trim(),
+                  name: name.text.trim(),
+                ));
               },
               child: GfText(l10n.settingsTotpNext),
             ),
@@ -176,23 +181,27 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
         ...user,
         'id': _paddedBase64Url(user['id'] as String),
       }),
-      excludeCredentials: (options['excludeCredentials'] as List<dynamic>? ??
-              const <dynamic>[])
-          .map((value) => CredentialType.fromJson(
-                Map<String, dynamic>.from(value as Map),
-              ))
-          .toList(growable: false),
+      excludeCredentials:
+          (options['excludeCredentials'] as List<dynamic>? ?? const <dynamic>[])
+              .map(
+                (value) => CredentialType.fromJson(
+                  Map<String, dynamic>.from(value as Map),
+                ),
+              )
+              .toList(growable: false),
       authSelectionType: rawSelection is Map
           ? AuthenticatorSelectionType.fromJson(
               Map<String, dynamic>.from(rawSelection),
             )
           : null,
-      pubKeyCredParams: (options['pubKeyCredParams'] as List<dynamic>? ??
-              const <dynamic>[])
-          .map((value) => PubKeyCredParamType.fromJson(
-                Map<String, dynamic>.from(value as Map),
-              ))
-          .toList(growable: false),
+      pubKeyCredParams:
+          (options['pubKeyCredParams'] as List<dynamic>? ?? const <dynamic>[])
+              .map(
+                (value) => PubKeyCredParamType.fromJson(
+                  Map<String, dynamic>.from(value as Map),
+                ),
+              )
+              .toList(growable: false),
       timeout: (options['timeout'] as num?)?.toInt(),
       attestation: options['attestation'] as String?,
     );
@@ -240,11 +249,13 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
       if (mounted) showGfToast(context, l10n.settingsPasskeyAdded);
     } catch (error) {
       if (mounted) {
-        setState(() => _error = resolvePasskeyErrorMessage(
-              l10n,
-              error,
-              fallback: l10n.commonLoadFailed,
-            ));
+        setState(
+          () => _error = resolvePasskeyErrorMessage(
+            l10n,
+            error,
+            fallback: l10n.commonLoadFailed,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -265,7 +276,9 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
     });
     try {
       final proof = await _proof(input.password, input.totpCode);
-      await ref.read(authRepositoryProvider).renamePasskey(
+      await ref
+          .read(authRepositoryProvider)
+          .renamePasskey(
             proof: proof,
             credentialId: credential.id,
             name: input.name,
@@ -274,11 +287,13 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
       if (mounted) showGfToast(context, l10n.settingsInfoSaved);
     } catch (error) {
       if (mounted) {
-        setState(() => _error = resolvePasskeyErrorMessage(
-              l10n,
-              error,
-              fallback: l10n.commonLoadFailed,
-            ));
+        setState(
+          () => _error = resolvePasskeyErrorMessage(
+            l10n,
+            error,
+            fallback: l10n.commonLoadFailed,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -298,19 +313,20 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
     });
     try {
       final proof = await _proof(input.password, input.totpCode);
-      await ref.read(authRepositoryProvider).revokePasskey(
-            proof: proof,
-            credentialId: credential.id,
-          );
+      await ref
+          .read(authRepositoryProvider)
+          .revokePasskey(proof: proof, credentialId: credential.id);
       await _load();
       if (mounted) showGfToast(context, l10n.settingsPasskeyRevoked);
     } catch (error) {
       if (mounted) {
-        setState(() => _error = resolvePasskeyErrorMessage(
-              l10n,
-              error,
-              fallback: l10n.commonLoadFailed,
-            ));
+        setState(
+          () => _error = resolvePasskeyErrorMessage(
+            l10n,
+            error,
+            fallback: l10n.commonLoadFailed,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -320,80 +336,132 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final colors = GfTheme.colorsOf(context);
+    final typography = GfTheme.typographyOf(context);
+    final dates = MaterialLocalizations.of(context);
+    final note = typography.caption.copyWith(color: colors.textSecondary);
     return Scaffold(
-      appBar: AppBar(title: GfText(l10n.settingsPasskeyTitle)),
+      backgroundColor: colors.canvasGrouped,
+      appBar: GfAppBar(
+        title: GfText(l10n.settingsPasskeyTitle),
+        backgroundColor: colors.canvasGrouped,
+        showDivider: false,
+      ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: GfLoadingIndicator())
           : !_enabled
-              ? Center(child: GfText(l10n.settingsPasskeyUnavailable))
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      GfText(l10n.settingsPasskeyDescription),
-                      const SizedBox(height: 4),
-                      GfText(
-                        l10n.settingsPasskeyRevokedHint,
-                        style: Theme.of(context).textTheme.bodySmall,
+          ? GfEmpty(
+              symbol: 'key-round',
+              message: l10n.settingsPasskeyUnavailable,
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.only(
+                  top: GfSpace.xs,
+                  bottom: GfSpace.xxxl,
+                ),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      GfSpace.gutter + GfSpace.lg,
+                      0,
+                      GfSpace.gutter + GfSpace.lg,
+                      GfSpace.md,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GfText(l10n.settingsPasskeyDescription, style: note),
+                        const SizedBox(height: GfSpace.xs),
+                        GfText(l10n.settingsPasskeyRevokedHint, style: note),
+                        if (_totpEnabled) ...[
+                          const SizedBox(height: GfSpace.xs),
+                          GfText(l10n.settingsPasskeyReauthHint, style: note),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        GfSpace.gutter,
+                        0,
+                        GfSpace.gutter,
+                        GfSpace.md,
                       ),
-                      if (_totpEnabled) ...[
-                        const SizedBox(height: 8),
-                        GfText(l10n.settingsPasskeyReauthHint),
-                      ],
-                      if (_error != null) ...[
-                        const SizedBox(height: 12),
-                        GfStatusMessage(message: _error!),
-                      ],
-                      const SizedBox(height: 12),
-                      if (_credentials.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: GfEmpty(message: l10n.settingsPasskeyEmpty),
-                        ),
-                      for (final credential in _credentials)
-                        Card(
-                          child: ListTile(
-                            leading: const GfSymbol('key-round', size: 20),
-                            title: GfText(credential.name),
-                            subtitle: GfText(
-                              '${l10n.settingsPasskeyAddedAt}: ${MaterialLocalizations.of(context).formatMediumDate(credential.createdAt.toLocal())}'
-                              '\n${l10n.settingsPasskeyLastUsed}: ${credential.lastUsedAt == null ? l10n.settingsPasskeyNeverUsed : MaterialLocalizations.of(context).formatMediumDate(credential.lastUsedAt!.toLocal())}'
-                              '\n${credential.backupEligible ? l10n.settingsPasskeySyncCapable : l10n.settingsPasskeyDeviceBound}'
-                              '${credential.backupEligible && credential.backupState ? ' · ${l10n.settingsPasskeyBackedUp}' : ''}',
-                            ),
-                            trailing: PopupMenuButton<String>(
+                      child: GfStatusMessage(message: _error!),
+                    ),
+                  if (_credentials.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: GfSpace.xxl,
+                      ),
+                      child: GfEmpty(
+                        symbol: 'key-round',
+                        message: l10n.settingsPasskeyEmpty,
+                      ),
+                    )
+                  else
+                    GfListSection(
+                      dividerIndent: GfListSection.iconRowIndent,
+                      children: [
+                        for (final credential in _credentials)
+                          GfSettingRow(
+                            symbol: 'key-round',
+                            title: credential.name,
+                            description:
+                                '${l10n.settingsPasskeyAddedAt}: ${dates.formatMediumDate(credential.createdAt.toLocal())}'
+                                '\n${l10n.settingsPasskeyLastUsed}: ${credential.lastUsedAt == null ? l10n.settingsPasskeyNeverUsed : dates.formatMediumDate(credential.lastUsedAt!.toLocal())}'
+                                '\n${credential.backupEligible ? l10n.settingsPasskeySyncCapable : l10n.settingsPasskeyDeviceBound}'
+                                '${credential.backupEligible && credential.backupState ? ' · ${l10n.settingsPasskeyBackedUp}' : ''}',
+                            trailing: GfPopupMenuButton<String>(
                               enabled: !_busy,
+                              icon: GfSymbol(
+                                'ellipsis',
+                                size: GfIconSize.md,
+                                color: colors.textSecondary,
+                              ),
                               onSelected: (value) => value == 'rename'
                                   ? _renamePasskey(credential)
                                   : _revokePasskey(credential),
                               itemBuilder: (_) => [
-                                PopupMenuItem(
+                                GfPopupMenuItem(
                                   value: 'rename',
                                   child: GfText(l10n.settingsPasskeyRename),
                                 ),
-                                PopupMenuItem(
+                                GfPopupMenuItem(
                                   value: 'revoke',
-                                  child: GfText(l10n.settingsPasskeyRevoke),
+                                  destructive: true,
+                                  child: GfText(
+                                    l10n.settingsPasskeyRevoke,
+                                    style: TextStyle(color: colors.error),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: _busy ? null : _addPasskey,
-                        icon: _busy
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.add),
-                        label: GfText(l10n.settingsPasskeyAdd),
-                      ),
-                    ],
+                      ],
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      GfSpace.gutter,
+                      GfSpace.section,
+                      GfSpace.gutter,
+                      0,
+                    ),
+                    child: GfButton(
+                      label: l10n.settingsPasskeyAdd,
+                      icon: const GfSymbol('plus'),
+                      size: GfButtonSize.extraLarge,
+                      expanded: true,
+                      loading: _busy,
+                      onPressed: _busy ? null : _addPasskey,
+                    ),
                   ),
-                ),
+                ],
+              ),
+            ),
     );
   }
 }

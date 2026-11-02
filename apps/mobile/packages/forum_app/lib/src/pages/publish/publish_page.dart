@@ -1,4 +1,7 @@
-import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/editor/sticker_embed_builder.dart';
+import '../../widgets/stickers/sticker_suggestion_bar.dart';
+import '../../widgets/stickers/sticker_text_controller.dart';
+import '../../widgets/email_verification_recovery.dart';
 import '../../widgets/identity_picker.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
@@ -88,7 +91,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
             double.infinity,
           );
 
-  final TextEditingController _simple = TextEditingController();
+  final StickerTextEditingController _simple = StickerTextEditingController();
   final FocusNode _simpleFocusNode = FocusNode(debugLabel: 'simple-body');
   final GlobalKey _bodyEditorContainerKey = GlobalKey();
   bool _stickerOpen = false;
@@ -127,6 +130,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   final ScrollController _pageScrollController = ScrollController();
   final GlobalKey _pageScrollViewKey = GlobalKey();
   late StreamSubscription<DocChange> _documentChanges;
+  late StickerTokenWatcher _stickerTokens;
   late int _currentTopicId;
   bool _agentRepliesDisabled = false;
 
@@ -155,6 +159,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   bool _showPublishCaptchaExplanation = false;
   String _loadError = '';
   String _error = '';
+  ApiException? _writeFailure;
   String _message = '';
   String _previewMarkdown = '';
   Timer? _previewDebounce;
@@ -343,6 +348,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     var matching = drafts.where(
       (draft) =>
           draft.kind != DraftKind.reply &&
+          draft.kind != DraftKind.postEdit &&
           (unknownTopicKind
               ? recoveryKeys.contains(draft.key)
               : draft.key == _draftKey),
@@ -401,6 +407,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       );
       _handleEditorChanged();
     });
+    _stickerTokens = StickerTokenWatcher(controller);
     return controller;
   }
 
@@ -411,8 +418,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
     // leave the previous document and its subscription safe to retry/dispose.
     final previousController = _quill;
     final previousChanges = _documentChanges;
+    final previousStickerTokens = _stickerTokens;
     final nextController = _createController(markdown);
     unawaited(previousChanges.cancel());
+    unawaited(previousStickerTokens.cancel());
     previousController.dispose();
     _quill = nextController;
     _previewMarkdown = _markdownFromEditor();
@@ -428,6 +437,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     if (!mounted) return;
     _markDirty();
     _allowPop = false;
+    if (_error.isNotEmpty) setState(() => _error = '');
     final bool previewVisible =
         _mode == _ComposeMode.preview ||
         _hasWideWorkspace(MediaQuery.sizeOf(context).width);
@@ -445,6 +455,51 @@ class _PublishPageState extends ConsumerState<PublishPage>
     final String markdown = _markdownFromEditor();
     if (markdown == _previewMarkdown) return;
     setState(() => _previewMarkdown = markdown);
+  }
+
+  String _submissionContent(AppLocalizations l10n) {
+    final markdown = _markdownFromEditor();
+    return markdown.isEmpty && _images.isNotEmpty
+        ? l10n.publishImageOnlyTitle
+        : markdown;
+  }
+
+  String _writingValidationError(
+    AppLocalizations l10n, {
+    required String title,
+    required String content,
+    bool includeCategories = false,
+  }) {
+    if (title.isEmpty && _contentType != 2) return l10n.publishTitleRequired;
+    if (includeCategories && _categoryIds.isEmpty) {
+      return l10n.publishCategoryRequired;
+    }
+    if (content.isEmpty) return l10n.publishContentRequired;
+    return '';
+  }
+
+  void _advanceToPreview() {
+    // Articles validate the existing writing rules before leaving the editor;
+    // categories belong to the preview step. Incomplete local drafts stay valid.
+    if (_contentType == 3) {
+      final l10n = AppLocalizations.of(context);
+      final error = _writingValidationError(
+        l10n,
+        title: _title.text.trim(),
+        content: _submissionContent(l10n),
+      );
+      if (error.isNotEmpty) {
+        setState(() {
+          _error = error;
+          _message = '';
+        });
+        (_title.text.trim().isEmpty ? _titleFocusNode : _editorFocusNode)
+            .requestFocus();
+        return;
+      }
+    }
+    setState(() => _error = '');
+    _selectMode(_ComposeMode.preview);
   }
 
   void _selectMode(_ComposeMode mode) {
@@ -542,7 +597,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
       final keepEditing = _dirty;
       if (!keepEditing) {
-        _identity = props.topic.identity;
+        _identity = props.topic.identity.isEmpty
+            ? "member"
+            : props.topic.identity;
         _contentType = props.isEditing
             ? (props.topic.contentType == 0 ? 3 : props.topic.contentType)
             : widget.initialContentType;
@@ -610,6 +667,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _titleFocusNode.dispose();
     _simple.dispose();
     unawaited(_documentChanges.cancel());
+    unawaited(_stickerTokens.cancel());
     _quill.dispose();
     super.dispose();
   }
@@ -733,61 +791,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
     }
   }
 
-  void _changeContentType(int? value) {
-    if (_uploading || value == null || value == _contentType) return;
-    var markdown = _markdownFromEditor();
-    final photos = <String>[];
-    if (_contentType == 3 && value != 3) {
-      for (final operation in _quill.document.toDelta().toJson()) {
-        final insert = operation['insert'];
-        if (insert is Map && insert['image'] is String) {
-          photos.add(insert['image'] as String);
-        }
-      }
-      if (photos.length > 9) {
-        showGfToast(
-          context,
-          AppLocalizations.of(context).publishGalleryTooMany,
-          error: true,
-        );
-        return;
-      }
-      markdown = _quill.document.toPlainText().replaceAll('\uFFFC', '').trim();
-    } else if (value == 3 && _images.isNotEmpty) {
-      markdown =
-          '$markdown\n\n${_images.map((url) => '![image]($url)').join('\n\n')}';
-    }
-    try {
-      if (value == 3) _replaceEditorDocument(markdown);
-    } catch (error) {
-      showGfToast(
-        context,
-        resolveErrorMessage(AppLocalizations.of(context), error),
-        error: true,
-      );
-      return;
-    }
-    setState(() {
-      if (_contentType == 3 || value == 3) {
-        _images
-          ..clear()
-          ..addAll(photos);
-      }
-      _stickerOpen = false;
-      _stickerSelection = null;
-      _quill.skipRequestKeyboard = false;
-      _contentType = value;
-      // Short types hold a single category; keep the first pick.
-      if (_categoryIds.length > _categoryLimit) {
-        _categoryIds.removeRange(_categoryLimit, _categoryIds.length);
-      }
-      _simple.text = markdown;
-      _previewMarkdown = _markdownFromEditor();
-      _markDirty();
-      _allowPop = false;
-    });
-  }
-
   void _toggleFormat(Attribute attribute) {
     final current = _quill.getSelectionStyle().attributes[attribute.key];
     _quill.formatSelection(
@@ -834,6 +837,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _markDirty();
       _allowPop = false;
       _error = '';
+      _writeFailure = null;
       _message = '';
       if (!selected) {
         _categoryIds.remove(category.id);
@@ -1000,11 +1004,15 @@ class _PublishPageState extends ConsumerState<PublishPage>
       final range = _stickerSelection ?? _quill.selection;
       final start = (range.isValid ? range.start : max).clamp(0, max);
       final end = (range.isValid ? range.end : max).clamp(start, max);
+      final name = stickerTokenPattern.firstMatch(token)?.group(1);
+      // The rich editor holds stickers as embeds: shown as the image at once.
       _quill.replaceText(
         start,
         end - start,
-        token,
-        TextSelection.collapsed(offset: start + token.length),
+        name == null ? token : StickerEmbed(name),
+        TextSelection.collapsed(
+          offset: start + (name == null ? token.length : 1),
+        ),
         // skipRequestKeyboard is consumed by Quill's first request. Every
         // insertion must preserve accessory/search focus, including on Android.
         ignoreFocus: true,
@@ -1172,10 +1180,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
     } catch (error) {
       if (mounted) {
-        setState(
-          () =>
-              _error = resolveErrorMessage(AppLocalizations.of(context), error),
-        );
+        setState(() {
+          _error = resolveErrorMessage(AppLocalizations.of(context), error);
+          _writeFailure = null;
+        });
       }
     } finally {
       if (mounted) setState(() => _captchaLoading = false);
@@ -1201,19 +1209,14 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
     // 瞬间允许无标题：留空即空标题提交，不从正文首行/图片占位提取（issue #895）。
     final String title = _title.text.trim();
-    final String content = _markdownFromEditor().isEmpty && _images.isNotEmpty
-        ? AppLocalizations.of(context).publishImageOnlyTitle
-        : _markdownFromEditor();
     final AppLocalizations l10n = AppLocalizations.of(context);
-
-    String validationError = '';
-    if (title.isEmpty && _contentType != 2) {
-      validationError = l10n.publishTitleRequired;
-    } else if (_categoryIds.isEmpty) {
-      validationError = l10n.publishCategoryRequired;
-    } else if (content.isEmpty) {
-      validationError = l10n.publishContentRequired;
-    }
+    final String content = _submissionContent(l10n);
+    final validationError = _writingValidationError(
+      l10n,
+      title: title,
+      content: content,
+      includeCategories: true,
+    );
     if (topicStatus == 0 && validationError.isNotEmpty) {
       _markDirty();
       await _saveLocal();
@@ -1223,6 +1226,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       setState(() {
         if (_categoryIds.isEmpty) _mode = _ComposeMode.preview;
         _error = validationError;
+        _writeFailure = null;
         _message = '';
       });
       return;
@@ -1231,9 +1235,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
     setState(() {
       _submitting = true;
       _error = '';
+      _writeFailure = null;
       _message = '';
     });
     try {
+      // A 401 tears down the session before the HTTP Future throws. Persist
+      // the latest editor revision before allowing that boundary to happen.
+      if (!await _saveLocal() || !mounted || !_sessionCurrent) return;
       final WriteTopicResult written = await ref
           .read(topicRepositoryProvider)
           .writeTopicResult(
@@ -1296,7 +1304,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
     } on ApiException catch (error) {
       if (!mounted || !_sessionCurrent) return;
       if (mounted && _sessionCurrent) {
-        setState(() => _error = resolveErrorMessage(l10n, error));
+        setState(() {
+          _error = resolveErrorMessage(l10n, error);
+          _writeFailure = error;
+        });
       }
       // AI 图文审查拦截(issue #975):弹出友好提示,草稿与图片保持不变。
       if (await showModerationBlockedDialog(context, error)) return;
@@ -1312,7 +1323,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
     } catch (error) {
       if (mounted && _sessionCurrent) {
-        setState(() => _error = l10n.publishFailed('$error'));
+        setState(() {
+          _error = l10n.publishFailed('$error');
+          _writeFailure = null;
+        });
       }
     } finally {
       if (mounted && _sessionCurrent) setState(() => _submitting = false);
@@ -1324,6 +1338,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     if (ref.watch(offlineCacheEpochProvider) != _epoch) {
       return const SizedBox.shrink();
     }
+    _simple.library = ref.watch(stickerLibraryProvider);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     final page = PopScope(
@@ -1353,18 +1368,16 @@ class _PublishPageState extends ConsumerState<PublishPage>
             size: 44,
             onPressed: _goBack,
           ),
-          // The type switcher lives above the fields; the bar names the step
-          // only when that switcher is out of view.
-          title: _showTypeSwitcher(context)
-              ? const SizedBox.shrink()
-              : GfText(
-                  _mode == _ComposeMode.preview
-                      ? l10n.composePreview
-                      : PublishType.fromValue(_contentType).label(l10n),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GfTheme.typographyOf(context).bodyStrong,
-                ),
+          // The type is chosen before the page opens (compose menu, edit or
+          // restored draft); the bar names it while writing.
+          title: GfText(
+            _mode == _ComposeMode.preview
+                ? l10n.composePreview
+                : PublishType.fromValue(_contentType).label(l10n),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GfTheme.typographyOf(context).bodyStrong,
+          ),
           actions: <Widget>[
             if (MediaQuery.viewInsetsOf(context).bottom > 0)
               GfIconButton(
@@ -1432,13 +1445,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
     );
   }
 
-  bool _showTypeSwitcher(BuildContext context) =>
-      _mode == _ComposeMode.edit &&
-      _currentTopicId == 0 &&
-      !_loading &&
-      !_stickerOpen &&
-      MediaQuery.viewInsetsOf(context).bottom == 0;
-
   Widget _buildSubmitAction(AppLocalizations l10n) {
     final editing = _mode == _ComposeMode.edit;
     final label = editing ? l10n.publishNext : l10n.publishPublish;
@@ -1467,8 +1473,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         !_uploading &&
         !_submitting &&
         ((editing && _localRestored) || _loadError.isEmpty);
-    void submit() =>
-        editing ? _selectMode(_ComposeMode.preview) : _submit(topicStatus: 1);
+    void submit() => editing ? _advanceToPreview() : _submit(topicStatus: 1);
     if (compact) {
       return IconButton.filled(
         key: const Key('publish-appbar-submit'),
@@ -1562,14 +1567,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         icon: const GfSymbol('refresh-cw', size: 22),
                         label: GfText(l10n.commonRetry),
                       ),
-                    if (_showTypeSwitcher(this.context)) ...[
-                      PublishTypeSwitcher(
-                        value: _contentType,
-                        onChanged: _submitting || _uploading
-                            ? null
-                            : _changeContentType,
+                    if (_mode == _ComposeMode.edit && _error.isNotEmpty) ...[
+                      GfStatusMessage(message: _error),
+                      EmailVerificationRecovery(
+                        error: _writeFailure,
+                        preserveDraft: _saveLocal,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                     ],
                     // Moments lead with their photos; questions attach them
                     // after the body (below).
@@ -1690,9 +1694,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       ),
                       const SizedBox(height: 16),
                     ],
-                    if (_error.isNotEmpty)
-                      GfStatusMessage(message: _error)
-                    else if (_message.isNotEmpty)
+                    if (_error.isNotEmpty && _mode != _ComposeMode.edit) ...[
+                      GfStatusMessage(message: _error),
+                      EmailVerificationRecovery(
+                        error: _writeFailure,
+                        preserveDraft: _saveLocal,
+                      ),
+                    ] else if (_message.isNotEmpty)
                       GfStatusMessage(
                         message: _message,
                         variant: GfStatusMessageVariant.success,
@@ -1752,6 +1760,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
               if (_error.isNotEmpty || _message.isNotEmpty) {
                 setState(() {
                   _error = '';
+                  _writeFailure = null;
                   _message = '';
                 });
               }
@@ -1831,7 +1840,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     return Material(
       key: const Key('publish-settings'),
       color: colors.base200.withValues(alpha: .6),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(GfRadius.lg),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1891,7 +1900,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         height: 28,
         decoration: BoxDecoration(
           color: color.withValues(alpha: .14),
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(GfRadius.sm),
         ),
         alignment: Alignment.center,
         child: Container(
@@ -1920,7 +1929,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
             ),
             shape: WidgetStatePropertyAll(
               RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(GfRadius.lg),
                 side: BorderSide(color: colors.line.withValues(alpha: .6)),
               ),
             ),
@@ -1981,7 +1990,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       minimumSize: Size(menuWidth - 12, 52),
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(GfRadius.md),
                       ),
                       backgroundColor: selected
                           ? colors.primary.withValues(alpha: .08)
@@ -2037,7 +2046,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
                               ),
                               decoration: BoxDecoration(
                                 color: colors.base100,
-                                borderRadius: BorderRadius.circular(999),
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.full,
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -2054,9 +2065,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                                   GfText(
                                     category.name,
                                     style: type.small.copyWith(
-                                      color: colors.baseContent.withValues(
-                                        alpha: .85,
-                                      ),
+                                      color: colors.textPrimary,
                                     ),
                                   ),
                                 ],
@@ -2098,7 +2107,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     return Material(
       key: const Key('publish-image-order'),
       color: colors.base200.withValues(alpha: .6),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(GfRadius.lg),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2147,7 +2156,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
               proxyDecorator: (child, _, _) => Material(
                 color: Colors.transparent,
                 elevation: 6,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(GfRadius.sm),
                 child: child,
               ),
               onReorderItem: _reorderArticleImages,
@@ -2163,7 +2172,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       fit: StackFit.expand,
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(GfRadius.sm),
                           child: ColoredBox(
                             color: colors.base200,
                             child: GfNetworkImage(
@@ -2193,7 +2202,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: Colors.black.withValues(alpha: .55),
-                                borderRadius: BorderRadius.circular(9),
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.sm,
+                                ),
                               ),
                               child: GfText(
                                 '${index + 1}',
@@ -2299,6 +2310,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         focusNode: _simpleFocusNode,
         keyboardType: TextInputType.multiline,
         textInputAction: TextInputAction.newline,
+        strutStyle: GfInlineContentController.strut,
         style: readingBodyStyle(context),
         decoration: InputDecoration(
           hintText: PublishType.fromValue(_contentType).hint(l10n),
@@ -2375,6 +2387,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         onDragStarted: _startDragAutoscroll,
                         onDragEnded: _stopDragAutoscroll,
                       ),
+                      const StickerEmbedBuilder(),
                     ],
                   ),
                 ),
@@ -2416,25 +2429,18 @@ class _PublishPageState extends ConsumerState<PublishPage>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(
-              child: SingleChildScrollView(
-                child: ListenableBuilder(
-                  listenable: _contentType == 3 ? _quill : _simple,
-                  builder: (context, _) {
-                    final text = _contentType == 3
-                        ? _quill.document.toPlainText()
-                        : _simple.text;
-                    if (!containsStickerToken(text)) {
-                      return const SizedBox.shrink();
-                    }
-                    return StickerDraftPreview(
-                      content: _markdownFromEditor(),
-                      markdown: true,
-                    );
-                  },
-                ),
+            // Stickers already show inline in both editors; a typed
+            // `[:sticker:` fragment offers candidates here, above the tools.
+            if (_contentType == 3)
+              StickerSuggestionBar.quill(
+                controller: _quill,
+                margin: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+              )
+            else
+              StickerSuggestionBar.text(
+                controller: _simple,
+                margin: const EdgeInsets.fromLTRB(8, 6, 8, 0),
               ),
-            ),
             if (_contentType == 3 && _uploads.hasPending)
               _buildUploadTray(l10n),
             // One row above the keyboard: media and stickers stay pinned at
@@ -2480,6 +2486,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     maxHeight: constraints.maxHeight * .6,
                   ),
                   child: GfComposerPanel(
+                    minHeight: StickerPicker.comfortableHeight,
                     child: StickerPicker(onInsert: _insertSticker),
                   ),
                 ),
@@ -2722,7 +2729,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
               proxyDecorator: (child, _, _) => Material(
                 color: Colors.transparent,
                 elevation: 6,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(GfRadius.md),
                 child: child,
               ),
               onReorderItem: (oldIndex, newIndex) => setState(() {
@@ -2739,7 +2746,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     fit: StackFit.expand,
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(GfRadius.md),
                         child: ColoredBox(
                           color: colors.base200,
                           child: GfNetworkImage(
@@ -2946,7 +2953,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       fit: StackFit.expand,
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(GfRadius.sm),
                           child: Image.file(
                             File(item.file.path),
                             fit: BoxFit.cover,
@@ -3040,7 +3047,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.base200,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(GfRadius.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3065,7 +3072,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   SizedBox.square(
                     dimension: 48,
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(GfRadius.sm),
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
@@ -3271,7 +3278,7 @@ class _ComposerImageBuilder extends EmbedBuilder {
       childWhenDragging: Opacity(opacity: 0.35, child: image),
       feedback: Material(
         elevation: 8,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(GfRadius.md),
         clipBehavior: Clip.antiAlias,
         child: SizedBox.fromSize(size: _imageDragFeedback, child: thumbnail),
       ),

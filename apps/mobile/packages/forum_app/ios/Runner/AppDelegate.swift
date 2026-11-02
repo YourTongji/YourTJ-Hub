@@ -5,6 +5,7 @@ import Darwin
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  let accountReturnBridge = YourTJAccountReturnBridge()
   private var appleAuth: YourTJAppleAuth?
   private var pushChannel: FlutterMethodChannel?
   private var tokenResult: FlutterResult?
@@ -23,11 +24,23 @@ import Darwin
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     UNUserNotificationCenter.current().delegate = self
+    if let url = launchOptions?[.url] as? URL { accountReturnBridge.handle(url) }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func application(
+    _ application: UIApplication, open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    if accountReturnBridge.handle(url) { return true }
+    return super.application(application, open: url, options: options)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let accountRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJAccountReturn") {
+      accountReturnBridge.attach(messenger: accountRegistrar.messenger())
+    }
     if let appleRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJAppleAuth") {
       appleAuth = YourTJAppleAuth(registrar: appleRegistrar)
     }
@@ -279,5 +292,36 @@ import Darwin
       }
     }
     completionHandler()
+  }
+}
+
+// A navigation hint with no account, credential or arbitrary destination.
+final class YourTJAccountReturnBridge: NSObject, FlutterStreamHandler {
+  static let link = "yourtj://account/email-verified"
+  private var channel: FlutterEventChannel?
+  private var sink: FlutterEventSink?
+  private var pending = false
+
+  func attach(messenger: FlutterBinaryMessenger) {
+    channel = FlutterEventChannel(name: "yourtj/account_return", binaryMessenger: messenger)
+    channel?.setStreamHandler(self)
+  }
+
+  @discardableResult
+  func handle(_ url: URL) -> Bool {
+    guard url.absoluteString == Self.link else { return false }
+    if let sink { sink(Self.link) } else { pending = true }
+    return true
+  }
+
+  func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+    sink = events
+    if pending { pending = false; events(Self.link) }
+    return nil
+  }
+
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    sink = nil
+    return nil
   }
 }

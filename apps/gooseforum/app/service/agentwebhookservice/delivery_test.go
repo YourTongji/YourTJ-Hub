@@ -634,3 +634,22 @@ type webhookFailedResolver struct{}
 func (webhookFailedResolver) LookupNetIP(context.Context, string, string) ([]netip.Addr, error) {
 	return nil, errors.New("receiver DNS unavailable")
 }
+
+// An expired delivery is cancelled and its retained payload dropped, even when its
+// retry budget is exhausted at the same time: expiry is the terminal outcome.
+func TestExpiredDeliveryIsCancelledWithoutRetainedBody(t *testing.T) {
+	conn, row, task := configuredDelivery(t)
+	if row.Body == "" {
+		t.Fatal("fixture delivery has no retained body")
+	}
+	if err := conn.Model(&agentWebhook.Delivery{}).Where("id = ?", row.ID).Updates(map[string]any{"expires_at": time.Now().Add(-time.Minute), "deadline": time.Now().Add(-time.Minute), "attempt_count": 9}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Transaction(func(tx *gorm.DB) error { _, err := authorizeTx(tx, &task, row.ID); return err }); err != nil {
+		t.Fatal(err)
+	}
+	got, err := agentWebhook.GetTx(conn, "inst_test", row.ID, false)
+	if err != nil || got.Status != agentWebhook.Cancelled || got.Reason != "expired" || got.Body != "" {
+		t.Fatalf("expired delivery: %#v err=%v", got, err)
+	}
+}

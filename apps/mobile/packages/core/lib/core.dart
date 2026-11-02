@@ -59,6 +59,7 @@ export 'src/gen/sticker.dart';
 export 'src/markdown/markdown_converter.dart';
 export 'src/markdown/link_preview_candidate.dart';
 export 'src/markdown/url_labeled_links.dart';
+export 'src/markdown/sticker_embed.dart';
 export 'src/markdown/sticker_token.dart';
 export 'src/token/token_storage.dart';
 
@@ -93,3 +94,5 @@ export 'src/api/repositories/anonymous_identity_repository.dart';
 export 'src/gen/feed.dart';
 
 export 'src/gen/decoration.dart';
+
+export 'src/gen/activation_status.dart';

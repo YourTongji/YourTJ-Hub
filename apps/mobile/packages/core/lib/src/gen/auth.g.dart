@@ -8,10 +8,12 @@ part of 'auth.dart';
 
 _$LoginPagePropsImpl _$$LoginPagePropsImplFromJson(Map<String, dynamic> json) =>
     _$LoginPagePropsImpl(
+      passwordSignupState: json['passwordSignupState'] as String? ?? 'open',
       tongjiRegistration: json['tongjiRegistration'] as bool? ?? false,
       initialMode: json['initialMode'] as String,
       redirectUrl: json['redirectUrl'] as String,
       githubUrl: json['githubUrl'] as String,
+      githubReady: json['githubReady'] as bool? ?? false,
       googleReady: json['googleReady'] as bool,
       appleReady: json['appleReady'] as bool? ?? false,
       tongjiReady: json['tongjiReady'] as bool? ?? false,
@@ -30,10 +32,12 @@ _$LoginPagePropsImpl _$$LoginPagePropsImplFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$$LoginPagePropsImplToJson(
   _$LoginPagePropsImpl instance,
 ) => <String, dynamic>{
+  'passwordSignupState': instance.passwordSignupState,
   'tongjiRegistration': instance.tongjiRegistration,
   'initialMode': instance.initialMode,
   'redirectUrl': instance.redirectUrl,
   'githubUrl': instance.githubUrl,
+  'githubReady': instance.githubReady,
   'googleReady': instance.googleReady,
   'appleReady': instance.appleReady,
   'tongjiReady': instance.tongjiReady,

@@ -224,14 +224,22 @@ class TopicRepository {
   }
 
   /// 关注/取消关注用户。isFollowing 为 true 表示当前已关注(取消),否则关注。
-  Future<bool> followUser({
+  /// 返回服务端应用后的状态，供按钮立即展示「已互关」（issue #1320）。
+  Future<({bool isFollowing, bool isMutualFollowing})> followUser({
     required int userId,
     required bool isFollowing,
   }) async {
-    await _client.post<Object?>(
+    final result = await _client.post<Object?>(
       '/api/forum/follow-user',
       body: {'id': userId, 'action': isFollowing ? 2 : 1},
     );
-    return true;
+    if (result is Map<String, dynamic>) {
+      return (
+        isFollowing: result['isFollowing'] == true,
+        isMutualFollowing: result['isMutualFollowing'] == true,
+      );
+    }
+    // 旧服务端返回裸 true：保持乐观值，互关留给下次读取。
+    return (isFollowing: !isFollowing, isMutualFollowing: false);
   }
 }

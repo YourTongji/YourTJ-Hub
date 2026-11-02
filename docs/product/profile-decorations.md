@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-19
+> Last verified: 2026-10-23
 
 ## Selection and presentation
 
@@ -14,6 +14,13 @@
 nickname-style slot. Each accepts one owned, enabled decoration or an empty selection. The slots
 are independent and can be combined. Preview does not mutate equipment; saving changes both slots
 atomically, and failure retains the last saved server state and the user's draft for retry.
+
+`Current`: native settings use separate frame/name tabs, effect-bearing rows and a shared identity
+preview. Each confirmation sends the active tab's selection with the other slot's last saved value;
+trying on an unowned style in that other tab never equips it implicitly. Unowned rows remain
+selectable for preview, with a disabled confirmation action. Selecting a row and wearing its style
+are distinct states, and a failed save leaves the selection available for retry. Image-frame rows
+reserve the configured artwork bounds; nickname labels validate contrast on their actual row fill.
 
 The catalog starts empty. Site managers create and configure each avatar frame or nickname style at
 `/admin/decorations`; there are no bundled starter styles. Catalog entries do not confer ownership:
@@ -46,9 +53,13 @@ storage. Site managers upload artwork in `/admin/decorations` and save its gener
 `apps/gooseforum/resource/static/decorations/` remains valid. External URLs and unsafe paths are
 rejected. See the [avatar-frame artwork generation spec](avatar-frame-generation.md).
 Nickname styles use validated hexadecimal colors with separate light/dark palettes; custom HTML,
-CSS, external assets and animations are not accepted. Definition validation checks ordinary-text
-contrast on supported backgrounds; clients fall back to normal text when the actual background
-cannot meet 4.5:1. Web also falls back in forced-color mode or on backgrounds it cannot safely
+CSS, external assets and animations are not accepted. Definition validation samples only the
+gradient's two endpoint stops against the supported light and dark theme backgrounds, at the WCAG
+large-text floor of 3:1; the ramp between the stops is not interpolated. The admin console's live
+preview always paints the entered gradient regardless of the floor, shows the measured lowest
+contrast below the preview, and flags a palette below 3:1 there instead of letting it be saved.
+Clients still check the actual background and fall back to normal text when it
+cannot meet 3:1. Web also falls back in forced-color mode or on backgrounds it cannot safely
 resolve. Missing/unknown/invalid decorations use the ordinary appearance. Decoration colors never
 confer official status, trust or administrative permissions.
 

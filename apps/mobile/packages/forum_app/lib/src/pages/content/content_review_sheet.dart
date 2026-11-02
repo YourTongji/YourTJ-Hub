@@ -99,7 +99,7 @@ class _ContentReviewSheetState extends ConsumerState<ContentReviewSheet> {
     final item = widget.item;
     final stale = _epoch != ref.watch(offlineCacheEpochProvider);
     final subject = item.title.isNotEmpty ? item.title : item.excerpt;
-    final muted = colors.baseContent.withValues(alpha: 0.6);
+    final muted = colors.textSecondary;
     return PopScope(
       canPop: !_busy,
       child: ConstrainedBox(
@@ -232,7 +232,7 @@ class AppealStateCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
-    final muted = colors.baseContent.withValues(alpha: 0.6);
+    final muted = colors.textSecondary;
     final (
       String symbol,
       Color tone,
@@ -381,9 +381,7 @@ class _AppealForm extends StatelessWidget {
           const SizedBox(height: 4),
           GfText(
             l10n.appealFormIntro,
-            style: type.small.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.6),
-            ),
+            style: type.small.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 12),
           TextField(

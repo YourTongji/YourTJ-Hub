@@ -82,6 +82,11 @@
         <p class="fallback">{{call .T "email.copyLink"}}</p>
         <code class="link">{{.ActivationLink}}</code>
         <p class="note">{{call .T "email.activation.expires"}}</p>
+        <p>{{call .T "email.activation.ignore"}}</p>
+        <p>{{call .T "email.activation.recovery"}}</p>
+        <a href="{{.RecoveryLink}}">{{call .T "email.activation.recoveryAction"}}</a>
+        <code class="link">{{.RecoveryLink}}</code>
+        <p class="note">{{call .T "email.activation.manualRecovery"}}</p>
     </div>
     <div class="footer">
         <p>{{.SiteName}}</p>

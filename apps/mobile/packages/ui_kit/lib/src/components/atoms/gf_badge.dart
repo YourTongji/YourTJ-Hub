@@ -31,7 +31,7 @@ class GfBadge extends StatelessWidget {
     this.variant = GfBadgeVariant.muted,
     this.icon,
     this.color,
-    this.radius = 999,
+    this.radius = GfRadius.xs,
   });
 
   final String label;
@@ -47,8 +47,8 @@ class GfBadge extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final (Color background, Color foreground) = _palette(colors);
     return Container(
-      constraints: const BoxConstraints(minHeight: 22),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      constraints: const BoxConstraints(minHeight: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(radius),
@@ -58,10 +58,10 @@ class GfBadge extends StatelessWidget {
         children: [
           if (icon != null) ...[
             IconTheme.merge(
-              data: IconThemeData(size: 14, color: foreground),
-              child: SizedBox.square(dimension: 14, child: icon!),
+              data: IconThemeData(size: 12, color: foreground),
+              child: SizedBox.square(dimension: 12, child: icon!),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 3),
           ],
           Flexible(
             child: GfText(
@@ -69,7 +69,7 @@ class GfBadge extends StatelessWidget {
               style: TextStyle(
                 color: foreground,
                 fontSize: 12,
-                height: 1.25,
+                height: 16 / 12,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -82,19 +82,66 @@ class GfBadge extends StatelessWidget {
   (Color, Color) _palette(GfColors colors) {
     final Color? customColor = color;
     if (customColor != null) {
-      return (customColor.withValues(alpha: 0.12), customColor);
+      return (
+        customColor.withValues(alpha: colors.isDark ? 0.18 : 0.1),
+        customColor,
+      );
     }
-    switch (variant) {
-      case GfBadgeVariant.muted:
-        return (colors.base200, colors.iconMuted);
-      case GfBadgeVariant.info:
-        return (colors.info.withValues(alpha: 0.10), colors.primary);
-      case GfBadgeVariant.success:
-        return (colors.success.withValues(alpha: 0.10), colors.success);
-      case GfBadgeVariant.warning:
-        return (colors.warning.withValues(alpha: 0.10), colors.warning);
-      case GfBadgeVariant.error:
-        return (colors.error.withValues(alpha: 0.10), colors.error);
+    final GfTone tone = switch (variant) {
+      GfBadgeVariant.muted => GfTone.neutral,
+      GfBadgeVariant.info => GfTone.primary,
+      GfBadgeVariant.success => GfTone.success,
+      GfBadgeVariant.warning => GfTone.warning,
+      GfBadgeVariant.error => GfTone.error,
+    };
+    return (colors.toneSoft(tone), colors.toneOnSoft(tone));
+  }
+}
+
+/// Unread counter: an error-coloured capsule that stays circular for one
+/// digit and caps at [max]+.
+class GfCountBadge extends StatelessWidget {
+  const GfCountBadge({
+    super.key,
+    required this.count,
+    this.max = 99,
+    this.showCount = true,
+    this.compact = false,
+  });
+
+  final int count;
+  final int max;
+  final bool showCount, compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    if (!showCount) {
+      return Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: colors.error, shape: BoxShape.circle),
+      );
     }
+    return Container(
+      constraints: BoxConstraints(
+        minWidth: compact ? 16 : 20,
+        minHeight: compact ? 16 : 20,
+      ),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.error,
+        borderRadius: BorderRadius.circular(GfRadius.full),
+      ),
+      child: GfText(
+        count > max ? '$max+' : '$count',
+        style: GfTheme.typographyOf(context).label.copyWith(
+          color: colors.errorContent,
+          height: 1,
+          fontSize: compact ? 11 : null,
+        ),
+      ),
+    );
   }
 }

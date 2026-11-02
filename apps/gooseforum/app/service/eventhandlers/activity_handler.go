@@ -32,9 +32,10 @@ func handleActivityLike(ctx context.Context, event *TopicLikedEvent) error {
 	return userActivities.Record(event.LikerId, userActivities.ActionLike, userActivities.SubjectTopic, event.TopicId, event.Title)
 }
 
-// handleActivityFollow 记录关注行为
+// handleActivityFollow 记录关注行为；展示名在读取时按被关注者解析（issue #1292），
+// 写入时只存空预览。
 func handleActivityFollow(ctx context.Context, event *UserFollowedEvent) error {
-	return userActivities.Record(event.FollowerId, userActivities.ActionFollow, userActivities.SubjectUser, event.UserId, "Followed a user")
+	return userActivities.Record(event.FollowerId, userActivities.ActionFollow, userActivities.SubjectUser, event.UserId, "")
 }
 
 // handleActivityReply 记录回复行为

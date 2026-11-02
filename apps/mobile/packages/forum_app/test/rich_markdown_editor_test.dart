@@ -10,6 +10,7 @@ import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/editor/course_review_templates.dart';
 import 'package:forum_app/src/widgets/editor/rich_markdown_editor.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 class _MemoryTokenStorage implements TokenStorage {
@@ -114,6 +115,57 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('sticker embeds scale with the system text size', (tester) async {
+    final controller = QuillController(
+      document: MarkdownConverter().mdToDocument('[:sticker:smile:]'),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    final focusNode = FocusNode();
+    final library = StickerLibrary(_EmptyStickerRepository())
+      ..remember([
+        const StickerItemPayload(name: 'smile', url: '/sticker.png'),
+      ]);
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+    addTearDown(library.dispose);
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+        child: ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: RichMarkdownEditor(
+                controller: controller,
+                focusNode: focusNode,
+                placeholder: 'Review',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final sticker = tester.widget<StickerImage>(find.byType(StickerImage));
+    final fontSize = tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .config
+        .customStyles!
+        .paragraph!
+        .style
+        .fontSize!;
+    expect(
+      sticker.size,
+      closeTo(fontSize * 1.3 * StickerImage.inlineScale, 0.1),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('editor block styles come from the shared rich-content profile', (
     tester,
   ) async {
@@ -173,6 +225,16 @@ void main() {
     expect(styles.inlineCode!.style.fontSize, closeTo(14.5, 0.001));
     expect(styles.quote!.style.color, profile.quote.color);
     expect(styles.lists!.style.fontSize, closeTo(15.5, 0.001));
+    // 编辑器链接与阅读态一致：主题色、无下划线（同 web prose.css 语义）。
+    final link = styles.link!;
+    expect(
+      link.color,
+      GfTheme.colorsOf(tester.element(find.byType(QuillEditor))).primary,
+    );
+    expect(
+      link.decoration?.contains(TextDecoration.underline) ?? false,
+      isFalse,
+    );
 
     // 真正渲染出来的标题字号（不是仅 config 值）。
     final heading = tester.widget<RichText>(

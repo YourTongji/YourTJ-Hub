@@ -650,9 +650,7 @@ class _ThemeSwatch extends StatelessWidget {
                   style: type.meta.copyWith(
                     fontSize: 11,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected
-                        ? colors.primary
-                        : colors.baseContent.withValues(alpha: 0.7),
+                    color: selected ? colors.primary : colors.textSecondary,
                   ),
                 ),
               ],

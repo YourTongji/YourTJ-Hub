@@ -58,6 +58,18 @@ void main() {
       ).toJson()['replaceSnapshotId'],
       'current-session',
     );
+    final ownRequest = jsonDecode(
+      File(
+        '$root/../../../../packages/api-contract/fixtures/feed-reconcile-include-own-request.json',
+      ).readAsStringSync(),
+    );
+    expect(
+      const FeedReconcileRequest([9021421001], includeOwn: true).toJson(),
+      ownRequest,
+    );
+    expect(const FeedReconcileRequest([9021421001]).toJson(), {
+      'topicIds': [9021421001],
+    });
     final summary =
         jsonDecode(
               File(

@@ -8,6 +8,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/drafts/drafts_page.dart';
+import 'package:forum_app/src/pages/topic/post_editor.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
@@ -242,20 +243,64 @@ Future<void> _deleteArticle(WidgetTester tester) async {
     find.descendant(of: row, matching: find.byTooltip('删除本机草稿')),
   );
   await tester.pumpAndSettle();
-  await tester.tap(find.widgetWithText(TextButton, '删除本机草稿').last);
+  await tester.tap(_button('删除本机草稿').last);
   await tester.pumpAndSettle();
 }
 
 Future<void> _confirmCloudDelete(WidgetTester tester) async {
-  final action = find.widgetWithText(TextButton, '删除云端草稿').first;
+  final action = _button('删除云端草稿').first;
   await tester.ensureVisible(action);
   await tester.tap(action);
   await tester.pumpAndSettle();
-  await tester.tap(find.widgetWithText(TextButton, '删除云端草稿').last);
+  await tester.tap(_button('删除云端草稿').last);
   await tester.pumpAndSettle();
 }
 
+Finder _button(String label) => find.ancestor(
+  of: find.text(label),
+  matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+);
+
 void main() {
+  testWidgets(
+    'reply edits reopen the reply editor instead of a topic publisher',
+    (tester) async {
+      final store = WritingStore();
+      await store.save(
+        _scope,
+        LocalDraft(
+          key: postEditDraftKey(42),
+          kind: DraftKind.postEdit,
+          postId: 42,
+          postOriginalContent: 'server reply',
+          title: '',
+          content: 'recovered reply edit',
+          contentType: 2,
+          topicId: 0,
+          categories: const [],
+          images: const [],
+          updatedAt: 1,
+        ),
+      );
+      await _mount(tester, store, locale: const Locale('en'));
+      final row = find.byKey(ValueKey(postEditDraftKey(42)));
+      expect(row, findsOneWidget);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(find.byType(PostEditor), findsOneWidget);
+      final field = find.descendant(
+        of: find.byType(PostEditor),
+        matching: find.byType(TextField),
+      );
+      expect(
+        tester.widget<TextField>(field).controller!.text,
+        'recovered reply edit',
+      );
+      expect(find.text('editing-post-edit-42'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
   testWidgets('wide draft filters preserve search, list and undo on resizing', (
     tester,
@@ -300,8 +345,8 @@ void main() {
     final store = WritingStore();
     await store.save(_scope, _article);
     await _mount(tester, store);
-    expect(find.widgetWithText(TextButton, '删除本机草稿'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, '删除云端草稿'), findsOneWidget);
+    expect(_button('删除本机草稿'), findsOneWidget);
+    expect(_button('删除云端草稿'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets(
@@ -320,11 +365,11 @@ void main() {
       await _mount(tester, store, content: content, pages: pages);
       await tester.tap(find.widgetWithText(ChoiceChip, '云端草稿'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.widgetWithText(TextButton, '删除云端草稿'));
-      await tester.tap(find.widgetWithText(TextButton, '删除云端草稿'));
+      await tester.ensureVisible(_button('删除云端草稿'));
+      await tester.tap(_button('删除云端草稿'));
       await tester.pumpAndSettle();
       expect(find.textContaining('本机恢复副本会保留'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, '取消'));
+      await tester.tap(_button('取消'));
       await tester.pumpAndSettle();
       expect(content.calls, isEmpty);
       await _confirmCloudDelete(tester);
@@ -376,7 +421,7 @@ void main() {
     await _mount(tester, WritingStore(), content: content);
     await _confirmCloudDelete(tester);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, '取消'));
+    await tester.tap(_button('取消'));
     await tester.pumpAndSettle();
     expect(content.passwords, [null]);
     expect(find.byKey(const ValueKey('cloud-42')), findsOneWidget);
@@ -424,12 +469,7 @@ void main() {
           .onRefresh();
       await tester.pump();
       await _confirmCloudDelete(tester);
-      expect(
-        tester
-            .widget<TextButton>(find.widgetWithText(TextButton, '删除云端草稿'))
-            .onPressed,
-        isNull,
-      );
+      expect(tester.widget<TextButton>(_button('删除云端草稿')).onPressed, isNull);
       pages.pending = null;
       pages.count = 0;
       content.pending!.complete(content.results);
@@ -449,11 +489,11 @@ void main() {
     (tester) async {
       final content = _Content();
       final container = await _mount(tester, WritingStore(), content: content);
-      await tester.tap(find.widgetWithText(TextButton, '删除云端草稿'));
+      await tester.tap(_button('删除云端草稿'));
       await tester.pumpAndSettle();
       container.read(offlineCacheEpochProvider.notifier).invalidate();
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, '删除云端草稿'));
+      await tester.tap(_button('删除云端草稿'));
       await tester.pump();
       expect(content.calls, isEmpty);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -520,7 +560,7 @@ void main() {
       await _mount(tester, store);
       await tester.tap(find.byTooltip('删除本机草稿'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, '取消'));
+      await tester.tap(_button('取消'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('new-article')), findsOneWidget);
       store.failDelete = true;
@@ -642,7 +682,7 @@ void main() {
         brightness: brightness,
       );
       final l10n = AppLocalizations.of(tester.element(find.byType(DraftsPage)));
-      final action = find.widgetWithText(TextButton, l10n.draftDeleteCloud);
+      final action = _button(l10n.draftDeleteCloud);
       await tester.scrollUntilVisible(
         action,
         120,
@@ -660,7 +700,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(l10n.draftDeleteCloudConfirm), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.widgetWithText(TextButton, l10n.commonCancel));
+      await tester.tap(_button(l10n.commonCancel));
       await tester.pumpAndSettle();
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -692,21 +732,21 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.tap(
-      find.descendant(
-        of: row,
-        matching: find.byWidgetPredicate(
-          (widget) => widget is GfSymbol && widget.name == 'trash-2',
-        ),
+    final delete = find.descendant(
+      of: row,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is GfSymbol && widget.name == 'trash-2',
       ),
     );
+    await tester.ensureVisible(delete);
+    await tester.pumpAndSettle();
+    expect(delete.hitTestable(), findsOneWidget);
+    await tester.tap(delete);
     await tester.pumpAndSettle();
     final l10n = AppLocalizations.of(
       tester.element(find.byType(GfAlertDialog)),
     );
-    await tester.tap(
-      find.widgetWithText(TextButton, l10n.draftDeleteLocal).last,
-    );
+    await tester.tap(_button(l10n.draftDeleteLocal).last);
     await tester.pumpAndSettle();
     expect(find.text(l10n.publishUndo), findsOneWidget);
     expect(tester.takeException(), isNull);

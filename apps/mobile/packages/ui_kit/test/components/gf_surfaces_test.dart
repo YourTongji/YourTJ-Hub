@@ -51,7 +51,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester.widget<Material>(surface.first).color,
-        GfColors.dark.base100,
+        GfColors.dark.surfaceRaised,
       );
       expect(Theme.of(tester.element(content)).brightness, Brightness.dark);
       expect(tester.getRect(surface.first), bounds);
@@ -80,24 +80,19 @@ void main() {
       expect(find.byType(GfCard), findsNWidgets(2));
       expect(find.text('a'), findsOneWidget);
       expect(find.text('b'), findsOneWidget);
-      final Iterable<Container> emphasizedContainers = tester
-          .widgetList<Container>(
-            find.descendant(
-              of: find.byWidgetPredicate(
-                (Widget widget) => widget is GfCard && widget.emphasized,
-              ),
-              matching: find.byType(Container),
-            ),
-          );
-      expect(
-        emphasizedContainers.any(
-          (Container container) =>
-              container.decoration is BoxDecoration &&
-              (container.decoration! as BoxDecoration).color ==
-                  GfColors.light.base100,
-        ),
-        isTrue,
+      final emphasized = find.byWidgetPredicate(
+        (w) => w is GfCard && w.emphasized,
       );
+      final surface = tester.widget<Material>(
+        find.descendant(of: emphasized, matching: find.byType(Material)).first,
+      );
+      expect(surface.color, GfColors.light.base100);
+      final raised = tester.widget<DecoratedBox>(
+        find
+            .descendant(of: emphasized, matching: find.byType(DecoratedBox))
+            .first,
+      );
+      expect((raised.decoration as BoxDecoration).boxShadow, isNotEmpty);
     });
 
     testWidgets('GfCardList hides divider on all but last card', (

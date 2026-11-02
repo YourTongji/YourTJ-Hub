@@ -1,7 +1,31 @@
+import 'dart:ui' show Color;
+
 import 'package:core/core.dart';
 
 /// 课程卡片配色槽位数（web courseColorSlots 8 槽；种子 hash 取模）。
 const int kCourseColorSlotCount = 8;
+
+/// 课程卡片底色（浅色 / 深色主题各 8 槽，与 web courseColorSlots 对齐）。
+const List<Color> kCourseSlotColorsLight = <Color>[
+  Color(0xFFE8EEFF),
+  Color(0xFFDCF2FE),
+  Color(0xFFDDF3E7),
+  Color(0xFFFDF0D5),
+  Color(0xFFFFE9E7),
+  Color(0xFFF1E8FB),
+  Color(0xFFE0F2FE),
+  Color(0xFFFFECF1),
+];
+const List<Color> kCourseSlotColorsDark = <Color>[
+  Color(0xFF1E2A4A),
+  Color(0xFF12303F),
+  Color(0xFF123527),
+  Color(0xFF3A2F10),
+  Color(0xFF482029),
+  Color(0xFF2E1D40),
+  Color(0xFF12303F),
+  Color(0xFF402030),
+];
 
 /// 依据课程稳定标识（课号/课名）hash 出 1-based 配色槽位，同课同色。
 int courseColorSlotFor(String seed) {

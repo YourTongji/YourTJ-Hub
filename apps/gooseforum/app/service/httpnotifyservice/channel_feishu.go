@@ -21,15 +21,57 @@ import (
 // 动作是指向 Hub 确认页的签名链接，最终处理仍在 Hub 内完成登录与权限复核。
 type feishuChannel struct{}
 
-func (feishuChannel) supportsEvent(eventName string) bool { return IsApprovalEvent(eventName) }
+func (feishuChannel) supportsEvent(eventName string) bool {
+	return eventName == EventUserSignup || IsApprovalEvent(eventName)
+}
 
-func (feishuChannel) requiresApproval() bool { return true }
+func (feishuChannel) requiresApproval(eventName string) bool { return eventName != EventUserSignup }
 
-func (feishuChannel) encode(endpoint pageConfig.HttpNotifyEndpoint, _ Alternative, approval *ApprovalPayload, now time.Time) ([]byte, error) {
+func (feishuChannel) encode(endpoint pageConfig.HttpNotifyEndpoint, alt Alternative, approval *ApprovalPayload, now time.Time) ([]byte, error) {
+	if alt.Event == EventUserSignup {
+		card, err := feishuSignupCard(alt.Data)
+		if err != nil {
+			return nil, err
+		}
+		return feishuBody(endpoint, card, now)
+	}
 	if approval == nil {
 		return nil, errors.New("feishu channel requires an approval payload")
 	}
 	return feishuBody(endpoint, feishuCard(*approval, false), now)
+}
+
+// Registration is informational, never a request to approve the account.
+// Decode only public display fields; email and session credentials cannot enter the card.
+func feishuSignupCard(data any) (map[string]any, error) {
+	var payload struct {
+		User *struct {
+			Username    string `json:"username"`
+			DisplayName string `json:"displayName"`
+		} `json:"user"`
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+	if payload.User == nil {
+		return nil, errors.New("signup notification missing public user")
+	}
+	name := SafeText(payload.User.DisplayName, 40)
+	username := SafeText(payload.User.Username, 40)
+	if name == "" {
+		name = username
+	} else if name != username {
+		name += "（@" + username + "）"
+	}
+	return map[string]any{
+		"schema": "2.0",
+		"header": map[string]any{"template": "blue", "title": feishuPlain("新用户注册")},
+		"body":   map[string]any{"elements": []map[string]any{{"tag": "div", "text": feishuPlain(name)}}},
+	}, nil
 }
 
 // testBody 发送一张示例举报卡片：样式与真实审批卡片一致，按钮只打开版主工作台。

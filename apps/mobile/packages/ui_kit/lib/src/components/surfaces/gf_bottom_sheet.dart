@@ -2,6 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../theme/gf_theme.dart';
+import '../../twemoji/twemoji_text.dart';
+import '../gf_icon_button.dart';
 import '../gf_motion.dart';
 
 /// Shows a centered tablet form or compact bottom sheet and returns the value passed to `Navigator.pop`.
@@ -28,7 +31,7 @@ Future<T?> showGfBottomSheet<T>(
       DialogRoute<T>(
         context: context,
         barrierDismissible: barrierDismissible,
-        barrierColor: const Color(0x66000000),
+        barrierColor: GfTheme.colorsOf(context).scrim,
         animationStyle: GfMotion.dialogStyle(context),
         builder: (panelContext) => AnimatedPadding(
           duration: GfMotion.duration(panelContext, GfMotion.content),
@@ -56,7 +59,7 @@ Future<T?> showGfBottomSheet<T>(
                         theme.bottomSheetTheme.backgroundColor ??
                         theme.colorScheme.surface,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(GfRadius.xl),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: SizedBox(
@@ -100,7 +103,7 @@ Future<T?> showGfBottomSheet<T>(
       backgroundColor: Colors.transparent,
       elevation: 0,
       showDragHandle: false,
-      modalBarrierColor: const Color(0x66000000),
+      modalBarrierColor: GfTheme.colorsOf(context).scrim,
       barrierLabel: localizations.scrimLabel,
       barrierOnTapHint: localizations.scrimOnTapHint(
         localizations.bottomSheetLabel,
@@ -150,12 +153,15 @@ Future<T?> showGfBottomSheet<T>(
                               height: 28,
                               child: Center(
                                 child: Container(
-                                  width: 32,
-                                  height: 4,
+                                  width: 36,
+                                  height: 5,
                                   decoration: BoxDecoration(
-                                    color: theme.colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(2),
+                                    color: GfTheme.colorsOf(
+                                      surfaceContext,
+                                    ).fillStrong,
+                                    borderRadius: BorderRadius.circular(
+                                      GfRadius.full,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -176,4 +182,83 @@ Future<T?> showGfBottomSheet<T>(
       },
     ),
   );
+}
+
+/// Title row for bottom sheets: a 20px title with optional description on
+/// the leading side and a tonal close action, matching dialog titles.
+class GfSheetHeader extends StatelessWidget {
+  const GfSheetHeader({
+    super.key,
+    required this.title,
+    this.description,
+    this.onClose,
+    this.closeLabel,
+    this.trailing,
+  });
+
+  final String title;
+  final String? description;
+
+  /// Shows a tonal close button when set.
+  final VoidCallback? onClose;
+  final String? closeLabel;
+
+  /// Replaces the close button (e.g. a Done text action).
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography typography = GfTheme.typographyOf(context);
+    final Widget? action =
+        trailing ??
+        (onClose == null
+            ? null
+            : GfIconButton(
+                symbol: 'x',
+                tooltip:
+                    closeLabel ??
+                    MaterialLocalizations.of(context).closeButtonTooltip,
+                onPressed: onClose,
+                iconSize: 18,
+                variant: GfIconButtonVariant.tonal,
+              ));
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        GfSpace.xl,
+        0,
+        action == null ? GfSpace.xl : GfSpace.md,
+        GfSpace.md,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: GfText(title, style: typography.title2),
+                  ),
+                  if (description != null) ...[
+                    const SizedBox(height: GfSpace.xxs),
+                    GfText(
+                      description!,
+                      style: typography.subhead.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          if (action != null) ...[const SizedBox(width: GfSpace.sm), action],
+        ],
+      ),
+    );
+  }
 }

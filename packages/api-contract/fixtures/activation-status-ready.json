@@ -1,0 +1,1 @@
+{"code":0,"result":{"currentEmail":"owner@example.test","pendingEmail":"","targetEmail":"owner@example.test","targetKind":"current","state":"ready","remainingToday":3,"dailyLimit":3,"retryAfterSeconds":0}}

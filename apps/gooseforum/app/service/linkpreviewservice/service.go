@@ -19,6 +19,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/safefetch"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/urlutil"
@@ -307,7 +308,8 @@ func (r *Resolver) resolveInternal(ctx context.Context, viewerID uint64, target 
 		}
 		base.Status = StatusReady
 		base.Title = cleanText(topic.Title, 200)
-		base.Description = cleanText(topic.Excerpt, 400)
+		// 分享卡描述是纯文本，贴纸 token 无法渲染为图片。
+		base.Description = cleanText(markdown2html.StripStickerTokens(topic.Excerpt), 400)
 		base.ImageURL = safeAssetURL(topic.FirstImageURL, target)
 		return base
 	}

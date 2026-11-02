@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io/fs"
-	"path"
 	"strings"
 	"time"
 
@@ -44,7 +43,11 @@ func uploadAsset(ctx context.Context, actorID uint64, data []byte, filename, pre
 	if prefix == "badges" {
 		storagePrefix = "badges/normalized"
 	}
-	file, err := filedata.SaveFileFromUploadWithLimit(actorID, data, strings.ToLower(path.Base(filename)), storagePrefix, MaxArtworkBytes)
+	contentType, ok := ContentType(filename)
+	if !ok {
+		return "", ErrInvalid
+	}
+	file, err := filedata.SaveFileFromUploadWithLimit(actorID, data, contentType, storagePrefix, MaxArtworkBytes)
 	if err != nil {
 		return "", err
 	}

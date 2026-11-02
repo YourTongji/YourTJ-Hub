@@ -26,7 +26,7 @@
     "@lucide/vue": "^1.16.0",
     "d3-sankey": "0.12.3",
     "vue": "^3.5.25",
-    "vue-i18n": "^11.4.4"
+    "vue-i18n": "^11.4.14"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.1145.0",
@@ -37,7 +37,7 @@
     "@vue/test-utils": "^2.4.11",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "happy-dom": "^20.11.2",
+    "happy-dom": "^21.0.4",
     "miniflare": "5.20261001.0-alpha",
     "openapi-typescript": "^7.13.0",
     "playwright": "1.62.1",

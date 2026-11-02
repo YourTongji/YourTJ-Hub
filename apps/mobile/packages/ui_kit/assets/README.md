@@ -4,9 +4,10 @@
 
 The `twemoji-public/twemoji/72x72/` assets and generated map are pinned to
 [jdecked/twemoji 17.0.3](https://github.com/jdecked/twemoji/releases/tag/v17.0.3).
-The 4,008 included PNGs are the upstream 72×72 Emoji artwork; the legacy
-private-use glyph is excluded. Upstream JavaScript code is MIT licensed and
-artwork is CC BY 4.0. See `twemoji-licenses/LICENSE-MIT.txt` and
+The 4,007 included PNGs are the upstream 72×72 Emoji artwork; the legacy
+private-use glyph and Taiwan flag sequence are excluded. Upstream JavaScript
+code is MIT licensed and artwork is CC BY 4.0. See
+`twemoji-licenses/LICENSE-MIT.txt` and
 `twemoji-licenses/LICENSE-CC-BY-4.0.txt` for the full license texts and
 `twemoji-licenses/ATTRIBUTION.md` for the required artwork attribution.
 
@@ -54,6 +55,8 @@ to differently named ReIcon glyphs; other ReIcon assets use the same name:
 The `-filled` suffix selects the Filled weight of the same mapped icon.
 `gallery-duotone` layers the ReIcon Gallery Filled shape at low opacity behind
 the matching Outline strokes for the short-post image picker.
+`settings-duotone` applies the same layering to ReIcon Settings for the
+timetable options action on its tinted glass capsule.
 `keyboard-hide` places the ReIcon Keyboard Outline, scaled to 80%, above a
 small ReIcon Chevron Down stroke of matching weight: the platform hide-keyboard
 sign. The pair starts level with the plain keyboard and is optically centred, so

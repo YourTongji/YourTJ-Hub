@@ -16,7 +16,7 @@ vi.mock('@/runtime/api', () => ({
   markNotificationRead: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@/runtime/unread-status', () => ({
-  useUnreadStatus: () => ({ clearNotifications: vi.fn() }),
+  useUnreadStatus: () => ({ badgeStyle: { value: 'number' }, clearNotifications: vi.fn() }),
 }))
 vi.mock('@/runtime/private-notes', () => ({
   userDisplayName: (_id: number, username: string, nickname?: string) => `备注(${nickname || username || '匿名'})`,

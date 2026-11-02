@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { badgeClass, badgeIconURL, badgeTooltip, isSystemBadgeArtwork } from '@/site/utils/badge-style'
-import { decorationAssetScale, decorationVariables, isSafeDecorationAssetUrl } from '@/site/utils/decoration-style'
+import { decorationAssetScale, decorationVariables, isSafeDecorationAssetUrl } from '@/runtime/decoration-style'
 import type { DecorationStyle, UserBadgePayload } from '@gooseforum/client'
 
 defineOptions({ inheritAttrs: false })

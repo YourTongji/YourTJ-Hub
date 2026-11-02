@@ -45,8 +45,14 @@ if [ "$(db_mode)" = "postgres" ]; then
   # 与 sync-db-from-main.sh 的 pg_dbname || exit 1 语义一致。
   PG_DB="$(pg_dbname)" || exit 1
   TMP="/tmp/backup-${PG_DB}-$$.sql"
+  # 脱敏 flag 是备份的前置依赖: 脚本缺失/执行失败/输出为空都必须硬失败。
+  # 进程替换(< <(...))里的失败不会触发 set -e, 会静默产出未脱敏备份(issue #1284)。
+  FEED_PRIVACY="$SCRIPT_DIR/feed-privacy.py"
+  [ -f "$FEED_PRIVACY" ] || { echo "backup-db: $FEED_PRIVACY not found" >&2; exit 1; }
+  FEED_FLAGS_RAW="$(python3 "$FEED_PRIVACY" --pg-flags)" || { echo "backup-db: feed-privacy.py 提取脱敏 flag 失败" >&2; exit 1; }
+  [ -n "$FEED_FLAGS_RAW" ] || { echo "backup-db: feed-privacy.py 返回空脱敏 flag" >&2; exit 1; }
   FEED_PG_FLAGS=()
-  while IFS= read -r flag; do FEED_PG_FLAGS+=("$flag"); done < <(python3 "$SCRIPT_DIR/feed-privacy.py" --pg-flags)
+  while IFS= read -r flag; do FEED_PG_FLAGS+=("$flag"); done <<< "$FEED_FLAGS_RAW"
   if docker exec yourtj-postgres pg_dump "${FEED_PG_FLAGS[@]}" -U yourtj -d "$PG_DB" > "$TMP"; then
     mv -f "$TMP" "$BACKUP_DIR/pg-${PG_DB}-${TS}.sql"
     echo "backup-db: $INSTANCE pg dump ($PG_DB) backed up"
@@ -71,7 +77,7 @@ backup_one() {
   [ -f "$db" ] || { echo "backup-db: $db not found, skip"; return 0; }
   TMP="/tmp/backup-${label}-$$.db"
   sqlite3 "$db" ".backup '$TMP'" || { echo "backup-db: $label snapshot failed" >&2; rm -f "$TMP"; exit 1; }
-  python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$TMP"
+  python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$TMP" || { echo "backup-db: $label 脱敏失败" >&2; rm -f "$TMP"; exit 1; }
   mv -f "$TMP" "$BACKUP_DIR/${label}-${TS}.db"
   echo "backup-db: $label backed up"
 }

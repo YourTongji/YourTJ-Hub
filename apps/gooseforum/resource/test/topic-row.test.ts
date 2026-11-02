@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import TopicList from '@/site/components/TopicList.vue'
 import TopicRow from '@/site/components/TopicRow.vue'
 import { i18n } from '../src/runtime/i18n'
 import type { TopicPayload } from '@gooseforum/client'
@@ -139,6 +140,91 @@ describe('TopicRow.vue 列表行一致性验证', () => {
     const link = wrapper.find(`a[href="${topic.url}"]`)
     expect(link.text()).toBe('测试瞬间标题')
     expect(wrapper.find('p').text()).toBe('测试内容描述')
+  })
+
+  test('列表行把表情 token 渲染为 [名字] 文本，未知 token 丢弃且不出现原文', () => {
+    const stickerUrls = new Map([['cat', '/file/img/cat.png']])
+    const topic = createMockTopic(2, { description: '看这个 [:sticker:cat:] 和 [:sticker:missing:] 结尾' })
+    const wrapper = mount(TopicRow, {
+      props: { topic, home: true, stickerUrls },
+      global: { plugins: [i18n] },
+    })
+
+    try {
+      // 小字视图不发图片：可解析贴纸显示 [名字]，未知贴纸整段省略。
+      expect(wrapper.find('p img').exists()).toBe(false)
+      const text = wrapper.get('p').text()
+      expect(text).toContain('看这个')
+      expect(text).toContain('[cat]')
+      expect(text).toContain('结尾')
+      expect(text).not.toContain('missing')
+      expect(wrapper.text()).not.toContain('[:sticker:')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  test('无 token 的摘要不渲染图片，文本保持原样', () => {
+    const wrapper = mount(TopicRow, {
+      props: { topic: createMockTopic(2), home: true },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.get('p').text()).toBe('测试内容描述')
+    expect(wrapper.find('p img').exists()).toBe(false)
+  })
+
+  test('表情尚未解析时只渲染文本段，不暴露 token', () => {
+    const topic = createMockTopic(2, { description: '看图 [:sticker:cat:] 再说' })
+    const wrapper = mount(TopicRow, {
+      props: { topic, home: true },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.find('p img').exists()).toBe(false)
+    expect(wrapper.get('p').text()).toContain('看图')
+    expect(wrapper.get('p').text()).toContain('再说')
+    expect(wrapper.text()).not.toContain('[:sticker:')
+  })
+
+  test('无标题瞬间的链接文案把表情渲染为 [名字] 文本', () => {
+    const stickerUrls = new Map([['cat', '/file/img/cat.png']])
+    const topic = createMockTopic(2, { title: '', description: '[:sticker:cat:] 新发现' })
+    const wrapper = mount(TopicRow, {
+      props: { topic, home: true, stickerUrls },
+      global: { plugins: [i18n] },
+    })
+
+    try {
+      const link = wrapper.get(`a[href="${topic.url}"]`)
+      expect(link.find('img').exists()).toBe(false)
+      expect(link.text()).toContain('[cat]')
+      expect(link.text()).toContain('新发现')
+      expect(wrapper.text()).not.toContain('[:sticker:')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  test('有标题的话题原样展示标题：标题是纯文本（不经过 Markdown 管线），不做贴纸展开或省略', () => {
+    const topic = createMockTopic(2, { title: '[:sticker:cat:] 字面标题', pinWeight: 3 })
+    const wrapper = mount(TopicList, {
+      props: { topics: [topic], home: true, showPinned: true },
+      global: { plugins: [i18n], stubs: { TopicRow: true } },
+    })
+
+    // 与 SSR topicListLabel 对齐：token 语义只适用于摘要回退，标题保持原文。
+    const pinnedLink = wrapper.get('section a')
+    expect(pinnedLink.attributes('title')).toBe('[:sticker:cat:] 字面标题')
+  })
+
+  test('只含未解析表情的摘要不留空段落', () => {    const wrapper = mount(TopicRow, {
+      props: { topic: createMockTopic(2, { description: '[:sticker:missing:]' }), home: true },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.find('p').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('[:sticker:')
   })
 
   test('打开另一行预览时只保留最新的 Hover Card', async () => {

@@ -104,6 +104,21 @@ contentAppeals:
             examples:
               failure:
                 externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Interaction rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/interact-rate-limited.json
 
 moderationAppeals:
   post:
@@ -211,3 +226,18 @@ moderationAppealAction:
             examples:
               failure:
                 externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Interaction rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/interact-rate-limited.json

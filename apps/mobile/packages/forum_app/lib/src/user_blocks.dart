@@ -95,13 +95,13 @@ class _UserBlockButtonState extends ConsumerState<UserBlockButton> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                GfSymbol(
                   list.hasError
-                      ? Icons.refresh
+                      ? 'refresh-cw'
                       : blocked
-                      ? Icons.person_off
-                      : Icons.block,
-                  size: 20,
+                      ? 'user-round-check'
+                      : 'eye-off',
+                  size: GfIconSize.md,
                 ),
                 const SizedBox(width: 12),
                 Flexible(child: GfText(label)),
@@ -118,7 +118,7 @@ class _UserBlockButtonState extends ConsumerState<UserBlockButton> {
           : blocked
           ? l10n.userUnblock
           : l10n.userBlock,
-      icon: Icon(blocked ? Icons.person_off : Icons.block),
+      icon: GfSymbol(blocked ? 'user-round-check' : 'eye-off', size: 22),
       onPressed: _busy || list.isLoading
           ? null
           : list.hasError

@@ -1,16 +1,17 @@
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { chromium } from 'playwright'
+import { chromium, webkit } from 'playwright'
 import { createServer } from 'vite'
 import { readFile } from 'node:fs/promises'
-let server, browser, origin
+let server, browser, safari, origin
 before(async () => {
  server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { host: '127.0.0.1', port: 0, open: false }, logLevel: 'error' })
  await server.listen(); origin = `http://127.0.0.1:${server.httpServer.address().port}`
+ safari = await webkit.launch()
  browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH })
 })
-after(async () => { await browser?.close(); await server?.close() })
+after(async () => { await browser?.close(); await safari?.close(); await server?.close() })
 for (const width of [360, 1280]) for (const theme of ['light', 'dark']) {
  test(`badge artwork editor stays usable at ${width}px in ${theme}`, async () => {
   const page = await browser.newPage({ viewport: { width, height: 900 } })
@@ -52,5 +53,21 @@ for (const width of [360, 1280]) for (const theme of ['light', 'dark']) {
   assert.deepEqual(errors,[])
   if(process.env.YOURTJ_SCREENSHOT_DIR) await page.screenshot({path:`${process.env.YOURTJ_SCREENSHOT_DIR}/badge-assets-${width}-${theme}.png`})
   await page.close()
+ })
+}
+
+for (const theme of ['light', 'dark']) {
+ test(`WebKit badge cards contain long names (${theme})`, async () => {
+  const page=await safari.newPage({viewport:{width:402,height:722}})
+  try {
+   const badge={code:'long-name',name:'Long unbroken badge label '+ 'abcdefghijk'.repeat(6),description:'Synthetic badge',type:'system',grantMode:'auto',iconUrl:'/static/badges/contributor.svg',color:'blue',level:'bronze',isEnabled:true,isWearable:true,sortOrder:1}
+   await page.route('**/api/admin/badges',route=>route.fulfill({json:{code:0,result:Array.from({length:9},(_,i)=>({...badge,code:badge.code+i}))}}))
+   await page.goto(`${origin}/assets/test/fixtures/browser/badge-assets-admin.html?lang=en&theme=${theme}`)
+   await page.locator('button[title]').filter({hasText:badge.name}).first().waitFor();await page.evaluate(()=>document.fonts.ready)
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))
+   const buttons=await page.locator('button[title]').filter({hasText:badge.name}).evaluateAll(nodes=>nodes.map(n=>({left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right,parent:n.parentElement.getBoundingClientRect().toJSON()})))
+   assert.ok(buttons.every(b=>b.left>=b.parent.left-1&&b.right<=b.parent.right+1),JSON.stringify(buttons))
+   if(process.env.YOURTJ_SCREENSHOT_DIR)await page.screenshot({path:`${process.env.YOURTJ_SCREENSHOT_DIR}/badge-list-webkit-${theme}.png`})
+  }finally{await page.close()}
  })
 }

@@ -1,3 +1,4 @@
+import '../../widgets/image_viewer_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -278,10 +279,11 @@ class _WikiPageState extends ConsumerState<WikiPage> {
   void _openImageViewer(String url) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
+        builder: (viewerContext) => Scaffold(
           backgroundColor: const Color(0xFF000000),
           body: SafeArea(
             child: GfImageViewer(
+              labels: AppLocalizations.of(viewerContext).imageViewerLabels,
               images: <String>[url],
               onSaveImage: (String imageUrl) =>
                   saveImageFromUrl(context, imageUrl),
@@ -352,7 +354,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
                           child: TextButton.icon(
                             icon: const GfSymbol('search', size: 18),
                             label: GfText(l10n.commonSearch),
-                            onPressed: () => context.push('/wiki/search'),
+                            onPressed: () => context.push('/search?scope=wiki'),
                           ),
                         ),
                       ],
@@ -436,7 +438,7 @@ class _WikiProse extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography typography = GfTheme.typographyOf(context);
     final GfRadii radii = GfTheme.radiiOf(context);
-    final Color faint = colors.baseContent.withValues(alpha: 0.45);
+    final Color faint = colors.textSecondary;
 
     final Widget body;
     if (page.content.trim().isEmpty) {
@@ -445,9 +447,7 @@ class _WikiProse extends StatelessWidget {
         child: Center(
           child: GfText(
             l10n.commonEmpty,
-            style: typography.small.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.55),
-            ),
+            style: typography.small.copyWith(color: colors.textSecondary),
           ),
         ),
       );

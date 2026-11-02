@@ -67,6 +67,10 @@ def select(paths):
                 name = path.split("ci-", 1)[1].split(".")[0]
                 mapping = {"backend": ["backend", "postgres"], "mobile-native": ["android", "ios"], "mobile": ["mobile"], "frontend": ["frontend"], "contract": ["contract"], "status": ["status"]}
                 add(*mapping.get(name, []), reason=path)
+            if path in {"scripts/ci/check_android_entrypoint.py", "scripts/ci/test_android_entrypoint.py"}:
+                add("android", reason=path)
+            if path in {"scripts/ci/check_android_apk_size.py", "scripts/ci/test_android_apk_size.py", "scripts/ci/android_apk_size_baseline.json"}:
+                add("android", reason=path)
             if path in {".github/workflows/release-android.yml", "scripts/mobile-release/prepare_push.py"}:
                 add("android", reason=path)
             if path in {".github/workflows/release-ios.yml", "scripts/mobile-release/build_ios.py"}:
@@ -112,14 +116,17 @@ def main():
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()) if os.environ.get("GITHUB_EVENT_PATH") else {}
     base = (args.base or event.get("pull_request", {}).get("base", {}).get("sha")
             or event.get('merge_group', {}).get('base_sha') or event.get("before"))
-    try:
-        if not base or set(base) == {"0"}:
-            raise ValueError("No comparison base")
-        if event.get("pull_request"):
-            base = subprocess.check_output(["git", "merge-base", base, args.head], text=True).strip()
-        plan = select(changed_paths(base, args.head))
-    except (ValueError, subprocess.CalledProcessError):
-        plan = {d: {"run": True, "reason": "Comparison unavailable; conservative full validation"} for d in DOMAINS}
+    if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+        plan = {d: {"run": True, "reason": "Explicit manual full validation"} for d in DOMAINS}
+    else:
+        try:
+            if not base or set(base) == {"0"}:
+                raise ValueError("No comparison base")
+            if event.get("pull_request"):
+                base = subprocess.check_output(["git", "merge-base", base, args.head], text=True).strip()
+            plan = select(changed_paths(base, args.head))
+        except (ValueError, subprocess.CalledProcessError):
+            plan = {d: {"run": True, "reason": "Comparison unavailable; conservative full validation"} for d in DOMAINS}
     Path(args.output).write_text(json.dumps(plan, indent=2) + "\n")
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:

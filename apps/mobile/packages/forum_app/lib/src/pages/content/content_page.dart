@@ -11,13 +11,17 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../layout_breakpoints.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 
 class ContentPage extends ConsumerStatefulWidget {
-  const ContentPage({super.key, this.deleted = false});
+  const ContentPage({super.key, this.deleted = false, this.initialType});
   final bool deleted;
+
+  /// Filter to open on: 'topic' or 'post'; anything else opens topics.
+  final String? initialType;
   @override
   ConsumerState<ContentPage> createState() => _ContentPageState();
 }
@@ -25,7 +29,7 @@ class ContentPage extends ConsumerStatefulWidget {
 class _ContentPageState extends ConsumerState<ContentPage> {
   final List<UserContentItem> _items = [];
   final Set<int> _selected = {};
-  String _type = 'topic';
+  late String _type = widget.initialType == 'post' ? 'post' : 'topic';
   String? _error;
   bool _loading = true;
   bool _busy = false;
@@ -37,6 +41,19 @@ class _ContentPageState extends ConsumerState<ContentPage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  void _removeTopics(Set<int> removed) {
+    if (widget.deleted) return;
+    _items.removeWhere((item) {
+      // Topic deletion can retain discussion replies; their server visibility
+      // is independent from the topic's local feed marker.
+      if (item.contentType != 'topic' || !removed.contains(item.id)) {
+        return false;
+      }
+      _selected.remove(item.id);
+      return true;
+    });
   }
 
   Future<void> _load({bool more = false}) async {
@@ -67,6 +84,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
         }
         final ids = _items.map((item) => item.id).toSet();
         _items.addAll(page.items.where((item) => ids.add(item.id)));
+        _removeTopics(ref.read(removedTopicsProvider));
         _cursor = page.nextCursorId;
         _hasMore = page.hasMore;
       });
@@ -159,6 +177,15 @@ class _ContentPageState extends ConsumerState<ContentPage> {
           .read(contentRepositoryProvider)
           .delete(contentType: _type, ids: ids, password: password);
       final failures = results.where((result) => !result.success).toList();
+      // 成功删除的话题记入 tombstone，让热榜/feed 同步移除，与单条删除一致。
+      if (mounted &&
+          epoch == ref.read(offlineCacheEpochProvider) &&
+          _type == 'topic') {
+        final removed = ref.read(removedTopicsProvider.notifier);
+        for (final result in results) {
+          if (result.success) removed.add(result.contentId);
+        }
+      }
       if (failures.isNotEmpty &&
           mounted &&
           epoch == ref.read(offlineCacheEpochProvider)) {
@@ -274,7 +301,14 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       return;
     }
     if (action == 'restore') {
-      await _run((_) => ref.read(contentRepositoryProvider).restore(item));
+      await _run((_) async {
+        await ref.read(contentRepositoryProvider).restore(item);
+        if (mounted &&
+            epoch == ref.read(offlineCacheEpochProvider) &&
+            item.contentType == 'topic') {
+          ref.read(removedTopicsProvider.notifier).remove(item.id);
+        }
+      });
     } else {
       if (!await _confirm(l10n.contentPurge, l10n.contentPurgeConfirm) ||
           !mounted ||
@@ -313,6 +347,9 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       },
     );
     final l10n = AppLocalizations.of(context);
+    ref.listen(removedTopicsProvider, (_, removed) {
+      setState(() => _removeTopics(removed));
+    });
     ref.listen(offlineCacheEpochProvider, (_, next) {
       setState(() {
         _generation++;
@@ -330,7 +367,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final wide =
-              constraints.maxWidth >= 900 &&
+              constraints.maxWidth >= widePageBreakpoint &&
               MediaQuery.textScalerOf(context).scale(17) <= 25.5;
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -579,7 +616,7 @@ class _ReviewSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final type = GfTheme.typographyOf(context);
-    final muted = GfTheme.colorsOf(context).baseContent.withValues(alpha: 0.6);
+    final muted = GfTheme.colorsOf(context).textSecondary;
     final appeal = item.appeal;
     final (
       String? appealLabel,

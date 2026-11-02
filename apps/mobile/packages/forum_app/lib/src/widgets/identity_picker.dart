@@ -176,7 +176,9 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                                     // Concentric with the glyph's own square.
                                     decoration: BoxDecoration(
                                       color: colors.base100,
-                                      borderRadius: BorderRadius.circular(5),
+                                      borderRadius: BorderRadius.circular(
+                                        GfRadius.xs,
+                                      ),
                                     ),
                                     alignment: Alignment.center,
                                     child: GfSymbol(
@@ -233,9 +235,7 @@ class _IdentityPickerState extends ConsumerState<IdentityPicker> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: type.caption.copyWith(
-                                    color: colors.baseContent.withValues(
-                                      alpha: .7,
-                                    ),
+                                    color: colors.textSecondary,
                                   ),
                                 ),
                               ),
@@ -300,7 +300,7 @@ class _IdentityMenu extends ConsumerWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: type.caption.copyWith(
-            color: subtitleColor ?? colors.baseContent.withValues(alpha: .65),
+            color: subtitleColor ?? colors.textSecondary,
           ),
         ),
         trailing: checked

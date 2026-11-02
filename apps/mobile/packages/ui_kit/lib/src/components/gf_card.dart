@@ -34,46 +34,47 @@ class GfCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-    final GfShadows shadows = GfTheme.shadowsOf(context);
+    final double hairline = gfHairline(context);
 
-    final BorderRadius radius = emphasized
-        ? BorderRadius.circular(radii.box)
-        : BorderRadius.zero;
-    final Color dividerColor = colors.line.withValues(alpha: 0.7);
-
-    final Widget content = Container(
-      decoration: emphasized
-          ? BoxDecoration(color: colors.base100, boxShadow: shadows.card)
-          : null,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Padding(padding: padding, child: child),
-          if (!emphasized && showDivider)
-            Container(
-              height: borders.width,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              color: dividerColor,
-            ),
-        ],
-      ),
+    final Widget content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(padding: padding, child: child),
+        if (!emphasized && showDivider)
+          Container(
+            height: hairline,
+            margin: const EdgeInsets.symmetric(horizontal: GfSpace.gutter),
+            color: colors.separator,
+          ),
+      ],
     );
 
-    return Material(
-      color: colors.base100,
-      shape: emphasized
-          ? RoundedRectangleBorder(
-              borderRadius: radius,
-              side: BorderSide(color: colors.line, width: borders.width),
-            )
-          : null,
-      clipBehavior: emphasized ? Clip.antiAlias : Clip.none,
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      child: onTap == null ? content : InkWell(onTap: onTap, child: content),
+    if (!emphasized) {
+      return Material(
+        color: colors.canvas,
+        child: onTap == null ? content : InkWell(onTap: onTap, child: content),
+      );
+    }
+
+    // Raised card: grouped surface, large radius, soft shadow in light mode
+    // and a hairline in dark mode where shadows do not read.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(GfRadius.lg),
+        boxShadow: colors.elevation(GfElevation.low),
+      ),
+      child: Material(
+        color: colors.isDark ? colors.surfaceGrouped : colors.base100,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(GfRadius.lg),
+          side: colors.isDark
+              ? BorderSide(color: colors.separator, width: hairline)
+              : BorderSide.none,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: onTap == null ? content : InkWell(onTap: onTap, child: content),
+      ),
     );
   }
 }

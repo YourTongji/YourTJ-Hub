@@ -220,7 +220,7 @@ onMounted(() => {
       <div v-if="error" class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{{ error }}</div>
       <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-3">
         <div v-for="badge in badges" :key="badge.code" class="group relative flex min-w-0 flex-col items-center rounded-md px-1 py-1.5 transition-colors hover:bg-muted/60">
-          <button type="button" class="flex min-w-0 flex-col items-center" :title="`${badge.name} · ${badge.code}`" @click="openEdit(badge)">
+          <button type="button" class="flex w-full min-w-0 max-w-full flex-col items-center" :title="`${badge.name} · ${badge.code}`" @click="openEdit(badge)">
             <div class="flex size-12 shrink-0 items-center justify-center ring-1 ring-inset transition-transform group-hover:scale-105" :class="toneClass(badge)" style="clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%)">
               <img :src="badge.iconUrl || '/static/badges/contributor.svg'" :alt="badge.name" class="size-6 object-contain" />
             </div>

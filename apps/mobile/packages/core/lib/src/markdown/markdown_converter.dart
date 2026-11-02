@@ -3,6 +3,7 @@ import 'package:flutter_quill/quill_delta.dart' as quill_delta;
 import 'package:markdown/markdown.dart' as md;
 import 'package:markdown_quill/markdown_quill.dart';
 
+import 'sticker_embed.dart';
 import 'sticker_token.dart';
 
 /// Markdown ↔ flutter_quill Delta/Document 转换层。
@@ -30,6 +31,7 @@ class MarkdownConverter {
         customContentHandler: _writeStickerAwareText,
         customEmbedHandlers: {
           EmbeddableTable.tableType: EmbeddableTable.toMdSyntax,
+          stickerEmbedType: (embed, out) => out.write(stickerEmbedToken(embed)),
         },
       );
 
@@ -41,7 +43,10 @@ class MarkdownConverter {
   /// 空输入返回空 Delta(保持 `deltaToMarkdown` 往返为空语义)。
   quill_delta.Delta mdToDelta(String markdown) {
     final normalized = markdown.trimRight();
-    return _mdToDelta.convert(normalized.isEmpty ? '\n' : normalized);
+    // Prose tokens load as sticker embeds: the editor shows images, not tokens.
+    return embedStickerTokens(
+      _mdToDelta.convert(normalized.isEmpty ? '\n' : normalized),
+    );
   }
 
   /// markdown → Document(编辑器读取)。

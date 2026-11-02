@@ -56,14 +56,48 @@ func Resolve(names []string) ([]StickerItem, error) {
 	for _, entity := range entities {
 		byName[entity.Name] = entity
 	}
-	items := make([]StickerItem, 0, len(entities))
+	// A current name wins; only the rest fall back to previous names (issue #1428).
+	missing := make([]string, 0)
+	for _, name := range validNames {
+		if _, ok := byName[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	aliased, err := sticker.EnabledByAliases(missing)
+	if err != nil {
+		return nil, err
+	}
+	for name, entity := range aliased {
+		byName[name] = entity
+	}
+	items := make([]StickerItem, 0, len(byName))
 	for _, name := range names {
 		if entity, ok := byName[name]; ok {
-			items = append(items, itemFor(entity, ""))
+			// Answer with the requested token so clients map it to this image.
+			item := itemFor(entity, "")
+			item.Name = name
+			items = append(items, item)
 			delete(byName, name)
 		}
 	}
 	return items, nil
+}
+
+// stickerByNameTx locks the sticker currently named name, falling back to the
+// sticker that previously used it before a rename (issue #1428).
+func stickerByNameTx(tx *gorm.DB, name string) (sticker.Entity, error) {
+	entity, err := sticker.GetByNameTx(tx, name)
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return entity, err
+	}
+	alias, aliasErr := sticker.AliasByNameTx(tx, name)
+	if errors.Is(aliasErr, gorm.ErrRecordNotFound) {
+		return entity, err
+	}
+	if aliasErr != nil {
+		return entity, aliasErr
+	}
+	return sticker.GetByIDTx(tx, alias.StickerID)
 }
 
 func MyLibrary(ctx context.Context, userID uint64) ([]StickerItem, error) {
@@ -145,7 +179,7 @@ func saveToLibrary(conn *gorm.DB, ctx context.Context, userID uint64, input Libr
 		}
 		var entity sticker.Entity
 		if input.StickerName != "" {
-			entity, err = sticker.GetByNameTx(tx, input.StickerName)
+			entity, err = stickerByNameTx(tx, input.StickerName)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
@@ -239,7 +273,7 @@ func RemoveFromLibrary(ctx context.Context, userID uint64, name string) error {
 		if err := sticker.LockLibraryTx(tx, userID); err != nil {
 			return err
 		}
-		entity, err := sticker.GetByNameTx(tx, name)
+		entity, err := stickerByNameTx(tx, name)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}

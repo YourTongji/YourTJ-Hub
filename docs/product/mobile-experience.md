@@ -43,6 +43,10 @@ route-aware fallback resumes when the launch surface leaves.
 
 ## Navigation and reading
 
+`Current`: topic cards, list rows and pinned titles share the same text fallback: use the title,
+otherwise the readable summary, otherwise the localized “Untitled” label. An untitled summary
+appears once, and media remains visible when there is no readable summary.
+
 `Current`: Home negotiates feed capability v2, keeps explicit Latest separate from the default root,
 restarts expired recommendation snapshots and reports foreground visible rows/detail dwell. Attribution
 traces stay in memory and are stripped from offline pages. See [feed ranking and
@@ -62,19 +66,22 @@ glyph for the `recent` fallback. Like Web, the app labels every reason the serve
 You topic goes without one; feeds without a server reason stay unstamped.
 
 
-`Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
+`Current`: ordinary root layout consumes the independent left and right safe areas once, then uses the
+remaining window width. Without a usable side pocket, below 600 logical pixels it retains bottom
 destinations; at 600 and above it uses a persistent, scrollable navigation rail. At 1100 pixels and above with text scale no greater than 1.4, its 220-pixel
 sidebar places destination icons and names in the same row. Smaller windows or larger text use
-a 72–160-pixel rail according to localized label width and system text size. Home, Campus and
-Messages can use 1120 pixels for their workspaces; notifications retain a readable column up to
+an 88–176-pixel rail (including 8-pixel outer margins on each side) according to localized label width and system text size. Campus and Messages can use 1120 pixels for their workspaces; Home and notifications retain a readable column up to
 720 pixels wide. The rail is anchored to the same workspace edge across destinations; narrower
 content starts beside it, so switching pages does not move navigation. Wide layouts reclaim the bottom-navigation inset, keep
 compose actions inside the content column and anchor their menu to that column. Resizing preserves
 the retained branch navigator, inputs and reading position; opening a keyboard does not change the
 width breakpoint.
 
-`Current`: the rail shares destination icons and unread state with the bottom bar and displays each
-localized destination name beside or below its icon. Labels wrap and the rail scrolls when large system text
+`Current`: the rail floats in a rounded glass surface with the same tint, blur, highlight and
+outer-only shadow as the compact Dock. Its height follows the destinations up to the available
+safe height; short windows scroll inside the surface. High contrast, reduced motion and accessible
+navigation use an opaque raised surface. The rail shares destination icons and unread state with the bottom bar and displays each
+localized destination name beside or below its icon in the ordinary width-based layout. Labels wrap and the rail scrolls when large system text
 or a short window needs more space. Each action
 exposes its name, selected state and activation in one semantic node. Persistent navigation is
 ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
@@ -82,7 +89,34 @@ On a hardware keyboard, ⌘1–4 select the four shell destinations and ⌘F ope
 are inactive while a dialog, drawer or pushed page covers the shell; text editing keeps its platform
 shortcuts. The navigation and keyboard patterns draw on [X for iOS](https://help.x.com/en/using-x/x-ios-app).
 
-`Current`: pushed forum, account and information pages keep their complete header and content in a
+`Current`: on iOS 27.1, a clear pocket in the existing right safe-area strip takes priority over
+width-based navigation. A 56-pixel glass capsule with four icon actions sits at the bottom of that
+pocket; reading content extends to the window edge beneath the translucent, blurred capsule,
+and no bottom Dock is overlaid. Headers, search, compose and chat input keep their horizontal
+safe areas. Scrollable root content, including the conversation timeline, has enough trailing space
+to bring its last item fully above the capsule without lifting the chat input. Split-pane headers
+consume only the safe area on their own outside edge. The pocket must
+provide at least 72 pixels of width and 224 pixels of height, including margins and 48-pixel touch
+targets. Tooltips, accessible names, selected states and unread announcements remain available.
+UIKit's active occlusion regions and the scene's status-bar frame keep navigation clear of the
+camera and system controls. Rotation can move the pocket to the left; navigation follows it.
+Missing, stale or insufficient geometry falls back to the ordinary safe-area layout. Keyboard
+insets reduce the available pocket height. Placement uses the current window's geometry, not a
+device-name check or fixed camera coordinates.
+
+`Partial`: iPhone Duo retains reading state across asymmetric safe areas and Split View-sized
+windows. The App and Widget Extension require iOS 15 or later. Native Duo full-screen presentation
+and side-pocket navigation require building with Xcode 27.1 / the iOS 27.1 SDK. On the Duo simulator,
+the production shell with demo content preserves input, scroll position and branch navigation
+through open, rotated and closed windows in both themes; content scrolls under the glass and the
+side rail avoids reported system occlusions.
+Physical-device behavior, keyboard and VoiceOver acceptance on Duo remain unverified.
+The layout model follows [Apple's Duo guidance](https://developer.apple.com/videos/play/tech-talks/111461/),
+[reserved-region guidance](https://developer.apple.com/videos/play/tech-talks/111463/)
+and [Flutter's window-based layout guidance](https://docs.flutter.dev/ui/adaptive-responsive/large-screens),
+consulted 2026-10-26. Generic size/inset tests do not substitute for device acceptance.
+
+`Current`: pushed account and information pages keep their complete header and content in a
 centered column up to 720 logical pixels wide. Course, Wiki, search, settings, publishing, chat, drafts, content management and
 Campus Explore can use 1120 pixels; the scheduler, authenticated management and image viewer use the full viewport.
 Login fills the viewport with one continuous surface while its form stays within 520 pixels.
@@ -90,10 +124,26 @@ Imperative account, message and sticker-library routes share the reading window.
 areas are consumed once and each bounded page receives its actual column width. Resizing leaves the
 route, input and scroll state mounted; the compact route continues to use the iOS edge-swipe transition.
 
+`Current`: topic details use a workspace up to 1120 logical pixels wide. With at least 840 pixels
+available at the default text size, the original post occupies the left pane and its comments occupy
+the right pane (42% of the workspace, capped at 420 pixels). Each pane scrolls independently;
+reply composition and the floor picker stay in the comments pane. Where iOS reports a usable side
+pocket, a glass action capsule contains Back, the floor-picker entry, Like, Bookmark, Watch and Reply.
+The header's Back button and bottom action bar are omitted in that layout. Actions keep 48-pixel
+targets, accessible names and toggle states; the capsule scrolls within a short pocket. Unavailable,
+stale or keyboard-covered geometry restores the header and bottom controls without replacing the
+draft. The same pocket placement works in expanded and folded windows. Narrow windows combine the post
+and comments into one reading column up to 720 pixels. Enlarged text raises the split threshold.
+Folding retains the active pane's relative reading offset and unsent reply draft; unfolding maps that
+position back into the appropriate pane. See [0111](../decisions/0111-topic-content-and-comments-panes.md).
+
 `Current`: tablet workspaces organize navigation beside their content. Home keeps its category
-tabs in a horizontal row above the retained topic feed at every window width. Sufficiently wide Home windows add a
-search entry and up to five topics from the existing Hot feed on the right; their loading, empty and retry states
-remain visible. This right column collapses for narrow windows or enlarged text without resetting the reading position.
+tabs in a horizontal row above one retained topic feed at every window width. Home centers its complete
+header and feed in a reading column up to 720 logical pixels wide, with a neutral canvas outside it.
+Search has one header entry; Hot remains a sort tab with the same loading, empty and retry behavior as
+other streams. Wider windows do not prefetch or display a second topic list. Centering consumes the
+part of each horizontal safe area covered by its outer gutter; controls receive only the remaining inset.
+Folding, rotating and resizing retain the active stream and reading position.
 Settings places its directory beside the
 selected section, so changing sections updates the detail without a full-screen route transition.
 Enlarged text raises the required width, restoring a single pane when labels or content need more
@@ -146,8 +196,11 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   with the system font scale and reading size the levels move closer, down to 40% of the extra size
   at 2×, and windows under 360 logical pixels tighten them one more step), inline code and code blocks are one step
   smaller, tables inherit the body size, and course reviews use the same profile at a compact
-  ~15.5-pixel baseline. The first post supports text selection.
-- `Current`: Settings → Appearance → Text size opens a live preview page with two layered sliders
+  ~15.5-pixel baseline. The first post and reply bodies support platform-native
+  text selection. On touch devices, tapping a reply body opens the reply composer targeted at that
+  floor; after a selection, the first tap only dismisses it. Desktop mouse clicks stay dedicated to
+  native selection (drag or double-click), and the toolbar reply action remains the explicit entry.
+- `Current`: Settings → Text size opens a live preview page with two layered sliders
   in 10% steps. App text (90%–130%) scales every text in the app, rich content included; reading
   text (80%–140%) then adjusts only rich content bodies — posts, Wiki and course reviews — on top of
   it. The preview is a small app screen built from the real components: tab bar, feed row, a post
@@ -209,14 +262,74 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   selected feed (`最新`, `关注`, `热门`, `流行`, or the available feed tabs) to
   the top using that feed's existing scroll controller. Other tabs retain their
   reading position; the action does not reload data or navigate.
+- `Current`: Settings › Appearance › Navigation chooses how compact windows present the four
+  destinations: the floating dock (the default, described below) or a classic bar. A live preview of
+  the real navigation sits above the choice. The choice applies at once, survives restart and resets
+  with local data; wide windows keep the side rail either way. Changing style morphs one surface: the
+  dock's glass stretches out to the screen edges and settles into the bar, or gathers back into the
+  pill, while the destinations fade through so they never show twice; reduced motion switches at
+  once. The classic bar is the bar the dock replaced — full width, 56 pixels of icon-only
+  destinations running under the home indicator, each with a primary-soft selection pill that grows
+  sideways out of its glyph — now on frosted chrome: a thinner tint than the dock over the same
+  blurred, saturated backdrop, a faint top-down sheen and a lit line under a one-physical-pixel
+  hairline, in the manner of system tab bars. High contrast, reduced motion and accessible
+  navigation give the opaque canvas under the hairline. Pressing a destination dips its glyph and
+  lights a neutral platter behind it; there is no lens or drag scrub. Holding Campus, or
+  Notifications when signed in, keeps that platter lit while the same shortcut menu blooms from the bar's top edge
+  right above the destination, with the whole bar left clear of the scrim; slide-to-select,
+  keyboard, screen-reader and cancellation behaviour match the dock. Pages clear either style by
+  the same measured insets: the bar's content inset is its height, the bottom safe area and 8 pixels.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use an
-  icon-only bottom bar on compact windows, with the selected Filled icon, indicator and unread state
-  kept together at a fixed compact height, so labels never add height or grow with text size. Each
-  destination keeps its localized name for screen readers and shows it as a long-press tooltip.
-  The iOS bottom bar uses a restrained Flutter blur and translucent surface over
-  the existing theme; Android, high-contrast mode, reduced motion and accessible-navigation mode
-  use the opaque theme surface. This is a Flutter material treatment and does not adopt a native
-  iOS Liquid Glass API. Search is a pushed
+  icon-only floating dock on compact windows: a 56-logical-pixel pill, centered within 20-pixel side
+  margins and at most 330 pixels wide, so labels never add height or grow with text size. On iOS it
+  floats over the home indicator; on Android it sits above the system navigation. Content scrolls
+  under it and stays tappable beside it. Each destination keeps its localized name for screen
+  readers and shows it as a long-press tooltip. Unread marks are tucked into the top-trailing corner
+  of the destination icon, as system tab bars place them: a dot, or a count capsule with tabular
+  digits capped at `99+`. Instead of a coloured ring, each mark knocks a thin gap out of the icon
+  behind it so it reads on glass and on the lens alike; it travels and magnifies with its icon,
+  scales in when unread content arrives, nudges once when the count grows, rolls its digits up or
+  down as the count changes, and eases its width between digit counts. The wide rail uses the same
+  mark. Reduced motion shows changes at once.
+  Holding Campus or Notifications for about a third of a second opens a shortcut menu that blooms
+  out of the destination above the dock, or toward the content beside a vertical rail, with a
+  medium haptic, while the page behind dims and frosts and navigation itself stays clear.
+  Ordinary rails and icon-only side-pocket rails offer the same shortcuts, hints and held-slide
+  selection as the bottom dock. Side menus stay within the root window's content safe area and
+  above the keyboard, independently of the rail's removed safe-area padding.
+  Campus lists its five tabs for a signed-in reader, then
+  the course reviews, scheduler and Wiki pages, set apart and marked with a chevron because they open
+  a page; Notifications lists its six categories, also only when signed in. Every shortcut wears the
+  glyph of the entry it opens — the campus tabs match the wide campus directory, the campus tools
+  their landing cards, and Replies uses the reply arrow — and no glyph repeats another shortcut's or
+  a dock destination's. While a destination is on screen, the section it shows is marked with a check;
+  opened from any other page, its menu marks nothing.
+  The same press can slide onto a shortcut — one highlight follows the finger from
+  row to row with a selection haptic, never dropping out between rows; it fades where it is when
+  the finger leaves and returns under the finger — and releasing over it opens that section; releasing
+  elsewhere leaves the menu open for a tap, and tapping outside, Escape or system back dismisses
+  it. When the shortcuts do not fit above the dock, as with large text or a short window, the menu
+  stops above the dock and scrolls: the opening press scrolls it by holding near its top or bottom
+  edge, and a drag that scrolls never picks a row. A sideways move before the menu opens still scrubs the dock, and screen readers open the
+  menu through the destination's long-press action.
+  Folding, rotation, safe-area or keyboard changes cancel an open menu and its held selection;
+  reopening uses the destination's new position. Removing its navigation surface also dismisses
+  the menu. This follows window geometry, with no device-model or fixed-orientation checks.
+  In a native side-pocket layout the software keyboard hides the Dock without changing the
+  content width or chat's directory/detail breakpoint. It returns to the current clear pocket
+  when the keyboard closes, without resetting the draft, selected conversation or reading state.
+  Tab and Shift+Tab traverse the destinations and optional compose action, with a visible focus tint;
+  Enter and Space activate the focused control without changing the touch or drag behavior.
+  The selection is a lens that springs between destinations and stretches while it travels; the
+  icon it covers turns Filled and primary part by part as it passes. A press swells the dock
+  slightly. Dragging along the dock lifts the lens into clear glass that magnifies its icon, ticks
+  a selection haptic at each destination crossed, resists past either end and selects where it is
+  released (a flick carries at most one destination further); releasing on the current destination
+  selects nothing, while tapping it still returns that page to the top. The dock is translucent
+  raised surface over a blurred, saturated backdrop with a top-lit rim on iOS and Android;
+  high-contrast mode, reduced motion and accessible-navigation mode use the opaque raised surface,
+  and reduced motion settles the lens at once. This is a Flutter treatment built on the existing
+  theme and does not adopt a native iOS Liquid Glass API. Search is a pushed
   page, reachable from Home. Campus links to the native course catalog, scheduler and Wiki;
   returning preserves the selected destination.
   About links to native friend links, sponsors, terms and privacy pages using the site’s published
@@ -227,14 +340,19 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
   the text; a landscape image appears below the text with aspect-preserving fit. Portrait galleries
   show up to three columns; two landscape images share a row; larger landscape galleries overlap
-  up to three previews with a total count. Tapping the author avatar or name opens the native
-  profile; tapping text opens the topic. Tapping a preview opens the shared lightbox at that image
+  up to three previews with a total count. Tapping a member avatar opens the same profile preview
+  used in topic details; the author name opens the full profile. Persona avatars and names open
+  their independent anonymous profile, while legacy anonymous avatars disclose no identity.
+  Tapping text opens the topic. Tapping a preview opens the shared lightbox at that image
   with every topic image available, including images beyond the feed preview limit. Author
   targets and previews support keyboard activation; previews announce their localized image
   position, and both author targets have at least 44-by-44 logical-pixel touch areas.
 - `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image viewer. It
   supports swipe navigation, pinch and double-tap zoom, actual-size viewing, long-press save and
-  system sharing. Multi-image viewers show a horizontally scrolling thumbnail rail with a centered
+  system sharing. The host supplies four-language labels for original-size/fit controls,
+  the thumbnail rail and each image position across Markdown, Wiki, course review, chat and
+  sticker entry points; thumbnail buttons retain their selected state in Semantics.
+  Multi-image viewers show a horizontally scrolling thumbnail rail with a centered
   focus; selecting a thumbnail changes the image and resets zoom and actual-size mode. Distant
   selections jump directly; adjacent selections use the shared media cadence. Tapping
   toggles the viewer controls and rail together; a vertical drag dismisses at minimum scale, moving
@@ -270,7 +388,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   used in the publishing preview and opens the shared full-screen viewer from any image.
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
-  The display menu contains list/card preferences; unavailable categories take no space.
+  The toolbar's layout button switches between card and list in one tap; its glyph, tooltip and
+  screen-reader name state the layout it switches to, and the choice persists on the device.
+  Unavailable categories take no space.
 - `Current`: list mode uses a compact title/type row, optional excerpt, and a shared category/metadata
   band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
   rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
@@ -285,8 +405,10 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
   underline follows a held slow swipe: its edge facing the adjacent tab stretches first and the
-  trailing edge catches up, rather than both edges growing at once. After release,
-  the extended segment contracts with a logarithmic ease-out curve. Home, Campus and Notifications
+  trailing edge catches up, rather than both edges growing at once; the leading edge never passes the
+  adjacent tab. After release, the extended segment contracts with a logarithmic ease-out curve. A
+  committed Home sort stays selected while its feed loads, so the underline never returns to the
+  previous tab before moving on. Home, Campus and Notifications
   move both content panes with the same drag or tap transition while retaining each visited page's
   elements and scroll state. A pane drag reports the touch slop it travelled before winning the
   gesture arena, so the page stays under the finger; release settles with a spring that keeps the
@@ -309,7 +431,7 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   settle follows a fast release fling, otherwise the net movement since the drag began, so a small
   release jitter cannot reverse it. Hiding or showing them does not rebuild the root surface. Near the top they stay attached to the content; edge bounce is ignored. Content insets
   never change, so the feed does not jump. Hidden headers are clipped at the system safe-area edge;
-  the compose button follows the bottom bar. Header and bottom-bar borders are one physical pixel.
+  the compose button follows the bottom dock, 16 pixels above it. Header borders are one physical pixel.
   While controls are hidden, off-screen tab panes scroll their reserved header band away, so a pane
   swiped or tapped into shows content rather than a blank band; the pane on screen never moves and
   returning controls restore those offsets. Reaching the top or changing destination restores the
@@ -325,7 +447,14 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   reselecting the active root destination provide refresh and return-to-top without changing icons.
   Refreshable pages accept a short pull from the top on release, including empty lists; the gesture
   uses finger travel so tall screens and iOS rubber-band damping do not demand a longer pull.
-  Home, Campus and Notifications show the refresh indicator below their overlaid navigation.
+  Campus and Notifications show the refresh indicator below their overlaid navigation. Home
+  refreshes from its header instead: pulling stretches the title row (side controls stay put, the
+  logo rides its middle and grows slightly) with the feed following beneath it, and a sheen the
+  finger draws onto the logo reaches its centre as the pull arms, with a medium haptic. Released
+  there, the header holds a little taller while the sheen keeps sweeping, for at least one pass,
+  then folds back once the feed has refreshed; a shorter pull springs back the way it came. The
+  platform's top overscroll effect is replaced by the stretch, and reduced motion keeps the sheen
+  still.
   Small or retracted pulls do not refresh, and an ongoing refresh cannot be started twice.
 - `Current`: the floor slider loads the selected server window on release. Earliest/latest
   shortcuts, reply links, and earlier/later pagination navigate the actual reply stream. Returning
@@ -386,6 +515,18 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: reply edits preserve unsaved text on failed saves and confirm before discarding.
   Server-required reply captchas can be refreshed without losing the draft. Session changes
   invalidate pending edits and destructive confirmations; share failures remain visible in-app.
+- `Current`: the topic AppBar overflow holds sharing, opening-post share images and revision history,
+  reporting for other authors, and permitted edit/delete/moderation actions. Reply reporting lives
+  in the reply overflow beside its own share/history actions. No separate report flag competes
+  with either menu. Missing opening-post windows omit image/history actions. A successful topic
+  deletion pops to its source, or goes Home when opened as a root deep link. Session-scoped
+  deletion markers remove stale topic entries from feeds, profile streams and content management
+  without resetting their controllers, and prevent late reads from restoring them. Failed deletion
+  leaves the page and lists unchanged. An acknowledged topic restore clears its marker, so restored
+  content is visible again in the same session; failed restores, reply restores and old-account
+  responses cannot clear an unrelated topic marker. The server can retain discussion replies when
+  deleting a topic; local topic markers therefore preserve server-visible replies in content
+  management, reply activity and reply bookmarks, while hiding topic/opening-post bookmarks. Account/site changes clear those markers.
 
 - `Current`: embedded reply Markdown adds no device safe-area spacing. Dates and reply actions
   share a compact footer, wrapping on narrow screens or large text. Reply references use Web's
@@ -394,7 +535,7 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: profiles use a 3:1 cover (112–200 logical pixels tall), an overlapping avatar,
   trailing edit/follow/message actions, distinct name and handle, readable bio and inline statistics.
   Following and follower counts open the corresponding lists. Extra account tools, including course
-  reviews, remain in the profile menu. Profile and connection headers identify the viewed person.
+  reviews, are reached through the account drawer. Profile and connection headers identify the viewed person.
   Connection rows show a 48-pixel avatar, name, handle and up to three bio lines, with a pill follow
   action. Narrow layouts and enlarged text move the action below the bio. Follow actions serialize
   per person, update immediately and roll back on failure; late reads cannot overwrite local actions.
@@ -405,7 +546,8 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: notification entries use a small event glyph (pink heart for likes), the actor's
   avatar, a bold actor name within the localized action, inline time and a muted three-line preview.
   Avatar URLs are resolved in a server batch; likes without a stored preview use the visible reply excerpt.
-  Actor avatars open the profile independently of the notification's read action. Unread dots,
+  Member avatars open a profile preview, while actor names open the full profile; persona targets
+  retain their anonymous profile. These actions are independent of the notification's read action. Unread dots,
   acknowledged-read updates and failure retries remain available.
 - `Current`: notification headings resolve the same template keys and event types as Web in the
   selected language, with actor names and topic/content previews. Legacy literal headings take precedence when no template key is present; content previews take
@@ -535,6 +677,8 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 
 `Current`: native mobile motion uses one semantic policy: 120 ms press feedback,
 160 ms selection, 180 ms content, 220 ms layout and 280 ms sheet/media transitions.
+Duration figures cover timed transitions; the shell dock's selection lens is a physical
+spring that settles per its own dynamics (see [Navigation and reading](#navigation-and-reading)).
 Root headers, navigation and compose controls move together while the reading viewport stays
 stable. Tabs, announcement expansion, form focus, theme/logo changes and local disclosures
 consume that policy. Android pushed pages use a 220 ms fade with a six-logical-pixel rise and
@@ -575,7 +719,7 @@ validation; simulator/debug execution does not establish production frame-rate g
   32/40/44/48 pixels by size, within touch targets of at least 48 pixels. Both grow for wrapped or
   enlarged labels; disabled actions remain visibly muted. Category chips have a compact 24-pixel
   fill at normal text size and at least 44-pixel targets when interactive. Home keeps category
-  discovery directly above the stream and list/card preferences in the display menu. Home and notification tabs
+  discovery directly above the stream and the one-tap card/list toggle beside the feed sorts. Home and notification tabs
   grow with system text size, and the overlay's content inset uses the same measured height.
 - `Current`: empty and retry states share a soft icon surface, readable explanation and optional
   next action, with scrolling on short screens. Empty all-notifications link back to Home; empty unread notifications explain that everything is read and offer the All tab; empty drafts
@@ -601,11 +745,11 @@ validation; simulator/debug execution does not establish production frame-rate g
 
 - `Current`: search uses one filled capsule field across messages, new conversations, the course
   catalog, global search, Wiki and scheduler. Search fields provide a localized clear action and keyboard
-  submission where applicable. Clearing global search resets results, scope and pagination, and
+  submission where applicable. Clearing global search resets results and pagination to its entry scope, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
 - `Current`: global search opens with its field focused beside a back action when entered from
   inside the app; a deep link to search opens without one. The empty field shows
-  two equal tiles that carry the current input to the native course catalog and Wiki search, followed
+  two equal tiles that select Courses or Wiki in the same search page, followed
   by recent searches. Recent searches keep up to ten distinct queries per site and account (with a
   separate guest list), in device preferences only; users can remove one or clear all. Storage
   failure does not block searching. Before the first submission, typing offers explicit rows to
@@ -619,15 +763,21 @@ validation; simulator/debug execution does not establish production frame-rate g
   type and shows displayed rows separately from matching totals; in the all view, See all switches
   to that type when more matches exist. Unqueried scopes are not labelled as zero, and the all-scope
   view does not treat the topic total as an aggregate total. Empty results name the submitted keyword
-  in every type; the all and topics views also offer course and Wiki search, and a results-bearing
-  all view keeps a compact course/Wiki row above its groups. Category marks keep at least 3:1
+  in every type. The six scopes are All, Topics, Users, Categories, Courses and Wiki.
+  All concurrently requests the forum aggregate (including courses) and Wiki, displays up to three
+  course and Wiki matches, and keeps a failed source scoped to its own group. Courses uses the existing
+  aggregate endpoint; Wiki requests up to twenty matches from its existing endpoint. Legacy
+  `/wiki/search?q=…` links redirect to `/search?scope=wiki&q=…`; Wiki and course-catalog search entries
+  open this shared surface. The course results link to individual courses and to the catalog with
+  the submitted keyword for department/term/campus filtering. Category marks keep at least 3:1
   contrast against the tinted wash they sit on, shifting the tone toward the text color.
-  Users, topics and categories build one row at a time near the viewport. Only topics paginate;
+  Users, topics, categories, courses and Wiki build one row at a time near the viewport. Only topics paginate;
   appending a page retains the other groups, and a failed page keeps the current rows with a retry.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
   share one bottom dock. The AppBar shows a generic topic label until the body title scrolls out of
   view, then shows that title. Actions use Web's semantic tints and localized accessible labels;
-  the like action includes its count. The reply heading has no decorative discussion icon.
+  the like action includes its count. Reply actions use the comment-plus glyph rather than a
+  return-arrow glyph. The reply heading has no decorative discussion icon.
   Topic subscriptions use topic-specific labels; reply commands have no toggle semantics. The dock
   keeps the floor number at its natural width and switches to an accessible icon-only reply action
   when that action's label cannot fit, including long translations and enlarged text, reserving no
@@ -646,8 +796,10 @@ success closes the editor. Pending writes prevent duplicate submission, and chan
 removes the previous account’s private form state and ignores its late responses.
 
 `Current`: native components are implemented by `ui_kit` on Flutter primitives. Ordinary account,
-security, profile, course and schedule fields use a quiet filled surface with 16-pixel corners and a
-52-pixel minimum height. Floating labels stay inside the filled surface. Focus and validation add a
+security, course and schedule fields use a quiet filled surface with 14-pixel corners and a
+52-pixel minimum height. The profile editor uses aligned inline fields inside shared inset groups,
+with the same hints, counters and field-level validation. Nickname/bio/signature capacities match
+the persisted forum fields at 64/500/255 characters; existing long values remain editable. Floating labels stay inside the filled surface. Focus and validation add a
 thin continuous outline without a glow; field labels,
 errors, native selection, autofill, password managers and IME actions remain available. Multiline
 notes grow within their available space. Search uses a capsule and preserves focus on clear.
@@ -658,6 +810,12 @@ four lines, and keeps target context and a separate flat attachment/sticker tool
 retains its open writing canvas; edit tools use the same outline symbols. Keyboard and sticker
 panels are mutually exclusive and preserve draft text and selection. Unsupported voice actions
 are not displayed. Chat bubbles use 20-pixel corners and are bounded by the conversation pane.
+
+`Current`: branch pages own software-keyboard avoidance; the retained navigation shell does not
+resize their window a second time. The compact dock and its chat-content clearance disappear while
+the keyboard is open, leaving the input and send action reachable. Empty-conversation guidance can
+scroll when keyboard, preview notice or window height leave little space. Folding and unfolding
+keep the same conversation input controller and unsent text.
 
 `Current`: primary and secondary buttons use pill shapes with state-specific colors and a separate
 48-pixel hit target. Icon actions retain at least 44 pixels, except the compact profile social links,
@@ -673,31 +831,37 @@ iPad; see [0100](../decisions/0100-material-interaction-surfaces-on-ios.md).
 ## Publishing
 
 `Current`: opening a publishing field or moving its caret alone does not create unsaved work.
-While the software keyboard is visible, the edit step hides its type switcher and empty photo
-strip, retaining the title, body, save status and writing row. Title focus and controller
-identity survive this layout change. The header keeps a small outer margin for its primary action.
+While the software keyboard is visible, the edit step hides its empty photo strip, retaining the
+title, body, save status and writing row. Title focus and controller identity survive this layout
+change. The header keeps a small outer margin for its primary action.
 
 
-- `Current`: new topics choose moment, question or article from a segmented switcher above the
-  fields; its raised pill slides to the chosen type. The switcher hides while the keyboard is open,
-  and the app bar then names the type. A hairline under the app bar shows the two-step position
-  (half while writing, full on preview) and announces the step. The body placeholder carries the
+- `Current`: a new topic's type (moment, question or article) is chosen only in the compose menu,
+  which both the home FAB and the drafts page's new-composition action open; the publishing page
+  has no type switcher, so a composition keeps its type once opened. The app bar names that type
+  throughout the edit step, keyboard open or not, and shows Preview on the preview step. Topic edits
+  and restored drafts keep their stored type, and `/publish` without a type opens a moment. A
+  hairline under the app bar shows the two-step position (half while writing, full on preview) and
+  announces the step. The body placeholder carries the
   type's writing hint. Moments lead with photos: with none yet, a full-width card with the
   type-coloured gallery symbol, a prompt and the nine-photo/reorder hint; with photos, a square strip
   (long-press reordering, a remove control per photo) ending in a gallery tile with the n/9 count.
   Questions attach photos after the body. Every type shows its title field; the moment title
   placeholder says it may stay empty, and opening the field alone does not create unsaved work. A
   hairline below the title takes the accent while it is focused, with the length counter shown only
-  then. Existing titles remain visible in topic edits and restored drafts, and type switches retain
-  title input. Moment previews show only a manually entered title, while title-free
-  publishing/server drafts use the existing body-derived API summary. The local save status leads
-  with a small clock, check, history or alert mark.
+  then. Existing titles remain visible in topic edits and restored drafts. Moment previews show only
+  a manually entered title, while title-free publishing/server drafts use the existing body-derived
+  API summary. The local save status leads with a small clock, check, history or alert mark.
+- `Current`: article Next checks the existing trimmed title and body requirements before
+  leaving editing, displays the missing field and focuses it without losing input. Local draft
+  saving remains available for incomplete work; categories are selected in preview, and final
+  submission still validates both fields and categories before the server validates the request.
 - `Current`: the preview step reads as the finished post: a card headed by the type's symbol and
   label rises in, followed by one settings group whose rows lead with their own symbols. Category is
   a dropdown the width of its row; each category leads with a soft colour swatch and a picked one is
   tinted with a check. As in Web's quick composer, moments and questions take one category and the
-  menu closes on pick; articles take up to three with the menu staying open and a count. Switching
-  an article to a short type keeps its first category. The row lists the picks as small pills.
+  menu closes on pick; articles take up to three with the menu staying open and a count. The row
+  lists the picks as small pills.
   Publishing identity and the bot-reply switch follow. Save draft is an app-bar icon in both steps.
 - `Current`: an article preview with two or more body images adds an image-order card above the
   settings: numbered thumbnails in reading order that long-press dragging reorders. The move swaps
@@ -715,7 +879,7 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: photo uploads never block writing. Typing, stickers and further photo picks continue
   while earlier photos upload in order. Each article photo lands where the caret was when it was
   picked, following later edits; a compact thumbnail tray above the writing row shows progress,
-  retry and removal. Save, publish, type switching and leaving still wait for pending photos.
+  retry and removal. Save, publish and leaving still wait for pending photos.
 - `Current`: the article editor follows the caret through the page while typing. The editor body
   itself does not scroll; once the caret line reaches the bottom of the visible page the page
   scrolls it back into view with a small margin, and opening the software keyboard re-reveals the
@@ -747,8 +911,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   state sits beside the send action as one muted line, so it never grows or clips the editor; a failed
   local save turns it into a tappable retry in the warning color.
 - `Current`: the topic reply sticker panel replaces the software keyboard in the same slot below the
-  composer and matches the last settled keyboard height. Switching holds the outgoing surface until
-  the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
+  composer and matches the last settled keyboard height, but is never shorter than three sticker rows;
+  under a shorter keyboard it rises smoothly from the keyboard's edge. Switching holds the outgoing
+  surface until the incoming one covers it, so the editor stays in place; without a keyboard the panel slides in and
   out in one direction, instantly with reduced motion. The panel keeps its tab, scroll and search state
   while the composer stays open. Searching stickers raises the keyboard below the panel and bounds the
   editor to one line without changing its multiline input. Back closes the panel before leaving the
@@ -766,12 +931,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   on return. Rich-text
   formatting remains available while editing.
 
-- `Current`: the type selector keeps Web's moment/question/article values. Moments and questions
+- `Current`: the compose menu keeps Web's moment/question/article values. Moments and questions
   use a simple gallery plus text; articles use an inline rich editor backed by Markdown. Article
   formatting tools are folded by default. Existing topics retain their type when edited.
-- `Current`: simple galleries support up to nine uploaded images, reordering and removal. Images
-  survive switching to the article editor. Switching back extracts images into the gallery and
-  plain text into the body; conversion is rejected when more than nine images would be lost.
+- `Current`: simple galleries support up to nine uploaded images, reordering and removal.
 - `Current`: article body images support long-press dragging to any
   paragraph: the image lands below the paragraph it is dropped on, the move
   is a single undo step, and long document drags auto-scroll at the editor
@@ -781,7 +944,7 @@ identity survive this layout change. The header keeps a small outer margin for i
   for retry or removal, and ignores the result of a removed photo. Successful URLs are immediately
   included in local recovery; gallery ordering/removal and article insertion positions remain part
   of the draft. Article insertions track intervening text edits at the original selection.
-  Pending photos visibly block leaving, manual draft submission, publishing and type changes.
+  Pending photos visibly block leaving, manual draft submission and publishing.
   Temporary picker files are retained only for the current editor: app termination requires selecting
   unuploaded photos again, and the UI distinguishes this from saved text and uploaded photos.
   Backgrounding starts no further queued upload; an already-started request may finish. Resuming
@@ -801,24 +964,24 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: changed editors debounce local recovery saves by 700 ms and flush when leaving or
   the app becomes inactive. Title, Markdown/simple text, type, category IDs and uploaded image URLs
   survive reopening, including when the page metadata request fails. Save progress, success and
-  retryable storage failure are visible. Each new composition has an independent identity;
-  changing its content type keeps that identity. Cloud-draft edits, published-topic edits and replies
-  use distinct identities. Earlier v1 recovery slots remain listed and can be explicitly reopened.
+  retryable storage failure are visible. Each new composition has an independent identity.
+  Cloud-draft edits, published-topic edits, new replies and reply edits use distinct identities. Earlier v1 recovery slots remain listed and can be explicitly reopened.
   Opening a cloud draft by its server ID while offline also finds its latest device recovery copy,
   before the server can confirm whether the topic is published or still a draft.
   Starting another composition never replaces a previous one. A restored editor still obtains current
   server metadata before publishing.
 - `Current`: the drafts page presents device and cloud sections in one scroll surface, with a new
   composition action, content previews, recovery kind, content type and last-edit time. Continue editing
-  reopens the same writing identity; replies reopen their topic. Returning from new or resumed writing
+  reopens the same writing identity; new replies reopen their topic, while reply edits reopen the
+  full-screen reply editor for the stored post ID. Returning from new or resumed writing
   refreshes the list. Title/text search and all/device/cloud/reply
   filters operate on device copies and the currently loaded cloud list; the cloud endpoint returns at most
   100 drafts and only its title/description are searchable here. A full 100-item window shows its limit
   and explains that deletion refreshes it to reveal subsequent drafts. Counts describe displayed copies, so a
   device recovery copy and its cloud draft count separately. Empty matches offer a filter reset. Local
   loading is distinct from an empty list; failed local or cloud refreshes retain displayed content with
-  an inline retry. Local snapshots use app-private device
-  preferences scoped by API origin and numeric account ID, with no token or background cloud upload.
+  an inline retry. Local snapshots use dedicated
+  encrypted user-work storage scoped by API origin and numeric account ID, with no token or background cloud upload.
   Logging out hides them; logging back into the same account restores access. Explicit discard or
   successful server acknowledgement removes the matching recovery snapshot; local deletion is
   confirmed with an explicit explanation that cloud content stays unchanged. Device and cloud rows both
@@ -837,6 +1000,14 @@ identity survive this layout change. The header keeps a small outer margin for i
   attempts to clear that account's local drafts and searches. Serialized writes order deletion and
   restoration after pending saves. Storage failure is reported when saving; OS termination
   before the debounce/flush completes can lose the newest unsaved input.
+- `Current`: publishing, new replies and reply edits flush their latest recovery copy before the
+  HTTP write, so a 401 cannot clear the session before the last input is durable. Storage failure or
+  unavailable ownership blocks that attempt and retains input for manual retry. A 401 keeps the
+  normal session teardown; after signing in to the same account, recovery copies remain available
+  through Drafts. Merely opening a copy never submits it. Reply edits autosave separately from
+  new replies and cannot be reopened as topic publishing. Successful saves or explicit discard
+  remove the matching recovery copy after earlier local writes; failed local cleanup preserves
+  the old copy without invalidating an acknowledged server save.
 - `Current`: changed editors offer continue, discard, or save to this device and leave. A server-required
   captcha can be refreshed without discarding content.
 - `Current`: one reply recovery copy per topic preserves text, its reply target and uploaded image URL.
@@ -849,8 +1020,15 @@ identity survive this layout change. The header keeps a small outer margin for i
   resets obsolete pagination and updates the reply count used when returning to the feed.
   Reading a topic without editing creates no draft. Session invalidation prevents queued writing from
   crossing the account boundary; cache clearing does not delete writing recovery copies.
+  New-topic copies normalize an empty server identity to `member`; existing device drafts saved with
+  that legacy empty value remain readable in their original account/site scope. Unsupported identity
+  values remain rejected.
 
 ## Campus and sign-in
+
+`Current`: public campus course recommendations show the same teacher/team label and missing-teacher
+fallback as the course catalog, alongside department and each entry's own score. Same-name courses
+retain separate identities and detail links. Identity text wraps with enlarged text.
 
 - `Current`: Campus opens a native private overview with the school teaching week, time-aware
   greeting, today's courses and then recent notices. Weekly timetable, academic records and charts,
@@ -862,8 +1040,14 @@ identity survive this layout change. The header keeps a small outer margin for i
   on the academic tab. The timetable shares the planner renderer without its editing or storage.
   The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
-  when school services fail. Pushed tools return to the Campus destination. Explore campus retains
-  public course previews. See [campus semantics](campus.md) for binding, privacy and provider limits.
+  when school services fail. Pushed tools return to the Campus destination. Today and the guest
+  landing view include public course previews. An unconnected school-timetable tab explains the
+  required Tongji identity and the personal timetable shown after connection. It retains the existing
+  connection confirmation flow, adds direct catalog/planner paths without school binding, and does
+  not fetch personal datasets in the unconnected state.
+  The five school-content sections are Today, School
+  timetable, Academic records, School notices and Calendars. A header gear opens Campus settings
+  for identity management and offline-data clearing; `/campus/explore` redirects to `/campus`. See [campus semantics](campus.md) for binding, privacy and provider limits.
 - `Current`: while the app stays in the foreground, Campus remembers its selected section,
   independent academic/notice search text and scroll positions, and selected timetable week when
   switching sections, bottom destinations or returning from a pushed page. Scroll restoration waits
@@ -911,18 +1095,49 @@ identity survive this layout change. The header keeps a small outer margin for i
   [campus Widget specification](campus.md#home-screen-widgets).
 - `Partial`: native school login on a physical device is not end-to-end verified. Automated tests
   cover navigation policy, session handoff, confirmation, stale responses and native rendering.
-- `Current`: the scheduler opens in course selection. Plan preview remains a local planning
+- `Current`: the embedded school authorization browser opens as a full-screen route on the root
+  navigator, covering the retained tab dock and rail. Loading, failure and retry remain inside
+  this route; closing or completing authorization returns to the same campus branch and refreshes
+  its status. Browser content retains its safe-area and keyboard insets.
+- `Current`: the scheduler has page-local Filters, Candidates, Selected and Plan preview tasks.
+  An unconfigured planner opens Filters; an existing context opens Candidates. The same store owns
+  every task. Switching tasks keeps the candidate query/results and selected classes, while dismissing
+  the keyboard. Selected lists complete class codes, teachers, times, rooms, weeks and conflicts,
+  independent of the preview's week filter, and can remove a class directly. Candidate results remain
+  transient; choosing a teaching class updates the existing plan immediately. Plan preview remains a local planning
   grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
   warn about time conflicts before a teaching class is selected, while keeping the add action
   non-blocking. Completed term/grade/major selection collapses into an editable summary; course,
   credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
-  the native credential. Plans are not official enrollment results.
+  the native credential. Plans are not official enrollment results. Help, storage recovery and sync
+  controls share one expandable status section; sync conflicts and blocked/adoption states remain
+  visible in its summary. The custom-event action uses a plus symbol.
+- `Current`: choosing the already selected term, grade or major leaves every plan unchanged.
+  Changing one of these values asks for confirmation when any plan contains courses or custom
+  blocks, listing all plan names and affected counts. Cancel preserves the selection and content;
+  confirmation clears every plan's courses and blocks while retaining plan IDs and names.
+  The confirmation explains that existing plan synchronization also propagates these clears.
+  Configuration and cleared plans commit together before the screen changes. Saving blocks
+  further editing and leaving; failure retains the old configuration and content for explicit retry.
+  Responses from synchronization started under the previous configuration cannot apply afterward.
+- `Current`: course offering rows open the Course planner with course, class and term context.
+  The user selects the matching term and major before opening the exact class for confirmation.
+  Navigation never changes existing plans; mismatched terms and unavailable classes explain how to
+  recover. The planner’s course detail links to the catalog identity resolved by the review-brief API,
+  with offering focus when available, even if the course has no reviews. Account or term changes
+  invalidate an open handoff sheet. The graduation-cap symbol is reserved for the Campus destination.
 - `Current`: scheduler course search keeps the field, text and focus while results load or fail.
   Committed input searches after a 350 ms pause; active input-method composition waits until commit,
   and keyboard submission searches immediately. Clearing resets results without dismissing the
   keyboard. Editing, clearing or switching compulsory/optional/search segments invalidates earlier
   responses; returning to search retains the query. Failed searches offer retry below the field.
+  This input searches course names within the selected term; its hint and empty-state scope reflect
+  that API query. Configuration changes reload the active source and fence previous requests.
+  Missing configuration names the missing fields and scrolls to their controls. Configured empty
+  compulsory/optional results identify their actual scope and offer configuration or name search;
+  a zero-match search shows the keyword and term, with clear-query and configure actions. Empty,
+  loading and retryable failure states do not change existing plans.
 - `Current`: planner and official timetable grids share a responsive seven-day layout with a fixed
   section/time rail during horizontal scrolling. Larger screens expand the columns; narrow screens
   keep readable column widths and explain sideways scrolling. Spanning course blocks show title,
@@ -943,6 +1158,14 @@ identity survive this layout change. The header keeps a small outer margin for i
   edits, and focus reads are throttled to 30 seconds. Clean state has no polling timer.
   Existing cloud snapshots migrate intact on first use; legacy clients receive 410 afterward.
   Account closure erases cloud content and prevents in-flight requests from recreating it.
+- `Current`: the single-select major chooser searches names and codes, preserving code strings and
+  the current plan while typing. It shows term/grade context, separate name/code rows, the current
+  selection and a clearable no-match state. A recognized PK year/code wrapper is removed only from
+  the displayed name, retaining nested name parentheses and the original selection payload.
+  The panel accommodates the keyboard and enlarged text. Changing major with non-empty plans names
+  the affected plan/course/event counts and requires confirmation before clearing them. Cancel,
+  reselecting the current major, account/context changes, or plan changes during confirmation preserve
+  existing data. Term/grade change protection remains `Planned` under issue #550.
 - `Current`: the course catalog debounces keyword search and captures filters for each request
   generation, so late responses and pages cannot replace a newer search. Short lists load the next
   page automatically while visible. Paging errors keep existing courses and offer explicit retry;
@@ -1134,19 +1357,56 @@ identity survive this layout change. The header keeps a small outer margin for i
 
 ## Registration
 
+- `Current`: post-creation mail scheduling failures have a dedicated localized
+  warning directing the user to email settings for retry or an address change.
+  They do not become the ordinary “check your inbox” confirmation. A created
+  account whose automatic sign-in failed instead asks the user to sign in without
+  registering again; public occupied-account failures remain generic.
+
+- `Current`: successful password registration accepts its newly issued forum session through the
+  same cache cleanup, secure-storage commit and provider invalidation used for sign-in. It restores
+  only the safe native destination; a missing token cannot reuse an earlier challenge or session.
+  A created account without an accepted session offers sign-in recovery instead of showing success.
+
+`Current`: switching the authentication form from sign-in to registration or password recovery
+clears its TOTP challenge, staged credential, code and previous captcha request. A late captcha response
+cannot restore the old challenge. Selecting the same form preserves an active TOTP retry.
+
 - `Current`: registration loads the current Web login configuration before submission. Restricted
   email domains use a prefix field and domain selector; unrestricted sites accept the full address.
   Password confirmation is checked locally. Only published terms/privacy policies are linked and
-  require explicit agreement. Configuration failures preserve the form and offer retry.
+  require explicit agreement. Configuration failures retain field controllers and offer retry. Before ordinary
+  registration is known to be available, the page shows loading or an explanation
+  and a recheck action. Closed registration, daily capacity and unavailable email
+  service are explained without collecting registration fields; login remains usable.
+  The public state contains no counts and the backend rechecks every submission.
 - `Current`: the restricted email field accepts either a prefix or a full address at a published
   domain, matching domains without case sensitivity. A full address selects its own domain instead
   of appending another suffix; malformed or unlisted addresses stay on the form with a localized
   error. Registration API failures use the shared server-message catalog, including daily quotas
   and retry-login instructions. Occupied usernames/emails and creation failures retain the same
   generic registration error, preserving the server's account-enumeration boundary.
+- `Current`: native password registration submits the current resolved UI language (`zh`, `en`,
+  `ja` or `de`) as the account's initial locale, including after a language change on the same form.
+  Following the system uses the existing supported-language resolution and Chinese fallback.
+  Activation email content and its link language use that stored locale; later device-language
+  changes do not silently rewrite the account's profile language.
 - `Current`: when email verification is enabled, successful registration tells the user to check
   their inbox; when it is disabled, the ordinary registration confirmation remains. Email changes
   tell the user to check the new address for its activation link in both immediate and staged modes.
+
+- `Current`: the fixed `yourtj://account/email-verified` return opens current account
+  settings on the existing navigation stack. It neither verifies the App's account
+  nor switches it to the account named in the browser. Returning with Back retains
+  the unfinished page/draft; continuing an operation remains manual. The handler
+  ignores OIDC callbacks, alternate hosts/paths, and any query/fragment payload.
+  Cold-start links wait for storage/bootstrap readiness. Account data is read using
+  the current session; guests use the ordinary sign-in guard.
+  A narrow native event bridge retains an initial hint until Flutter listens and
+  forwards foreground hints without carrying URL payloads. Flutter's competing iOS
+  navigation handler is disabled, following [Flutter's guidance](https://docs.flutter.dev/cookbook/navigation/set-up-universal-links).
+  Other URLs continue through the existing OIDC and campus-widget native handlers;
+  the bridge neither reads their credentials nor consumes their events.
 
 ## Persistent forum anonymous identity
 
@@ -1189,8 +1449,44 @@ or production push delivery behavior. The shared business and privacy rules are 
 
 ## Profile and privacy
 
-- `Current`: account settings (Account, security & privacy, also on the Settings index) →
-  Privacy → Profile visibility lists the five profile sections with
+`Current`: Privacy settings include a separate “Private messages” page at
+`/settings/chat-permissions`. Everyone is the default; mutual followers and no new
+conversations are the other choices. Only actual message history exempts an existing
+conversation; empty conversations do not. Blocks take precedence for people and bots.
+A failed save keeps the confirmed value. The same server rule applies to all send types
+and forwarding on Web, App and old clients; see [forum permissions](forum.md#private-message-permissions).
+
+
+- `Current`: Settings separates Account & security (username, email, password, OAuth, two-factor,
+  passkeys, sessions and destructive account closure), Privacy (profile visibility, blocks and anonymous
+  identity) and Notifications. Appearance, text size, widgets, language and data/storage remain device
+  settings available to guests. Appearance has no duplicate text-size/widget entries. The sticker library
+  is available from the drawer and sticker panel. About uses the same community name in every entry.
+  Theme choices consistently order System, Light, Dark; sign-out is visually secondary to account closure.
+- `Current`: old `/settings/profile` links, including `?edit=1`, open the editor directly;
+  `/settings/binding` and `/settings/security` open Account & security. `/settings/privacy` retains
+  its data/storage meaning, also available at `/settings/data`; `/settings/privacy-controls` opens the
+  privacy group. `/settings/account` and `/settings/notifications` remain valid. The wide directory uses
+  these same groups. The icon-only shell labels its speech-bubble destination Direct messages in
+  tooltips and screen readers. Content management is consistently called My content.
+- `Current`: Settings → Notifications includes an account-wide Show unread count switch shared with
+  Web. It defaults to numbers, caps visible counts at `99+`, and changes navigation/rail and conversation
+  indicators to dots when off, including count-free accessibility labels. An older server without
+  exact totals keeps dots. Saving disables the switch; failure restores the previous choice and permits
+  retry. This display preference leaves read state, push delivery and system notification permission
+  unchanged. Counts and preferences refresh through the existing foreground reconciliation.
+- `Current`: `/settings/badges` combines worn-badge choice and ordered profile display in one editor;
+  the own profile's badge stream links to it. Choices remain local until Save. Wear and display use
+  independent APIs; an acknowledged wear is retained after a display failure, and retry resumes display.
+  A wear-only save leaves automatic profile display selection untouched. Display inclusion, ordering
+  and the five-badge limit retain their existing rules.
+  Wear and profile-display choices start in separate collapsed sections on this same page. The wear
+  summary and each wear option show the shared medallion artwork; the display summary names the selected
+  count. Expanding, scrolling and collapsing preserve unsaved choices. One reorderable list owns page
+  scrolling; errors and acknowledged partial saves remain visible even when both sections are closed.
+
+
+- `Current`: Settings → Privacy → Profile visibility lists the five profile sections with
   their saved audience, then a fixed, non-tappable bookmarks row reading "only you" with a lock
   in the chevron slot. Tapping a row opens a bottom-sheet picker limited to that section's
   audiences; a row changes only after the server confirms, failures keep the saved value with an
@@ -1245,7 +1541,7 @@ or production push delivery behavior. The shared business and privacy rules are 
 - `Current`: avatar and cover uploads open a native drag/pinch crop preview with an accessible
   zoom slider and reset action. Avatars export at 300×300; covers at 1600×320 with the central
   mobile area marked. Camera orientation is normalized before cropping. Failed uploads retain
-  the selection for retry; covers can also be removed with confirmation.
+  the selection for retry; cover removal stays a draft until Save.
 - `Current`: OAuth connections show native account identity and provider availability. Binding
   opens the existing site settings in the system browser, where the user signs into the matching
   account; returning refreshes the native binding list. Unbinding remains native, including an
@@ -1253,36 +1549,43 @@ or production push delivery behavior. The shared business and privacy rules are 
   transfer the native session and may require a separate Web login.
 - `Current`: account settings support username changes and the twelve built-in avatars. Server
   validation remains visible in the username form so rejected names can be corrected and retried.
-- `Current`: profile editing presents the cover and overlapping avatar in the same crop and
-  proportions as the public profile, with directly editable name, bio, signature and links below.
-  Camera controls open the image picker/cropper; selected images and cover removal remain local
+- `Current`: the public profile's Edit profile action, drawer avatar and Settings account card open
+  the same editor. Its framed avatar is centered first, followed by a separate 5:1 cover card;
+  the card grows to keep its action readable with enlarged text. Basic information, links and display
+  options use grouped rows. Username opens its existing editor. Website name/URL and social links
+  share a subpage with field-local validation; Done returns their draft to the main editor.
+  Avatar choices include photos, camera on iOS/Android and twelve presets. The camera mark is beside
+  the avatar; cover actions use a labelled menu with destructive removal. Selected images, presets and cover removal remain local
   drafts until Save. Cancel/back offers Keep editing or Discard when anything has changed.
   The existing independent APIs save text, cover and avatar in order. A partial failure identifies
   completed steps, retains remaining drafts and resumes without repeating acknowledged writes;
   leaving after partial success refreshes the saved profile. The public profile opens the editor
   directly in one route and returns there on cancel or save; opening from settings returns to settings. An account
-  change closes active profile/crop editors and rejects old-session callbacks. The avatar picker
+  change closes active profile/crop/link editors and rejects old-session callbacks. The avatar picker
   retains twelve presets.
 - `Current`: profile editing includes nickname, bio, signature, website name/URL, profile language
   and the six Web social providers. Saving preserves unedited fields and unknown social providers;
   website/social destinations accept HTTP(S), and social usernames expand to provider URLs.
+  The links editor centers single-line website/social inputs against their labels; the website-name
+  length counter sits beside the input. Narrow windows and large text retain the stacked layout.
   Public profiles display website/social links as icon-only controls and open them in the system
   browser. Provider marks use compact, equally sized 24-by-32-pixel touch targets alongside profile dates,
   with their names available to screen readers and long-press tooltips. Worn badges appear on the avatar independently of the badge list;
   administrator identity has a localized role label. Returning
   from settings refreshes profile identity and media immediately.
 
-- `Current`: public profile covers extend behind the status bar and navigation. Back, overflow
-  and notifications use circular frosted controls with 44-pixel targets. Scrolling reveals an opaque
+- `Current`: public profile covers extend behind the status bar and navigation. Back and the peer
+  overflow menu use circular frosted controls with 44-pixel targets. Scrolling reveals an opaque
   title bar with the name and topic count left-aligned beside the back control, and keeps content
   tabs below it; a status-area scrim protects white system indicators during collapse. The application supplies a theme-aware status-bar fallback, so returning from
   an immersive cover to a plain feed restores legible system indicators. Cover, avatar and profile actions share one header layer so the avatar stays
   fully visible. The compact action band keeps the display name eight pixels below the avatar
   ring. Other users' profiles show the same top-right overflow control; its menu offers block or
-  unblock for that profile, while the own profile keeps its existing account actions. Account ID,
+  unblock for that profile. Own-profile management destinations live in the account drawer, and the
+  own profile has no duplicate overflow menu or notification bell. Account ID,
   bio and statistics use tighter related-content spacing. The band grows for
-  wrapped actions and larger text. Pull-to-refresh starts below the safe area and toolbar. The editor crop preview
-  uses the same available width and system inset as the public cover.
+  wrapped actions and larger text. Pull-to-refresh starts below the safe area and toolbar. The native
+  cropper marks the public profile's visible area independently of the editor's cover thumbnail.
 
 - `Current`: the profile's role and display badges use icon-only circular medallions with a fine rim,
   subtle highlight and inset face. Names remain available to screen readers and hover/long-press
@@ -1341,7 +1644,8 @@ or production push delivery behavior. The shared business and privacy rules are 
   Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
 - `Current`: Settings opens a scrollable category index, with device preferences separated from
-  account settings. Appearance offers system, light and dark modes; language and site information
+  account settings. Appearance offers system, light and dark modes and the floating-dock or
+  classic-bar navigation; language and site information
   remain available to guests without fetching account details or sessions. Theme choices apply
   immediately, survive restart and take precedence over asynchronous restoration; writes are
   serialized so the latest choice remains stored. Account categories preserve existing section
@@ -1379,6 +1683,12 @@ or production push delivery behavior. The shared business and privacy rules are 
 - `Current`: content management and recycle bin provide topic/reply filters, cursor loading,
   multi-selection, restore and deletion. Restore/permanent-delete affordances follow the server's
   capabilities; confirmation/password requirements and partial batch failures remain authoritative.
+  `/my-content?type=topic|post` opens on that filter; other values open topics.
+- `Current`: the own profile's Posts stream shows a Manage action that opens content management on
+  the topic filter, where the same topics add multi-selection, deletion and review state; returning
+  reloads the stream. Other profiles show no such action. The profile has no reply-only stream, and
+  Activity mixes topics, replies, likes and follows, so it carries no Manage action; replies stay
+  reachable through the content-management filter.
 - `Current`: privacy settings link to content management and account closure. Closure offers
   anonymized-history and best-effort content-deletion modes, requires the current password and
   clears the native session on success. Retention and authorization rules match Web.
@@ -1388,9 +1698,13 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 ## Management workspaces
 
+- `Current`: the embedded admin console resolves installed PingFang Han and CJK punctuation
+  directly on Apple platforms, keeping Chinese labels readable after native writing flows.
+  Latin text keeps the existing system font stack; devices without PingFang use that stack's
+  normal fallback. The console does not download font files.
 - `Partial`: the complete Web admin console and moderation workspace are reachable in the App.
   The native wrapper and authenticated handoff pass local iOS and Android login/draft/console
-  journeys; all 28 administrative modules fit both viewports, including the link editor.
+  journeys; 38 authorized administrative modules fit both viewports, including the link editor.
   The journey creates and deletes a friend link through the real administrative form.
   Both independent course workspaces also pass authenticated handoff and viewport checks on iOS
   and Android.
@@ -1399,6 +1713,10 @@ The approved permission/privacy/failure boundaries for optional analytics are re
   share sheet, but dismissal/file selection has not completed under the available simulator UI
   automation. Remaining administrative forms and that iOS file round-trip still need device
   validation before claiming complete mobile parity.
+- `Current`: at 320 CSS pixels, translated controls in recommendation statistics, Wiki, sponsors,
+  account security, campus synchronization and storage remain inside the page. Toolbars and Wiki
+  tabs wrap; the campus semester selector can shrink without pushing its card wider, and long
+  storage migration actions wrap their text. Wiki tabs retain arrow-key navigation.
 - `Current`: course management and course-review moderation have separate entries in Profile and
   the course catalog. Only CourseManager or Admin can discover and enter them; forum moderator
   status alone does not grant access.
@@ -1418,7 +1736,9 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 - `Current`: controlled preview builds display `DEV <short SHA>` or `PROD TEST <short SHA>` and
   suppress stable update prompts. Dev previews connect to `dev.yourtj.de`, with separate session,
-  preference and local database storage. They use the existing app IDs and replace installed apps.
+  preference and local database storage. Android dev previews install beside the stable app as
+  `YourTJ Dev` (`tj.yourtj.forum_app.dev`, badged DEV icon); production rehearsals and iOS previews
+  use the existing app IDs and replace installed apps.
   Preview platforms can be selected per run. Installed previews warn when their source is no longer
   the active candidate, their platform is no longer selected or the freeze expires; offline/missing
   status is shown as unverified. A status link identifies the current candidate and normal production
@@ -1506,14 +1826,29 @@ native cleanup is pending.
 
 ## Email activation
 
-`Current`: password registration distinguishes accounts requiring email activation and directs
-users to sign in and open Account security if the email is missing. Account security and the
+`Current`: a writing failure with `permission.emailRequired` offers Account security from topic
+publishing, replies and reply editing. Publishing and new replies save their existing account-scoped
+local recovery copy before opening settings; a failed save keeps the writer visible. Settings is
+pushed above the writer so Back retains its input, including reply edits. This action never resends
+activation mail or retries the write. Frozen-account errors retain their distinct notice and do not
+offer email verification. Session-expiry navigation keeps its existing session cleanup behavior.
+
+`Current`: password registration accepts the issued session and distinguishes accounts requiring
+email activation. Account security keeps an owner-specific pending notice and current email from
+the existing settings response, so it remains available after reopening the app. Refreshing after
+verification removes the notice; a registration toast does not claim actual email delivery. Account security and the
 campus connection's `permission.emailRequired` notice share a resend action with localized success,
 cooldown and daily-limit feedback. The campus notice explicitly asks users to activate their account
 from their inbox; backend start/confirm gates remain authoritative, and unbinding stays available.
 After activation, users can retry the original connection action. Resend requests are serialized,
 cancelled on leaving the action or changing sessions, and old-session feedback is discarded.
 Tongji SSO accounts retain automatic activation.
+`Current`: the shared activation action reads the owner's actual target, remaining
+quota and relative cooldown from the server. It displays verified, verification-off,
+restricted-account and mail-unavailable states and offers a read-only refresh after
+errors. Cooldown countdown uses elapsed time, refreshes on App resume or expiry,
+and never sends automatically. Session changes cancel reads and discard old targets.
+
 
 ## Tongji sign-in
 
@@ -1548,16 +1883,21 @@ servers that omit interaction fields retain read-only content previews.
 
 ## Sticker library
 
-- `Current`: messages, replies and publishing share a Recent / My / Official sticker picker. Official
-  packs come from the administrator's enabled library, with a source and license link. Bundled presets
+- `Current`: messages, replies and publishing share a Recent / My / Official / Packs sticker picker.
+  Official packs come from the administrator's enabled library, with a source and license link. Bundled presets
   retain their manifest's source pack; upgrades restore the default grouping on previously seeded
   official entries while preserving custom groups. Recent use
   keeps up to 30 distinct items in the current account/site session. Picking inserts at the caret or replaces the
   current selection; it does not send or publish. Unicode emoji and image stickers remain distinct.
 - `Current`: sticker pickers stay inline below the reply, message or publishing input. Opening one
   dismisses the typing keyboard without covering the editor; the keyboard button resumes typing at
-  the current selection. A bounded live preview renders draft stickers as images and updates after
-  insertion, editing or deletion, using the same Markdown/plain-text rules as the destination.
+  the current selection. Inputs show each resolved sticker inline as the image it publishes as
+  (2.5 × the font size, centred on the line), using the same Markdown/plain-text rules as the
+  destination; a line holding a sticker grows to fit it, so stickers never overlap neighbouring
+  lines, and the one-line composer shown beside an open sticker panel keeps a whole sticker line
+  visible; one delete removes a whole sticker or a half-typed `[:sticker:` fragment, and the
+  caret never rests inside one. Typing `[:sticker:` shows matching stickers in a strip above the
+  input; tapping one completes it ([0119](../decisions/0119-wysiwyg-sticker-editing.md)).
   Repeated picks keep the panel open and advance the caret. Image uploads and reply-target/image
   removal keep the next insertion aligned with the updated caret. Ordinary typing does not retry
   unavailable sticker resolution; token changes and explicit retry can resolve again.
@@ -1589,24 +1929,49 @@ servers that omit interaction fields retain read-only content previews.
   assets retain their history references. Site administrators review undecided personal uploads in
   the admin queue; forum moderators have no access to these images. [0038](../decisions/0038-personal-sticker-library.md)
   owns storage and privacy; [0079](../decisions/0080-personal-sticker-pre-review.md) owns pre-review.
-- `Current`: native post/reply bodies and private messages display image stickers in a 128 × 128
-  logical-pixel box, preserving aspect ratio and GIF animation. Consecutive stickers wrap within
-  the content width. Picker and draft-preview thumbnails remain 56 × 56, and personal-library
-  rows use 48 × 48, so the reading size does not crowd the input controls.
-- `Current`: tapping a native inline sticker or a library row opens that sticker alone in the shared
-  image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing. Stickers
-  remain excluded from surrounding attachment galleries. Picker taps still insert without sending;
-  a visible hint and each item’s long-press action expose a separate large preview on all three tabs.
-  Previewing does not insert a token or change recent use. Chat long presses still open the message
-  action menu, including when an image fails to load. Unknown or unavailable tokens retain a readable
-  fallback. Library state is isolated by site and account.
+- `Current`: native post/reply bodies, Markdown draft previews and feed-card excerpts place image
+  stickers inline at 2.5 × the surrounding font size, centred on the text line, so headings scale
+  their stickers and a sticker reads as part of the sentence rather than a separate image.
+  Private messages keep a 128 × 128 logical-pixel box, preserving aspect ratio and GIF animation.
+  Picker and chat draft-preview thumbnails remain 56 × 56, and personal-library rows use 48 × 48.
+- `Current`: tapping a native inline sticker opens a compact sticker card, not the photo viewer: an
+  enlarged 168 × 168 view, the sticker's name, and Save to my stickers, which reads In your stickers
+  once saved. Failures stay in the card for retry; read-only feed excerpts omit the action. Guests
+  browsing without a session see Sign in to save instead — the account-owned library is never
+  requested, so merely viewing a sticker cannot hit the login-only endpoints — and tapping it opens
+  the login page. Long
+  presses keep their existing collection/retry sheet. Library rows open that sticker alone in the
+  shared image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing.
+  Stickers remain excluded from surrounding attachment galleries. Picker taps still insert without
+  sending; a visible hint and each item’s hold preview expose a larger preview on all four tabs.
+  Previewing does not insert a token or change recent use. Chat long presses still open
+  the message action menu, including when an image fails to load. Unknown or unavailable tokens
+  retain a readable fallback. Library state is isolated by site and account.
 - `Current`: disabled official stickers stay in personal management for ordering/removal and are
   unavailable for insertion; permanently deleted official stickers leave the collection. Older servers
   without personal-library endpoints show a compatibility message while official stickers remain usable.
-- `Current`: Web post and reply sticker images are excluded from lightbox clicks and gallery
-  collection; chat stickers are also non-interactive. Ordinary photos retain image preview, and
+- `Current`: Web post and reply sticker images render inline as 2.5em squares, centred on the text line,
+  without image borders or paragraph centring; feed-card previews use the same size. They are
+  excluded from lightbox clicks and gallery collection. Clicking one opens the same compact sticker
+  card (enlarged view, name, Save to my stickers); guests are sent to sign in. Chat stickers are
+  non-interactive. Ordinary photos retain image preview, and
   images explicitly linked to another page retain their link destination. Sticker recognition uses
   renderer-owned provenance; an ordinary image's author-supplied alt text does not change its behavior.
+- `Current`: the picker header holds the four tabs, a search icon and a gear that opens my-sticker
+  management. Search expands in place of the tabs, covers recent, my, official and added-pack stickers,
+  and Cancel restores the tabs and the previous focus. The grid shows about five stickers per row and
+  three rows at once, without per-item text; names stay available to screen readers and in the preview.
+  Messages and publishing use the same minimum panel height.
+- `Current`: the picker's Packs tab lists the market packs the account has added, with a Sticker
+  market entry; an empty tab points to the market. The market lists published packs by topic; each
+  pack opens a grid with Add/Remove, and an account holds up to 50 packs. Guests can browse; adding
+  requires sign-in. Add and remove wait for the server and report the result. In pickers and pack
+  grids, holding a sticker opens a larger preview above it; sliding switches the preview, releasing
+  over Save collects it into my stickers, and releasing elsewhere closes it without inserting. A
+  secondary click, Shift+F10 or the accessibility long-press action opens the item's action sheet.
+  Web shows the same preview on hover, keyboard focus or touch hold. Market and alias rules are in
+  [0115](../decisions/0115-sticker-market-subscriptions.md) and
+  [0114](../decisions/0114-sticker-rename-aliases.md).
 - `Partial`: Web renders shared personal stickers, but personal-library management is a native App
   surface. Physical-device keyboard transitions and both-platform visual acceptance remain separate
   from widget and simulator coverage.
@@ -1614,13 +1979,20 @@ servers that omit interaction fields retain read-only content previews.
 
 ## Shared visual treatment
 
+`Current`: components use the mobile geometry, type and derived color roles in the
+[mobile design standard](mobile-design-system.md#mobile-component-roles). Grouped forms, raised menus,
+neutral controls, circular conversation avatars and directional message corners share this layer;
+selection, keyboard input, minimum targets and failure recovery keep their own behavior. The component
+gallery uses synthetic screens, while workflow acceptance uses the production pages.
+
+
 `Current`: Home shows animated feed sort tabs followed by a horizontally scrollable category row.
 Category buttons use 12-pixel corners, a compact 36-pixel visual height and a minimum 48-pixel touch
 target, growing with system text size. Labels remain on one line. The selected category uses a tinted
 background, outline and check mark; the All categories button clears the filter. A newly selected
 category scrolls into view, including selections made from a post badge. Selecting a button
-or a Home post badge filters the existing Home stream without pushing a route. The display menu
-contains the list/card choice, while categories remain directly available on Home.
+or a Home post badge filters the existing Home stream without pushing a route. The card/list toggle
+sits beside the sorts, while categories remain directly available on Home.
 Each category and its supported sort retain their own items, pagination and reading position; clearing
 the filter restores the previous global sort and position. Category feeds reuse the category payload
 and its latest/new ordering, while the unfiltered feed retains Following and other Home sorts.
@@ -1821,7 +2193,9 @@ acceptance; simulator compilation does not establish those results.
 
 ## Profile decoration settings
 
-`Current`: native settings expose administrator-granted avatar frames and nickname styles with
-preview, independent removal, save/retry and theme-aware readable presentation. The native identity
+`Current`: native settings use separate frame/name tabs with effect-bearing rows, a shared identity
+preview and one confirmation action. The selected preview and confirmed equipment have distinct
+states. Failed saves keep the selection and show a retryable error beside the confirmation action.
+The native identity
 surfaces consume the same effective payload as Web; persona/anonymous identities remain independent.
 See [profile decorations](profile-decorations.md) for ownership and qualification semantics.

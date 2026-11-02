@@ -30,8 +30,8 @@ class GfFloatingAction extends StatelessWidget {
     final glyph = GfSymbol(symbol, size: pill ? 20 : 24);
     final action = DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: active ? GfTheme.shadowsOf(context).floating : null,
+        borderRadius: BorderRadius.circular(GfRadius.full),
+        boxShadow: active ? colors.elevation(GfElevation.mid) : null,
       ),
       child: FilledButton(
         onPressed: active ? onPressed : null,
@@ -48,15 +48,19 @@ class GfFloatingAction extends StatelessWidget {
           tapTargetSize: MaterialTapTargetSize.padded,
           visualDensity: VisualDensity.standard,
           backgroundColor: WidgetStatePropertyAll(
-            active ? colors.primary : colors.base300,
+            active ? colors.primary : colors.fillStrong,
           ),
           foregroundColor: WidgetStatePropertyAll(
-            active ? colors.primaryContent : colors.iconMuted,
+            active ? colors.primaryContent : colors.textDisabled,
           ),
           shape: const WidgetStatePropertyAll(StadiumBorder()),
           elevation: const WidgetStatePropertyAll(0),
           textStyle: const WidgetStatePropertyAll(
-            TextStyle(fontSize: 15, height: 1.3, fontWeight: FontWeight.w600),
+            TextStyle(
+              fontSize: 15,
+              height: 20 / 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         child: Row(

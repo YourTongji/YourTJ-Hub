@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ui_kit/ui_kit.dart';
 
-/// Shows destination names while accessibility exposes the same named,
-/// selectable actions as the compact bottom navigation, including in iOS.
-class ReadingNavigationRail extends StatelessWidget {
+import 'window_reserved_regions.dart';
+
+/// Uses visible labels in ordinary rails and tooltips in a narrow side pocket;
+/// accessibility exposes the same named, selectable actions in both layouts.
+class ReadingNavigationRail extends StatefulWidget {
   const ReadingNavigationRail({
     super.key,
     required this.items,
     required this.currentIndex,
     required this.onSelected,
-  });
+  }) : assert(
+         items.length == 4,
+         'WindowReservedRegions.navigationClearance assumes four 48-pixel destinations',
+       );
   final List<GfBottomNavigationItem> items;
   final int currentIndex;
   final ValueChanged<int> onSelected;
@@ -19,7 +25,10 @@ class ReadingNavigationRail extends StatelessWidget {
     List<GfBottomNavigationItem> items,
   ) {
     final textScale = MediaQuery.textScalerOf(context).scale(17) / 17;
-    if (MediaQuery.sizeOf(context).width >= 1100 && textScale <= 1.4) {
+    final usableWidth =
+        MediaQuery.sizeOf(context).width -
+        MediaQuery.paddingOf(context).horizontal;
+    if (usableWidth >= 1100 && textScale <= 1.4) {
       return 220;
     }
     var width = 72.0;
@@ -38,7 +47,64 @@ class ReadingNavigationRail extends StatelessWidget {
       painter.dispose();
     }
     // Longer labels wrap without taking the compact content's usable width.
-    return width.clamp(72, 160);
+    // Leave room for the floating surface's outer margins without shrinking
+    // the localized labels or their touch targets.
+    return width.clamp(72, 160) + 16;
+  }
+
+  @override
+  State<ReadingNavigationRail> createState() => _ReadingNavigationRailState();
+}
+
+class _ReadingNavigationRailState extends State<ReadingNavigationRail> {
+  final _surfaceKey = GlobalKey();
+  // One per destination, however many the shell provides.
+  final _targets = <GlobalKey>[];
+
+  GlobalKey _target(int index) {
+    while (_targets.length <= index) {
+      _targets.add(GlobalKey());
+    }
+    return _targets[index];
+  }
+
+  GfDockMenuHandle? _menu;
+
+  void _openMenu(int index) {
+    if (_menu != null) return;
+    final entries = widget.items[index].menu?.call();
+    final source = _target(index).currentContext?.findRenderObject();
+    final surface = _surfaceKey.currentContext?.findRenderObject();
+    if (entries == null ||
+        entries.isEmpty ||
+        source is! RenderBox ||
+        surface is! RenderBox) {
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    final menu = _menu = showGfDockMenu(
+      context,
+      entries: entries,
+      source: source.localToGlobal(Offset.zero) & source.size,
+      dock: RRect.fromRectAndRadius(
+        surface.localToGlobal(Offset.zero) & surface.size,
+        const Radius.circular(28),
+      ),
+      label: widget.items[index].label,
+      placement: GfDockMenuPlacement.beside,
+    );
+    menu.closed.whenComplete(() {
+      if (identical(_menu, menu)) _menu = null;
+    });
+  }
+
+  @override
+  void dispose() {
+    final menu = _menu;
+    if (menu != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => menu.close());
+    }
+    super.dispose();
   }
 
   @override
@@ -46,105 +112,175 @@ class ReadingNavigationRail extends StatelessWidget {
     final colors = GfTheme.colorsOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final extended = constraints.maxWidth >= 200;
-        return ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          children: [
-            if (extended)
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 8, 16, 28),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: GfLogo(size: 36),
-                ),
-              ),
-            for (var i = 0; i < items.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: MergeSemantics(
-                  key: ValueKey('rail-destination-$i'),
-                  child: Semantics(
-                    label: items[i].semanticsLabel,
-                    button: true,
-                    enabled: true,
-                    selected: currentIndex == i,
-                    onTap: () => onSelected(i),
-                    child: Tooltip(
-                      message: items[i].label,
-                      excludeFromSemantics: true,
-                      child: ExcludeSemantics(
-                        child: TextButton(
-                          onPressed: () => onSelected(i),
-                          style: TextButton.styleFrom(
-                            minimumSize: const Size(48, 48),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: extended ? 16 : 4,
-                              vertical: extended ? 16 : 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            foregroundColor: currentIndex == i
-                                ? colors.primary
-                                : colors.iconMuted,
-                            backgroundColor: currentIndex == i
-                                ? colors.primary.withValues(alpha: .08)
-                                : Colors.transparent,
-                          ),
-                          child: Flex(
-                            direction: extended
-                                ? Axis.horizontal
-                                : Axis.vertical,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Badge(
-                                isLabelVisible: items[i].badge,
-                                backgroundColor: colors.primary,
-                                child: GfSymbol(
-                                  currentIndex == i
-                                      ? items[i].selectedSymbol
-                                      : items[i].symbol,
-                                  size: extended ? 26 : 24,
-                                  color: currentIndex == i
-                                      ? colors.primary
-                                      : colors.iconMuted,
-                                ),
-                              ),
-                              SizedBox(
-                                width: extended ? 16 : 0,
-                                height: extended ? 0 : 6,
-                              ),
-                              Flexible(
-                                fit: extended ? FlexFit.tight : FlexFit.loose,
-                                child: Text(
-                                  items[i].label,
-                                  textAlign: extended
-                                      ? TextAlign.start
-                                      : TextAlign.center,
-                                  style:
-                                      (extended
-                                              ? GfTheme.typographyOf(
-                                                  context,
-                                                ).title3
-                                              : GfTheme.typographyOf(
-                                                  context,
-                                                ).caption)
-                                          .copyWith(
-                                            fontWeight: currentIndex == i
-                                                ? FontWeight.w700
-                                                : FontWeight.w400,
-                                          ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+        final edge = ReadingWindowScope.edgeNavigationOf(context);
+        final extended = !edge && constraints.maxWidth >= 200;
+        return Padding(
+          padding: const EdgeInsets.all(8),
+          child: Align(
+            alignment: edge ? Alignment.bottomCenter : Alignment.topCenter,
+            child: SizedBox(
+              width: edge ? 56 : null,
+              child: Stack(
+                key: _surfaceKey,
+                children: [
+                  const Positioned.fill(
+                    child: GfNavigationSurface(
+                      borderRadius: BorderRadius.all(Radius.circular(28)),
                     ),
                   ),
-                ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: ListView(
+                      shrinkWrap: true,
+                      padding: edge
+                          ? const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 8,
+                            )
+                          : const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 12,
+                            ),
+                      children: [
+                        if (extended)
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(16, 8, 16, 28),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: GfLogo(size: 36),
+                            ),
+                          ),
+                        for (var i = 0; i < widget.items.length; i++)
+                          Padding(
+                            padding: EdgeInsets.only(bottom: edge ? 0 : 8),
+                            child: MergeSemantics(
+                              key: ValueKey('rail-destination-$i'),
+                              child: Semantics(
+                                label: widget.items[i].semanticsLabel,
+                                button: true,
+                                enabled: true,
+                                selected: widget.currentIndex == i,
+                                onTap: () => widget.onSelected(i),
+                                onLongPress: widget.items[i].menu == null
+                                    ? null
+                                    : () => _openMenu(i),
+                                hint: widget.items[i].menuHint,
+                                child: GfDockMenuPress(
+                                  enabled: widget.items[i].menu != null,
+                                  onOpen: () => _openMenu(i),
+                                  onMove: (position) => _menu?.track(position),
+                                  onRelease: (position) =>
+                                      _menu?.release(position),
+                                  onCancel: () => _menu?.cancel(),
+                                  child: TooltipVisibility(
+                                    visible: widget.items[i].menu == null,
+                                    child: Tooltip(
+                                      message: widget.items[i].label,
+                                      excludeFromSemantics: true,
+                                      child: ExcludeSemantics(
+                                        child: TextButton(
+                                          key: _target(i),
+                                          onPressed: () => widget.onSelected(i),
+                                          style: TextButton.styleFrom(
+                                            minimumSize: const Size(48, 48),
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: extended ? 16 : 4,
+                                              vertical: edge
+                                                  ? 0
+                                                  : (extended ? 16 : 12),
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    GfRadius.lg,
+                                                  ),
+                                            ),
+                                            foregroundColor:
+                                                widget.currentIndex == i
+                                                ? colors.primary
+                                                : colors.iconMuted,
+                                            backgroundColor:
+                                                widget.currentIndex == i
+                                                ? colors.primary.withValues(
+                                                    alpha: .08,
+                                                  )
+                                                : Colors.transparent,
+                                          ),
+                                          child: Flex(
+                                            direction: extended
+                                                ? Axis.horizontal
+                                                : Axis.vertical,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              GfBadgedGlyph(
+                                                size: extended ? 26 : 24,
+                                                visible: widget.items[i].badge,
+                                                count:
+                                                    widget.items[i].badgeCount,
+                                                glyph: GfSymbol(
+                                                  widget.currentIndex == i
+                                                      ? widget
+                                                            .items[i]
+                                                            .selectedSymbol
+                                                      : widget.items[i].symbol,
+                                                  size: extended ? 26 : 24,
+                                                  color:
+                                                      widget.currentIndex == i
+                                                      ? colors.primary
+                                                      : colors.iconMuted,
+                                                ),
+                                              ),
+                                              if (!edge)
+                                                SizedBox(
+                                                  width: extended ? 16 : 0,
+                                                  height: extended ? 0 : 6,
+                                                ),
+                                              if (!edge)
+                                                Flexible(
+                                                  fit: extended
+                                                      ? FlexFit.tight
+                                                      : FlexFit.loose,
+                                                  child: Text(
+                                                    widget.items[i].label,
+                                                    textAlign: extended
+                                                        ? TextAlign.start
+                                                        : TextAlign.center,
+                                                    style:
+                                                        (extended
+                                                                ? GfTheme.typographyOf(
+                                                                    context,
+                                                                  ).title3
+                                                                : GfTheme.typographyOf(
+                                                                    context,
+                                                                  ).caption)
+                                                            .copyWith(
+                                                              fontWeight:
+                                                                  widget.currentIndex ==
+                                                                      i
+                                                                  ? FontWeight
+                                                                        .w700
+                                                                  : FontWeight
+                                                                        .w400,
+                                                            ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-          ],
+            ),
+          ),
         );
       },
     );
@@ -204,6 +340,7 @@ class ReadingPageWindow extends StatelessWidget {
 class ReadingWindow extends StatelessWidget {
   const ReadingWindow({
     super.key,
+    this.reservedRegions,
     required this.child,
     required this.rail,
     required this.bottomNavigation,
@@ -211,6 +348,7 @@ class ReadingWindow extends StatelessWidget {
     this.navigationRailWidth = 72,
   });
 
+  final WindowReservedRegions? reservedRegions;
   final Widget child;
   final Widget rail;
   final Widget bottomNavigation;
@@ -218,53 +356,72 @@ class ReadingWindow extends StatelessWidget {
   final double navigationRailWidth;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final wide = constraints.maxWidth >= 600;
-      final colors = GfTheme.colorsOf(context);
-      final railWidth = wide
-          ? navigationRailWidth + MediaQuery.paddingOf(context).left
-          : 0.0;
-      final outerMargin = wide
-          ? ((constraints.maxWidth - railWidth - 1120) / 2).clamp(
-              0.0,
-              double.infinity,
-            )
-          : 0.0;
-      return ReadingWindowScope(
-        hasRail: wide,
-        navigationWidth: constraints.maxWidth,
-        child: ColoredBox(
-          color: colors.base200,
-          // The route comes before persistent controls in paint/semantics
-          // order, as it does for the compact bottom bar. Otherwise the active
-          // Navigator route can exclude an earlier rail from accessibility.
+  Widget build(BuildContext context) => ColoredBox(
+    color: GfTheme.colorsOf(context).base200,
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final media = MediaQuery.of(context);
+        final available = constraints.maxWidth - media.padding.horizontal;
+        final wide = available >= 600;
+        final keyboardOpen = media.viewInsets.bottom > 0;
+        // The keyboard hides side-pocket navigation, just like the bottom
+        // dock. It must not turn that workspace into an ordinary left rail
+        // and take width away from the retained page or chat directory.
+        final edgeFrame = reservedRegions?.navigationFrame(
+          media.copyWith(viewInsets: EdgeInsets.zero),
+          constraints.biggest,
+          // The root router fills the window, or its bottom-aligned remainder
+          // below PreviewStatusHost. Translate native frames past that notice.
+          topInset: media.size.height - constraints.maxHeight,
+        );
+        final hasRail = edgeFrame != null || wide;
+        final colors = GfTheme.colorsOf(context);
+        final railWidth = wide && edgeFrame == null ? navigationRailWidth : 0.0;
+        final outerMargin = wide
+            ? ((available - railWidth - 1120) / 2).clamp(0.0, double.infinity)
+            : 0.0;
+        return ReadingWindowScope(
+          hasRail: hasRail,
+          edgeNavigation: edgeFrame != null,
+          edgeContentBottomInset: edgeFrame == null || keyboardOpen
+              ? 0
+              : constraints.maxHeight -
+                    edgeFrame.bottom +
+                    WindowReservedRegions.navigationClearance,
+          navigationWidth: available,
+          // Keep the same retained route subtree for every navigation placement.
           child: Stack(
             children: [
               Positioned.fill(
                 child: Padding(
                   padding: EdgeInsets.only(
-                    left: outerMargin + railWidth,
-                    right: outerMargin,
+                    left:
+                        (edgeFrame == null ? media.padding.left : 0) +
+                        outerMargin +
+                        railWidth,
+                    right:
+                        (edgeFrame == null ? media.padding.right : 0) +
+                        outerMargin,
                   ),
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Container(
-                      constraints: BoxConstraints(maxWidth: maxContentWidth),
-                      decoration: BoxDecoration(
-                        color: colors.base100,
-                        border: wide
-                            ? Border.symmetric(
-                                vertical: BorderSide(color: colors.line),
-                              )
-                            : null,
-                      ),
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: MediaQuery.removePadding(
-                              context: context,
-                              removeLeft: wide,
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeLeft: edgeFrame == null,
+                    removeRight: edgeFrame == null,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: Container(
+                        constraints: BoxConstraints(maxWidth: maxContentWidth),
+                        decoration: BoxDecoration(
+                          color: colors.base100,
+                          border: wide
+                              ? Border.symmetric(
+                                  vertical: BorderSide(color: colors.line),
+                                )
+                              : null,
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
                               child: LayoutBuilder(
                                 builder: (context, contentConstraints) =>
                                     MediaQuery(
@@ -278,41 +435,47 @@ class ReadingWindow extends StatelessWidget {
                                     ),
                               ),
                             ),
-                          ),
-                          if (!wide)
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              child: bottomNavigation,
-                            ),
-                        ],
+                            if (!hasRail && media.viewInsets.bottom == 0)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                child: bottomNavigation,
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-              if (wide)
-                Positioned(
-                  left: outerMargin,
-                  top: 0,
-                  bottom: 0,
-                  width: railWidth,
-                  child: ColoredBox(
-                    color: colors.base100,
-                    child: NotificationListener<ScrollNotification>(
-                      // Scrolling a short rail is navigation, not reading
-                      // progress. Keep it out of the shell chrome listener.
-                      onNotification: (_) => true,
-                      child: SafeArea(right: false, child: rail),
+              if (hasRail && !(edgeFrame != null && keyboardOpen))
+                Positioned.fromRect(
+                  rect:
+                      edgeFrame ??
+                      Rect.fromLTWH(
+                        media.padding.left + outerMargin,
+                        0,
+                        railWidth,
+                        constraints.maxHeight,
+                      ),
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (_) => true,
+                    child: MediaQuery.removePadding(
+                      context: context,
+                      removeLeft: true,
+                      removeRight: true,
+                      removeTop: edgeFrame != null,
+                      removeBottom: edgeFrame != null,
+                      child: SafeArea(child: rail),
                     ),
                   ),
                 ),
             ],
           ),
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 }
 
@@ -321,9 +484,23 @@ class ReadingWindowScope extends InheritedWidget {
     super.key,
     required this.hasRail,
     required this.navigationWidth,
+    this.edgeNavigation = false,
+    this.edgeContentBottomInset = 0,
     required super.child,
   });
   final bool hasRail;
+  final bool edgeNavigation;
+  final double edgeContentBottomInset;
+  static double edgeContentBottomInsetOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<ReadingWindowScope>()
+          ?.edgeContentBottomInset ??
+      0;
+  static bool edgeNavigationOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<ReadingWindowScope>()
+          ?.edgeNavigation ??
+      false;
   final double navigationWidth;
   static bool hasRailOf(BuildContext context) =>
       context
@@ -338,5 +515,7 @@ class ReadingWindowScope extends InheritedWidget {
   @override
   bool updateShouldNotify(ReadingWindowScope oldWidget) =>
       hasRail != oldWidget.hasRail ||
+      edgeNavigation != oldWidget.edgeNavigation ||
+      edgeContentBottomInset != oldWidget.edgeContentBottomInset ||
       navigationWidth != oldWidget.navigationWidth;
 }

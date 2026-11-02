@@ -21,6 +21,8 @@ type fakeDirectUploadProvider struct {
 	objects    map[string]fakeObject
 	now        time.Time
 	presignErr error
+	deleteErr  error
+	onSave     func()
 }
 
 func newFakeDirectUploadProvider() *fakeDirectUploadProvider {
@@ -29,6 +31,11 @@ func newFakeDirectUploadProvider() *fakeDirectUploadProvider {
 
 func (p *fakeDirectUploadProvider) Save(_ context.Context, name string, data []byte, contentType string) error {
 	p.objects[name] = fakeObject{data: data, contentType: contentType}
+	if p.onSave != nil {
+		callback := p.onSave
+		p.onSave = nil
+		callback()
+	}
 	return nil
 }
 
@@ -41,6 +48,9 @@ func (p *fakeDirectUploadProvider) Get(_ context.Context, name string) ([]byte, 
 }
 
 func (p *fakeDirectUploadProvider) Delete(_ context.Context, name string) error {
+	if p.deleteErr != nil {
+		return p.deleteErr
+	}
 	delete(p.objects, name)
 	return nil
 }
@@ -101,6 +111,14 @@ func (s *fakeMetadataStore) CreateFileMetadata(_ context.Context, userId uint64,
 	return &row, nil
 }
 
+func (s *fakeMetadataStore) CreateFileCopyMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*FileMetadata, error) {
+	row, err := s.CreateFileMetadata(ctx, userId, name, fileType, size)
+	if err == nil {
+		s.status[name] = "copying"
+	}
+	return row, err
+}
+
 func (s *fakeMetadataStore) GetPendingFileMetadataByName(_ context.Context, name string) (*FileMetadata, error) {
 	row, ok := s.rows[name]
 	if !ok || s.status[name] != "pending" {
@@ -117,6 +135,17 @@ func (s *fakeMetadataStore) GetFileMetadataByName(_ context.Context, name string
 	return &row, nil
 }
 
+func (s *fakeMetadataStore) PublishRenamedFileMetadata(_ context.Context, oldName, newName string) (*FileMetadata, error) {
+	source, ok := s.rows[oldName]
+	row, copyExists := s.rows[newName]
+	if !ok || !copyExists || s.status[oldName] != "pending" || s.status[newName] != "copying" || source.UserId != row.UserId {
+		return nil, errors.New("file metadata not found")
+	}
+	s.status[oldName] = "cleanup"
+	s.status[newName] = "ready"
+	return &row, nil
+}
+
 func (s *fakeMetadataStore) MarkFileReady(_ context.Context, name string) (*FileMetadata, error) {
 	row, ok := s.rows[name]
 	if !ok {
@@ -129,7 +158,7 @@ func (s *fakeMetadataStore) MarkFileReady(_ context.Context, name string) (*File
 func (s *fakeMetadataStore) ListPendingFilesBefore(_ context.Context, before time.Time, limit int) ([]FileMetadata, error) {
 	var items []FileMetadata
 	for name, row := range s.rows {
-		if s.status[name] == "pending" && row.CreatedAt.Before(before) {
+		if (s.status[name] == "pending" || s.status[name] == "copying" || s.status[name] == "cleanup") && row.CreatedAt.Before(before) {
 			items = append(items, row)
 		}
 	}
@@ -183,7 +212,7 @@ func TestBeginDirectUploadLifecycle(t *testing.T) {
 	metadata, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{
 		Name:      session.Metadata.Name,
 		UserId:    1,
-		Validator: func(_ io.Reader, _ string) error { return nil },
+		Validator: func(_ io.Reader) (string, error) { return "image/png", nil },
 	})
 	if err != nil {
 		t.Fatalf("CompleteDirectUpload() error = %v", err)
@@ -253,7 +282,7 @@ func TestCompleteDirectUploadInvalidObjectRollsBack(t *testing.T) {
 	_, err = CompleteDirectUpload(ctx, CompleteDirectUploadRequest{
 		Name:      session.Metadata.Name,
 		UserId:    1,
-		Validator: func(_ io.Reader, _ string) error { return ErrDirectUploadInvalidObject },
+		Validator: func(_ io.Reader) (string, error) { return "", ErrDirectUploadInvalidObject },
 	})
 	if !errors.Is(err, ErrDirectUploadInvalidObject) {
 		t.Fatalf("CompleteDirectUpload() error = %v, want ErrDirectUploadInvalidObject", err)
@@ -263,6 +292,200 @@ func TestCompleteDirectUploadInvalidObjectRollsBack(t *testing.T) {
 	}
 	if _, ok := store.rows[session.Metadata.Name]; ok {
 		t.Fatal("pending row still present after invalid-object rollback")
+	}
+}
+
+// TestCompleteDirectUploadRenamesToDetectedType is the issue #1393 contract
+// change: bytes decide the type, so a declared .png that turns out to be a JPEG
+// is renamed to the canonical .jpg extension and the row's type follows it.
+func TestCompleteDirectUploadRenamesToDetectedType(t *testing.T) {
+	provider, store := setupDirectUploadTest(t)
+	ctx := context.Background()
+
+	session, err := BeginDirectUpload(ctx, DirectUploadRequest{
+		Name: "2026/09/01/mismatch.png", ContentType: "image/png", Size: 4, UserId: 1,
+	})
+	if err != nil {
+		t.Fatalf("BeginDirectUpload() error = %v", err)
+	}
+	provider.objects[session.Metadata.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+	metadata, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{
+		Name:      session.Metadata.Name,
+		UserId:    1,
+		Validator: func(_ io.Reader) (string, error) { return "image/jpeg", nil },
+	})
+	if err != nil {
+		t.Fatalf("CompleteDirectUpload() error = %v", err)
+	}
+	if !strings.HasPrefix(metadata.Name, "2026/09/01/") || !strings.HasSuffix(metadata.Name, ".jpg") || metadata.Type != "image/jpeg" {
+		t.Fatalf("renamed metadata = %+v, want name .jpg and type image/jpeg", metadata)
+	}
+	if store.status[metadata.Name] != "ready" {
+		t.Fatalf("row status = %q, want ready", store.status[metadata.Name])
+	}
+	if _, ok := provider.objects[session.Metadata.Name]; ok {
+		t.Fatal("old object still present after rename")
+	}
+	obj, ok := provider.objects[metadata.Name]
+	if !ok || string(obj.data) != "jpeg" || obj.contentType != "image/jpeg" {
+		t.Fatalf("renamed object = %+v, %v; want copied bytes under image/jpeg", obj, ok)
+	}
+}
+
+// staleRenameStore is a metadata store whose rename always loses: it plays the
+// concurrent complete that still holds the old pending snapshot after the winner
+// renamed and published it.
+type staleRenameStore struct {
+	*fakeMetadataStore
+	err error
+}
+
+func TestDirectUploadRenameFailureKeepsCopiesTracked(t *testing.T) {
+	provider, store := setupDirectUploadTest(t)
+	ctx := context.Background()
+	metadata, err := store.CreateFileMetadata(ctx, 1, "rename/source.png", "image/png", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.objects[metadata.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+	loser := staleRenameStore{fakeMetadataStore: store, err: errors.New("metadata unavailable")}
+	if _, err := normalizeDirectUploadType(ctx, loser, metadata, "image/jpeg"); err == nil {
+		t.Fatal("expected metadata failure")
+	}
+	for name := range provider.objects {
+		if _, ok := store.rows[name]; !ok {
+			t.Fatalf("object %q has no cleanup metadata", name)
+		}
+	}
+}
+
+func TestDirectUploadRenameDeleteFailureIsReclaimed(t *testing.T) {
+	provider, store := setupDirectUploadTest(t)
+	ctx := context.Background()
+	metadata, err := store.CreateFileMetadata(ctx, 1, "rename/source.png", "image/png", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.objects[metadata.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+	provider.deleteErr = errors.New("storage unavailable")
+	winner, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{
+		Name: metadata.Name, UserId: 1,
+		Validator: func(io.Reader) (string, error) { return "image/jpeg", nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.rows[metadata.Name]; !ok {
+		t.Fatal("old object lost its cleanup metadata")
+	}
+	provider.deleteErr = nil
+	removed, err := CleanupPending(ctx, time.Now().Add(time.Hour), 100)
+	if err != nil || removed != 1 {
+		t.Fatalf("cleanup = %d, %v; want one old object", removed, err)
+	}
+	if _, ok := provider.objects[metadata.Name]; ok {
+		t.Fatal("old object not reclaimed")
+	}
+	if _, ok := provider.objects[winner.Name]; !ok || store.status[winner.Name] != "ready" {
+		t.Fatal("cleanup removed winner")
+	}
+}
+
+func TestDirectUploadInterruptedCopyIsReclaimed(t *testing.T) {
+	provider, store := setupDirectUploadTest(t)
+	ctx := context.Background()
+	source, err := store.CreateFileMetadata(ctx, 1, "crash/source.png", "image/png", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.objects[source.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+	provider.onSave = func() { panic("process interrupted after writing the copy") }
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("copy interruption was not reached")
+			}
+		}()
+		_, _ = normalizeDirectUploadType(ctx, store, source, "image/jpeg")
+	}()
+	for name := range provider.objects {
+		if _, ok := store.rows[name]; !ok {
+			t.Fatalf("untracked interrupted object %s", name)
+		}
+	}
+	removed, err := CleanupPending(ctx, time.Now().Add(time.Hour), 100)
+	if err != nil || removed != 2 || len(provider.objects) != 0 {
+		t.Fatalf("interrupted cleanup: removed=%d err=%v objects=%v", removed, err, provider.objects)
+	}
+}
+
+func TestDirectUploadLatePresignedWriteIsReclaimed(t *testing.T) {
+	provider, store := setupDirectUploadTest(t)
+	ctx := context.Background()
+	source, err := store.CreateFileMetadata(ctx, 1, "late/source.png", "image/png", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.objects[source.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+	winner, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{Name: source.Name, UserId: 1,
+		Validator: func(io.Reader) (string, error) { return "image/jpeg", nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The original presigned POST can still finish after complete deleted its key.
+	provider.objects[source.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+	removed, err := CleanupPending(ctx, time.Now().Add(time.Hour), 100)
+	if err != nil || removed != 1 {
+		t.Fatalf("late-write cleanup = %d, %v", removed, err)
+	}
+	if _, ok := provider.objects[source.Name]; ok {
+		t.Fatal("late write lost its cleanup record")
+	}
+	if _, ok := provider.objects[winner.Name]; !ok {
+		t.Fatal("winner deleted")
+	}
+}
+
+func (s staleRenameStore) PublishRenamedFileMetadata(context.Context, string, string) (*FileMetadata, error) {
+	return nil, s.err
+}
+
+// Interleave two complete calls after the loser's copy write, so both read
+// the same pending source. Reclamation may remove only the loser's unique copy.
+func TestCompleteDirectUploadRenameLosesToConcurrentWinner(t *testing.T) {
+	provider, store := setupDirectUploadTest(t)
+	ctx := context.Background()
+	source, err := store.CreateFileMetadata(ctx, 1, "race/source.png", "image/png", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.objects[source.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
+	request := CompleteDirectUploadRequest{Name: source.Name, UserId: 1, Validator: func(io.Reader) (string, error) { return "image/jpeg", nil }}
+	var winner *FileMetadata
+	provider.onSave = func() {
+		var err error
+		winner, err = CompleteDirectUpload(ctx, request)
+		if err != nil {
+			t.Fatalf("winner failed: %v", err)
+		}
+	}
+	if _, err := CompleteDirectUpload(ctx, request); err == nil {
+		t.Fatal("loser published the consumed source")
+	}
+	if winner == nil || store.status[winner.Name] != "ready" {
+		t.Fatal("winner was not published")
+	}
+	for name := range provider.objects {
+		if _, ok := store.rows[name]; !ok {
+			t.Fatalf("untracked copy: %s", name)
+		}
+	}
+	removed, err := CleanupPending(ctx, time.Now().Add(time.Hour), 100)
+	if err != nil || removed != 2 {
+		t.Fatalf("cleanup = %d, %v; want source and losing copy", removed, err)
+	}
+	if _, ok := provider.objects[winner.Name]; !ok || len(provider.objects) != 1 {
+		t.Fatal("cleanup failed to preserve only the winner")
 	}
 }
 

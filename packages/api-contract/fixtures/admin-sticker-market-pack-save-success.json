@@ -1,0 +1,25 @@
+{
+  "result": {
+    "id": 9201,
+    "source": "fluxdo",
+    "upstreamId": "group-1",
+    "name": "Pack One",
+    "topic": "anime",
+    "upstreamCount": 3,
+    "archived": false,
+    "missing": false,
+    "status": "partial",
+    "published": true,
+    "sortOrder": 5,
+    "itemCount": 2,
+    "failedCount": 1,
+    "importTotal": 3,
+    "lastError": "",
+    "coverUrl": "/file/img/stickers/market/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+    "iconUrl": "/api/admin/sticker-market-cover?id=9201",
+    "iconText": "",
+    "syncedAt": "2026-10-29T08:00:00Z",
+    "importedAt": "2026-10-29T08:05:00Z"
+  },
+  "code": 0
+}

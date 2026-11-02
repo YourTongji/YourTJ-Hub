@@ -1,4 +1,7 @@
+import 'package:core/core.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/link_navigation.dart';
 
 void main() {
@@ -150,6 +153,41 @@ void main() {
         ]),
         <String>{'github.com', 'xn--fiqs8s.com'},
       );
+    },
+  );
+
+  testWidgets(
+    'same-site URLs without an app route fall back to the external path',
+    (tester) async {
+      // /notifications 没有应用内路由（刻意不扩映射）：不能静默丢弃，
+      // 仍按外链路径走确认层（issue #1381）。
+      const String base = GfApiClient.defaultBaseUrl;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (BuildContext context) => Scaffold(
+              body: TextButton(
+                onPressed: () => LinkNavigation.open(
+                  context,
+                  '$base/notifications',
+                  baseUrl: base,
+                ),
+                child: const Text('open notifications'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open notifications'));
+      await tester.pumpAndSettle();
+      expect(find.text('Leaving YourTJ'), findsOneWidget);
+      expect(find.text('$base/notifications'), findsOneWidget);
+      // 取消后不调用 launchUrl（widget 测试里没有平台实现，调用会抛错）。
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
     },
   );
 }

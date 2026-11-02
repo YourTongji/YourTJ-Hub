@@ -126,7 +126,10 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+        expect(
+          tester.widget<RawImage>(find.byType(RawImage).first).image,
+          isNotNull,
+        );
         final image = (await tester.runAsync(
           () =>
               (key.currentContext!.findRenderObject() as RenderRepaintBoundary)

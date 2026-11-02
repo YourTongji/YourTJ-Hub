@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
@@ -140,8 +141,8 @@ func contractLargeJPEG(t *testing.T) []byte {
 	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
 		t.Fatalf("encode large test jpeg: %v", err)
 	}
-	if buf.Len() <= storageservice.ImageHeaderSniffBytes {
-		t.Fatalf("large test jpeg is %d bytes, want > %d", buf.Len(), storageservice.ImageHeaderSniffBytes)
+	if buf.Len() <= imagepolicy.ImageHeaderSniffBytes {
+		t.Fatalf("large test jpeg is %d bytes, want > %d", buf.Len(), imagepolicy.ImageHeaderSniffBytes)
 	}
 	return buf.Bytes()
 }
@@ -237,7 +238,9 @@ func TestDirectImageUploadInitRejectsOverLimitSize(t *testing.T) {
 	}
 }
 
-func TestDirectImageUploadCompleteRejectsForgedMIME(t *testing.T) {
+// TestDirectImageUploadCompleteRejectsNonImageBytes 验证 complete 阶段对非图片字节
+// 的拒绝（issue #1393 把 invalidContent 收窄为「字节不是可用图片」）：对象必须回滚。
+func TestDirectImageUploadCompleteRejectsNonImageBytes(t *testing.T) {
 	conn, router, provider := setupDirectUploadRouteTest(t)
 	user := createHTTPContractUser(t, conn, contractTestID())
 	token := contractSessionToken(t, user)
@@ -247,7 +250,7 @@ func TestDirectImageUploadCompleteRejectsForgedMIME(t *testing.T) {
 	if name == "" {
 		t.Fatal("init returned empty name")
 	}
-	// Simulate the browser uploading a text file with a forged image content type.
+	// Simulate the browser uploading a text file under an image name.
 	provider.objects[name] = routeFakeObject{data: textBytes, contentType: "image/png"}
 
 	body := mustMarshalJSON(t, map[string]string{"name": name})
@@ -278,8 +281,8 @@ var routeHEICHeader = []byte{
 
 // TestDirectImageUploadCompleteContentFailureCodes 验证直传 complete 路径把
 // 内容校验失败分成可区分的稳定码（issue 966 建议项）：空对象 → upload.image.empty；
-// HEIC/AVIF 字节 → upload.image.unsupported；伪造/不匹配仍是
-// upload.image.invalidContent（既有断言见 TestDirectImageUploadCompleteRejectsForgedMIME）。
+// HEIC/AVIF 字节 → upload.image.unsupported；非图片字节仍是 upload.image.invalidContent
+// （既有断言见 TestDirectImageUploadCompleteRejectsNonImageBytes）。
 func TestDirectImageUploadCompleteContentFailureCodes(t *testing.T) {
 	t.Run("empty object reports upload.image.empty", func(t *testing.T) {
 		conn, router, provider := setupDirectUploadRouteTest(t)
@@ -470,10 +473,14 @@ func TestDirectImageUploadCompleteSuccessRecordsOwnerUsage(t *testing.T) {
 		t.Fatalf("complete url = %q, want it to contain %q", envelope.Result.URL, name)
 	}
 
-	// The completed file is now publicly readable.
+	// Completion grants private uploader preview, not public publication.
 	read := serveDirectUploadJSON(router, http.MethodGet, "/file/img/"+name, "", "")
-	if read.Code != http.StatusOK {
-		t.Fatalf("GET completed file status = %d, want 200: %s", read.Code, read.Body.String())
+	if read.Code != http.StatusNotFound {
+		t.Fatalf("anonymous completed upload status=%d, want 404", read.Code)
+	}
+	read = serveDirectUploadJSON(router, http.MethodGet, "/file/img/"+name, "", token)
+	if read.Code != http.StatusOK || read.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("uploader preview status=%d cache=%q", read.Code, read.Header().Get("Cache-Control"))
 	}
 }
 

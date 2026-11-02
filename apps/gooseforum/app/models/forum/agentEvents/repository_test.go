@@ -187,6 +187,54 @@ func TestExpiredIntentCleanupDoesNotCollide(t *testing.T) {
 	}
 }
 
+// Terminal intents (cancelled/expired) are permanent: a late worker diagnostic
+// must not write through the fence, while live pending/retry_wait intents do.
+func TestTerminalIntentFenceRejectsLateDiagnostics(t *testing.T) {
+	conn, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.AutoMigrate(&Intent{}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	rows := []Intent{
+		{ID: "fence-cancelled", InstanceID: "fence", PostID: 7, Version: 1, Recipients: []Recipient{}, Status: "cancelled", LastError: "source_withdrawn", ExpiresAt: now.Add(time.Hour)},
+		{ID: "fence-expired", InstanceID: "fence", Status: "expired", LastError: "retention_expired", ExpiresAt: now.Add(-time.Hour)},
+		{ID: "fence-pending", InstanceID: "fence", PostID: 8, Version: 1, Recipients: []Recipient{}, Status: "pending", ExpiresAt: now.Add(time.Hour)},
+		{ID: "fence-retry_wait", InstanceID: "fence", PostID: 9, Version: 1, Recipients: []Recipient{}, Status: "retry_wait", ExpiresAt: now.Add(time.Hour)},
+	}
+	for _, row := range rows {
+		if err := conn.Create(&row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []string{"fence-cancelled", "fence-expired", "fence-pending"} {
+		if err := UpdateIntentTx(conn, id, "retry_wait", "materialization_error"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := UpdateIntentTx(conn, "fence-retry_wait", "failed", "materialization_error"); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		var got Intent
+		if err := conn.Where("id = ?", row.ID).Take(&got).Error; err != nil {
+			t.Fatal(err)
+		}
+		wantStatus, wantError := row.Status, row.LastError
+		switch row.Status {
+		case "pending":
+			wantStatus, wantError = "retry_wait", "materialization_error"
+		case "retry_wait":
+			wantStatus, wantError = "failed", "materialization_error"
+		}
+		if got.Status != wantStatus || got.LastError != wantError {
+			t.Fatalf("intent %s ended %s/%s, want %s/%s", row.ID, got.Status, got.LastError, wantStatus, wantError)
+		}
+	}
+}
+
 func TestPurgedDiagnosticsKeepNamespacedReplayFloor(t *testing.T) {
 	conn, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
@@ -226,5 +274,42 @@ func TestPurgedDiagnosticsKeepNamespacedReplayFloor(t *testing.T) {
 	foreign, err := ReplayFloorTx(conn, "other", 1, now)
 	if err != nil || foreign != 0 {
 		t.Fatalf("foreign instance floor leaked: %d %v", foreign, err)
+	}
+}
+
+// acked_at records the first acknowledgement for audit; a repeated ACK is
+// idempotent and must not refresh that time.
+func TestAckKeepsFirstAcknowledgedTime(t *testing.T) {
+	conn, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	e := Entity{ID: "evt_ack", InstanceID: "ack", AgentID: 7, Seq: 1, SourceIntentID: "src_ack", Reasons: []string{}, OccurredAt: now, ExpiresAt: now.Add(time.Hour)}
+	if err := conn.Create(&e).Error; err != nil {
+		t.Fatal(err)
+	}
+	firstAck := now.Add(time.Minute)
+	if err := AckTx(conn, "ack", 7, []string{"evt_ack"}, firstAck); err != nil {
+		t.Fatal(err)
+	}
+	var saved Entity
+	if err := conn.Where("id = ?", "evt_ack").Take(&saved).Error; err != nil {
+		t.Fatal(err)
+	}
+	if saved.AckedAt == nil || !saved.AckedAt.UTC().Equal(firstAck) {
+		t.Fatalf("first ACK did not record the acknowledgement: %#v", saved.AckedAt)
+	}
+	if err := AckTx(conn, "ack", 7, []string{"evt_ack"}, firstAck.Add(time.Hour)); err != nil {
+		t.Fatalf("repeated ACK returned an error: %v", err)
+	}
+	if err := conn.Where("id = ?", "evt_ack").Take(&saved).Error; err != nil {
+		t.Fatal(err)
+	}
+	if saved.AckedAt == nil || !saved.AckedAt.UTC().Equal(firstAck) {
+		t.Fatalf("repeated ACK refreshed the first acknowledgement: %#v", saved.AckedAt)
 	}
 }

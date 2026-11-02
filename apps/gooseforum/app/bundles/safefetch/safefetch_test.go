@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -150,6 +151,99 @@ func TestFetchJSONKeepsDocumentPolicy(t *testing.T) {
 	}
 	if dialCalls.Load() != 0 {
 		t.Fatalf("dial calls = %d, want 0", dialCalls.Load())
+	}
+}
+
+// 图片抓取只接受图片媒体类型；DNS 与拨号校验和页面抓取一致。
+func TestFetchImageKeepsDocumentPolicy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/page" {
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = io.WriteString(w, "<title>Example</title>")
+			return
+		}
+		if accept := r.Header.Get("Accept"); !strings.HasPrefix(accept, "image/") {
+			t.Errorf("Accept header = %q, want an image type", accept)
+		}
+		w.Header().Set("Content-Type", "image/webp")
+		_, _ = io.WriteString(w, "RIFF")
+	}))
+	t.Cleanup(server.Close)
+
+	client := New(Config{
+		Resolver:    fakeResolver{"cdn.example": {publicAddr()}},
+		DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{}),
+	})
+	result, err := client.FetchImage(t.Context(), "http://cdn.example/a.webp")
+	if err != nil || result.ContentType != "image/webp" || string(result.Body) != "RIFF" {
+		t.Fatalf("FetchImage() = %#v, %v", result, err)
+	}
+	if _, err := client.FetchImage(t.Context(), "http://cdn.example/page"); !IsClass(err, ErrorContentType) {
+		t.Fatalf("FetchImage() on HTML error = %v, want content_type", err)
+	}
+
+	private := New(Config{
+		Resolver: fakeResolver{"private.example": {netip.MustParseAddr("10.0.0.1")}},
+		DialContext: func(context.Context, string, string) (net.Conn, error) {
+			return nil, errors.New("must not dial")
+		},
+	})
+	if _, err := private.FetchImage(t.Context(), "http://private.example/a.webp"); !IsClass(err, ErrorBlocked) {
+		t.Fatalf("FetchImage() private DNS error = %v, want blocked", err)
+	}
+}
+
+// PreferIPv4 只调整已校验地址的拨号顺序：先试 IPv4，拨号失败再换下一个。
+func TestPreferIPv4DialsValidatedAddressesInOrder(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/webp")
+		_, _ = io.WriteString(w, "RIFF")
+	}))
+	t.Cleanup(server.Close)
+	v4, v6 := publicAddr(), netip.MustParseAddr("2001:4860:4860::8888")
+
+	newClient := func(prefer bool, addresses []netip.Addr, failing netip.Addr) (*Client, *[]string) {
+		var mu sync.Mutex
+		attempts := []string{}
+		client := New(Config{
+			Resolver: fakeResolver{"cdn.example": addresses},
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				host, _, _ := net.SplitHostPort(address)
+				mu.Lock()
+				attempts = append(attempts, host)
+				mu.Unlock()
+				if host == failing.String() {
+					return nil, errors.New("stalled route")
+				}
+				return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
+			},
+			PreferIPv4: prefer,
+		})
+		return client, &attempts
+	}
+
+	client, attempts := newClient(true, []netip.Addr{v6, v4}, v6)
+	if _, err := client.FetchImage(t.Context(), "http://cdn.example/a.webp"); err != nil {
+		t.Fatalf("FetchImage() with PreferIPv4 = %v", err)
+	}
+	if got := strings.Join(*attempts, ","); got != v4.String() {
+		t.Fatalf("dial attempts = %q, want IPv4 first and only", got)
+	}
+
+	client, attempts = newClient(true, []netip.Addr{v4, v6}, v4)
+	if _, err := client.FetchImage(t.Context(), "http://cdn.example/a.webp"); err != nil {
+		t.Fatalf("FetchImage() after IPv4 dial failure = %v", err)
+	}
+	if got := strings.Join(*attempts, ","); got != v4.String()+","+v6.String() {
+		t.Fatalf("dial attempts = %q, want fallback to the validated IPv6 address", got)
+	}
+
+	client, attempts = newClient(false, []netip.Addr{v6, v4}, v6)
+	if _, err := client.FetchImage(t.Context(), "http://cdn.example/a.webp"); err == nil {
+		t.Fatal("FetchImage() without PreferIPv4 succeeded, want the first address only")
+	}
+	if got := strings.Join(*attempts, ","); got != v6.String() {
+		t.Fatalf("dial attempts = %q, want only the first resolved address", got)
 	}
 }
 
@@ -494,6 +588,225 @@ func TestWebhookRawURLPolicyMatchesRequestParsing(t *testing.T) {
 			_, err := client.PostJSON(t.Context(), raw, []byte(`{}`), nil)
 			if !IsClass(err, ErrorBlocked) || calls.Load() != 0 {
 				t.Fatalf("unsafe raw authority err=%v dials=%d", err, calls.Load())
+			}
+		})
+	}
+}
+
+// 通知目标放行 http、任意端口和 RFC1918/ULA 私网（企业内网通知是合法场景），
+// 但仍必须挡住本机、链路本地、保留段与 IPv4-mapped 字面量（issue #1280）。
+func TestNotifyURLPolicyAcceptsIntranetAndRejectsLocalTargets(t *testing.T) {
+	blocked := []string{
+		"http://127.0.0.1:8080/hook",
+		"http://localhost:8080/",
+		"http://intranet.localhost/hook",
+		"http://169.254.169.254/latest/meta-data/",
+		"http://[::1]:9000/",
+		"http://0.0.0.0:80/",
+		"http://[::ffff:127.0.0.1]/",
+		"http://[fe80::1]/",
+		"http://224.0.0.1/",
+		"http://127.1/hook",
+		"http://[fe80::1%25eth0]/",
+		"http://user:pw@192.168.1.10/hook",
+		"http://192.168.1.10/hook#fragment",
+		"ftp://192.168.1.10/hook",
+		"http:///hook",
+		"http://:9966/send",
+	}
+	for _, raw := range blocked {
+		if err := ValidateNotifyURL(raw); err == nil {
+			t.Errorf("accepted %q", raw)
+		}
+	}
+	allowed := []string{
+		"https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
+		"http://192.168.1.10:9966/send",
+		"http://10.1.2.3/hook",
+		"http://[fd00::5]:9966/send",
+		"http://notify.corp.example/hook?token=x",
+	}
+	for _, raw := range allowed {
+		if err := ValidateNotifyURL(raw); err != nil {
+			t.Errorf("rejected %q: %v", raw, err)
+		}
+	}
+}
+
+func TestCheckNotifyTargetValidatesDNSAnswers(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		address string
+		blocked bool
+	}{
+		{"loopback", "127.0.0.1", true},
+		{"link local metadata", "169.254.169.254", true},
+		{"mapped loopback", "::ffff:127.0.0.1", true},
+		{"intranet", "192.168.0.9", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := New(Config{Resolver: fakeResolver{"notify.example": {netip.MustParseAddr(tc.address)}}, DialContext: func(context.Context, string, string) (net.Conn, error) {
+				return nil, errors.New("must not dial")
+			}})
+			err := client.CheckNotifyTarget(t.Context(), "http://notify.example:9966/hook")
+			if tc.blocked {
+				if !IsClass(err, ErrorBlocked) {
+					t.Fatalf("err = %v, want blocked", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("intranet target rejected: %v", err)
+			}
+		})
+	}
+}
+
+func TestDoNotifyNeverDialsLoopback(t *testing.T) {
+	var received atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		received.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	// 真实拨号器 + 解析到 loopback 的域名：策略必须在此之前拦住，接收端一次都不能被打到。
+	client := New(Config{Resolver: fakeResolver{"notify.example": {netip.MustParseAddr("127.0.0.1")}}})
+	request, err := http.NewRequest(http.MethodPost, "http://notify.example:"+port(server)+"/hook", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.DoNotify(t.Context(), request, time.Second)
+	if response != nil {
+		_ = response.Body.Close()
+	}
+	if !IsClass(err, ErrorBlocked) {
+		t.Fatalf("err = %v, want blocked", err)
+	}
+	if received.Load() != 0 {
+		t.Fatalf("loopback receiver saw %d requests", received.Load())
+	}
+}
+
+func TestDoNotifyPostsCallerRequestThroughPinnedDialer(t *testing.T) {
+	type captured struct{ host, authorization, body string }
+	var seen captured
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seen = captured{host: r.Host, authorization: r.Header.Get("Authorization"), body: string(body)}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	t.Cleanup(server.Close)
+
+	var calls atomic.Int32
+	client := New(Config{Resolver: fakeResolver{"notify.example": {publicAddr()}}, DialContext: mappedDialer(server.Listener.Addr().String(), &calls)})
+	request, err := http.NewRequest(http.MethodPost, "http://notify.example:9966/send", strings.NewReader(`{"event":"topic.published"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer bot-token")
+	response, err := client.DoNotify(t.Context(), request, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusAccepted || calls.Load() != 1 {
+		t.Fatalf("response=%d dials=%d", response.StatusCode, calls.Load())
+	}
+	if seen.host != "notify.example:9966" || seen.authorization != "Bearer bot-token" || seen.body != `{"event":"topic.published"}` {
+		t.Fatalf("received %#v", seen)
+	}
+}
+
+// 内网私网接收端必须真的能投递：把 DoNotify 的拨号判定换成“仅公网”时这条用例会红（issue #1280）。
+func TestDoNotifyDeliversToIntranetReceiver(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	var calls atomic.Int32
+	client := New(Config{Resolver: fakeResolver{"notify.example": {netip.MustParseAddr("192.168.0.9")}}, DialContext: mappedDialer(server.Listener.Addr().String(), &calls)})
+	request, err := http.NewRequest(http.MethodPost, "http://notify.example:9966/hook", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.DoNotify(t.Context(), request, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusNoContent || calls.Load() != 1 {
+		t.Fatalf("response=%d dials=%d", response.StatusCode, calls.Load())
+	}
+}
+
+// 投递不跟随重定向：3xx 原样交给通道判定，目标接收端只收到一次请求。
+func TestDoNotifyDoesNotFollowRedirects(t *testing.T) {
+	var received atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received.Add(1)
+		http.Redirect(w, r, "http://notify.example:9966/elsewhere", http.StatusFound)
+	}))
+	t.Cleanup(server.Close)
+
+	client := New(Config{Resolver: fakeResolver{"notify.example": {netip.MustParseAddr("192.168.0.9")}}, DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{})})
+	request, err := http.NewRequest(http.MethodPost, "http://notify.example:9966/hook", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.DoNotify(t.Context(), request, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusFound || received.Load() != 1 {
+		t.Fatalf("response=%d requests=%d", response.StatusCode, received.Load())
+	}
+}
+
+func port(server *httptest.Server) string {
+	_, port, err := net.SplitHostPort(server.Listener.Addr().String())
+	if err != nil {
+		panic(err)
+	}
+	return port
+}
+
+func TestFetchRequestPolicyChecksEveryHop(t *testing.T) {
+	for _, destination := range []string{"https://unapproved.example.com/step", "http://approved.example.com/end", "https://approved.example.com/step"} {
+		t.Run(destination, func(t *testing.T) {
+			var received atomic.Int32
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				received.Add(1)
+				switch r.URL.Path {
+				case "/start":
+					http.Redirect(w, r, destination, http.StatusFound)
+				case "/step":
+					http.Redirect(w, r, "https://approved.example.com/end", http.StatusFound)
+				default:
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{}`))
+				}
+			}))
+			defer server.Close()
+			pool := x509.NewCertPool()
+			pool.AddCert(server.Certificate())
+			client := New(Config{Resolver: fakeResolver{"approved.example.com": {publicAddr()}, "unapproved.example.com": {publicAddr()}}, DialContext: mappedDialer(server.Listener.Addr().String(), &atomic.Int32{})})
+			client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+			ctx := WithURLPolicy(t.Context(), func(raw string) bool { return strings.HasPrefix(raw, "https://approved.example.com/") })
+			_, err := client.FetchJSON(ctx, "https://approved.example.com/start")
+			if destination == "https://approved.example.com/step" {
+				if err != nil || received.Load() != 3 {
+					t.Fatalf("err=%v requests=%d", err, received.Load())
+				}
+			} else if !IsClass(err, ErrorBlocked) || received.Load() != 1 {
+				t.Fatalf("err=%v requests=%d", err, received.Load())
+			}
+			before := received.Load()
+			if _, err := client.FetchJSON(ctx, "https://unapproved.example.com/start"); !IsClass(err, ErrorBlocked) || received.Load() != before {
+				t.Fatalf("initial target err=%v requests=%d", err, received.Load())
 			}
 		})
 	}

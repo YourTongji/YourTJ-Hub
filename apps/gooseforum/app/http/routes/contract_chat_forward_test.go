@@ -370,3 +370,39 @@ func TestChatForwardRejectsUnsupportedSourceTypes(t *testing.T) {
 		t.Fatal("unsupported source left a forwarded copy")
 	}
 }
+
+// Both public send entry points share the recipient's server-side policy.
+func TestChatMessagePermissionHTTPContract(t *testing.T) {
+	conn, router := setupNotificationChatContractTest(t)
+	actor := createHTTPContractUser(t, conn, contractTestID())
+	sourcePeer := createHTTPContractUser(t, conn, contractTestID())
+	target := createHTTPContractUser(t, conn, contractTestID())
+	policy := users.ChatMessageNobody
+	if _, err := users.UpdatePrivacySettings(target.Id, users.PrivacySettingsUpdate{ChatMessagePolicy: &policy}); err != nil {
+		t.Fatal(err)
+	}
+	conv, err := chatservice.SendMessage(sourcePeer.Id, actor.Id, "source", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var source messages.Entity
+	if err := conn.Where("conv_id = ?", conv).First(&source).Error; err != nil {
+		t.Fatal(err)
+	}
+	// Merely opening a conversation does not establish history.
+	createContractConversation(t, conn, contractTestID(), actor.Id, target.Id)
+	for _, mode := range []string{"merged", "individual"} {
+		body, err := json.Marshal(chatservice.ForwardRequest{ConvID: conv, PeerID: target.Id, MessageIDs: []uint64{source.Id}, Mode: mode, ClientForwardID: "denied-" + mode})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := serveJSON(router, "/api/forum/chat/forward", string(body), contractSessionToken(t, actor))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "chat-permission-denied.json"))
+	}
+	rec := serveJSON(router, "/api/forum/chat/send", fmt.Sprintf(`{"peerId":%d,"content":"denied","msgType":1}`, target.Id), contractSessionToken(t, actor))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "chat-permission-denied.json"))
+	var count int64
+	if err := conn.Model(&messages.Entity{}).Where("sender_id = ?", actor.Id).Count(&count).Error; err != nil || count != 0 {
+		t.Fatalf("denied send wrote messages: %d, %v", count, err)
+	}
+}

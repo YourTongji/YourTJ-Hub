@@ -252,7 +252,7 @@ func TestFeishuFailureQueuesRetryAndSuccessfulRetryDedupes(t *testing.T) {
 		_, _ = w.Write([]byte(`{"code":0,"msg":"ok"}`))
 	}))
 	t.Cleanup(server.Close)
-	hookURL := server.URL + "/open-apis/bot/v2/hook/secret-hook-token"
+	hookURL := useLocalNotifyServer(t, server) + "/open-apis/bot/v2/hook/secret-hook-token"
 	sealedURL, err := securestore.EncryptPurpose(hookURL, securestore.HttpNotifyURLPurpose)
 	if err != nil {
 		t.Fatal(err)

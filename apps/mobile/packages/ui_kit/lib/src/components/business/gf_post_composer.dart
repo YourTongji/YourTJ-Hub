@@ -11,6 +11,7 @@ import '../gf_button.dart';
 import '../gf_media_image.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
+import 'gf_inline_content.dart';
 
 /// Compact reply surface with a borderless growing editor and one action row.
 /// Optional verification content appears only when supplied by the caller.
@@ -210,7 +211,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
                         Row(
                           children: [
                             GfSymbol(
-                              'corner-down-left',
+                              'comment-plus',
                               size: 17,
                               color: colors.iconMuted,
                             ),
@@ -244,7 +245,9 @@ class _GfPostComposerState extends State<GfPostComposer> {
                           child: Stack(
                             children: [
                               ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(
+                                  GfRadius.lg,
+                                ),
                                 child: Image(
                                   image: ResizeImage(
                                     GfMediaScope.imageProvider(
@@ -329,7 +332,9 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                 curve: GfMotion.enterCurve,
                                 decoration: BoxDecoration(
                                   color: colors.base200,
-                                  borderRadius: BorderRadius.circular(24),
+                                  borderRadius: BorderRadius.circular(
+                                    GfRadius.xl,
+                                  ),
                                   border: Border.all(
                                     color: _focus.hasFocus
                                         ? colors.primary.withValues(alpha: .32)
@@ -349,7 +354,10 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                                     MediaQuery.textScalerOf(
                                                           context,
                                                         ).scale(16) *
-                                                        1.4 +
+                                                        GfInlineContentController.lineScale(
+                                                          widget.controller,
+                                                          1.4,
+                                                        ) +
                                                     22,
                                               )
                                             : const BoxConstraints(),
@@ -361,6 +369,10 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                           textInputAction:
                                               TextInputAction.newline,
                                           expands: expand,
+                                          strutStyle:
+                                              GfInlineContentController.strutFor(
+                                                widget.controller,
+                                              ),
                                           maxLines: expand ? null : 4,
                                           minLines: expand ? null : 1,
                                           textAlignVertical: expand

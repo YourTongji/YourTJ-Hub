@@ -221,6 +221,8 @@ for instance_name, expected in [("dev", False), ("main", True)]:
     check_eq(f"{instance_name} maintenance renders a TOML bool", expected, rendered_flag["enabled"])
 
 # Real instance metadata must preserve enabled feeds across deployments.
+# Feed ranking/for_you/metrics come from instances/*.json
+# (main: ranking #1307, for_you+metrics #1308 — both instances currently True).
 for instance_name, expected in [("dev", True), ("main", True)]:
     instance = rc.load_instance(instance_name, rc.DEFAULT_INSTANCES_DIR)
     feed_env = {

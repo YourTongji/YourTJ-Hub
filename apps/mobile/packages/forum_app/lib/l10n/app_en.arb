@@ -15,7 +15,7 @@
   "navHome": "Home",
   "navSearch": "Search",
   "navPublish": "Publish",
-  "navMessages": "Messages",
+  "navMessages": "Direct messages",
   "navProfile": "Me",
   "commonCancel": "Cancel",
   "commonSave": "Save",
@@ -125,6 +125,8 @@
   "authRegisterSubtitle": "Create an account and join the campus conversation.",
   "authForgotSubtitle": "Enter your email and we will send a reset link.",
   "authUsernameOrEmail": "Username or email",
+  "authRegistrationUsernameRules": "6–32 characters: English letters, digits, underscores (_) and hyphens (-).",
+  "authRegistrationPasswordRules": "6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.",
   "authUsername": "Username",
   "authEmail": "Email",
   "authPassword": "Password",
@@ -145,10 +147,10 @@
   "authCaptchaRequired": "Please enter the captcha",
   "publishCaptchaExplanation": "The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site's age condition.",
   "authOidcLogin": "Sign in with yourtj",
-  "authRegisterEmailVerify": "Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.",
+  "authRegisterEmailVerify": "Account created. Check your inbox to verify your email. If no email arrives, resend it or change the address under Account security.",
   "authActivationRequired": "Please activate your account from your inbox first.",
   "authResendActivationEmail": "Resend verification email",
-  "authRegisterSuccess": "Registered successfully, please sign in",
+  "authRegisterSuccess": "Account created.",
   "authResetEmailSent": "Reset email sent, please check your inbox",
   "authLoading": "Processing…",
   "authCacheClearFailed": "Failed to clear the previous account's offline data. Please retry.",
@@ -271,7 +273,7 @@
   "profileEmptyFollowing": "Not following anyone",
   "profileEmptyFollowers": "No followers yet",
   "profileNotLoggedIn": "Not signed in",
-  "messagesTitle": "Messages",
+  "messagesTitle": "Direct messages",
   "messagesEmpty": "No conversations yet",
   "messagesEmptyDescription": "Start a conversation with someone from the community.",
   "messagesSearchConversations": "Search conversations",
@@ -335,7 +337,7 @@
   "categoryTitle": "Category",
   "settingsTitle": "Settings",
   "settingsTabProfile": "Profile",
-  "settingsTabAccount": "Account, security & privacy",
+  "settingsTabAccount": "Account & security",
   "settingsTabPrivacy": "Privacy",
   "settingsTabBinding": "Bindings",
   "settingsTabSecurity": "Security",
@@ -402,7 +404,7 @@
     }
   },
   "settingsOAuth": "External account connections",
-  "settingsOAuthSub": "GitHub and Google login connections",
+  "settingsOAuthSub": "GitHub, Google and Apple login connections",
   "settingsOAuthManage": "Manage OAuth bindings",
   "settingsOAuthBindings": "OAuth bindings",
   "settingsBound": "Bound",
@@ -454,10 +456,24 @@
   "settingsThemeDark": "Dark",
   "settingsRevokeSession": "Revoke this session",
   "settingsAppearance": "Appearance",
+  "decorationAppearance": "Appearance",
+  "decorationTitle": "Avatar frames & colorful names",
+  "decorationFrame": "Avatar frames",
+  "decorationNickname": "Colorful names",
+  "decorationGrant": "Styles are granted by administrators.",
+  "decorationNone": "None",
+  "decorationPreview": "Preview",
+  "decorationEquip": "Use this style",
+  "decorationLocked": "Not owned",
+  "decorationEquipped": "Equipped",
+  "decorationAvailable": "Available",
+  "decorationCurrent": "Current look",
+  "decorationPreviewOnly": "Preview only",
+  "decorationLockedHint": "Not owned. You can preview this style.",
   "settingsDarkMode": "Dark mode",
   "settingsDarkCurrent": "Current: dark",
   "settingsLightCurrent": "Current: light",
-  "settingsAbout": "About",
+  "settingsAbout": "About the community",
   "settingsAboutVersion": "v0.1.0 · Tongji campus forum",
   "settingsEditProfile": "Edit profile",
   "settingsSignature": "Signature",
@@ -589,6 +605,7 @@
       }
     }
   },
+  "topicJumpToFloor": "Jump to floor",
   "topicFloorSelected": "Jumped to floor {floor}",
   "sortLatest": "Latest",
   "sortHot": "Hot",
@@ -599,10 +616,10 @@
   "topicOpRepliesPending": "No author replies in the loaded window. Load more to continue.",
   "topicOpRepliesEmpty": "No replies from the author yet",
   "topicLaterReplies": "Load newer replies",
-  "topicFeedModeList": "List",
-  "topicFeedModeCard": "Cards",
   "topicNewTopic": "New topic",
-  "scheduleTitle": "Scheduler",
+  "scheduleTitle": "Course planner",
+  "scheduleFilters": "Filters",
+  "scheduleCandidates": "Candidates",
   "scheduleTabTimetable": "Plan preview",
   "scheduleTabPick": "Pick courses",
   "scheduleTerm": "Term",
@@ -685,7 +702,7 @@
   "schedulePickClass": "Pick class",
   "scheduleCompulsory": "Compulsory",
   "scheduleOptional": "Elective",
-  "scheduleSearchHint": "Search name/code/teacher",
+  "scheduleSearchHint": "Search course name",
   "scheduleStaged": "Staged",
   "scheduleSelected": "Selected",
   "scheduleRemoveCourse": "Remove",
@@ -757,6 +774,10 @@
   "settingsPushDenied": "Notification permission denied, tap to open Settings",
   "settingsFollowSiteTheme": "Follow site theme",
   "settingsFollowSiteThemeDesc": "Use server-issued site colors",
+  "settingsNavigationStyle": "Navigation",
+  "settingsNavigationDock": "Floating dock",
+  "settingsNavigationBar": "Classic bar",
+  "settingsNavigationStyleDesc": "Wide windows keep the side rail.",
   "richContentCopyCode": "Copy code",
   "richContentCodeCopied": "Code copied",
   "textSizeTitle": "Text size",
@@ -795,6 +816,7 @@
   "entrySchedule": "Schedule",
   "entryWiki": "Wiki",
   "navCampus": "Campus",
+  "navShortcutsHint": "Long press for shortcuts",
   "campusTitle": "My campus",
   "campusSubtitle": "Find courses, plan your week and share campus knowledge.",
   "campusCoursesHint": "Explore courses and student reviews",
@@ -848,9 +870,8 @@
   "publishImageOnlyTitle": "A moment to share",
   "publishTypeLocked": "The original type is retained when editing",
   "profileMore": "More options",
-  "profileContent": "Manage content",
+  "profileContent": "My content",
   "profileTrash": "Recycle bin",
-  "profileSecurity": "Account, security & privacy",
   "profileAdmin": "Admin workspace",
   "fabDiscussion": "Jump to discussion",
   "fabRefresh": "Refresh and return to top",
@@ -867,7 +888,7 @@
   "commonConfirm": "Confirm",
   "adminUnavailable": "The admin console is unavailable. Check your permissions, session and connection, then retry.",
   "adminDownloadFailed": "Could not download the export. Please try again.",
-  "publishGalleryTooMany": "Content supports up to 9 images. Remove some images or continue with the article editor.",
+  "publishGalleryTooMany": "Up to 9 images are supported. Use fewer images and try again.",
   "profileActivity": "Activity",
   "profileBookmarks": "Bookmarks",
   "profileModeration": "Moderation workspace",
@@ -953,7 +974,7 @@
   "authEmailDomain": "Email domain",
   "authAgreePolicies": "I have read and agree to the published policies",
   "authPasswordMismatch": "The passwords do not match",
-  "schedulerWebTitle": "Explore the full scheduler on the Web",
+  "schedulerWebTitle": "Explore the full course planner on the Web",
   "schedulerWebAction": "Open f.yourtj.de",
   "schedulerPlanDisclaimer": "This is a course plan. Final enrolment is determined by the university.",
   "campusExploreCourses": "Find your next course through student reviews",
@@ -1314,9 +1335,9 @@
   "campusOfficialTitle": "My campus · official identity",
   "campusOfficialSubtitle": "Connect Tongji for your timetable, grades and campus notices",
   "campusToday": "Today",
-  "campusTimetable": "My timetable",
+  "campusTimetable": "School timetable",
   "campusAcademics": "Academic records",
-  "campusMessages": "Campus notices",
+  "campusMessages": "School notices",
   "campusCalendars": "Calendars",
   "campusConnection": "Connection",
   "campusExplore": "Explore campus",
@@ -1479,7 +1500,7 @@
   "badgeDisplayDown": "Move down",
   "notificationsMarkRead": "Mark as read",
   "scheduleWidgetSettingsTitle": "Home screen schedule",
-  "scheduleWidgetPrivacyDescription": "Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.",
+  "scheduleWidgetPrivacyDescription": "Widgets show course names, times, teachers and locations from the schedule saved on this device, plus the titles and locations of blocks you create (notes are excluded). If you agree, refreshing the schedule updates the home-screen view.",
   "scheduleWidgetRefresh": "Refresh from offline schedule",
   "scheduleWidgetClear": "Clear home screen data",
   "scheduleWidgetCleared": "Home screen schedule data cleared",
@@ -1584,7 +1605,6 @@
   "sortFollowing": "Following",
   "notificationsUnreadEmpty": "You’re all caught up",
   "notificationsUnreadEmptyDescription": "You have read all your notifications.",
-  "homeFeedOptions": "Feed display",
   "@badgeDisplaySelectedCount": {
     "placeholders": {
       "count": {
@@ -2070,5 +2090,336 @@
   "previewUpdateInstructions": "This is a testing build. Get updates from the release issue’s Android link or the assigned TestFlight group.",
   "previewStale": "This preview is no longer the current candidate. Check the release status for the current build or return to production.",
   "previewStatusUnknown": "Cannot verify this preview’s status. Check with the release owner before testing.",
-  "previewStatusLink": "Preview status"
+  "previewStatusLink": "Preview status",
+  "timetableOptions": "Timetable options",
+  "timetableWeekPicker": "Choose a week",
+  "timetableDateRange": "{start} – {end}",
+  "@timetableDateRange": {
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableUpdatedAt": "Updated {time}",
+  "@timetableUpdatedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableShowingSnapshot": "Showing saved copy",
+  "timetablePartlyUpdated": "Partly updated",
+  "timetableMayBeOutdated": "May be outdated",
+  "timetableFocusDay": "Focus this day",
+  "timetableUnfocusDay": "Show the whole week",
+  "timetableAddBlockHere": "Add a block here",
+  "timetableOtherWeek": "Other week",
+  "timetableBlock": "Your block",
+  "timetableInProgress": "In progress",
+  "timetableEmptyWeek": "No classes this week. Tap an empty cell to add a block.",
+  "timetableDayFree": "Nothing scheduled. Tap an empty cell to add a block.",
+  "timetableGestureTip": "Tap a weekday to focus it. Tap an empty cell to add a block, or long-press and drag to cover several sections.",
+  "timetableDisplay": "Display",
+  "timetableAlwaysShowWeekend": "Always show weekends",
+  "timetableAlwaysShowWeekendHint": "When off, weekends without classes fold away.",
+  "timetableShowOtherWeeks": "Show classes from other weeks",
+  "timetableShowOtherWeeksHint": "They appear faded in free cells.",
+  "timetableShowSectionTimes": "Show class times",
+  "timetableFocusToday": "Focus today when opened",
+  "timetableMemos": "Blocks and notes",
+  "timetableNoMemos": "No blocks or notes yet. Add blocks for club meetings, study time or reminders.",
+  "timetableAddBlock": "Add block",
+  "timetableEditBlock": "Edit block",
+  "timetableBlockTitle": "Title",
+  "timetableBlockTitleHint": "Club meeting",
+  "timetableBlockPlace": "Place",
+  "timetableBlockPlaceHint": "Library, 3rd floor",
+  "timetableBlockNote": "Note",
+  "timetableBlockDays": "Days",
+  "timetableBlockStart": "First section",
+  "timetableBlockEnd": "Last section",
+  "timetableWeeksOnly": "Week {week} only",
+  "@timetableWeeksOnly": {
+    "placeholders": {
+      "week": {
+        "type": "int"
+      }
+    }
+  },
+  "timetableWeeksEvery": "Every week",
+  "timetableWeeksOdd": "Odd weeks",
+  "timetableWeeksEven": "Even weeks",
+  "timetableBlockColor": "Color",
+  "timetableColorN": "Color {number}",
+  "@timetableColorN": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "timetableSaveBlock": "Save",
+  "timetableDeleteBlock": "Delete block",
+  "timetableDeleteNote": "Delete note",
+  "timetableCredits": "{credits} credits",
+  "@timetableCredits": {
+    "placeholders": {
+      "credits": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableCourseNote": "Note for every week",
+  "timetableCourseNoteHint": "Bring a calculator",
+  "timetableWeekNote": "Note for week {week}",
+  "@timetableWeekNote": {
+    "placeholders": {
+      "week": {
+        "type": "int"
+      }
+    }
+  },
+  "timetableWeekNoteHint": "Quiz, homework due",
+  "timetableNotesLocal": "Notes stay on this device.",
+  "timetableNotesSaved": "Saved on this device.",
+  "timetableNotesUnsaved": "Unable to save on this device. Edit the note to try again.",
+  "timetableWidgets": "Home screen widgets",
+  "timetableWidgetNext": "Next class",
+  "timetableWidgetNextHint": "The upcoming class with its time and room",
+  "timetableWidgetToday": "Today’s classes",
+  "timetableWidgetTodayHint": "Every class today in one list",
+  "timetableWidgetTimeline": "Class timeline",
+  "timetableWidgetTimelineHint": "Today’s classes along a timeline",
+  "timetableWidgetAdd": "Add",
+  "timetableWidgetAddNamed": "Add {name} widget",
+  "@timetableWidgetAddNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableWidgetRequested": "Confirm in the system dialog to place the widget.",
+  "timetableWidgetManual": "To add a widget, long-press an empty area of your home screen, open Widgets and choose YourTJ.",
+  "timetableWidgetIosSteps": "To add a widget, long-press an empty area of the Home Screen, tap +, then search for YourTJ and choose a size.",
+  "timetableCalendarSection": "Course calendar",
+  "timetableMore": "More",
+  "timetableMemosNone": "No blocks or notes yet",
+  "timetableMemoSummary": "{blocks, plural, =1{1 block} other{{blocks} blocks}} · {notes, plural, =1{1 note} other{{notes} notes}}",
+  "@timetableMemoSummary": {
+    "placeholders": {
+      "blocks": {
+        "type": "int"
+      },
+      "notes": {
+        "type": "int"
+      }
+    }
+  },
+  "timetableMemosIntro": "Blocks and notes stay on this device. Tap a class to add a note.",
+  "timetableBlocksHeading": "Blocks",
+  "timetableNotesHeading": "Class notes",
+  "timetableWidgetsHint": "Put your next class or today’s classes on the home screen.",
+  "timetableExportHint": "Save as an .ics file for your calendar app.",
+  "timetableBlockWhen": "When",
+  "timetableAddNote": "Add note",
+  "timetableWeeksRange": "Weeks {range}",
+  "@timetableWeeksRange": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "timetableListSeparator": ", ",
+  "timetableConfirmDelete": "Tap again to delete",
+  "profileMutualFollowing": "Mutual",
+  "homeFeedSwitchToList": "Switch to list",
+  "homeFeedSwitchToCard": "Switch to cards",
+  "profileStreamManage": "Manage",
+  "searchFilterInCatalog": "Filter in the course catalog",
+  "profileEditAddCover": "Add a cover",
+  "profileEditAddSocialLinks": "Add social links",
+  "profileEditAddWebsite": "Add a website",
+  "profileEditBasics": "Basic information",
+  "profileEditBioHint": "Tell people a little about yourself",
+  "profileEditChangeAvatar": "Change avatar",
+  "profileEditChangeCover": "Change cover",
+  "profileEditDisplay": "Display",
+  "profileEditDone": "Done",
+  "profileEditFromPhotos": "Choose from photos",
+  "profileEditLinks": "Links",
+  "profileEditNicknameHint": "Your display name",
+  "profileEditSignatureHint": "Add a short signature",
+  "profileEditSocialHint": "Username or HTTPS link",
+  "profileEditTakePhoto": "Take a photo",
+  "profileEditWebsiteUrl": "Website URL",
+  "profileLanguageHint": "Language of your public profile, separate from the app language.",
+  "profileEditBadgeSummary": "Wearing: {name} · {count} displayed",
+  "@profileEditBadgeSummary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contentMineTitle": "My content",
+  "settingsManageBadges": "Manage badges",
+  "campusSettings": "Campus settings",
+  "scheduleStatusHelp": "Plan status and help",
+  "courseAddToPlanner": "Add to course planner",
+  "coursePlannerSelectTerm": "Select the same term and your major before confirming the class. Existing plans stay unchanged.",
+  "coursePlannerUnavailable": "This class is unavailable for the term. Choose another offering from course details.",
+  "coursePlannerCalendarsFailed": "Failed to load the term list. Check your network and try again.",
+  "authCheckEmailVerification": "Check email verification",
+  "authWriteRecoveryHint": "Your input stays here. Return after verification and continue manually.",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusRefresh": "Refresh status",
+  "scheduleSearchNoMatch": "No course names match “{query}”",
+  "scheduleNoOptional": "No optional courses returned for this term",
+  "scheduleMajorSearchHint": "Search major name or code",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessagePolicyLabel": "Who can start a conversation",
+  "activationStatusMailUnavailable": "Mail is unavailable. Refresh later.",
+  "activationStatusMissingEmail": "Add an email address in account settings first",
+  "chatMessagePolicyTitle": "Private messages",
+  "campusTimetableNotConnected": "Tongji identity not connected",
+  "scheduleSearchScope": "Search course names in {term}",
+  "scheduleConfigureScope": "Configure course scope",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "chatMessagePolicySaved": "Message permissions saved to your account",
+  "scheduleChangeMajorBody": "Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.",
+  "activationStatusDailyLimit": "Daily limit reached. Try again tomorrow.",
+  "activationStatusDisabled": "Email verification is currently disabled",
+  "authVerificationPendingHint": "Use the link in your inbox, then refresh this page. If no email arrives, resend it or change the address. Some actions remain unavailable until verification.",
+  "scheduleChangeMajorUpdated": "Plan content changed. Please select the major again.",
+  "activationStatusCooldown": "Resend in {seconds} seconds",
+  "authVerificationPending": "Email verification pending",
+  "activationStatusFrozen": "This account cannot resend email",
+  "authRegistrationUnavailable": "Registration is unavailable. Please try again later.",
+  "imageViewerThumbnails": "Image thumbnails",
+  "activationStatusTarget": "Send to: {email}",
+  "activationStatusRemaining": "Resends left today: {count} / {limit}",
+  "chatMessagePolicyNobody": "No new conversations",
+  "scheduleCourseScope": "Current scope: {scope}",
+  "activationStatusVerified": "Email verified. No resend needed.",
+  "authCheckSignupAvailability": "Check registration again",
+  "scheduleSetupMissing": "Select {fields} before finding courses or classes.",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "imageViewerOriginalSize": "Original size",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "imageViewerFitPreview": "Fit preview",
+  "scheduleChangeMajorConfirm": "Change and clear",
+  "campusTimetableConnectBody": "Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.",
+  "chatMessagePolicyHint": "Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.",
+  "scheduleSearchReady": "Enter a course name to start",
+  "scheduleNoCompulsory": "No compulsory courses returned for this scope",
+  "scheduleMajorNoMatch": "No matching majors",
+  "scheduleChangeMajorTitle": "Change major and clear plans?",
+  "scheduleEmptyCourseHint": "Adjust the course scope or search by course name.",
+  "scheduleSetupTitle": "Set your course scope first",
+  "scheduleConfigChangeTitle": "Change setup?",
+  "scheduleConfigChangeBody": "This clears courses and custom blocks from every plan. {planCount} plans contain {courseCount} courses and {eventCount} blocks. Plan names are kept.",
+  "scheduleConfigChangePlan": "{name}: {courseCount} courses, {eventCount} blocks",
+  "scheduleConfigChangeSync": "If these plans are already synced, the cleared contents also sync to other devices.",
+  "scheduleConfigChangeConfirm": "Clear plans and switch",
+  "scheduleConfigChangeUpdated": "Plans changed. Choose again and review the current impact.",
+  "@scheduleConfigChangeBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleConfigChangePlan": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "unreadStyleTitle": "Unread indicators",
+  "unreadStyleNumbers": "Show unread counts",
+  "unreadStyleHint": "Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.",
+  "unreadStyleSaving": "Saving indicator style…"
 }

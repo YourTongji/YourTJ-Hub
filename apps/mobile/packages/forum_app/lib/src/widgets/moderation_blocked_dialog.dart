@@ -49,7 +49,7 @@ Future<bool> showModerationBlockedDialog(
           DecoratedBox(
             decoration: BoxDecoration(
               color: colors.base200,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(GfRadius.md),
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

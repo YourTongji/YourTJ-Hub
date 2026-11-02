@@ -368,7 +368,7 @@ void main() {
     );
     expect(
       (surface.decoration! as BoxDecoration).borderRadius,
-      BorderRadius.circular(24),
+      BorderRadius.circular(GfRadius.xl),
     );
     final field = tester.widget<TextField>(find.byType(TextField));
     expect(field.minLines, 1);

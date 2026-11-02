@@ -15,7 +15,7 @@
   "navHome": "Startseite",
   "navSearch": "Suchen",
   "navPublish": "Veröffentlichen",
-  "navMessages": "Nachrichten",
+  "navMessages": "Direktnachrichten",
   "navProfile": "Mein Profil",
   "commonCancel": "Abbrechen",
   "commonSave": "Speichern",
@@ -72,6 +72,8 @@
   "authRegisterSubtitle": "Erstelle ein Konto und tausche dich auf dem Campus aus.",
   "authForgotSubtitle": "Gib deine E-Mail ein und wir senden dir eine Nachricht zum Zurücksetzen des Passworts.",
   "authUsernameOrEmail": "Benutzername oder E-Mail",
+  "authRegistrationUsernameRules": "6–32 Zeichen: englische Buchstaben, Ziffern, Unterstriche (_) und Bindestriche (-).",
+  "authRegistrationPasswordRules": "6–64 Zeichen mit mindestens einem englischen Buchstaben (A–Z/a–z) und einer Ziffer (0–9). Weitere Zeichen sind erlaubt.",
   "authUsername": "Benutzername",
   "authEmail": "E-Mail",
   "authPassword": "Passwort",
@@ -92,10 +94,10 @@
   "authCaptchaRequired": "Bitte Captcha eingeben",
   "publishCaptchaExplanation": "Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.",
   "authOidcLogin": "Mit YourTJ anmelden",
-  "authRegisterEmailVerify": "Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach. Keine E-Mail erhalten? Melde dich an und sende sie unter Kontosicherheit erneut.",
+  "authRegisterEmailVerify": "Konto erstellt. Bestätige deine E-Mail über dein Postfach. Kommt keine Nachricht an, kannst du sie unter Kontosicherheit erneut anfordern oder die Adresse ändern.",
   "authActivationRequired": "Bitte aktiviere zuerst dein Konto über die E-Mail in deinem Postfach.",
   "authResendActivationEmail": "Bestätigungs-E-Mail erneut senden",
-  "authRegisterSuccess": "Registrierung erfolgreich. Bitte anmelden.",
+  "authRegisterSuccess": "Konto erstellt.",
   "authResetEmailSent": "E-Mail zum Zurücksetzen gesendet. Bitte prüfe deinen Posteingang.",
   "authLoading": "Wird verarbeitet …",
   "authCacheClearFailed": "Die Offline-Daten des vorherigen Kontos konnten nicht gelöscht werden. Bitte erneut versuchen.",
@@ -169,7 +171,7 @@
   "profileEmptyFollowing": "Folgt noch niemandem",
   "profileEmptyFollowers": "Noch keine Follower",
   "profileNotLoggedIn": "Nicht angemeldet",
-  "messagesTitle": "Nachrichten",
+  "messagesTitle": "Direktnachrichten",
   "messagesEmpty": "Noch keine Unterhaltungen",
   "messagesEmptyDescription": "Beginne eine Unterhaltung mit jemandem aus der Community.",
   "messagesSearchConversations": "Unterhaltungen suchen",
@@ -201,7 +203,7 @@
   "categoryTitle": "Kategorie",
   "settingsTitle": "Einstellungen",
   "settingsTabProfile": "Profil",
-  "settingsTabAccount": "Konto, Sicherheit und Datenschutz",
+  "settingsTabAccount": "Konto und Sicherheit",
   "settingsTabPrivacy": "Datenschutz",
   "settingsTabBinding": "Verknüpfungen",
   "settingsTabSecurity": "Sicherheit",
@@ -233,7 +235,7 @@
   "settingsBadgeUpdated": "Abzeichen aktualisiert",
   "settingsBadgeFailed": "Abzeichen konnte nicht aktualisiert werden: {error}",
   "settingsOAuth": "Verknüpfte Konten",
-  "settingsOAuthSub": "Anmeldung über GitHub und Google",
+  "settingsOAuthSub": "GitHub-, Google- und Apple-Anmeldungen",
   "settingsOAuthManage": "Kontoverknüpfungen verwalten",
   "settingsOAuthBindings": "Kontoverknüpfungen",
   "settingsBound": "Verknüpft",
@@ -257,10 +259,24 @@
   "settingsThemeDark": "Dunkel",
   "settingsRevokeSession": "Diese Sitzung widerrufen",
   "settingsAppearance": "Darstellung",
+  "decorationAppearance": "Aussehen",
+  "decorationTitle": "Avatarrahmen & farbige Namen",
+  "decorationFrame": "Avatarrahmen",
+  "decorationNickname": "Farbige Namen",
+  "decorationGrant": "Stile werden von Administratoren vergeben.",
+  "decorationNone": "Keine",
+  "decorationPreview": "Vorschau",
+  "decorationEquip": "Diesen Stil verwenden",
+  "decorationLocked": "Nicht erworben",
+  "decorationEquipped": "Angelegt",
+  "decorationAvailable": "Verfügbar",
+  "decorationCurrent": "Aktuelles Aussehen",
+  "decorationPreviewOnly": "Nur Vorschau",
+  "decorationLockedHint": "Nicht erworben. Du kannst diesen Stil ansehen.",
   "settingsDarkMode": "Dunkler Modus",
   "settingsDarkCurrent": "Aktuell: dunkel",
   "settingsLightCurrent": "Aktuell: hell",
-  "settingsAbout": "Info",
+  "settingsAbout": "Über die Community",
   "settingsAboutVersion": "v0.1.0 · Campusforum der Tongji-Universität",
   "settingsEditProfile": "Profil bearbeiten",
   "settingsSignature": "Signatur",
@@ -319,6 +335,7 @@
   "dateYearMonthDay": "{day}.{month}.{year}",
   "dateMonthDayTime": "{day}.{month} {time}",
   "dateYearMonthDayTime": "{day}.{month}.{year} {time}",
+  "topicJumpToFloor": "Zum Beitrag springen",
   "topicFloorSelected": "Zu Beitrag {floor} gesprungen",
   "sortLatest": "Neueste",
   "sortHot": "Trending",
@@ -329,10 +346,10 @@
   "topicOpRepliesPending": "Im geladenen Bereich gibt es keine Antworten des Autors. Lade weitere Beiträge.",
   "topicOpRepliesEmpty": "Noch keine Antworten des Autors",
   "topicLaterReplies": "Neuere Antworten laden",
-  "topicFeedModeList": "Liste",
-  "topicFeedModeCard": "Karten",
   "topicNewTopic": "Neues Thema",
-  "scheduleTitle": "Stundenplaner",
+  "scheduleTitle": "Kursplaner",
+  "scheduleFilters": "Filter",
+  "scheduleCandidates": "Kurse",
   "scheduleTabTimetable": "Planvorschau",
   "scheduleTabPick": "Kurse auswählen",
   "scheduleTerm": "Semester",
@@ -387,7 +404,7 @@
   "schedulePickClass": "Wähle eine Klasse",
   "scheduleCompulsory": "Pflichtkurs",
   "scheduleOptional": "Wahlkurs",
-  "scheduleSearchHint": "Name, Kennung oder Lehrkraft suchen",
+  "scheduleSearchHint": "Kursnamen suchen",
   "scheduleStaged": "Ausstehend",
   "scheduleSelected": "Ausgewählt",
   "scheduleRemoveCourse": "Entfernen",
@@ -438,6 +455,10 @@
   "settingsPushDenied": "Benachrichtigungen nicht erlaubt. Tippen, um die Einstellungen zu öffnen.",
   "settingsFollowSiteTheme": "Website-Design übernehmen",
   "settingsFollowSiteThemeDesc": "Farben der Website verwenden",
+  "settingsNavigationStyle": "Navigation",
+  "settingsNavigationDock": "Schwebendes Dock",
+  "settingsNavigationBar": "Klassische Leiste",
+  "settingsNavigationStyleDesc": "Breite Fenster behalten die Seitenleiste.",
   "richContentCopyCode": "Code kopieren",
   "richContentCodeCopied": "Code kopiert",
   "textSizeTitle": "Textgröße",
@@ -459,6 +480,7 @@
   "entrySchedule": "Stundenplan",
   "entryWiki": "Wiki",
   "navCampus": "Campus",
+  "navShortcutsHint": "Gedrückt halten für Schnellzugriffe",
   "campusTitle": "Mein Campus",
   "campusSubtitle": "Finde Kurse, plane deine Woche und teile Campuswissen.",
   "campusCoursesHint": "Kurse und studentische Bewertungen entdecken",
@@ -488,9 +510,8 @@
   "publishImageOnlyTitle": "Ein Moment zum Teilen",
   "publishTypeLocked": "Beim Bearbeiten bleibt der ursprüngliche Typ erhalten",
   "profileMore": "Weitere Optionen",
-  "profileContent": "Inhalte verwalten",
+  "profileContent": "Meine Inhalte",
   "profileTrash": "Papierkorb",
-  "profileSecurity": "Konto, Sicherheit und Datenschutz",
   "profileAdmin": "Administration",
   "fabDiscussion": "Zur Diskussion",
   "fabRefresh": "Aktualisieren und nach oben",
@@ -507,7 +528,7 @@
   "commonConfirm": "Bestätigen",
   "adminUnavailable": "Die Verwaltung ist nicht verfügbar. Bitte Berechtigungen, Sitzung und Verbindung prüfen und erneut versuchen.",
   "adminDownloadFailed": "Export konnte nicht heruntergeladen werden. Bitte erneut versuchen.",
-  "publishGalleryTooMany": "Bis zu 9 Bilder sind möglich. Entferne Bilder oder verwende den Artikeleditor.",
+  "publishGalleryTooMany": "Bis zu 9 Bilder sind möglich. Verwende weniger Bilder und versuche es erneut.",
   "profileActivity": "Aktivität",
   "profileBookmarks": "Favoriten",
   "profileModeration": "Moderation",
@@ -579,7 +600,7 @@
   "authEmailDomain": "E-Mail-Domain",
   "authAgreePolicies": "Ich habe die veröffentlichten Richtlinien gelesen und stimme ihnen zu",
   "authPasswordMismatch": "Die beiden Passwörter stimmen nicht überein",
-  "schedulerWebTitle": "Vollständigen Stundenplaner im Web nutzen",
+  "schedulerWebTitle": "Vollständigen Kursplaner im Web nutzen",
   "schedulerWebAction": "f.yourtj.de öffnen",
   "schedulerPlanDisclaimer": "Dies ist ein Kursplan. Die endgültige Einschreibung erfolgt über die Universität.",
   "campusExploreCourses": "Finde deinen nächsten Kurs anhand studentischer Bewertungen",
@@ -839,9 +860,9 @@
   "campusOfficialTitle": "Mein Campus · offizielle Identität",
   "campusOfficialSubtitle": "Tongji verbinden: Stundenplan, Noten und Mitteilungen",
   "campusToday": "Heute",
-  "campusTimetable": "Mein Stundenplan",
+  "campusTimetable": "Schulstundenplan",
   "campusAcademics": "Studienleistungen",
-  "campusMessages": "Campus-Mitteilungen",
+  "campusMessages": "Hochschulmitteilungen",
   "campusCalendars": "Semesterkalender",
   "campusConnection": "Verbindung",
   "campusExplore": "Campus entdecken",
@@ -990,7 +1011,7 @@
   "badgeDisplayDown": "Nach unten",
   "notificationsMarkRead": "Als gelesen markieren",
   "scheduleWidgetSettingsTitle": "Startbildschirm-Stundenplan",
-  "scheduleWidgetPrivacyDescription": "Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.",
+  "scheduleWidgetPrivacyDescription": "Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan sowie Titel und Orte selbst erstellter Blöcke (Notizen bleiben verborgen). Wenn du zustimmst, wird der Startbildschirm beim Aktualisieren des Stundenplans ebenfalls aktualisiert.",
   "scheduleWidgetRefresh": "Aus Offline-Stundenplan aktualisieren",
   "scheduleWidgetClear": "Startbildschirmdaten löschen",
   "scheduleWidgetCleared": "Startbildschirm-Stundenplan gelöscht",
@@ -1088,7 +1109,6 @@
   "sortFollowing": "Gefolgt",
   "notificationsUnreadEmpty": "Alles gelesen",
   "notificationsUnreadEmptyDescription": "Du hast alle Mitteilungen gelesen.",
-  "homeFeedOptions": "Darstellung",
   "@badgeDisplaySelectedCount": {
     "placeholders": {
       "count": {
@@ -1412,5 +1432,241 @@
   "previewUpdateInstructions": "Dies ist ein Testbuild. Updates gibt es über den Android-Link im Release-Issue oder die zugewiesene TestFlight-Gruppe.",
   "previewStale": "Diese Vorschau ist nicht mehr der aktuelle Kandidat. Prüfe den Release-Status für die aktuelle Testversion oder die Rückkehr zur Produktivversion.",
   "previewStatusUnknown": "Der Vorschau-Status kann nicht geprüft werden. Frage vor dem Testen die verantwortliche Person.",
-  "previewStatusLink": "Vorschau-Status"
+  "previewStatusLink": "Vorschau-Status",
+  "timetableOptions": "Stundenplan-Optionen",
+  "timetableWeekPicker": "Woche wählen",
+  "timetableDateRange": "{start} – {end}",
+  "timetableUpdatedAt": "Aktualisiert {time}",
+  "timetableShowingSnapshot": "Gespeicherte Kopie",
+  "timetablePartlyUpdated": "Teilweise aktualisiert",
+  "timetableMayBeOutdated": "Evtl. veraltet",
+  "timetableFocusDay": "Diesen Tag hervorheben",
+  "timetableUnfocusDay": "Ganze Woche anzeigen",
+  "timetableAddBlockHere": "Hier einen Block hinzufügen",
+  "timetableOtherWeek": "Andere Woche",
+  "timetableBlock": "Eigener Block",
+  "timetableInProgress": "Läuft gerade",
+  "timetableEmptyWeek": "Diese Woche keine Kurse. Tippe auf eine leere Zelle, um einen Block hinzuzufügen.",
+  "timetableDayFree": "Nichts geplant. Tippe auf eine leere Zelle, um einen Block hinzuzufügen.",
+  "timetableGestureTip": "Tippe auf einen Wochentag, um ihn hervorzuheben. Tippe auf eine leere Zelle, um einen Block hinzuzufügen, oder halte gedrückt und ziehe über mehrere Stunden.",
+  "timetableDisplay": "Anzeige",
+  "timetableAlwaysShowWeekend": "Wochenenden immer anzeigen",
+  "timetableAlwaysShowWeekendHint": "Wenn aus, werden Wochenenden ohne Termine ausgeblendet.",
+  "timetableShowOtherWeeks": "Kurse anderer Wochen anzeigen",
+  "timetableShowOtherWeeksHint": "Sie erscheinen blass in freien Zellen.",
+  "timetableShowSectionTimes": "Unterrichtszeiten anzeigen",
+  "timetableFocusToday": "Beim Öffnen heute hervorheben",
+  "timetableMemos": "Blöcke und Notizen",
+  "timetableNoMemos": "Noch keine Blöcke oder Notizen. Füge Blöcke für Treffen, Lernzeit oder Erinnerungen hinzu.",
+  "timetableAddBlock": "Block hinzufügen",
+  "timetableEditBlock": "Block bearbeiten",
+  "timetableBlockTitle": "Titel",
+  "timetableBlockTitleHint": "Vereinstreffen",
+  "timetableBlockPlace": "Ort",
+  "timetableBlockPlaceHint": "Bibliothek, 3. OG",
+  "timetableBlockNote": "Notiz",
+  "timetableBlockDays": "Tage",
+  "timetableBlockStart": "Erste Stunde",
+  "timetableBlockEnd": "Letzte Stunde",
+  "timetableWeeksOnly": "Nur Woche {week}",
+  "timetableWeeksEvery": "Jede Woche",
+  "timetableWeeksOdd": "Ungerade Wochen",
+  "timetableWeeksEven": "Gerade Wochen",
+  "timetableBlockColor": "Farbe",
+  "timetableColorN": "Farbe {number}",
+  "timetableSaveBlock": "Speichern",
+  "timetableDeleteBlock": "Block löschen",
+  "timetableDeleteNote": "Notiz löschen",
+  "timetableCredits": "{credits} Credits",
+  "timetableCourseNote": "Notiz für jede Woche",
+  "timetableCourseNoteHint": "Taschenrechner mitbringen",
+  "timetableWeekNote": "Notiz für Woche {week}",
+  "timetableWeekNoteHint": "Test, Abgabe",
+  "timetableNotesLocal": "Notizen bleiben auf diesem Gerät.",
+  "timetableNotesSaved": "Auf diesem Gerät gespeichert.",
+  "timetableNotesUnsaved": "Speichern auf diesem Gerät nicht möglich. Bearbeite die Notiz, um es erneut zu versuchen.",
+  "timetableWidgets": "Homescreen-Widgets",
+  "timetableWidgetNext": "Nächster Kurs",
+  "timetableWidgetNextHint": "Der nächste Kurs mit Zeit und Raum",
+  "timetableWidgetToday": "Kurse heute",
+  "timetableWidgetTodayHint": "Alle heutigen Kurse in einer Liste",
+  "timetableWidgetTimeline": "Kurs-Zeitleiste",
+  "timetableWidgetTimelineHint": "Heutige Kurse auf einer Zeitleiste",
+  "timetableWidgetAdd": "Hinzufügen",
+  "timetableWidgetAddNamed": "Widget „{name}“ hinzufügen",
+  "timetableWidgetRequested": "Bestätige im Systemdialog, um das Widget abzulegen.",
+  "timetableWidgetManual": "Um ein Widget hinzuzufügen, halte eine leere Stelle des Startbildschirms gedrückt, öffne „Widgets“ und wähle YourTJ.",
+  "timetableWidgetIosSteps": "Um ein Widget hinzuzufügen, halte eine leere Stelle des Home-Bildschirms gedrückt, tippe auf +, suche nach YourTJ und wähle eine Größe.",
+  "timetableCalendarSection": "Kurskalender",
+  "timetableMore": "Mehr",
+  "timetableMemosNone": "Noch keine Blöcke oder Notizen",
+  "timetableMemoSummary": "{blocks, plural, =1{1 Block} other{{blocks} Blöcke}} · {notes, plural, =1{1 Notiz} other{{notes} Notizen}}",
+  "timetableMemosIntro": "Blöcke und Notizen bleiben auf diesem Gerät. Tippe auf einen Kurs, um eine Notiz hinzuzufügen.",
+  "timetableBlocksHeading": "Blöcke",
+  "timetableNotesHeading": "Kursnotizen",
+  "timetableWidgetsHint": "Lege den nächsten Kurs oder die heutigen Kurse auf den Startbildschirm.",
+  "timetableExportHint": "Als .ics-Datei für deine Kalender-App speichern.",
+  "timetableBlockWhen": "Wann",
+  "timetableAddNote": "Notiz hinzufügen",
+  "timetableWeeksRange": "Wochen {range}",
+  "timetableListSeparator": ", ",
+  "timetableConfirmDelete": "Zum Löschen erneut tippen",
+  "profileMutualFollowing": "Gegenseitig",
+  "homeFeedSwitchToList": "Als Liste anzeigen",
+  "homeFeedSwitchToCard": "Als Karten anzeigen",
+  "profileStreamManage": "Verwalten",
+  "searchFilterInCatalog": "Im Kurskatalog filtern",
+  "profileEditAddCover": "Titelbild hinzufügen",
+  "profileEditAddSocialLinks": "Soziale Links hinzufügen",
+  "profileEditAddWebsite": "Website hinzufügen",
+  "profileEditBasics": "Grundinformationen",
+  "profileEditBioHint": "Erzähle etwas über dich",
+  "profileEditChangeAvatar": "Profilbild ändern",
+  "profileEditChangeCover": "Titelbild ändern",
+  "profileEditDisplay": "Darstellung",
+  "profileEditDone": "Fertig",
+  "profileEditFromPhotos": "Aus Fotos auswählen",
+  "profileEditLinks": "Links",
+  "profileEditNicknameHint": "Dein Anzeigename",
+  "profileEditSignatureHint": "Kurze Signatur hinzufügen",
+  "profileEditSocialHint": "Benutzername oder HTTPS-Link",
+  "profileEditTakePhoto": "Foto aufnehmen",
+  "profileEditWebsiteUrl": "Website-URL",
+  "profileLanguageHint": "Sprache deines öffentlichen Profils, unabhängig von der App-Sprache.",
+  "profileEditBadgeSummary": "Getragen: {name} · {count} angezeigt",
+  "@profileEditBadgeSummary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contentMineTitle": "Meine Inhalte",
+  "settingsManageBadges": "Abzeichen verwalten",
+  "campusSettings": "Campus-Einstellungen",
+  "scheduleStatusHelp": "Planstatus und Hilfe",
+  "courseAddToPlanner": "Zum Kursplaner hinzufügen",
+  "coursePlannerSelectTerm": "Vor der Bestätigung dasselbe Semester und dein Fach wählen. Bestehende Pläne bleiben unverändert.",
+  "coursePlannerUnavailable": "Dieser Kurs ist im Semester nicht verfügbar. Wähle ein anderes Angebot in den Kursdetails.",
+  "coursePlannerCalendarsFailed": "Fehler beim Laden der Semesterliste. Prüfe deine Netzwerkverbindung und versuche es erneut.",
+  "authCheckEmailVerification": "E-Mail-Bestätigung prüfen",
+  "authWriteRecoveryHint": "Eingaben bleiben erhalten. Kehre nach der Bestätigung zurück und fahre manuell fort.",
+  "@scheduleChangeMajorBody": {
+    "placeholders": {
+      "planCount": {
+        "type": "int"
+      },
+      "courseCount": {
+        "type": "int"
+      },
+      "eventCount": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSetupMissing": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "activationStatusRefresh": "Status aktualisieren",
+  "scheduleSearchNoMatch": "Keine Kursnamen passen zu „{query}“",
+  "scheduleNoOptional": "Keine Wahlkurse für dieses Semester zurückgegeben",
+  "scheduleMajorSearchHint": "Studiengang oder Code suchen",
+  "@scheduleSearchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "@activationStatusTarget": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "@scheduleSearchScope": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessagePolicyLabel": "Wer darf ein Gespräch beginnen",
+  "activationStatusMailUnavailable": "E-Mail-Dienst nicht verfügbar. Später aktualisieren.",
+  "activationStatusMissingEmail": "Zuerst in den Kontoeinstellungen eine E-Mail hinzufügen",
+  "chatMessagePolicyTitle": "Private Nachrichten",
+  "campusTimetableNotConnected": "Tongji-Identität noch nicht verbunden",
+  "scheduleSearchScope": "Kursnamen suchen in {term}",
+  "scheduleConfigureScope": "Kursbereich festlegen",
+  "@activationStatusRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "chatMessagePolicySaved": "Nachrichtenberechtigungen im Konto gespeichert",
+  "scheduleChangeMajorBody": "Beim Ändern werden {planCount} Pläne mit {courseCount} Kursen und {eventCount} eigenen Terminen geleert. Abbrechen behält die bisherige Konfiguration und alle Pläne.",
+  "activationStatusDailyLimit": "Tageslimit erreicht. Morgen erneut versuchen.",
+  "activationStatusDisabled": "E-Mail-Bestätigung ist derzeit deaktiviert",
+  "authVerificationPendingHint": "Nutze den Link in deinem Postfach und aktualisiere diese Seite. Kommt keine Nachricht an, fordere sie erneut an oder ändere die Adresse. Einige Aktionen bleiben bis zur Bestätigung gesperrt.",
+  "scheduleChangeMajorUpdated": "Die Pläne wurden geändert. Bitte wähle den Studiengang erneut.",
+  "activationStatusCooldown": "In {seconds} Sekunden erneut senden",
+  "authVerificationPending": "E-Mail-Bestätigung ausstehend",
+  "activationStatusFrozen": "Dieses Konto kann keine E-Mail erneut senden",
+  "authRegistrationUnavailable": "Registrierung ist derzeit nicht verfügbar. Bitte später erneut versuchen.",
+  "imageViewerThumbnails": "Bildminiaturen",
+  "activationStatusTarget": "Empfänger: {email}",
+  "activationStatusRemaining": "Heute verbleibend: {count} / {limit}",
+  "chatMessagePolicyNobody": "Keine neuen Gespräche",
+  "scheduleCourseScope": "Aktueller Bereich: {scope}",
+  "activationStatusVerified": "E-Mail bestätigt. Erneutes Senden ist nicht nötig.",
+  "authCheckSignupAvailability": "Registrierung erneut prüfen",
+  "scheduleSetupMissing": "Wähle {fields}, bevor du Kurse oder Lehrveranstaltungen suchst.",
+  "@scheduleCourseScope": {
+    "placeholders": {
+      "scope": {
+        "type": "String"
+      }
+    }
+  },
+  "imageViewerOriginalSize": "Originalgröße",
+  "@activationStatusCooldown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "imageViewerFitPreview": "Vorschau einpassen",
+  "scheduleChangeMajorConfirm": "Ändern und leeren",
+  "campusTimetableConnectBody": "Verbinde deine Tongji-Identität, um hier deinen persönlichen Hochschulstundenplan zu sehen. Kurskatalog und Stundenplaner kannst du auch ohne Verbindung nutzen.",
+  "chatMessagePolicyHint": "Gespräche mit vorhandenen Nachrichten können fortgesetzt werden; leere Gespräche zählen nicht. Sperren haben Vorrang, auch für Bots.",
+  "scheduleSearchReady": "Gib einen Kursnamen ein",
+  "scheduleNoCompulsory": "Keine Pflichtkurse für diesen Bereich zurückgegeben",
+  "scheduleMajorNoMatch": "Keine passenden Studiengänge",
+  "scheduleChangeMajorTitle": "Studiengang ändern und Pläne leeren?",
+  "scheduleEmptyCourseHint": "Ändere den Kursbereich oder suche nach Kursnamen.",
+  "scheduleSetupTitle": "Zuerst den Kursbereich festlegen",
+  "scheduleConfigChangeTitle": "Planung ändern?",
+  "scheduleConfigChangeBody": "Kurse und eigene Termine werden aus allen Plänen entfernt. {planCount} Pläne enthalten {courseCount} Kurse und {eventCount} Termine. Die Plannamen bleiben erhalten.",
+  "scheduleConfigChangePlan": "{name}: {courseCount} Kurse, {eventCount} Termine",
+  "scheduleConfigChangeSync": "Bei bereits synchronisierten Plänen wird das Leeren auch auf andere Geräte übertragen.",
+  "scheduleConfigChangeConfirm": "Leeren und wechseln",
+  "scheduleConfigChangeUpdated": "Die Pläne wurden geändert. Bitte erneut auswählen und die Auswirkungen prüfen.",
+  "unreadStyleTitle": "Ungelesen-Anzeige",
+  "unreadStyleNumbers": "Anzahl anzeigen",
+  "unreadStyleHint": "Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.",
+  "unreadStyleSaving": "Anzeige wird gespeichert…"
 }

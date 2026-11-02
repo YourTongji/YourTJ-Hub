@@ -192,42 +192,34 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Not owned'), findsOneWidget);
-      final nameRow = find.ancestor(
-        of: find.text('Name'),
-        matching: find.byType(ListTile),
-      );
-      final equip = find.descendant(
-        of: nameRow,
-        matching: find.widgetWithText(TextButton, 'Equip'),
-      );
-      expect(tester.widget<TextButton>(equip).onPressed, isNull);
+      await tester.tap(find.text('Colorful names'));
+      await tester.pumpAndSettle();
       await tester.tap(
-        find.descendant(
-          of: nameRow,
-          matching: find.widgetWithText(TextButton, 'Preview'),
-        ),
+        find.byKey(const ValueKey('decoration-option-nicknameStyle-name')),
       );
-      await tester.pump();
-      expect(find.byType(ShaderMask), findsOneWidget);
+      await tester.pumpAndSettle();
+      final equip = find.byKey(const Key('decoration-apply'));
+      expect(tester.widget<GfButton>(equip).onPressed, isNull);
+      expect(find.byType(ShaderMask), findsWidgets);
       expect(repo.calls, isEmpty);
-      final frameRow = find.ancestor(
-        of: find.text('Frame'),
-        matching: find.byType(ListTile),
-      );
+      await tester.tap(find.text('Avatar frames'));
+      await tester.pumpAndSettle();
       await tester.tap(
-        find.descendant(
-          of: frameRow,
-          matching: find.widgetWithText(TextButton, 'Equip'),
-        ),
+        find.byKey(const ValueKey('decoration-option-avatarFrame-frame')),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(equip);
       await tester.pumpAndSettle();
       expect(repo.calls.single, {'avatarFrame': 'frame', 'nicknameStyle': ''});
       expect(
         tester.widget<GfAvatar>(find.byType(GfAvatar).first).frameScale,
         1.4,
       );
-      await tester.tap(find.widgetWithText(TextButton, 'Equip').first);
+      await tester.tap(
+        find.byKey(const ValueKey('decoration-option-avatarFrame-')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(equip);
       await tester.pumpAndSettle();
       expect(repo.calls.last, {'avatarFrame': '', 'nicknameStyle': ''});
       container.read(offlineCacheEpochProvider.notifier).invalidate();
@@ -272,6 +264,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Colorful names'));
+    await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('🐦‍🔥'), findsOneWidget);
     expect(find.byType(GfText), findsWidgets);
   });
@@ -327,6 +321,7 @@ void main() {
     'nickname color selection handles theme and insufficient contrast',
     (tester) async {
       final colors = <List<Color>>[];
+      final midContrast = <List<Color>>[];
       for (final brightness in [Brightness.light, Brightness.dark]) {
         await tester.pumpWidget(
           MaterialApp(
@@ -343,6 +338,19 @@ void main() {
                       kind: 'nicknameStyle',
                       lightColors: ['#123456', '#654321'],
                       darkColors: ['#abcdef', '#fedcba'],
+                    ),
+                  ),
+                );
+                // 3:1 floor: clears it but not the old 4.5:1 one (3.68 on white, 3.94 on #101010).
+                midContrast.add(
+                  decorationColors(
+                    context,
+                    const DecorationStyle(
+                      code: 'mid',
+                      name: 'Mid',
+                      kind: 'nicknameStyle',
+                      lightColors: ['#3b82f6', '#3b82f6'],
+                      darkColors: ['#6b7280', '#6b7280'],
                     ),
                   ),
                 );
@@ -367,6 +375,7 @@ void main() {
       }
       expect(colors.first.first, const Color(0xff123456));
       expect(colors.last.first, const Color(0xffabcdef));
+      expect(midContrast.map((c) => c.length), [2, 2]);
     },
   );
 }

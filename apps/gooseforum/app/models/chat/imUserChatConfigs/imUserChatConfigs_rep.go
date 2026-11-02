@@ -77,6 +77,16 @@ func HasUnread(userId uint64) bool {
 		First(&entity).Error == nil && entity.Id != 0
 }
 
+// TotalUnread counts the same visible memberships as HasUnread. Muting affects
+// delivery, not unread truth; locally deleted conversations stay excluded.
+func TotalUnread(userID uint64) (int64, error) {
+	var count int64
+	err := builder().Select("COALESCE(SUM(unread_count), 0)").
+		Where("user_id = ? AND is_deleted = 0 AND unread_count > 0", userID).
+		Scan(&count).Error
+	return count, err
+}
+
 func IncrUnread(convId, userId uint64) {
 	builder().Where("conv_id = ? AND user_id = ?", convId, userId).Updates(map[string]any{
 		"unread_count": gorm.Expr("unread_count + ?", 1),

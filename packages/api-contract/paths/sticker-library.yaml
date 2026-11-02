@@ -6,6 +6,8 @@ resolveStickers:
     description: |
       Public read-only resolution of at most 200 explicit token names. Duplicate names are
       returned once in request order; unknown/disabled/invalid token names are omitted.
+      A renamed official sticker also resolves by its previous names: the item keeps the
+      requested name so clients map the old token to the current image (issue #1428).
       The total input is limited to 200 names before invalid names are filtered. Personal
       names are unguessable bearer references: knowing a shared token permits
       rendering and collecting that asset. No enumeration or private library labels
@@ -94,8 +96,8 @@ saveMySticker:
     summary: Upload or collect a sticker in my library
     operationId: saveMySticker
     description: |
-      Supply exactly one of stickerName or fileName. A known enabled sticker token
-      is collected idempotently. fileName must identify a ready standard image/GIF
+      Supply exactly one of stickerName or fileName. A known enabled sticker token,
+      including a renamed sticker's previous name, is collected idempotently. fileName must identify a ready standard image/GIF
       uploaded by this account, from 1 byte to 4 MiB; the same file reuses the same
       personal asset on retries. New personal uploads return reviewStatus=pending and
       isEnabled=false; they cannot be selected, resolved, or rendered until approved

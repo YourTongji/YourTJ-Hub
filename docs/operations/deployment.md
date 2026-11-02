@@ -16,6 +16,11 @@ and database snapshot/reset procedure. It does not create another server site.
 
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
+  `Current`: Linux deploy builds use both `CGO_ENABLED=0` and `-tags nodynamic`, matching Make
+  and GoReleaser. The AVIF decoder uses its WASM implementation; disabling cgo alone does not
+  prevent its optional shared-library loader from introducing a glibc interpreter. Backend CI
+  and the deploy build execute the artifact's `--help` in Alpine as UID 1000, read-only and
+  without networking before accepting it. This checks runtime loading, not database readiness.
 - Runtime deps: **PostgreSQL 16+ is the default deployment database** (`deploy/config.toml.example`
   `[db.default] connection = "postgres"`); SQLite is the local development/test default; the file
   database `[db.file]` stays SQLite; MySQL is **not supported**; optional Meilisearch; optional
@@ -100,7 +105,7 @@ is a retry condition. No token, message body or notification preview is logged b
 | --- | --- | --- |
 | `/assets/*`（Vite 构建，文件名含内容哈希） | `public, max-age=31536000, immutable`（`AssetsCache`） | 字节变更必然换 URL，二次访问零重验证 |
 | `/static/*`（内嵌静态文件） | `public, max-age=18144000`（`BrowserCache`） | 长公共缓存 |
-| `/file/img/*`（用户/版面图片，成功路径） | `public, max-age=18144000`（`SetLongPublic`） | 文件名内容寻址 |
+| `/file/img/*`（用户/版面图片） | `no-store`；受限预览与拒绝响应为 `private, no-store` | 每次请求重新校验引用权限，原图与变体一致 |
 | `/sw.js` | `no-cache` | Service Worker 更新必须及时可见 |
 | `/manifest.webmanifest` | `public, max-age=3600` | PWA manifest 短缓存 |
 | `/`（SSR HTML）与 `/api/*` | 路由自控（多为 `no-store`/无缓存头） | 登录态与动态内容，禁止代理层长缓存 |
@@ -295,9 +300,10 @@ Dev 同步成功后，`snapshots/dev-prev` 仅保留最近 5 个时间戳组的�
   manual `init-server.sh` re-run. `pgdsn.sh` is a runtime dependency (`source`d by
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
-  Dev uploads also include `rotate-agent-epoch.py`, `snapshot-db.sh`, `feed-privacy.py`
-  and `feed-raw-tables.json`: copied Agent credentials are disabled, feed observations are
-  scrubbed, and previous-dev snapshots remain usable without preinstalled helpers. The trusted
+  Both deploys install `feed-privacy.py` and `feed-raw-tables.json` — `backup-db.sh` hard-depends
+  on that pair to scrub feed observations. Dev additionally uploads `snapshot-db.sh`, and both
+  upload `rotate-agent-epoch.py`, so copied Agent credentials are disabled and previous-dev
+  snapshots remain usable without preinstalled helpers. The trusted
   `main` checkout must contain this complete script bundle before the dev workflow uses it.
   Changes to `deploy-dev.yml` select backend/frontend checks and a dev deployment, so workflow
   repairs are exercised after merge even when application source is unchanged.
@@ -388,11 +394,45 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
   explicitly, so a release step can apply them before traffic-bearing instances start. It exits with
   a non-zero code on a hard migration failure (with an actionable `lastFailed` message), and exits 0
   with a "deferred / will retry on next run" message for deferred or lock-held states.
+- **Search index steps have their own watermark** (`migrationSearchIndex`, issue #1284): the two
+  steps tracked by that watermark (v13 aggregate indexes, v20 topic index) keep retrying until
+  Meilisearch is available, but they no longer block the database-only versions behind them — an
+  instance without Meilisearch still reaches the current data-migration version. Such an instance logs
+  `app migration search index steps deferred` and returns "deferred" from `migrate`. After configuring
+  Meilisearch, one `./yourtj-hub rebuild-search-index` clears that state: every command except `serve`
+  runs the versioned data migrations first, so the index steps run (and advance the watermark) before
+  the command body. Restarting the instance retries the steps the same way; only `serve` skips the
+  index steps on a newer binary — an older rolled-back binary short-circuits at its own migration
+  version and needs `rebuild-search-index` instead.
 - **`[db] migration = "off"`**: the operator owns schema. `serve` opens the startup gate immediately
   (readiness is not gated on migration) and the `migrate` command reports migrations are disabled and
   exits 0.
 - Rollback: `deploy.sh` tags the previous image `ghcr.io/yourtongji/yourtj-hub:prev` and re-points
   the instance on health-check failure; forward-compatible migrations mean an older binary can still start.
+
+### Upgrade note: new indexes on the large tables (`posts` / `topics`)
+
+`AutoMigrate` creates indexes with plain `CREATE INDEX`, which on PostgreSQL takes a
+`SHARE` lock and blocks writes to the table until it finishes. The `posts`/`topics` entities carry
+several such indexes on the two largest tables — among them `posts.latest_revision_id`
+(`idx_posts_latest_revision_id`), `posts.persona_uid` (`idx_posts_persona_uid`),
+`posts.first_public_at` (`idx_posts_first_public_at`), `idx_posts_topic_public`,
+`idx_posts_visibility_retention`, `idx_topics_first_public` and `idx_topics_rank`/`idx_topics_daily` —
+so any build that introduces one of them spends write throughput on the index build itself.
+For a large instance:
+
+- Run the build during a low-traffic window. The startup gate already serves `503` while migrations
+  run, but a long-running transaction on `posts`/`topics` also delays the index build and therefore
+  keeps the gate closed — check `pg_stat_activity` before deploying.
+- To avoid the blocking build entirely, pre-create the new indexes with `CREATE INDEX CONCURRENTLY`
+  on the target database before deploying; `AutoMigrate` then finds them and does nothing. Use the
+  GORM-generated names: the bare `index` tags on those three columns produce `idx_<table>_<column>`
+  (`idx_posts_latest_revision_id`, `idx_posts_persona_uid`, `idx_posts_first_public_at`), so an index
+  created under a hand-picked name is not found and both builds run.
+- Which indexes a build creates depends on the deployed `posts`/`topics` entities, so the list above is
+  not exhaustive. Check the actual diff against the deployed SHA before upgrading —
+  `git diff <deployed-sha>..HEAD -- apps/gooseforum/app/models/forum/{posts,topics}` — and check the
+  deploy duration on dev first.
 
 ### Upgrade note: `app.signingKey` is now mandatory and fail-closed
 
@@ -439,20 +479,53 @@ encrypted under the old key can become undecryptable if the key is swapped
 before the first TOTP use. Rotate the key and **restart the process** so all
 surfaces rotate consistently.
 
-### Upgrade note: session Cookie `Secure` is now fail-closed by environment
+### Session Cookie `Secure` policy (`server.cookieSecure`)
 
-Before issue #113, the `access_token` and goth session cookies decided the
-`Secure` flag from the `server.url` scheme: anything `http://` dropped `Secure`
-even under `app.env = "production"`. The template default
-`server.url = "http://localhost"` thus produced a session cookie without
-`Secure` on a production build (CWE-614). Since the issue #113 build, the flag
-is fail-closed by environment via `setting.CookieSecure()`: **any `app.env`
-other than `"local"` forces `Secure` regardless of `server.url`**, and the
-binary logs a startup warning when a non-local `server.url` is non-https and
-non-loopback. No `config.toml` change is required for existing instances, but
-operators who relied on plain-http production access (e.g. 0.0.0.0 without a
-TLS-terminating proxy) should switch `server.url` to the https reverse-proxy
-address so browsers actually return the now-`Secure` cookies.
+The `access_token` and goth session cookies take their `Secure` flag from
+`setting.CookieSecure()`, driven by `server.cookieSecure`:
+
+- `auto` (default; also used for unrecognized values) derives the flag from
+  `server.url`: `https` and loopback hosts (`localhost`, `127.0.0.1`, `::1`)
+  get `Secure`; an empty, scheme-less or unparsable `server.url` keeps `Secure`
+  (fail-closed, CWE-614); a plain-http non-loopback host (e.g.
+  `http://192.168.1.5:5234` or `http://[2001:da8::1]:5234`) drops it, because
+  browsers silently refuse to send `Secure` cookies on an http origin and web
+  login would succeed at the API level yet never authenticate (issue #1277).
+  `app.env = "local"` still forces the flag off so LAN-IP dev access works.
+- `on` forces `Secure` regardless of `server.url`.
+- `off` forces it off; a production deployment then sends session credentials
+  over plaintext http (CWE-614). Use it only for LAN or temporary deployments.
+
+Before deploying, check that `server.url` is the browser-facing public origin,
+including its scheme, rather than the proxy's HTTP upstream address. An HTTPS
+deployment with a legacy `http://` non-loopback `server.url` would otherwise lose
+`Secure` under `auto`. Set that URL to the public `https://` origin, or set
+`server.cookieSecure = "on"` before upgrading, and restart. Only deliberately
+plaintext deployments should choose `auto` with a complete `http://` origin or
+explicit `off`.
+
+The repository's [main instance](../../deploy/instances/main.json) and
+[dev instance](../../deploy/instances/dev.json) declare HTTPS public origins;
+the renderer uses those origins and `verify-instance.sh` checks the deployed
+`server.url` against them. These declared configurations retain `Secure` under
+`auto`; operators of other or manually modified deployments must check their
+actual configuration. At startup the binary warns when a
+non-local `server.url` is non-empty but not a usable https or loopback origin —
+including a scheme-less `10.0.0.5:5234` or an unparsable value — and the message
+reflects the effective flag: with `Secure` on it says browsers will drop the
+session cookie and requires a complete `http://` URL before choosing
+`server.cookieSecure = "auto"`/`"off"` for a deliberate plaintext deployment;
+with `Secure` off it warns that
+credentials travel in clear text. Prefer pointing `server.url` at the https
+reverse-proxy address in production. Note that `auto` needs a scheme in
+`server.url`: `10.0.0.5:5234` cannot be resolved, so it stays `Secure` and
+raises the startup warning.
+
+`access_token` re-reads the decision on every write, but the goth /
+`yourtj_oauth_resume` session store fixes `Options.Secure` on first use
+(`apps/gooseforum/app/bundles/sessionstore/sessionstore.go`), so changing
+`server.cookieSecure` requires a process restart — otherwise OAuth/OIDC web
+login may keep failing with the old flag.
 
 ### Unique-index preflight (user_o_auth provider_uid)
 
@@ -576,9 +649,10 @@ instance:
   `--clear-after-migrate` is set, so reads stay correct during/after migration.
 - **帖子图片直传**：配置 S3 提供方后，帖子图片改为浏览器直传——浏览器向
   `POST /file/img-upload/init` 请求短时效预签名 POST 策略，直接上传到 bucket，再
-  `POST /file/img-upload/complete` 由服务端校验（归属/大小/MIME/解码图片头）后发布；
-  本地提供方保持服务端代理 multipart 上传。bucket 需配置 CORS（精确论坛源 + POST），
-  未完成对象 2 小时后由清理任务移除。详见 [Object storage](object-storage.md)。
+  `POST /file/img-upload/complete` 由服务端校验归属与大小、按文件头判定真实类型（与声明扩展名
+  冲突时把对象改名为真实类型的规范扩展名）后发布；本地提供方保持服务端代理 multipart 上传。
+  bucket 需配置 CORS（精确论坛源 + POST），未完成对象 2 小时后由清理任务移除。
+  详见 [Object storage](object-storage.md)。
 
 ## Anonymous identity recovery
 
@@ -636,8 +710,10 @@ cleanup and the unsafe downgrade boundary are owned by
 - AI 通过静默公开；转人工及人工通过分别通知作者并链接内容，转人工后不再接受延迟的自动结果；拒绝产生一次站内通知，链接 `/settings?tab=content`（App 转至内容管理）。推送和发布副作用
   经 `content-published` 任务投递。SSE `content.changed` 通知作者重读，连接恢复的 hello 同样触发重读。
   已公开内容改稿期间旧版保留，拒绝改稿不会撤掉旧版。草稿保存不送审，发布草稿不能绕过审核。
-- schema 先自动迁移，数据迁移的目标版本为 33：v31 将活跃的旧 pending 内容分批纳入版本和任务队列，v32 回填 Bot 徽章，
-  v33 为活跃的旧被拒内容建立可申诉的不可变版本；每步成功后才推进迁移版本。
+- schema 先自动迁移，数据迁移的目标版本为 36：v31 将活跃的旧 pending 内容分批纳入版本和任务队列，v32 回填 Bot 徽章，
+  v33 为活跃的旧被拒内容建立可申诉的不可变版本，v34 按可见首帖正文回填为空的话题摘要（#1366），v35 初始化 XP 规则，
+  v36 按首帖正文重算全部存量话题摘要（修复摘要曾露出的 Markdown 转义与贴纸 token）；
+  每步成功后才推进迁移版本。
   中途失败可重启重试；已有版本记录不会重复送审。旧实现已覆盖的公开正文无法可靠还原，不从历史猜测。
 - 任何模型故障、拒答、无效 JSON、未配置、超出每分钟护栏、图片数超限或标题超过 300 字／可见正文超过
   4000 字（超出部分未送审，证据状态 `text_truncated`）都转人工审核，审核队列负担会
@@ -1187,3 +1263,23 @@ Agent instance identity and stream epoch are deployment state outside business d
 Database restore rotates the epoch before reopening; dev snapshot synchronization also revokes copied
 Agent credentials/secrets, clears Agent-derived rows and disables ingress/production/outbound switches.
 See the [Agent runbook](agents.md#retention-restore-and-rollback) for activation and reconciliation.
+
+
+## Account email public URLs
+
+`Current`: account-email action and recovery links use the non-blank site setting `siteUrl`; only a
+blank value falls back to `server.url`. Configure the actual browser-facing public HTTP(S) site URL,
+without credentials, query parameters or fragments. Do not assume a production host from the
+repository, a copied database or SMTP settings. A non-empty incorrect `siteUrl` overrides a correct
+`server.url`; an SMTP configuration test alone does not validate account-email links.
+
+If an account email contains a wrong or unusable origin, correct `siteUrl` in site settings (or the
+`server.url` fallback and restart when applicable), allow the settings cache to refresh, then ask the
+owner to sign in through the known site address and explicitly resend from email settings. Already
+delivered messages are not rewritten. Activation validity still starts at issuance and expires after
+24 hours even if the queue or provider delayed delivery; requesting another message does not extend
+an old token. Do not edit tokens or user activation data to compensate for URL configuration.
+
+`Partial`: the existing URL selection is not an origin-health or deliverability check. Operators must
+verify their own host/configuration; this content recovery does not introduce a new URL validator,
+queue expiry policy or delivery guarantee. See [account email recovery](../product/identity-and-access.md#account-email-content-and-recovery).

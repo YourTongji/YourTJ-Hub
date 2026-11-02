@@ -54,6 +54,9 @@ internal object NativeThemeMode {
 }
 
 class MainActivity : FlutterActivity() {
+    private var accountReturnPending = false
+    private var accountReturnSink: EventChannel.EventSink? = null
+
     private var oidcEventSink: EventChannel.EventSink? = null
     private var pendingOidcCallback: String? = null
     private var hasResumedOnce = false
@@ -101,6 +104,18 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        accountReturnPending = intent?.data?.toString() == "yourtj://account/email-verified"
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/account_return")
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    accountReturnSink = events
+                    if (accountReturnPending && events != null) {
+                        accountReturnPending = false
+                        events.success("yourtj://account/email-verified")
+                    }
+                }
+                override fun onCancel(arguments: Any?) { accountReturnSink = null }
+            })
         pendingOidcCallback = exactOidcCallback(intent)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/oidc")
             .setMethodCallHandler { call, result ->
@@ -147,6 +162,11 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         startupLaunchKind = "hot"
+        if (intent.data?.toString() == "yourtj://account/email-verified") {
+            val accountSink = accountReturnSink
+            if (accountSink == null) accountReturnPending = true
+            else accountSink.success("yourtj://account/email-verified")
+        }
         val callback = exactOidcCallback(intent) ?: return
         val sink = oidcEventSink
         if (sink != null) {
@@ -186,6 +206,8 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         oidcEventSink = null
         pendingOidcCallback = null
+        accountReturnSink = null
+        accountReturnPending = false
         PushBridge.detach()
         super.cleanUpFlutterEngine(flutterEngine)
     }

@@ -6,7 +6,7 @@ import { getDecorations, saveDecoration, uploadDecorationAsset } from '../src/ad
 import type { DecorationStyle } from '@gooseforum/client'
 
 vi.mock('../src/admin/runtime/api', () => ({ getDecorations: vi.fn(), saveDecoration: vi.fn(), uploadDecorationAsset: vi.fn() }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => params ? `${key}${JSON.stringify(params)}` : key }) }))
 vi.mock('../src/admin/runtime/i18n-text', () => ({ adminText: (key: string) => key }))
 vi.mock('../src/admin/components/global-layout', () => ({ BasicPage: { template: '<div><slot name="actions" /><slot /></div>' } }))
 vi.mock('../src/admin/components/ui/dialog', () => ({
@@ -79,6 +79,12 @@ it('rejects unsafe artwork and unreadable nickname colors, clearing artwork on k
   await wrapper.get('#decoration-lightColors-0').setValue('#FFFFFF')
   await wrapper.get('form').trigger('submit'); await flushPromises()
   expect(wrapper.text()).toContain('decoration.configAdmin.contrastInvalid')
+  expect(wrapper.text()).toContain('"ratio":"1.00"')
+  expect(saveDecoration).not.toHaveBeenCalled()
+  await wrapper.get('#decoration-lightColors-0').setValue('#9CA3AF')
+  await wrapper.get('form').trigger('submit'); await flushPromises()
+  expect(wrapper.text()).toContain('"ratio":"2.31"')
+  expect(wrapper.text()).toContain('"minimum":3')
   expect(saveDecoration).not.toHaveBeenCalled()
   await wrapper.get('#decoration-lightColors-0').setValue('#166534')
   await wrapper.get('#decoration-lightColors-1').setValue('#115E59')
@@ -87,6 +93,16 @@ it('rejects unsafe artwork and unreadable nickname colors, clearing artwork on k
   expect(saveDecoration).toHaveBeenCalledWith(expect.objectContaining({ kind: 'nicknameStyle', assetUrl: '' }))
   wrapper.unmount()
 })
+it('shows the measured contrast and keeps the gradient in the live preview before saving', async () => {
+  const wrapper = await editor()
+  await wrapper.get('#decoration-kind').setValue('nicknameStyle')
+  await wrapper.get('#decoration-lightColors-0').setValue('#9CA3AF')
+  expect(wrapper.text()).toContain('decoration.configAdmin.contrastLowest{"light":"2.31"')
+  expect(wrapper.get('[role="alert"]').text()).toContain('decoration.configAdmin.contrastInvalid{"ratio":"2.31"')
+  expect(wrapper.findAll('span').some(span => span.attributes('style')?.includes('linear-gradient'))).toBe(true)
+  wrapper.unmount()
+})
+
 it('retains catalog rows and offers retry when a refresh fails', async () => {
   vi.mocked(getDecorations).mockResolvedValueOnce([style]).mockRejectedValueOnce(new Error('Refresh unavailable')).mockResolvedValueOnce([style])
   const wrapper = mount(DecorationsManagementPage, { global: { stubs: { UserAvatar: true, UserNickname: true } } })
@@ -183,7 +199,7 @@ it('shows only the current kind: frame palette copy vs nickname palette copy', a
   expect(wrapper.text()).not.toContain('decoration.configAdmin.nicknamePalette')
   await wrapper.get('#decoration-kind').setValue('nicknameStyle')
   expect(wrapper.text()).toContain('decoration.configAdmin.nicknamePaletteHint')
-  expect(wrapper.text()).toContain('decoration.configAdmin.nicknamePreviewHint')
+  expect(wrapper.text()).not.toContain('decoration.configAdmin.nicknamePreviewHint')
   expect(wrapper.text()).not.toContain('decoration.configAdmin.framePalette')
   expect(wrapper.text()).not.toContain('decoration.configAdmin.framePreviewHint')
   expect(wrapper.find('#decoration-frame-mode').exists()).toBe(false)

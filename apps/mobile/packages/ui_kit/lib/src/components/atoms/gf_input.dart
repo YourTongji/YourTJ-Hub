@@ -98,12 +98,8 @@ class GfInput extends StatelessWidget {
       inputFormatters: inputFormatters,
       style:
           style ??
-          TextStyle(
-            fontSize: 16,
-            height: 1.4,
-            color: enabled
-                ? colors.baseContent
-                : colors.baseContent.withValues(alpha: 0.38),
+          GfTheme.typographyOf(context).body.copyWith(
+            color: enabled ? colors.textPrimary : colors.textDisabled,
           ),
       cursorColor: cursorColor ?? theme.colorScheme.primary,
       decoration: (decoration ?? const InputDecoration()).copyWith(

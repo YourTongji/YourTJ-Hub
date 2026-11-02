@@ -65,10 +65,16 @@ flutter build apk --debug --split-per-abi
 
 ```bash
 flutter build apk --debug --split-per-abi \
+  --dart-define=YOURTJ_ENVIRONMENT=dev \
+  --dart-define=YOURTJ_PREVIEW=true \
   --dart-define=YOURTJ_API_BASE_URL=https://dev.yourtj.de \
   --dart-define=YOURTJ_OIDC_ISSUER=https://dev.yourtj.de/api/oauth \
   --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
 ```
+
+`YOURTJ_ENVIRONMENT=dev` selects the separate Android package
+`tj.yourtj.forum_app.dev`; the preview flag is required by the dev configuration check.
+The script removes previous split debug APKs before building and fails if the current build produces none.
 
 也可以直接运行仓库脚本，避免误装未注入地址的旧 `app-debug.apk`：
 
@@ -140,6 +146,36 @@ flutter test integration_test/campus_native_test.dart -d "$YOURTJ_TEST_DEVICE"
 ```
 
 `Partial`: 此流程不验证真实学校登录；真机官方认证仍需用户在学校页面完成，不将密码写入测试脚本。
+
+## 可变窗口导航验证
+
+`integration_test/adaptive_navigation_test.dart` 用演示内容运行真实导航外壳，在深浅主题下
+切换紧凑、展开和分屏大小的窗口及左右不对称安全区，验证页面、输入、滚动位置和侧栏导航。
+这些是合成压力尺寸，不是某款设备的屏幕参数，也不代替 iPhone Duo 的真实折叠验收。
+在尺寸足够的 iPad 模拟器上可采集完整窗口截图：
+
+```bash
+YOURTJ_TEST_ARTIFACTS=/absolute/path/to/screenshots flutter drive \
+  --driver=test_driver/integration_driver.dart \
+  --target=integration_test/adaptive_navigation_test.dart -d "$YOURTJ_TEST_DEVICE" \
+  --dart-define=YOURTJ_TEST_SCREENSHOTS=true
+```
+
+在 iPhone Duo 模拟器上加 `--dart-define=YOURTJ_TEST_NATIVE_WINDOW=true`，测试使用系统真实
+窗口、安全区和原生遮挡区域，并在日志提示后等待 Device Hub 中的三次变化：展开、旋转、折叠；
+深色主题下重复一轮。每一步验证输入与滚动保留、导航形态、正文延伸到玻璃导航下方、末项
+可滚到导航上方，以及导航避开系统区域，并保存 `duo-native-*` 截图；每次等待上限两分钟。运行前将模拟器置于正常竖屏的折叠
+状态，右侧留有系统状态区下方的空白条。该流程仍不替代真机手感、键盘与 VoiceOver 验收。
+
+`Current`: `SceneDelegate` 的只读 `yourtj/window_reserved_regions` EventChannel 发布当前
+Flutter 视图的尺寸、安全区、UIKit active occlusion regions 和场景状态栏边界。iOS 27.1
+使用被动 `UIUpdateLink` 跟随布局更新，只在几何变化时发送；取消订阅或场景断开时停止。
+Dart 仅在快照与当前窗口及安全区一致时将图标导航放到侧边区域。正文延伸至边缘，标题和
+固定操作保留对应侧的安全区；玻璃导航保持半透明、模糊背景和无障碍实色降级。
+预览状态提示占据顶部空间时，将原生坐标换算到提示下方、贴底的路由视口，保留提示与侧栏。
+旧 SDK／系统、过期快照或空间不足均回退到安全区内导航，不依赖机型名。
+
+Duo 的 SDK 与设备验证边界见[导航与阅读](../../../../docs/product/mobile-experience.md#navigation-and-reading)。
 
 ## 表情输入原生验证
 

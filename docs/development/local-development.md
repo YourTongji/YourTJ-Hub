@@ -103,8 +103,8 @@ GooseForum is configured by `apps/gooseforum/config.toml` (not environment varia
 
 | Section | Note |
 |---|---|
-| `[app]` | env (local binds 127.0.0.1; any non-`local` value forces session-cookie `Secure` even when `server.url` is `http://…` — issue #113), debug, maintenance, signingKey, cdn_url |
-| `[server]` | url, port (default 5234), accessLog, gzip |
+| `[app]` | env (local binds 127.0.0.1 and keeps the session-cookie `Secure` flag off), debug, maintenance, signingKey, cdn_url |
+| `[server]` | url, port (default 5234), cookieSecure (`auto`/`on`/`off`, default `auto` derives `Secure` from `server.url`; see [deployment](../operations/deployment.md#session-cookie-secure-policy-servercookiesecure)), accessLog, gzip |
 | `[db]` / `[db.default]` / `[db.file]` | SQLite default for local dev/tests; deployments default to PostgreSQL (`[db.default] connection = "postgres"`, issue #11); MySQL is not supported; file db stays SQLite; migration, backup, pool |
 | `[meilisearch]` | url, masterkey (optional search) |
 | `[log]` | log type/rolling/slow SQL; `level` (debug/info/warn/error), `format` (json/console), `errorPath` (WARN/ERROR separate file), `logIp` (access-log IP, default off) — all require restart |

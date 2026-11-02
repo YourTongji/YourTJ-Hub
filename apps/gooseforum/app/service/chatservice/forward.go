@@ -88,6 +88,8 @@ func ForwardMessages(actor uint64, request ForwardRequest) (*ForwardResult, erro
 			}
 			// Resolve an acknowledged batch before rebuilding display-only metadata.
 			// A profile update must never turn a successful delivery into a retry failure.
+			// 转发副本由转发者重新发送、并不拥有源文件，媒体引用沿用原消息的（原消息没有
+			// 撤回路径），所以这里传 nil：绝不在事务内解析媒体。
 			previous := make([]messages.Entity, 0, outgoingCount)
 			for i := range outgoingCount {
 				var stored messages.Entity
@@ -103,7 +105,7 @@ func ForwardMessages(actor uint64, request ForwardRequest) (*ForwardResult, erro
 					return errors.New("forward identity conflict")
 				}
 				for i, stored := range previous {
-					convID, err := sendMessageWithEffects(tx, actor, request.PeerID, stored.Content, stored.MsgType, false, keys[i])
+					convID, err := sendMessageWithEffects(tx, actor, request.PeerID, stored.Content, stored.MsgType, keys[i])
 					if err != nil {
 						return err
 					}
@@ -136,7 +138,7 @@ func ForwardMessages(actor uint64, request ForwardRequest) (*ForwardResult, erro
 					return errors.New("forwarded content blocked")
 				}
 				changed = true
-				convID, err := sendMessageWithEffects(tx, actor, request.PeerID, message.Content, message.MsgType, false, key)
+				convID, err := sendMessageWithEffects(tx, actor, request.PeerID, message.Content, message.MsgType, key)
 				if err != nil {
 					return err
 				}

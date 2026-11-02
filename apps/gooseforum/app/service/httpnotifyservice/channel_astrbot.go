@@ -21,7 +21,7 @@ type astrbotChannel struct{}
 
 func (astrbotChannel) supportsEvent(string) bool { return true }
 
-func (astrbotChannel) requiresApproval() bool { return false }
+func (astrbotChannel) requiresApproval(string) bool { return false }
 
 func (astrbotChannel) encode(endpoint pageConfig.HttpNotifyEndpoint, alt Alternative, approval *ApprovalPayload, _ time.Time) ([]byte, error) {
 	if approval != nil {

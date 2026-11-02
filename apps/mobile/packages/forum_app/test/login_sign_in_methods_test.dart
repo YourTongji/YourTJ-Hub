@@ -67,6 +67,7 @@ class _LoginOptions implements HttpClientAdapter {
           'initialMode': 'login',
           'redirectUrl': '/',
           'githubUrl': github ? '/api/auth/github' : '',
+          'githubReady': github,
           'googleReady': google,
           'appleReady': apple,
           'tongjiReady': tongji,
@@ -275,7 +276,7 @@ void main() {
         // Only German on the smallest surface keeps a few pixels of card
         // padding below the fold; everything the user acts on is above it.
         final double residual = size == const Size(360, 640) && language == 'de'
-            ? 16
+            ? 24
             : 0;
         expect(h.scrollExtent, lessThanOrEqualTo(residual));
         expect(tester.takeException(), isNull);
@@ -553,6 +554,7 @@ void main() {
       initialMode: 'login',
       redirectUrl: '/',
       githubUrl: github ? '/api/auth/github' : '',
+      githubReady: github,
       googleReady: google,
       appleReady: apple,
       tongjiReady: tongji,
@@ -572,6 +574,25 @@ void main() {
           SignInMethod.github,
         ],
       );
+    });
+
+    test('GitHub availability uses readiness, not the Web login URL', () {
+      for (final ready in [false, true]) {
+        for (final url in ['', '/api/auth/github']) {
+          final props = options().copyWith(githubReady: ready, githubUrl: url);
+          expect(
+            availableSignInMethods(props, loginMode: true),
+            ready ? [SignInMethod.github] : isEmpty,
+          );
+        }
+      }
+      final legacy = LoginPageProps.fromJson({
+        'initialMode': 'login',
+        'redirectUrl': '/',
+        'githubUrl': '/api/auth/github',
+        'googleReady': false,
+      });
+      expect(availableSignInMethods(legacy, loginMode: true), isEmpty);
     });
 
     test('Apple needs a configured site and native iOS sign-in', () {

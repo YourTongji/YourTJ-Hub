@@ -28,7 +28,7 @@ class GfAchievementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
-    const radius = BorderRadius.all(Radius.circular(18));
+    const radius = BorderRadius.all(Radius.circular(GfRadius.lg));
     return MergeSemantics(
       child: Semantics(
         button: onTap != null,

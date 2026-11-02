@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/registrationservice"
 	"log/slog"
 	"maps"
 	"net/url"
@@ -132,6 +133,7 @@ type ErrorPageProps struct {
 }
 
 type LoginPageProps struct {
+	PasswordSignupState   string   `json:"passwordSignupState"`
 	TongjiRegistration    bool     `json:"tongjiRegistration,omitempty"`
 	InitialMode           string   `json:"initialMode"`
 	RedirectURL           string   `json:"redirectUrl"`
@@ -146,6 +148,9 @@ type LoginPageProps struct {
 	TermsOfServiceEnabled bool     `json:"termsOfServiceEnabled"`
 	PrivacyPolicyEnabled  bool     `json:"privacyPolicyEnabled"`
 	AllowedDomains        []string `json:"allowedDomains"`
+	// CaptchaRequired 站点安全设置（issue #1278）：关闭时前端不渲染验证码、
+	// 不做必填校验；服务端 checkCaptchaForRequest 对 !required 也直接放行。
+	CaptchaRequired bool `json:"captchaRequired"`
 	// OAuthNotice 标记本次到达注册页来自 OAuth 回调（纯新号改道，issue #531），
 	// 前端在注册表单上方渲染「先注册、后绑定」提示。
 	OAuthNotice bool `json:"oauthNotice"`
@@ -186,15 +191,20 @@ type UnreadStatusPayload struct {
 	ModerationReports      bool   `json:"moderationReports"`
 	LatestNotificationType string `json:"latestNotificationType,omitempty"`
 	LatestUnreadId         uint64 `json:"latestUnreadId,omitempty"`
+	NotificationCount      *int64 `json:"notificationCount,omitempty"`
+	MessageCount           *int64 `json:"messageCount,omitempty"`
+	BadgeStyle             string `json:"badgeStyle"`
 }
 
 type SitePayload struct {
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	URL           string `json:"url,omitempty"`
-	Logo          string `json:"logo"`
-	Favicon       string `json:"favicon"`
-	ExternalLinks string `json:"externalLinks,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	URL         string `json:"url,omitempty"`
+	Logo        string `json:"logo"`
+	Favicon     string `json:"favicon"`
+	// ExternalLinks is server-only: the HTML template consumes it, but clients
+	// never render custom head markup and must not receive a duplicate in JSON.
+	ExternalLinks string `json:"-"`
 	BrandType     string `json:"brandType"`
 	BrandText     string `json:"brandText"`
 	BrandImage    string `json:"brandImage"`
@@ -563,7 +573,9 @@ type UserConnectionPayload struct {
 	Bio         string                     `json:"bio"`
 	URL         string                     `json:"url"`
 	IsFollowing bool                       `json:"isFollowing"`
-	IsSelf      bool                       `json:"isSelf"`
+	// IsMutualFollowing 为 viewer 视角：双向关注（viewer 关注该用户且对方也关注 viewer）。
+	IsMutualFollowing bool `json:"isMutualFollowing"`
+	IsSelf            bool `json:"isSelf"`
 }
 
 type CategoryPageProps struct {
@@ -924,6 +936,9 @@ func buildUnreadStatus(userID uint64) UnreadStatusPayload {
 		ModerationReports:      moderationservice.HasOpenReports(userID),
 		LatestNotificationType: status.LatestNotificationType,
 		LatestUnreadId:         status.LatestUnreadId,
+		NotificationCount:      status.NotificationCount,
+		MessageCount:           status.MessageCount,
+		BadgeStyle:             status.BadgeStyle,
 	}
 }
 
@@ -1112,6 +1127,7 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		tongjiURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
 	return LoginPageProps{
+		PasswordSignupState:   registrationservice.PasswordAvailability(hotdataserve.GetSecuritySettingsConfigCache()),
 		InitialMode:           mode,
 		RedirectURL:           redirectURL,
 		GitHubURL:             githubURL,
@@ -1125,6 +1141,7 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		TermsOfServiceEnabled: hotdataserve.GetTermsOfServiceConfigCache().Enabled,
 		PrivacyPolicyEnabled:  hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		AllowedDomains:        hotdataserve.GetSecuritySettingsConfigCache().AllowedDomains,
+		CaptchaRequired:       hotdataserve.GetSecuritySettingsConfigCache().CaptchaRequired,
 		OAuthNotice:           c.Query("oauthNotice") == "1",
 	}
 }
@@ -1792,14 +1809,25 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		createdAt = firstPost.CreatedAt
 		updatedAt = firstPost.UpdatedAt
 	}
+	// Detail metadata must follow the first-post gallery policy used by post
+	// windows. A reply used as a fallback cannot authorize the stored gallery.
+	firstImageURL := ""
+	var images []string
+	if firstPost != nil && firstPost.Id == topic.FirstPostId && firstPost.TopicId == topic.Id &&
+		firstPost.PostNo == 1 && firstPost.ProcessStatus == posts.ProcessStatusNormal &&
+		!isAuthorDeletedVisibility(firstPost.VisibilityStatus) && !isModeratorRemovedVisibility(firstPost.VisibilityStatus) &&
+		!isAuthorDeletedVisibility(topic.VisibilityStatus) && !isModeratorRemovedVisibility(topic.VisibilityStatus) {
+		firstImageURL = topic.FirstImageURL
+		images = topic.PublicGallery()
+	}
 
 	return TopicDetailPayload{
 		AgentRepliesDisabled: topic.AgentRepliesDisabled,
 		ID:                   topic.Id,
 		Title:                topic.Title,
 		Description:          topic.Excerpt,
-		FirstImageURL:        topic.FirstImageURL,
-		Images:               topic.ImageUrls,
+		FirstImageURL:        firstImageURL,
+		Images:               images,
 		URL:                  urlconfig.PostDetail(topic.Id),
 		TopicStatus:          topic.Status,
 		ProcessStatus:        topic.ProcessStatus,
@@ -1906,7 +1934,8 @@ func userPayloadWithWornBadge(userID uint64, userMap map[uint64]*users.EntityCom
 func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]PostPayload) PageMeta {
 	baseURL := component.GetBaseUri(c)
 	canonical := baseURL + topic.URL
-	description := topic.Description
+	// meta/OG/Twitter/JSON-LD 是纯文本落点：贴纸 token 在此只表现为文字，一律去掉。
+	description := markdown2html.StripStickerTokens(topic.Description)
 	if description == "" {
 		description = i18n.T(requestLang(c), "meta.topicDesc", "title", topic.Title, "site", siteTitle())
 	}
@@ -2018,7 +2047,7 @@ func buildTopicJSONLDComments(posts []PostPayload, canonical string) []vo.Commen
 }
 
 func topicPlainText(lang string, topic TopicDetailPayload) string {
-	text := truncateSEOText(topic.Description, 1000)
+	text := truncateSEOText(markdown2html.StripStickerTokens(topic.Description), 1000)
 	if text != "" {
 		return text
 	}
@@ -2095,7 +2124,9 @@ const (
 
 func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section string, activityTab string) UserProfileProps {
 	currentUserID := component.LoginUserId(c)
-	isFollowing := userFollow.IsFollowing(currentUserID, user.Id)
+	// 本人卡片不算「已关注」：存量自关注行（#594 carve-out）也能自愈，
+	// 与 UserCard 契约「own card 恒 false」一致。
+	isFollowing := currentUserID > 0 && currentUserID != user.Id && userFollow.IsFollowing(currentUserID, user.Id)
 	userCard, ok := userservice.GetUserCard(user.Id)
 	if !ok {
 		userCard = &vo.UserCard{}
@@ -2111,6 +2142,8 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	// Go nil 切片会序列化为 JSON null，移动端非空镜像解析失败（2026-09-06 生产回归）。
 	userCard.Badges = []badgeservice.UserBadge{}
 	userCard.IsFollowing = isFollowing
+	// 互关以「已关注」为前提，直接短路，不依赖 MutualFollowingMap 的过滤。
+	userCard.IsMutualFollowing = isFollowing && userFollow.MutualFollowingMap(currentUserID, []uint64{user.Id})[user.Id]
 	userCard.IsSelf = currentUserID == user.Id
 	// Resolve visibility before any section query so hidden sections never
 	// load rows, counts or cursors (issue #1124).
@@ -2441,7 +2474,7 @@ func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
 			Author:       previewTopicAuthor(topic, authors),
-			Excerpt:      topic.Excerpt,
+			Excerpt:      markdown2html.StripStickerTokens(topic.Excerpt),
 			ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 			URL:          urlconfig.PostDetail(ref.TopicID),
 			LikedAt:      ref.LikedAt.Format(time.RFC3339),
@@ -2471,7 +2504,7 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
 			Author:       previewTopicAuthor(topic, authors),
-			Excerpt:      topic.Excerpt,
+			Excerpt:      markdown2html.StripStickerTokens(topic.Excerpt),
 			ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 			URL:          urlconfig.PostDetail(ref.TopicID),
 			BookmarkedAt: ref.BookmarkedAt.Format(time.RFC3339),
@@ -2612,7 +2645,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				TopicID:      ref.topicID,
 				Title:        topic.Title,
 				Author:       previewTopicAuthor(topic, authors),
-				Excerpt:      topic.Excerpt,
+				Excerpt:      markdown2html.StripStickerTokens(topic.Excerpt),
 				ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 				URL:          urlconfig.PostDetail(ref.topicID),
 				BookmarkedAt: ref.bookmarkedAt.Format(time.RFC3339),
@@ -2686,14 +2719,18 @@ func buildPostAnchorURL(topicID, postNo, postID uint64) string {
 func buildUserActivities(activities []*userActivities.Entity, viewerID uint64) []UserActivityPayload {
 	res := make([]UserActivityPayload, 0, len(activities))
 	replyByID := userActivityReplyMap(activities)
+	followNames := activityFollowNames(activities)
 	for _, activity := range activities {
 		if activity == nil {
 			continue
 		}
 		contentPreview := activity.ContentPreview
 		switch userActivities.ActionType(activity.Action) {
-		case userActivities.ActionSignUp, userActivities.ActionFollow:
+		case userActivities.ActionSignUp:
 			contentPreview = ""
+		case userActivities.ActionFollow:
+			// 预览取被关注者展示名，不信任写入时的占位文本（issue #1292）。
+			contentPreview = followNames[activity.SubjectId]
 		}
 		res = append(res, UserActivityPayload{
 			ID:             activity.Id,
@@ -2764,6 +2801,38 @@ func fillActivityInteractions(rows []UserActivityPayload, replies map[uint64]*po
 		row.Bookmarked = &bookmarked
 		row.LikeCount = &count
 	}
+}
+
+// activityFollowNames 批量解析关注动态的被关注者展示名：nickname 去空白后非空
+// 则用 nickname，否则 username；用户不存在（或已注销）时缺省，预览保持空字符串。
+func activityFollowNames(activities []*userActivities.Entity) map[uint64]string {
+	ids := make([]uint64, 0)
+	seen := make(map[uint64]struct{})
+	for _, activity := range activities {
+		if activity == nil ||
+			userActivities.ActionType(activity.Action) != userActivities.ActionFollow ||
+			activity.SubjectType != userActivities.SubjectUser ||
+			activity.SubjectId == 0 {
+			continue
+		}
+		if _, ok := seen[activity.SubjectId]; ok {
+			continue
+		}
+		seen[activity.SubjectId] = struct{}{}
+		ids = append(ids, activity.SubjectId)
+	}
+	names := make(map[uint64]string, len(ids))
+	for id, user := range users.GetMapByIds(ids) {
+		if user == nil {
+			continue
+		}
+		name := strings.TrimSpace(user.Nickname)
+		if name == "" {
+			name = user.Username
+		}
+		names[id] = name
+	}
+	return names
 }
 
 func userActivityReplyMap(activities []*userActivities.Entity) map[uint64]*posts.Entity {
@@ -2850,21 +2919,27 @@ func buildUserConnectionsForViewer(list []*users.EntityComplete, currentUserID u
 		}
 	}
 	decorations := decorationservice.EffectiveBatch(context.Background(), ids)
+	// 一次批量查询填充互关态，避免逐行查库。
+	mutual := userFollow.MutualFollowingMap(currentUserID, ids)
 	res := make([]UserConnectionPayload, 0, len(list))
 	for _, user := range list {
 		if user == nil || user.Id == 0 {
 			continue
 		}
+		isSelf := currentUserID > 0 && currentUserID == user.Id
+		// 本人条目不可关注自己：存量自关注行（status=1）也不能得出「与自己互关」。
+		isFollowing := !isSelf && userFollow.IsFollowing(currentUserID, user.Id)
 		res = append(res, UserConnectionPayload{
-			Decoration:  decorations[user.Id],
-			ID:          user.Id,
-			Username:    user.Username,
-			Nickname:    user.Nickname,
-			AvatarURL:   user.GetWebAvatarUrl(),
-			Bio:         user.Bio,
-			URL:         "/u/" + strconv.FormatUint(user.Id, 10),
-			IsFollowing: userFollow.IsFollowing(currentUserID, user.Id),
-			IsSelf:      currentUserID > 0 && currentUserID == user.Id,
+			Decoration:        decorations[user.Id],
+			ID:                user.Id,
+			Username:          user.Username,
+			Nickname:          user.Nickname,
+			AvatarURL:         user.GetWebAvatarUrl(),
+			Bio:               user.Bio,
+			URL:               "/u/" + strconv.FormatUint(user.Id, 10),
+			IsFollowing:       isFollowing,
+			IsMutualFollowing: isFollowing && mutual[user.Id],
+			IsSelf:            isSelf,
 		})
 	}
 	return res
@@ -3141,7 +3216,7 @@ func buildDraftPayloads(entities []*topics.Entity) []DraftPayload {
 		items = append(items, DraftPayload{
 			ID:            entity.Id,
 			Title:         entity.Title,
-			Description:   entity.Excerpt,
+			Description:   markdown2html.StripStickerTokens(entity.Excerpt),
 			EditURL:       urlconfig.Publish() + "?id=" + strconv.FormatUint(entity.Id, 10),
 			ReplyCount:    entity.ReplyCount,
 			ViewCount:     entity.ViewCount,
@@ -3333,6 +3408,7 @@ func settingsTabs() []TabPayload {
 		{Key: "binding", URL: "/settings?tab=binding"},
 		{Key: "security", URL: "/settings?tab=security"},
 		{Key: "content", URL: "/settings?tab=content"},
+		{Key: "stickers", URL: "/settings?tab=stickers"},
 		{Key: "deleted", URL: "/settings?tab=deleted"},
 		{Key: "general", URL: "/settings?tab=general"},
 	}

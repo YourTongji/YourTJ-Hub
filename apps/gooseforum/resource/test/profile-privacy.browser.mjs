@@ -8,7 +8,7 @@ import { createServer } from 'vite'
 // usable at the narrowest and a wide viewport, for owner, member and guest.
 let server, browser, origin
 before(async () => {
-  server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { host: '127.0.0.1', port: 0, open: false } })
+  server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), optimizeDeps: { entries: ['test/fixtures/browser/profile-privacy.html'] }, server: { host: '127.0.0.1', port: 0, open: false } })
   await server.listen()
   origin = `http://127.0.0.1:${server.httpServer.address().port}`
   browser = await chromium.launch()
@@ -58,6 +58,29 @@ async function pick(page, row, option) {
 }
 
 for (const width of [320, 1280]) {
+  for (const theme of ['light', 'dark']) test(`message permissions stay usable at ${width}px in ${theme}`, async () => {
+    const privacy = { profileTopics: 'everyone', profileActivity: 'everyone', profileLikes: 'everyone', followingList: 'everyone', followersList: 'everyone', chatMessagePolicy: 'everyone' }
+    const { page, patches, failNext } = await open(width, `screen=settings&tab=privacy&theme=${theme}`, privacy)
+    try {
+      const section = page.locator('[data-test="chat-permissions"]')
+      const picker = section.getByRole('combobox')
+      await picker.click()
+      assert.equal(await page.getByRole('listbox').getByRole('option').count(), 3)
+      await page.getByRole('option', { name: '禁止新私信', exact: true }).click()
+      await section.getByRole('status').waitFor()
+      assert.deepEqual(patches.at(-1), { chatMessagePolicy: 'nobody' })
+      assert.match(await picker.textContent(), /禁止新私信/)
+      failNext()
+      await picker.click()
+      await page.getByRole('option', { name: '所有人', exact: true }).click()
+      await section.getByRole('alert').waitFor()
+      assert.match(await picker.textContent(), /禁止新私信/)
+      assert.ok(await fits(page))
+      assert.equal(await page.locator('[data-test="profile-privacy-widen"]').count(), 0)
+      if (process.env.YOURTJ_PRIVACY_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.YOURTJ_PRIVACY_SCREENSHOT_DIR}/chat-${theme}-${width}.png`, fullPage: true })
+    } finally { await page.close() }
+  })
+
   test(`owner changes profile visibility from settings at ${width}px`, async () => {
     const privacy = { profileTopics: 'everyone', profileActivity: 'everyone', profileLikes: 'everyone', followingList: 'self', followersList: 'everyone' }
     const { page, patches, failNext } = await open(width, 'screen=settings&tab=privacy', privacy)

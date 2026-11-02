@@ -2,6 +2,7 @@ package httpnotifyservice
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -44,9 +45,10 @@ func pushLiteStub(t *testing.T, token string, got chan<- map[string]string) *htt
 func TestSendTestAstrBotPushesTextToTargetSession(t *testing.T) {
 	got := make(chan map[string]string, 1)
 	server := pushLiteStub(t, "tok", got)
+	base := useLocalNotifyServer(t, server)
 	endpoint := pageConfig.HttpNotifyEndpoint{
 		ChannelType: pageConfig.HttpNotifyChannelAstrBot,
-		URL:         server.URL, // 只填到端口：自动补 /send
+		URL:         base, // 只填到端口：自动补 /send
 		Target:      "aiocqhttp:GroupMessage:123456",
 		Secret:      "tok",
 	}
@@ -67,17 +69,17 @@ func TestSendTestAstrBotPushesTextToTargetSession(t *testing.T) {
 		t.Fatalf("sample actions share the workbench URL and must collapse into one link:\n%s", content)
 	}
 
-	endpoint.URL = server.URL + "/send"
+	endpoint.URL = base + "/send"
 	endpoint.Secret = "wrong"
 	if err := SendTest(endpoint, "", time.Now()); err == nil || !strings.Contains(err.Error(), "无效令牌") {
 		t.Fatalf("bad token = %v", err)
 	}
 	endpoint.Secret = "tok"
-	endpoint.URL = server.URL + "/other"
+	endpoint.URL = base + "/other"
 	if err := SendTest(endpoint, "", time.Now()); err == nil || err.Error() != "404 Not Found" {
 		t.Fatalf("wrong path = %v", err)
 	}
-	endpoint.URL = server.URL
+	endpoint.URL = base
 	endpoint.Target = " "
 	if err := SendTest(endpoint, "", time.Now()); err == nil || !strings.Contains(err.Error(), "SID") {
 		t.Fatalf("missing target = %v", err)
@@ -91,7 +93,8 @@ func TestAstrBotRejectsResponsesThatAreNotQueued(t *testing.T) {
 		_, _ = w.Write([]byte(reply))
 	}))
 	t.Cleanup(server.Close)
-	endpoint := pageConfig.HttpNotifyEndpoint{ChannelType: pageConfig.HttpNotifyChannelAstrBot, URL: server.URL + "/send", Target: "s", Secret: "t"}
+	base := useLocalNotifyServer(t, server)
+	endpoint := pageConfig.HttpNotifyEndpoint{ChannelType: pageConfig.HttpNotifyChannelAstrBot, URL: base + "/send", Target: "s", Secret: "t"}
 	if err := SendTest(endpoint, "", time.Now()); err == nil || !strings.Contains(err.Error(), "queued") {
 		t.Fatalf("non-queued status = %v", err)
 	}
@@ -104,7 +107,7 @@ func TestAstrBotRejectsResponsesThatAreNotQueued(t *testing.T) {
 func TestNewJSONPostRejectsURLsWithoutHost(t *testing.T) {
 	for _, raw := range []string{"http:///send", "http://:9966/send", "https://"} {
 		_, err := newJSONPost(pageConfig.HttpNotifyEndpoint{URL: raw}, nil)
-		if err == nil || !strings.Contains(err.Error(), "missing a host") {
+		if !errors.Is(err, ErrInvalidNotifyURL) {
 			t.Fatalf("%q: err = %v", raw, err)
 		}
 	}

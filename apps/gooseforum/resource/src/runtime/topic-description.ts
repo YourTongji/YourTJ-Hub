@@ -1,3 +1,5 @@
+import { hasRenderableStickerText } from '@/site/utils/sticker-token'
+
 const fallbackDescriptions = [
   '(｀・ω・´)',
   '( ´ ▽ ` )ﾉ',
@@ -21,4 +23,20 @@ export function topicDescription(topic: { id: number; description?: string }) {
  */
 export function topicDisplayLabel(id: number, title?: string, description?: string) {
   return title?.trim() || topicDescription({ id, description })
+}
+
+/**
+ * 列表链接/卡片的可渲染文案。标题是纯文本（不经过 Markdown 管线），token
+ * 语义不适用于标题，原样返回并与 SSR topicListLabel 对齐；只有无标题瞬间的
+ * 摘要回退需要做贴纸可见性判断：token 全部无法解析时退回颜文字，避免空链接。
+ */
+export function topicRenderableLabel(
+  id: number,
+  title: string | undefined,
+  description: string | undefined,
+  urlByName: Map<string, string>,
+) {
+  if (title?.trim()) return title.trim()
+  const label = topicDescription({ id, description })
+  return hasRenderableStickerText(label, urlByName) ? label : topicDescription({ id, description: '' })
 }

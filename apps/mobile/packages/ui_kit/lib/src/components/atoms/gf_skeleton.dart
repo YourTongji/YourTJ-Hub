@@ -6,7 +6,12 @@ import '../../theme/gf_theme.dart';
 /// web loading states. No dedicated web class exists; this is the mobile
 /// loading primitive used by list rows and cards.
 class GfSkeleton extends StatelessWidget {
-  const GfSkeleton({super.key, this.width, this.height = 16, this.radius = 8});
+  const GfSkeleton({
+    super.key,
+    this.width,
+    this.height = 16,
+    this.radius = GfRadius.xs,
+  });
 
   final double? width;
   final double height;
@@ -20,7 +25,7 @@ class GfSkeleton extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: colors.base300,
+        color: colors.fill,
         borderRadius: BorderRadius.circular(radius),
       ),
     );

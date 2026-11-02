@@ -147,11 +147,11 @@ void main() {
         final disabled = tester.widget<FilledButton>(find.byType(FilledButton));
         expect(
           disabled.style!.backgroundColor!.resolve({WidgetState.disabled}),
-          GfColors.light.base300,
+          GfColors.light.fill,
         );
         expect(
           disabled.style!.foregroundColor!.resolve({WidgetState.disabled}),
-          GfColors.light.baseContent.withValues(alpha: .38),
+          GfColors.light.textDisabled,
         );
         await tester.pumpWidget(
           gfApp(GfButton(label: 'Saving', loading: true, onPressed: () {})),

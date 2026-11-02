@@ -41,7 +41,7 @@ void main() {
   });
 
   testWidgets(
-    'sticker composer previews chat drafts before sending and updates deletion',
+    'the chat composer shows draft stickers inline and drops them on deletion',
     (tester) async {
       final library = StickerLibrary(_Stickers());
       addTearDown(library.dispose);
@@ -52,15 +52,24 @@ void main() {
       );
       await tester.enterText(input, 'Hello [:sticker:smile:]');
       await tester.pumpAndSettle();
-      final preview = find.byKey(const Key('sticker-draft-preview'));
-      expect(
-        find.descendant(of: preview, matching: find.byType(StickerImage)),
-        findsOneWidget,
+      final inline = find.descendant(
+        of: input,
+        matching: find.byType(StickerImage),
       );
-      expect(tester.getSize(find.byType(StickerImage)), const Size(56, 56));
+      expect(inline, findsOneWidget);
+      final fontSize = tester
+          .widget<EditableText>(
+            find.descendant(of: input, matching: find.byType(EditableText)),
+          )
+          .style
+          .fontSize!;
+      expect(
+        tester.getSize(inline),
+        Size.square(fontSize * StickerImage.inlineScale),
+      );
       await tester.enterText(input, 'Hello');
       await tester.pumpAndSettle();
-      expect(preview, findsNothing);
+      expect(inline, findsNothing);
       expect(find.byType(GfMessageBubble), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(seconds: 1));
@@ -100,7 +109,7 @@ void main() {
           surface.padding ?? EdgeInsets.zero,
           plain
               ? EdgeInsets.zero
-              : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              : const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         );
         await tester.pump(const Duration(milliseconds: 400));
         await tester.pumpAndSettle();

@@ -50,6 +50,29 @@ func TestMessageReportMembershipSnapshotAndRetry(t *testing.T) {
 	}
 }
 
+// 私信举报快照落库前剥除贴纸 token：审核列表是纯文本落点，先剥再截断。
+func TestMessageReportSnapshotStripsStickerTokens(t *testing.T) {
+	setupMarkReadTestDB(t)
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&reports.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Where("target_type = ?", reports.TargetChatMessage).Delete(&reports.Entity{}) })
+	const token = "[:sticker:Atari哭哭:]"
+	if err := conn.Model(&messages.Entity{}).Where("id = ?", markReadTestMsgID).
+		Updates(map[string]any{"content": "私信 " + token + " 尾巴"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ReportMessage(markReadTestMember, markReadTestMsgID, "abuse", ""); err != nil {
+		t.Fatal(err)
+	}
+	var got reports.Entity
+	conn.Where("target_type = ? AND target_id = ?", reports.TargetChatMessage, markReadTestMsgID).First(&got)
+	if got.EvidenceSnapshot.Excerpt != "私信 尾巴" {
+		t.Fatalf("sticker token reached the private report snapshot: %q", got.EvidenceSnapshot.Excerpt)
+	}
+}
+
 func TestForwardReportUsesReadableSnapshotAndForwarder(t *testing.T) {
 	setupMarkReadTestDB(t)
 	conn := db.Connect()

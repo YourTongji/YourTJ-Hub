@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
@@ -385,7 +386,7 @@ func toAgentTopicItem(entity topics.Entity) AgentTopicItem {
 		AgentRepliesDisabled: entity.AgentRepliesDisabled,
 		Id:                   entity.Id,
 		Title:                entity.Title,
-		Excerpt:              entity.Excerpt,
+		Excerpt:              markdown2html.StripStickerTokens(entity.Excerpt),
 		Images:               entity.PublicGallery(),
 		CategoryIds:          entity.CategoryIds,
 		UserId:               entity.UserId,

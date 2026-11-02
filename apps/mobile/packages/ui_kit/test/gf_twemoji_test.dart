@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -61,19 +62,58 @@ void main() {
       },
     );
 
+    test('respects default text presentation and variation selectors', () {
+      expect(parseTwemojiText('© ® ™ ❤'), <TwemojiSegment>[
+        const TwemojiSegment.text('© ® ™ ❤'),
+      ]);
+      expect(
+        parseTwemojiText('©\uFE0E ®\uFE0E ™\uFE0E ❤\uFE0E'),
+        <TwemojiSegment>[
+          const TwemojiSegment.text('©\uFE0E ®\uFE0E ™\uFE0E ❤\uFE0E'),
+        ],
+      );
+      expect(
+        parseTwemojiText('©\uFE0F ®\uFE0F ™\uFE0F ❤\uFE0F'),
+        <TwemojiSegment>[
+          const TwemojiSegment.emoji('©\uFE0F', 'a9.png'),
+          const TwemojiSegment.text(' '),
+          const TwemojiSegment.emoji('®\uFE0F', 'ae.png'),
+          const TwemojiSegment.text(' '),
+          const TwemojiSegment.emoji('™\uFE0F', '2122.png'),
+          const TwemojiSegment.text(' '),
+          const TwemojiSegment.emoji('❤\uFE0F', '2764.png'),
+        ],
+      );
+      expect(parseTwemojiText('😀\uFE0E'), <TwemojiSegment>[
+        const TwemojiSegment.text('😀\uFE0E'),
+      ]);
+      expect(parseTwemojiText('😀\uFE0F'), <TwemojiSegment>[
+        const TwemojiSegment.emoji('😀\uFE0F', '1f600.png'),
+      ]);
+    });
+
+    test('keeps the Taiwan flag sequence as its original Unicode text', () {
+      expect(parseTwemojiText('🇹🇼'), <TwemojiSegment>[
+        const TwemojiSegment.text('🇹🇼'),
+      ]);
+    });
+
     testWidgets('fast candidate scan keeps symbol, flag and keycap artwork', (
       tester,
     ) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: GfText('© ® ™ ❤️ 🐦‍🔥 🇺🇸 1️⃣ #️⃣')),
+          home: Scaffold(body: GfText('© ® ™ ❤️ 🐦‍🔥 🇺🇸 🇹🇼 1️⃣ #️⃣')),
         ),
       );
       await tester.pump();
 
-      expect(find.byType(Image), findsNWidgets(8));
+      expect(find.byType(Image), findsNWidgets(5));
+      expect(find.text('© ® ™'), findsNothing);
+      expect(find.textContaining('© ® ™'), findsOneWidget);
       expect(find.bySemanticsLabel('🐦‍🔥'), findsOneWidget);
       expect(find.bySemanticsLabel('🇺🇸'), findsOneWidget);
+      expect(find.bySemanticsLabel('🇹🇼'), findsNothing);
     });
 
     testWidgets('ordinary digits are not treated as keycap Emoji', (
@@ -393,6 +433,160 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     },
   );
+
+  testWidgets(
+    'selection area long press wins over body tap on Android and iOS',
+    (tester) async {
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      for (final platform in <TargetPlatform>[
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      ]) {
+        debugDefaultTargetPlatformOverride = platform;
+        var taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(platform: platform),
+            home: Scaffold(
+              body: GfSelectionArea(
+                selectionSource: 'hello world',
+                onTap: () => taps++,
+                child: const GfText('hello world'),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await tester.longPress(find.text('hello world'));
+        await tester.pumpAndSettle();
+        expect(taps, 0, reason: '$platform long press must not tap');
+        final region = tester.state<SelectableRegionState>(
+          find.byType(SelectableRegion),
+        );
+        expect(
+          region.contextMenuButtonItems,
+          isNotEmpty,
+          reason: '$platform long press selects text',
+        );
+
+        // 第一次轻点只清除选择，第二次轻点才执行正文快捷操作。
+        await tester.tap(find.text('hello world'));
+        await tester.pumpAndSettle();
+        expect(taps, 0, reason: '$platform first tap dismisses selection');
+        await tester.tap(find.text('hello world'));
+        await tester.pumpAndSettle();
+        expect(taps, 1, reason: '$platform tap after dismissal');
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
+  testWidgets('selection area mouse drag selects on desktop without tapping', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    var taps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.macOS),
+        home: Scaffold(
+          body: GfSelectionArea(
+            selectionSource: 'hello world',
+            onTap: () => taps++,
+            child: const GfText('hello world'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final Rect textRect = tester.getRect(find.text('hello world'));
+    final TestGesture gesture = await tester.startGesture(
+      Offset(textRect.left + 2, textRect.center.dy),
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveTo(Offset(textRect.right - 2, textRect.center.dy));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(taps, 0);
+    final region = tester.state<SelectableRegionState>(
+      find.byType(SelectableRegion),
+    );
+    expect(region.contextMenuButtonItems, isNotEmpty);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets(
+    'selection area double click selects a desktop word without tapping',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.macOS),
+          home: Scaffold(
+            body: GfSelectionArea(
+              selectionSource: 'hello world',
+              onTap: () => taps++,
+              child: const GfText('hello world'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final Offset point = tester.getCenter(find.text('hello world'));
+      await tester.tapAt(point, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tapAt(point, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      expect(taps, 0);
+      final region = tester.state<SelectableRegionState>(
+        find.byType(SelectableRegion),
+      );
+      expect(
+        region.contextMenuButtonItems.map(
+          (ContextMenuButtonItem item) => item.type,
+        ),
+        contains(ContextMenuButtonType.copy),
+      );
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
+  testWidgets('selection area body tap does not steal child taps', (
+    tester,
+  ) async {
+    var bodyTaps = 0;
+    var childTaps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GfSelectionArea(
+            selectionSource: 'hello world',
+            onTap: () => bodyTaps++,
+            child: GestureDetector(
+              onTap: () => childTaps++,
+              child: const GfText('hello world'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('hello world'));
+    await tester.pumpAndSettle();
+
+    expect(childTaps, 1);
+    expect(bodyTaps, 0);
+  });
 
   testWidgets('Emoji SelectableText retains native selection parameters', (
     tester,

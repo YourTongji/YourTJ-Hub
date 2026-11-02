@@ -157,7 +157,18 @@ void main() {
       final manifest = File(
         'android/app/src/main/AndroidManifest.xml',
       ).readAsStringSync();
-      expect(manifest, contains('android:roundIcon="@mipmap/ic_launcher"'));
+      expect(manifest, contains(r'android:icon="${appIcon}"'));
+      expect(manifest, contains(r'android:roundIcon="${appIcon}"'));
+      // Only dev builds swap in the badged icon; every other build keeps the brand mark.
+      final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+      expect(
+        gradle,
+        contains(
+          'manifestPlaceholders["appIcon"] = '
+          'if (devIdentity) "@mipmap/ic_launcher_dev" '
+          'else "@mipmap/ic_launcher"',
+        ),
+      );
     },
   );
 }

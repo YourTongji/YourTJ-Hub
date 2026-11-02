@@ -44,15 +44,8 @@ func setupAdminStatsTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 			t.Fatalf("clear %s: %v", table, err)
 		}
 	}
-	adminAPI := router.Group("/api/admin",
-		middleware.JWTAuthCheck,
-		middleware.CheckWritableAccount,
-		middleware.CheckPermission(permission.Admin),
-	)
-	adminAPI.POST("/stats/category-summary", UpButterReq(api.AdminStatsCategorySummary))
-	adminAPI.POST("/stats/category-trend", UpButterReq(api.AdminStatsCategoryTrend))
-	adminAPI.POST("/stats/user-ranking", UpButterReq(api.AdminStatsUserRanking))
-	adminAPI.POST("/stats/user-detail", UpButterReq(api.AdminStatsUserDetail))
+	adminAPI := router.Group("/api/admin", middleware.JWTAuthCheck, middleware.CheckWritableAccount)
+	registerAdminStatsRoutes(adminAPI)
 	return conn, router
 }
 

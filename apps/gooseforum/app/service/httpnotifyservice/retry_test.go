@@ -29,6 +29,7 @@ func TestFeishuRetryRefreshesTimestampAndCurrentSecret(t *testing.T) {
 		_, _ = w.Write([]byte(`{"code":0}`))
 	}))
 	t.Cleanup(server.Close)
+	base := useLocalNotifyServer(t, server)
 	if err := dbconnect.Connect().AutoMigrate(&pageConfig.Entity{}); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestFeishuRetryRefreshesTimestampAndCurrentSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 	entity.PageType = pageConfig.HttpNotify
-	entity.Config = jsonopt.Encode(pageConfig.HttpNotifyStorageConfig{Enabled: true, Endpoints: []pageConfig.HttpNotifyStorageEndpoint{{Id: "retry-signing", URL: server.URL, Enabled: true, ChannelType: pageConfig.HttpNotifyChannelFeishu, SecretEncrypted: sealed, Events: []string{EventReportPostCreated}}}})
+	entity.Config = jsonopt.Encode(pageConfig.HttpNotifyStorageConfig{Enabled: true, Endpoints: []pageConfig.HttpNotifyStorageEndpoint{{Id: "retry-signing", URL: base, Enabled: true, ChannelType: pageConfig.HttpNotifyChannelFeishu, SecretEncrypted: sealed, Events: []string{EventReportPostCreated}}}})
 	pageConfig.CreateOrSave(&entity)
 	hotdataserve.ClearHttpNotifyConfigCache()
 	oldTime := time.Now().Add(-2 * time.Hour)

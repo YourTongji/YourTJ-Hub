@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -35,6 +36,8 @@ class RootSurface extends ConsumerWidget {
     this.swipePageBuilder,
     this.swipePageKey,
     this.statusBarScrollToTopController,
+    this.headerStretch,
+    this.contentShift,
   });
   final String title;
   final Widget? titleWidget;
@@ -55,6 +58,13 @@ class RootSurface extends ConsumerWidget {
   final Object Function(int index)? swipePageKey;
   final GfScrollToTopController? statusBarScrollToTopController;
 
+  /// Extra height the title row takes while a pull stretches it. The side
+  /// controls stay at the top and the title rides the middle of the row.
+  final ValueListenable<double>? headerStretch;
+
+  /// How far the content moves down to stay under a stretched header.
+  final ValueListenable<double>? contentShift;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Only the pieces that depend on hidden chrome listen to it, so a flip
@@ -64,6 +74,7 @@ class RootSurface extends ConsumerWidget {
     final colors = GfTheme.colorsOf(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final hasRail = ReadingWindowScope.hasRailOf(context);
+    final edgeNavigation = ReadingWindowScope.edgeNavigationOf(context);
     final l10n = AppLocalizations.of(context);
     // Mirror the labels of the shell's own bottom bar so the precomputed
     // content insets stay in lockstep with the measured bar height.
@@ -79,8 +90,8 @@ class RootSurface extends ConsumerWidget {
       ),
       showLabels: shellNavigationShowsLabels,
     );
-    final navMetrics = GfBottomNavigation.metrics(
-      safeAreaBottom: bottom,
+    final navMetrics = GfBottomNavigation.metricsOf(
+      context,
       barHeight: navigationHeight,
     );
     // Insets stay fixed while chrome slides, so content never jumps.
@@ -90,41 +101,51 @@ class RootSurface extends ConsumerWidget {
       ref.read(readingChromeProvider).travel = top + 1;
     }
     final contentBottom = hasRail
-        ? 24.0 + bottom
+        ? math.max(
+            24.0 + bottom,
+            MediaQuery.paddingOf(context).horizontal > 0
+                ? ReadingWindowScope.edgeContentBottomInsetOf(context)
+                : 0.0,
+          )
         : navMetrics.contentBottomInset;
     final scaffold = Scaffold(
       body: SafeArea(
         bottom: false,
+        left: !edgeNavigation,
+        right: !edgeNavigation,
         child: ClipRect(
           child: Stack(
             children: [
               Positioned.fill(
-                child:
-                    swipeTabIndex != null &&
-                        swipeTabCount > 1 &&
-                        swipePageBuilder != null
-                    ? Consumer(
-                        builder: (context, ref, _) => TabPageTransition(
-                          index: swipeTabIndex!,
-                          length: swipeTabCount,
-                          chromeHidden: watchHidden(ref),
-                          pageKey: swipePageKey,
-                          pageBuilder: (index, chromeHidden) =>
-                              ChromeAlignedPage(
-                                topInset: top,
-                                chromeHidden: chromeHidden,
-                                current: index == swipeTabIndex,
-                                child: index == swipeTabIndex
-                                    ? body(top, contentBottom)
-                                    : swipePageBuilder!(
-                                        index,
-                                        top,
-                                        contentBottom,
-                                      ),
-                              ),
-                        ),
-                      )
-                    : body(top, contentBottom),
+                child: _Shifted(
+                  shift: contentShift,
+                  child:
+                      swipeTabIndex != null &&
+                          swipeTabCount > 1 &&
+                          swipePageBuilder != null
+                      ? Consumer(
+                          builder: (context, ref, _) => TabPageTransition(
+                            index: swipeTabIndex!,
+                            length: swipeTabCount,
+                            chromeHidden: watchHidden(ref),
+                            pageKey: swipePageKey,
+                            pageBuilder: (index, chromeHidden) =>
+                                ChromeAlignedPage(
+                                  topInset: top,
+                                  chromeHidden: chromeHidden,
+                                  current: index == swipeTabIndex,
+                                  child: index == swipeTabIndex
+                                      ? body(top, contentBottom)
+                                      : swipePageBuilder!(
+                                          index,
+                                          top,
+                                          contentBottom,
+                                        ),
+                                ),
+                          ),
+                        )
+                      : body(top, contentBottom),
+                ),
               ),
               Positioned(
                 top: 0,
@@ -145,51 +166,60 @@ class RootSurface extends ConsumerWidget {
                     },
                     child: ColoredBox(
                       color: colors.base100,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            height: 56,
-                            child: Row(
-                              children: [
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  tooltip: AppLocalizations.of(
-                                    context,
-                                  ).navProfile,
-                                  onPressed: () => accountDrawerLayerKey
-                                      .currentState
-                                      ?.open(),
-                                  icon: const AccountAvatar(),
-                                ),
-                                Expanded(
-                                  child: Center(
-                                    child:
-                                        titleWidget ??
-                                        (showLogo || title.isEmpty
-                                            ? const GfLogo(size: 32)
-                                            : GfText(
-                                                title,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: GfTheme.typographyOf(
-                                                  context,
-                                                ).title2,
-                                              )),
+                      child: SafeArea(
+                        top: false,
+                        bottom: false,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _StretchingTitleRow(
+                              stretch: headerStretch,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(width: 8),
+                                  _TopSlot(
+                                    child: IconButton(
+                                      tooltip: AppLocalizations.of(
+                                        context,
+                                      ).navProfile,
+                                      onPressed: () => accountDrawerLayerKey
+                                          .currentState
+                                          ?.open(),
+                                      icon: const AccountAvatar(),
+                                    ),
                                   ),
-                                ),
-                                if (actions.isEmpty)
-                                  const SizedBox(width: 48)
-                                else
-                                  ...actions,
-                                const SizedBox(width: 8),
-                              ],
+                                  Expanded(
+                                    child: Center(
+                                      child:
+                                          titleWidget ??
+                                          (showLogo || title.isEmpty
+                                              ? const GfLogo(size: 32)
+                                              : GfText(
+                                                  title,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: GfTheme.typographyOf(
+                                                    context,
+                                                  ).title2,
+                                                )),
+                                    ),
+                                  ),
+                                  if (actions.isEmpty)
+                                    const SizedBox(width: 48)
+                                  else
+                                    for (final action in actions)
+                                      _TopSlot(child: action),
+                                  const SizedBox(width: 8),
+                                ],
+                              ),
                             ),
-                          ),
-                          if (toolbar != null)
-                            SizedBox(height: toolbarHeight, child: toolbar),
-                          const Divider(height: 1, thickness: 0),
-                        ],
+                            if (toolbar != null)
+                              SizedBox(height: toolbarHeight, child: toolbar),
+                            const Divider(height: 1, thickness: 0),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -201,7 +231,11 @@ class RootSurface extends ConsumerWidget {
                   builder: (context, reveal, child) => AnimatedPositioned(
                     duration: readingChromeDuration(context, reveal),
                     curve: GfMotion.enterCurve,
-                    right: 16,
+                    right:
+                        16 +
+                        (edgeNavigation
+                            ? MediaQuery.paddingOf(context).right
+                            : 0),
                     bottom:
                         (hasRail
                             ? 16
@@ -213,8 +247,9 @@ class RootSurface extends ConsumerWidget {
                         bottom,
                     child: child!,
                   ),
-                  child: FloatingActionButton(
-                    heroTag: null,
+                  child: GfGlassButton(
+                    key: const ValueKey('root-compose-action'),
+                    tone: GfGlassTone.prominent,
                     tooltip:
                         actionLabel ?? AppLocalizations.of(context).navPublish,
                     onPressed:
@@ -252,5 +287,58 @@ class RootSurface extends ConsumerWidget {
             child: surface,
           )
         : surface;
+  }
+}
+
+/// The 56-pixel title row, taller by [stretch] while a pull stretches it.
+class _StretchingTitleRow extends StatelessWidget {
+  const _StretchingTitleRow({required this.stretch, required this.child});
+
+  final ValueListenable<double>? stretch;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final listenable = stretch;
+    if (listenable == null) return SizedBox(height: 56, child: child);
+    return ValueListenableBuilder<double>(
+      valueListenable: listenable,
+      child: child,
+      builder: (context, extra, child) =>
+          SizedBox(height: 56 + math.max(0, extra), child: child),
+    );
+  }
+}
+
+/// Keeps a side control in the top 56 pixels of a stretched title row.
+class _TopSlot extends StatelessWidget {
+  const _TopSlot({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(height: 56, child: Center(child: child));
+}
+
+/// Moves page content down by [shift] without relayout.
+class _Shifted extends StatelessWidget {
+  const _Shifted({required this.shift, required this.child});
+
+  final ValueListenable<double>? shift;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final listenable = shift;
+    if (listenable == null) return child;
+    return ValueListenableBuilder<double>(
+      valueListenable: listenable,
+      child: child,
+      builder: (context, offset, child) => Transform.translate(
+        offset: Offset(0, math.max(0, offset)),
+        child: child,
+      ),
+    );
   }
 }

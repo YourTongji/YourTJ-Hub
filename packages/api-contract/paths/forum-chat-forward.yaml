@@ -20,7 +20,9 @@ forwardChatMessages:
       transactions; clients explicitly select and acknowledge each recipient.
       Individual mode consumes one message.send attempt per selected message;
       merged mode consumes one. The request body is limited to 8192 bytes.
-      Business failures use HTTP 200 chat.send.failed; field validation uses HTTP 200
+      New recipient conversations obey the same chatMessagePolicy as direct sends.
+      Blocks or recipient restrictions use HTTP 200 chat.permission.denied; other
+      business failures use HTTP 200 chat.send.failed; field validation uses HTTP 200
       common.request.invalidParams. Malformed JSON/body limits
       use the strict request wrapper. No private source details appear in errors.
     security:
@@ -40,6 +42,7 @@ forwardChatMessages:
             examples:
               success: { externalValue: ../fixtures/chat-forward-success.json }
               failed: { externalValue: ../fixtures/chat-forward-failed.json }
+              permissionDenied: { externalValue: ../fixtures/chat-permission-denied.json }
       '400':
         description: Invalid JSON or oversized body.
         content:

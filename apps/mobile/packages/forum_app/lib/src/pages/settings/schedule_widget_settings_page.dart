@@ -12,6 +12,37 @@ import '../../offline/campus_snapshot_store.dart';
 import '../../providers.dart';
 import 'schedule_widget_transparency.dart';
 
+const _privacyKey = 'schedule_widget_privacy_ack';
+
+/// Home-screen widgets show course details outside the app. Ask once before
+/// the first refresh or in-app placement; later calls resolve immediately.
+Future<bool> confirmScheduleWidgetPrivacy(BuildContext context) async {
+  final preferences = await SharedPreferences.getInstance();
+  if (preferences.getBool(_privacyKey) == true) return true;
+  if (!context.mounted) return false;
+  final l = AppLocalizations.of(context);
+  final accepted = await showGfAlertDialog<bool>(
+    context,
+    builder: (context) => GfAlertDialog(
+      title: GfText(l.scheduleWidgetSettingsTitle),
+      content: GfText(l.scheduleWidgetPrivacyDescription),
+      actions: [
+        GfButton(
+          label: l.commonCancel,
+          variant: GfButtonVariant.ghost,
+          onPressed: () => Navigator.pop(context, false),
+        ),
+        GfButton(
+          label: l.commonConfirm,
+          onPressed: () => Navigator.pop(context, true),
+        ),
+      ],
+    ),
+  );
+  if (accepted == true) await preferences.setBool(_privacyKey, true);
+  return accepted == true;
+}
+
 class ScheduleWidgetSettingsPage extends ConsumerStatefulWidget {
   const ScheduleWidgetSettingsPage({super.key, this.embedded = false});
 
@@ -24,7 +55,6 @@ class ScheduleWidgetSettingsPage extends ConsumerStatefulWidget {
 
 class _ScheduleWidgetSettingsPageState
     extends ConsumerState<ScheduleWidgetSettingsPage> {
-  static const _privacyKey = 'schedule_widget_privacy_ack';
   bool _busy = false;
 
   @override
@@ -33,31 +63,7 @@ class _ScheduleWidgetSettingsPageState
     WidgetsBinding.instance.addPostFrameCallback((_) => _ackPrivacy());
   }
 
-  Future<bool> _ackPrivacy() async {
-    final preferences = await SharedPreferences.getInstance();
-    if (preferences.getBool(_privacyKey) == true || !mounted) return true;
-    final l = AppLocalizations.of(context);
-    final accepted = await showGfAlertDialog<bool>(
-      context,
-      builder: (context) => GfAlertDialog(
-        title: GfText(l.scheduleWidgetSettingsTitle),
-        content: GfText(l.scheduleWidgetPrivacyDescription),
-        actions: [
-          GfButton(
-            label: l.commonCancel,
-            variant: GfButtonVariant.ghost,
-            onPressed: () => Navigator.pop(context, false),
-          ),
-          GfButton(
-            label: l.commonConfirm,
-            onPressed: () => Navigator.pop(context, true),
-          ),
-        ],
-      ),
-    );
-    if (accepted == true) await preferences.setBool(_privacyKey, true);
-    return accepted == true;
-  }
+  Future<bool> _ackPrivacy() => confirmScheduleWidgetPrivacy(context);
 
   Future<void> _refresh() async {
     if (_busy || !await _ackPrivacy() || !mounted || _busy) return;

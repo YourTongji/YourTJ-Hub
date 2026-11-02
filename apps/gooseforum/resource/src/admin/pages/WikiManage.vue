@@ -347,10 +347,10 @@ onUnmounted(() => {
     </template>
 
     <Tabs v-model="activeTab" class="gap-5">
-      <TabsList class="w-fit">
-        <TabsTrigger value="namespaces">{{ adminText('k00n6') }}</TabsTrigger>
-        <TabsTrigger value="pages">{{ adminText('k00n8') }}</TabsTrigger>
-        <TabsTrigger value="sync">{{ adminText('k00q0') }}</TabsTrigger>
+      <TabsList class="h-auto w-full flex-wrap">
+        <TabsTrigger value="namespaces" class="h-auto whitespace-normal py-2">{{ adminText('k00n6') }}</TabsTrigger>
+        <TabsTrigger value="pages" class="h-auto whitespace-normal py-2">{{ adminText('k00n8') }}</TabsTrigger>
+        <TabsTrigger value="sync" class="h-auto whitespace-normal py-2">{{ adminText('k00q0') }}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="namespaces">

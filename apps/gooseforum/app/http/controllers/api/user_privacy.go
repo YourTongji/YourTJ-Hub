@@ -64,11 +64,12 @@ func decodePrivacySettingsUpdate(body io.Reader) (users.PrivacySettingsUpdate, b
 		return update, false
 	}
 	targets := map[string]**string{
-		"profileTopics":   &update.ProfileTopics,
-		"profileActivity": &update.ProfileActivity,
-		"profileLikes":    &update.ProfileLikes,
-		"followingList":   &update.FollowingList,
-		"followersList":   &update.FollowersList,
+		"chatMessagePolicy": &update.ChatMessagePolicy,
+		"profileTopics":     &update.ProfileTopics,
+		"profileActivity":   &update.ProfileActivity,
+		"profileLikes":      &update.ProfileLikes,
+		"followingList":     &update.FollowingList,
+		"followersList":     &update.FollowersList,
 	}
 	for key, value := range raw {
 		target, known := targets[key]

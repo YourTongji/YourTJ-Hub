@@ -195,7 +195,7 @@ abstract class AppLocalizations {
   /// No description provided for @navMessages.
   ///
   /// In en, this message translates to:
-  /// **'Messages'**
+  /// **'Direct messages'**
   String get navMessages;
 
   /// No description provided for @navProfile.
@@ -492,6 +492,18 @@ abstract class AppLocalizations {
   /// **'Username or email'**
   String get authUsernameOrEmail;
 
+  /// No description provided for @authRegistrationUsernameRules.
+  ///
+  /// In en, this message translates to:
+  /// **'6–32 characters: English letters, digits, underscores (_) and hyphens (-).'**
+  String get authRegistrationUsernameRules;
+
+  /// No description provided for @authRegistrationPasswordRules.
+  ///
+  /// In en, this message translates to:
+  /// **'6–64 characters, including an English letter (A–Z/a–z) and a digit (0–9). Other characters are allowed.'**
+  String get authRegistrationPasswordRules;
+
   /// No description provided for @authUsername.
   ///
   /// In en, this message translates to:
@@ -615,7 +627,7 @@ abstract class AppLocalizations {
   /// No description provided for @authRegisterEmailVerify.
   ///
   /// In en, this message translates to:
-  /// **'Registration successful. A verification email was sent; check your inbox. No email? Sign in and resend it under Account security.'**
+  /// **'Account created. Check your inbox to verify your email. If no email arrives, resend it or change the address under Account security.'**
   String get authRegisterEmailVerify;
 
   /// No description provided for @authActivationRequired.
@@ -633,7 +645,7 @@ abstract class AppLocalizations {
   /// No description provided for @authRegisterSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Registered successfully, please sign in'**
+  /// **'Account created.'**
   String get authRegisterSuccess;
 
   /// No description provided for @authResetEmailSent.
@@ -1077,7 +1089,7 @@ abstract class AppLocalizations {
   /// No description provided for @messagesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Messages'**
+  /// **'Direct messages'**
   String get messagesTitle;
 
   /// No description provided for @messagesEmpty.
@@ -1269,7 +1281,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsTabAccount.
   ///
   /// In en, this message translates to:
-  /// **'Account, security & privacy'**
+  /// **'Account & security'**
   String get settingsTabAccount;
 
   /// No description provided for @settingsTabPrivacy.
@@ -1461,7 +1473,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsOAuthSub.
   ///
   /// In en, this message translates to:
-  /// **'GitHub and Google login connections'**
+  /// **'GitHub, Google and Apple login connections'**
   String get settingsOAuthSub;
 
   /// No description provided for @settingsOAuthManage.
@@ -1602,6 +1614,90 @@ abstract class AppLocalizations {
   /// **'Appearance'**
   String get settingsAppearance;
 
+  /// No description provided for @decorationAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get decorationAppearance;
+
+  /// No description provided for @decorationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar frames & colorful names'**
+  String get decorationTitle;
+
+  /// No description provided for @decorationFrame.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar frames'**
+  String get decorationFrame;
+
+  /// No description provided for @decorationNickname.
+  ///
+  /// In en, this message translates to:
+  /// **'Colorful names'**
+  String get decorationNickname;
+
+  /// No description provided for @decorationGrant.
+  ///
+  /// In en, this message translates to:
+  /// **'Styles are granted by administrators.'**
+  String get decorationGrant;
+
+  /// No description provided for @decorationNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get decorationNone;
+
+  /// No description provided for @decorationPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get decorationPreview;
+
+  /// No description provided for @decorationEquip.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this style'**
+  String get decorationEquip;
+
+  /// No description provided for @decorationLocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not owned'**
+  String get decorationLocked;
+
+  /// No description provided for @decorationEquipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Equipped'**
+  String get decorationEquipped;
+
+  /// No description provided for @decorationAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get decorationAvailable;
+
+  /// No description provided for @decorationCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current look'**
+  String get decorationCurrent;
+
+  /// No description provided for @decorationPreviewOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview only'**
+  String get decorationPreviewOnly;
+
+  /// No description provided for @decorationLockedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Not owned. You can preview this style.'**
+  String get decorationLockedHint;
+
   /// No description provided for @settingsDarkMode.
   ///
   /// In en, this message translates to:
@@ -1623,7 +1719,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsAbout.
   ///
   /// In en, this message translates to:
-  /// **'About'**
+  /// **'About the community'**
   String get settingsAbout;
 
   /// No description provided for @settingsAboutVersion.
@@ -1932,6 +2028,12 @@ abstract class AppLocalizations {
   /// **'{year}/{month}/{day} {time}'**
   String dateYearMonthDayTime(int year, int month, int day, String time);
 
+  /// No description provided for @topicJumpToFloor.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to floor'**
+  String get topicJumpToFloor;
+
   /// No description provided for @topicFloorSelected.
   ///
   /// In en, this message translates to:
@@ -1992,18 +2094,6 @@ abstract class AppLocalizations {
   /// **'Load newer replies'**
   String get topicLaterReplies;
 
-  /// No description provided for @topicFeedModeList.
-  ///
-  /// In en, this message translates to:
-  /// **'List'**
-  String get topicFeedModeList;
-
-  /// No description provided for @topicFeedModeCard.
-  ///
-  /// In en, this message translates to:
-  /// **'Cards'**
-  String get topicFeedModeCard;
-
   /// No description provided for @topicNewTopic.
   ///
   /// In en, this message translates to:
@@ -2013,8 +2103,20 @@ abstract class AppLocalizations {
   /// No description provided for @scheduleTitle.
   ///
   /// In en, this message translates to:
-  /// **'Scheduler'**
+  /// **'Course planner'**
   String get scheduleTitle;
+
+  /// No description provided for @scheduleFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get scheduleFilters;
+
+  /// No description provided for @scheduleCandidates.
+  ///
+  /// In en, this message translates to:
+  /// **'Candidates'**
+  String get scheduleCandidates;
 
   /// No description provided for @scheduleTabTimetable.
   ///
@@ -2241,7 +2343,7 @@ abstract class AppLocalizations {
   /// No description provided for @scheduleSearchHint.
   ///
   /// In en, this message translates to:
-  /// **'Search name/code/teacher'**
+  /// **'Search course name'**
   String get scheduleSearchHint;
 
   /// No description provided for @scheduleStaged.
@@ -2544,6 +2646,30 @@ abstract class AppLocalizations {
   /// **'Use server-issued site colors'**
   String get settingsFollowSiteThemeDesc;
 
+  /// No description provided for @settingsNavigationStyle.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation'**
+  String get settingsNavigationStyle;
+
+  /// No description provided for @settingsNavigationDock.
+  ///
+  /// In en, this message translates to:
+  /// **'Floating dock'**
+  String get settingsNavigationDock;
+
+  /// No description provided for @settingsNavigationBar.
+  ///
+  /// In en, this message translates to:
+  /// **'Classic bar'**
+  String get settingsNavigationBar;
+
+  /// No description provided for @settingsNavigationStyleDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Wide windows keep the side rail.'**
+  String get settingsNavigationStyleDesc;
+
   /// No description provided for @richContentCopyCode.
   ///
   /// In en, this message translates to:
@@ -2669,6 +2795,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Campus'**
   String get navCampus;
+
+  /// No description provided for @navShortcutsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Long press for shortcuts'**
+  String get navShortcutsHint;
 
   /// No description provided for @campusTitle.
   ///
@@ -2847,7 +2979,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileContent.
   ///
   /// In en, this message translates to:
-  /// **'Manage content'**
+  /// **'My content'**
   String get profileContent;
 
   /// No description provided for @profileTrash.
@@ -2855,12 +2987,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recycle bin'**
   String get profileTrash;
-
-  /// No description provided for @profileSecurity.
-  ///
-  /// In en, this message translates to:
-  /// **'Account, security & privacy'**
-  String get profileSecurity;
 
   /// No description provided for @profileAdmin.
   ///
@@ -2961,7 +3087,7 @@ abstract class AppLocalizations {
   /// No description provided for @publishGalleryTooMany.
   ///
   /// In en, this message translates to:
-  /// **'Content supports up to 9 images. Remove some images or continue with the article editor.'**
+  /// **'Up to 9 images are supported. Use fewer images and try again.'**
   String get publishGalleryTooMany;
 
   /// No description provided for @profileActivity.
@@ -3393,7 +3519,7 @@ abstract class AppLocalizations {
   /// No description provided for @schedulerWebTitle.
   ///
   /// In en, this message translates to:
-  /// **'Explore the full scheduler on the Web'**
+  /// **'Explore the full course planner on the Web'**
   String get schedulerWebTitle;
 
   /// No description provided for @schedulerWebAction.
@@ -4701,7 +4827,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusTimetable.
   ///
   /// In en, this message translates to:
-  /// **'My timetable'**
+  /// **'School timetable'**
   String get campusTimetable;
 
   /// No description provided for @campusAcademics.
@@ -4713,7 +4839,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusMessages.
   ///
   /// In en, this message translates to:
-  /// **'Campus notices'**
+  /// **'School notices'**
   String get campusMessages;
 
   /// No description provided for @campusCalendars.
@@ -5361,7 +5487,7 @@ abstract class AppLocalizations {
   /// No description provided for @scheduleWidgetPrivacyDescription.
   ///
   /// In en, this message translates to:
-  /// **'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.'**
+  /// **'Widgets show course names, times, teachers and locations from the schedule saved on this device, plus the titles and locations of blocks you create (notes are excluded). If you agree, refreshing the schedule updates the home-screen view.'**
   String get scheduleWidgetPrivacyDescription;
 
   /// No description provided for @scheduleWidgetRefresh.
@@ -5801,12 +5927,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You have read all your notifications.'**
   String get notificationsUnreadEmptyDescription;
-
-  /// No description provided for @homeFeedOptions.
-  ///
-  /// In en, this message translates to:
-  /// **'Feed display'**
-  String get homeFeedOptions;
 
   /// No description provided for @homeAllCategories.
   ///
@@ -7499,6 +7619,980 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preview status'**
   String get previewStatusLink;
+
+  /// No description provided for @timetableOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Timetable options'**
+  String get timetableOptions;
+
+  /// No description provided for @timetableWeekPicker.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a week'**
+  String get timetableWeekPicker;
+
+  /// No description provided for @timetableDateRange.
+  ///
+  /// In en, this message translates to:
+  /// **'{start} – {end}'**
+  String timetableDateRange(String start, String end);
+
+  /// No description provided for @timetableUpdatedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {time}'**
+  String timetableUpdatedAt(String time);
+
+  /// No description provided for @timetableShowingSnapshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Showing saved copy'**
+  String get timetableShowingSnapshot;
+
+  /// No description provided for @timetablePartlyUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Partly updated'**
+  String get timetablePartlyUpdated;
+
+  /// No description provided for @timetableMayBeOutdated.
+  ///
+  /// In en, this message translates to:
+  /// **'May be outdated'**
+  String get timetableMayBeOutdated;
+
+  /// No description provided for @timetableFocusDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus this day'**
+  String get timetableFocusDay;
+
+  /// No description provided for @timetableUnfocusDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the whole week'**
+  String get timetableUnfocusDay;
+
+  /// No description provided for @timetableAddBlockHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a block here'**
+  String get timetableAddBlockHere;
+
+  /// No description provided for @timetableOtherWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Other week'**
+  String get timetableOtherWeek;
+
+  /// No description provided for @timetableBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Your block'**
+  String get timetableBlock;
+
+  /// No description provided for @timetableInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get timetableInProgress;
+
+  /// No description provided for @timetableEmptyWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'No classes this week. Tap an empty cell to add a block.'**
+  String get timetableEmptyWeek;
+
+  /// No description provided for @timetableDayFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing scheduled. Tap an empty cell to add a block.'**
+  String get timetableDayFree;
+
+  /// No description provided for @timetableGestureTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a weekday to focus it. Tap an empty cell to add a block, or long-press and drag to cover several sections.'**
+  String get timetableGestureTip;
+
+  /// No description provided for @timetableDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Display'**
+  String get timetableDisplay;
+
+  /// No description provided for @timetableAlwaysShowWeekend.
+  ///
+  /// In en, this message translates to:
+  /// **'Always show weekends'**
+  String get timetableAlwaysShowWeekend;
+
+  /// No description provided for @timetableAlwaysShowWeekendHint.
+  ///
+  /// In en, this message translates to:
+  /// **'When off, weekends without classes fold away.'**
+  String get timetableAlwaysShowWeekendHint;
+
+  /// No description provided for @timetableShowOtherWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'Show classes from other weeks'**
+  String get timetableShowOtherWeeks;
+
+  /// No description provided for @timetableShowOtherWeeksHint.
+  ///
+  /// In en, this message translates to:
+  /// **'They appear faded in free cells.'**
+  String get timetableShowOtherWeeksHint;
+
+  /// No description provided for @timetableShowSectionTimes.
+  ///
+  /// In en, this message translates to:
+  /// **'Show class times'**
+  String get timetableShowSectionTimes;
+
+  /// No description provided for @timetableFocusToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus today when opened'**
+  String get timetableFocusToday;
+
+  /// No description provided for @timetableMemos.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks and notes'**
+  String get timetableMemos;
+
+  /// No description provided for @timetableNoMemos.
+  ///
+  /// In en, this message translates to:
+  /// **'No blocks or notes yet. Add blocks for club meetings, study time or reminders.'**
+  String get timetableNoMemos;
+
+  /// No description provided for @timetableAddBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Add block'**
+  String get timetableAddBlock;
+
+  /// No description provided for @timetableEditBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit block'**
+  String get timetableEditBlock;
+
+  /// No description provided for @timetableBlockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
+  String get timetableBlockTitle;
+
+  /// No description provided for @timetableBlockTitleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Club meeting'**
+  String get timetableBlockTitleHint;
+
+  /// No description provided for @timetableBlockPlace.
+  ///
+  /// In en, this message translates to:
+  /// **'Place'**
+  String get timetableBlockPlace;
+
+  /// No description provided for @timetableBlockPlaceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Library, 3rd floor'**
+  String get timetableBlockPlaceHint;
+
+  /// No description provided for @timetableBlockNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note'**
+  String get timetableBlockNote;
+
+  /// No description provided for @timetableBlockDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Days'**
+  String get timetableBlockDays;
+
+  /// No description provided for @timetableBlockStart.
+  ///
+  /// In en, this message translates to:
+  /// **'First section'**
+  String get timetableBlockStart;
+
+  /// No description provided for @timetableBlockEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'Last section'**
+  String get timetableBlockEnd;
+
+  /// No description provided for @timetableWeeksOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Week {week} only'**
+  String timetableWeeksOnly(int week);
+
+  /// No description provided for @timetableWeeksEvery.
+  ///
+  /// In en, this message translates to:
+  /// **'Every week'**
+  String get timetableWeeksEvery;
+
+  /// No description provided for @timetableWeeksOdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Odd weeks'**
+  String get timetableWeeksOdd;
+
+  /// No description provided for @timetableWeeksEven.
+  ///
+  /// In en, this message translates to:
+  /// **'Even weeks'**
+  String get timetableWeeksEven;
+
+  /// No description provided for @timetableBlockColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get timetableBlockColor;
+
+  /// No description provided for @timetableColorN.
+  ///
+  /// In en, this message translates to:
+  /// **'Color {number}'**
+  String timetableColorN(int number);
+
+  /// No description provided for @timetableSaveBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get timetableSaveBlock;
+
+  /// No description provided for @timetableDeleteBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete block'**
+  String get timetableDeleteBlock;
+
+  /// No description provided for @timetableDeleteNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete note'**
+  String get timetableDeleteNote;
+
+  /// No description provided for @timetableCredits.
+  ///
+  /// In en, this message translates to:
+  /// **'{credits} credits'**
+  String timetableCredits(String credits);
+
+  /// No description provided for @timetableCourseNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note for every week'**
+  String get timetableCourseNote;
+
+  /// No description provided for @timetableCourseNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Bring a calculator'**
+  String get timetableCourseNoteHint;
+
+  /// No description provided for @timetableWeekNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note for week {week}'**
+  String timetableWeekNote(int week);
+
+  /// No description provided for @timetableWeekNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiz, homework due'**
+  String get timetableWeekNoteHint;
+
+  /// No description provided for @timetableNotesLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes stay on this device.'**
+  String get timetableNotesLocal;
+
+  /// No description provided for @timetableNotesSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved on this device.'**
+  String get timetableNotesSaved;
+
+  /// No description provided for @timetableNotesUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to save on this device. Edit the note to try again.'**
+  String get timetableNotesUnsaved;
+
+  /// No description provided for @timetableWidgets.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen widgets'**
+  String get timetableWidgets;
+
+  /// No description provided for @timetableWidgetNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next class'**
+  String get timetableWidgetNext;
+
+  /// No description provided for @timetableWidgetNextHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The upcoming class with its time and room'**
+  String get timetableWidgetNextHint;
+
+  /// No description provided for @timetableWidgetToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today’s classes'**
+  String get timetableWidgetToday;
+
+  /// No description provided for @timetableWidgetTodayHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Every class today in one list'**
+  String get timetableWidgetTodayHint;
+
+  /// No description provided for @timetableWidgetTimeline.
+  ///
+  /// In en, this message translates to:
+  /// **'Class timeline'**
+  String get timetableWidgetTimeline;
+
+  /// No description provided for @timetableWidgetTimelineHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Today’s classes along a timeline'**
+  String get timetableWidgetTimelineHint;
+
+  /// No description provided for @timetableWidgetAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get timetableWidgetAdd;
+
+  /// No description provided for @timetableWidgetAddNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Add {name} widget'**
+  String timetableWidgetAddNamed(String name);
+
+  /// No description provided for @timetableWidgetRequested.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm in the system dialog to place the widget.'**
+  String get timetableWidgetRequested;
+
+  /// No description provided for @timetableWidgetManual.
+  ///
+  /// In en, this message translates to:
+  /// **'To add a widget, long-press an empty area of your home screen, open Widgets and choose YourTJ.'**
+  String get timetableWidgetManual;
+
+  /// No description provided for @timetableWidgetIosSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'To add a widget, long-press an empty area of the Home Screen, tap +, then search for YourTJ and choose a size.'**
+  String get timetableWidgetIosSteps;
+
+  /// No description provided for @timetableCalendarSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Course calendar'**
+  String get timetableCalendarSection;
+
+  /// No description provided for @timetableMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get timetableMore;
+
+  /// No description provided for @timetableMemosNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No blocks or notes yet'**
+  String get timetableMemosNone;
+
+  /// No description provided for @timetableMemoSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{blocks, plural, =1{1 block} other{{blocks} blocks}} · {notes, plural, =1{1 note} other{{notes} notes}}'**
+  String timetableMemoSummary(int blocks, int notes);
+
+  /// No description provided for @timetableMemosIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks and notes stay on this device. Tap a class to add a note.'**
+  String get timetableMemosIntro;
+
+  /// No description provided for @timetableBlocksHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks'**
+  String get timetableBlocksHeading;
+
+  /// No description provided for @timetableNotesHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Class notes'**
+  String get timetableNotesHeading;
+
+  /// No description provided for @timetableWidgetsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Put your next class or today’s classes on the home screen.'**
+  String get timetableWidgetsHint;
+
+  /// No description provided for @timetableExportHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as an .ics file for your calendar app.'**
+  String get timetableExportHint;
+
+  /// No description provided for @timetableBlockWhen.
+  ///
+  /// In en, this message translates to:
+  /// **'When'**
+  String get timetableBlockWhen;
+
+  /// No description provided for @timetableAddNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Add note'**
+  String get timetableAddNote;
+
+  /// No description provided for @timetableWeeksRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Weeks {range}'**
+  String timetableWeeksRange(String range);
+
+  /// No description provided for @timetableListSeparator.
+  ///
+  /// In en, this message translates to:
+  /// **', '**
+  String get timetableListSeparator;
+
+  /// No description provided for @timetableConfirmDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap again to delete'**
+  String get timetableConfirmDelete;
+
+  /// No description provided for @profileMutualFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Mutual'**
+  String get profileMutualFollowing;
+
+  /// No description provided for @homeFeedSwitchToList.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to list'**
+  String get homeFeedSwitchToList;
+
+  /// No description provided for @homeFeedSwitchToCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to cards'**
+  String get homeFeedSwitchToCard;
+
+  /// No description provided for @profileStreamManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage'**
+  String get profileStreamManage;
+
+  /// No description provided for @searchFilterInCatalog.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter in the course catalog'**
+  String get searchFilterInCatalog;
+
+  /// No description provided for @profileEditAddCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a cover'**
+  String get profileEditAddCover;
+
+  /// No description provided for @profileEditAddSocialLinks.
+  ///
+  /// In en, this message translates to:
+  /// **'Add social links'**
+  String get profileEditAddSocialLinks;
+
+  /// No description provided for @profileEditAddWebsite.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a website'**
+  String get profileEditAddWebsite;
+
+  /// No description provided for @profileEditBasics.
+  ///
+  /// In en, this message translates to:
+  /// **'Basic information'**
+  String get profileEditBasics;
+
+  /// No description provided for @profileEditBioHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell people a little about yourself'**
+  String get profileEditBioHint;
+
+  /// No description provided for @profileEditChangeAvatar.
+  ///
+  /// In en, this message translates to:
+  /// **'Change avatar'**
+  String get profileEditChangeAvatar;
+
+  /// No description provided for @profileEditChangeCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Change cover'**
+  String get profileEditChangeCover;
+
+  /// No description provided for @profileEditDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Display'**
+  String get profileEditDisplay;
+
+  /// No description provided for @profileEditDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get profileEditDone;
+
+  /// No description provided for @profileEditFromPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose from photos'**
+  String get profileEditFromPhotos;
+
+  /// No description provided for @profileEditLinks.
+  ///
+  /// In en, this message translates to:
+  /// **'Links'**
+  String get profileEditLinks;
+
+  /// No description provided for @profileEditNicknameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your display name'**
+  String get profileEditNicknameHint;
+
+  /// No description provided for @profileEditSignatureHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a short signature'**
+  String get profileEditSignatureHint;
+
+  /// No description provided for @profileEditSocialHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Username or HTTPS link'**
+  String get profileEditSocialHint;
+
+  /// No description provided for @profileEditTakePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Take a photo'**
+  String get profileEditTakePhoto;
+
+  /// No description provided for @profileEditWebsiteUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Website URL'**
+  String get profileEditWebsiteUrl;
+
+  /// No description provided for @profileLanguageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Language of your public profile, separate from the app language.'**
+  String get profileLanguageHint;
+
+  /// No description provided for @profileEditBadgeSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Wearing: {name} · {count} displayed'**
+  String profileEditBadgeSummary(String name, int count);
+
+  /// No description provided for @contentMineTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'My content'**
+  String get contentMineTitle;
+
+  /// No description provided for @settingsManageBadges.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage badges'**
+  String get settingsManageBadges;
+
+  /// No description provided for @campusSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus settings'**
+  String get campusSettings;
+
+  /// No description provided for @scheduleStatusHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan status and help'**
+  String get scheduleStatusHelp;
+
+  /// No description provided for @courseAddToPlanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to course planner'**
+  String get courseAddToPlanner;
+
+  /// No description provided for @coursePlannerSelectTerm.
+  ///
+  /// In en, this message translates to:
+  /// **'Select the same term and your major before confirming the class. Existing plans stay unchanged.'**
+  String get coursePlannerSelectTerm;
+
+  /// No description provided for @coursePlannerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This class is unavailable for the term. Choose another offering from course details.'**
+  String get coursePlannerUnavailable;
+
+  /// No description provided for @coursePlannerCalendarsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load the term list. Check your network and try again.'**
+  String get coursePlannerCalendarsFailed;
+
+  /// No description provided for @authCheckEmailVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'Check email verification'**
+  String get authCheckEmailVerification;
+
+  /// No description provided for @authWriteRecoveryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your input stays here. Return after verification and continue manually.'**
+  String get authWriteRecoveryHint;
+
+  /// No description provided for @activationStatusRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh status'**
+  String get activationStatusRefresh;
+
+  /// No description provided for @scheduleSearchNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No course names match “{query}”'**
+  String scheduleSearchNoMatch(String query);
+
+  /// No description provided for @scheduleNoOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'No optional courses returned for this term'**
+  String get scheduleNoOptional;
+
+  /// No description provided for @scheduleMajorSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search major name or code'**
+  String get scheduleMajorSearchHint;
+
+  /// No description provided for @chatMessagePolicyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can start a conversation'**
+  String get chatMessagePolicyLabel;
+
+  /// No description provided for @activationStatusMailUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Mail is unavailable. Refresh later.'**
+  String get activationStatusMailUnavailable;
+
+  /// No description provided for @activationStatusMissingEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an email address in account settings first'**
+  String get activationStatusMissingEmail;
+
+  /// No description provided for @chatMessagePolicyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Private messages'**
+  String get chatMessagePolicyTitle;
+
+  /// No description provided for @campusTimetableNotConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Tongji identity not connected'**
+  String get campusTimetableNotConnected;
+
+  /// No description provided for @scheduleSearchScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Search course names in {term}'**
+  String scheduleSearchScope(String term);
+
+  /// No description provided for @scheduleConfigureScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure course scope'**
+  String get scheduleConfigureScope;
+
+  /// No description provided for @chatMessagePolicySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Message permissions saved to your account'**
+  String get chatMessagePolicySaved;
+
+  /// No description provided for @scheduleChangeMajorBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Changing the major clears {planCount} plans containing {courseCount} courses and {eventCount} custom events. Cancel to keep your current configuration and plans.'**
+  String scheduleChangeMajorBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  );
+
+  /// No description provided for @activationStatusDailyLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily limit reached. Try again tomorrow.'**
+  String get activationStatusDailyLimit;
+
+  /// No description provided for @activationStatusDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verification is currently disabled'**
+  String get activationStatusDisabled;
+
+  /// No description provided for @authVerificationPendingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the link in your inbox, then refresh this page. If no email arrives, resend it or change the address. Some actions remain unavailable until verification.'**
+  String get authVerificationPendingHint;
+
+  /// No description provided for @scheduleChangeMajorUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan content changed. Please select the major again.'**
+  String get scheduleChangeMajorUpdated;
+
+  /// No description provided for @activationStatusCooldown.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend in {seconds} seconds'**
+  String activationStatusCooldown(int seconds);
+
+  /// No description provided for @authVerificationPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verification pending'**
+  String get authVerificationPending;
+
+  /// No description provided for @activationStatusFrozen.
+  ///
+  /// In en, this message translates to:
+  /// **'This account cannot resend email'**
+  String get activationStatusFrozen;
+
+  /// No description provided for @authRegistrationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration is unavailable. Please try again later.'**
+  String get authRegistrationUnavailable;
+
+  /// No description provided for @imageViewerThumbnails.
+  ///
+  /// In en, this message translates to:
+  /// **'Image thumbnails'**
+  String get imageViewerThumbnails;
+
+  /// No description provided for @activationStatusTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to: {email}'**
+  String activationStatusTarget(String email);
+
+  /// No description provided for @activationStatusRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Resends left today: {count} / {limit}'**
+  String activationStatusRemaining(int count, int limit);
+
+  /// No description provided for @chatMessagePolicyNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'No new conversations'**
+  String get chatMessagePolicyNobody;
+
+  /// No description provided for @scheduleCourseScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Current scope: {scope}'**
+  String scheduleCourseScope(String scope);
+
+  /// No description provided for @activationStatusVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verified. No resend needed.'**
+  String get activationStatusVerified;
+
+  /// No description provided for @authCheckSignupAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Check registration again'**
+  String get authCheckSignupAvailability;
+
+  /// No description provided for @scheduleSetupMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Select {fields} before finding courses or classes.'**
+  String scheduleSetupMissing(String fields);
+
+  /// No description provided for @imageViewerOriginalSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Original size'**
+  String get imageViewerOriginalSize;
+
+  /// No description provided for @imageViewerFitPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit preview'**
+  String get imageViewerFitPreview;
+
+  /// No description provided for @scheduleChangeMajorConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Change and clear'**
+  String get scheduleChangeMajorConfirm;
+
+  /// No description provided for @campusTimetableConnectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect your Tongji identity to see your personal school timetable here. You can use the course catalog and schedule planner without connecting.'**
+  String get campusTimetableConnectBody;
+
+  /// No description provided for @chatMessagePolicyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations with actual messages can continue; empty conversations do not count. Blocks take precedence, including for bots.'**
+  String get chatMessagePolicyHint;
+
+  /// No description provided for @scheduleSearchReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a course name to start'**
+  String get scheduleSearchReady;
+
+  /// No description provided for @scheduleNoCompulsory.
+  ///
+  /// In en, this message translates to:
+  /// **'No compulsory courses returned for this scope'**
+  String get scheduleNoCompulsory;
+
+  /// No description provided for @scheduleMajorNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching majors'**
+  String get scheduleMajorNoMatch;
+
+  /// No description provided for @scheduleChangeMajorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change major and clear plans?'**
+  String get scheduleChangeMajorTitle;
+
+  /// No description provided for @scheduleEmptyCourseHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust the course scope or search by course name.'**
+  String get scheduleEmptyCourseHint;
+
+  /// No description provided for @scheduleSetupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set your course scope first'**
+  String get scheduleSetupTitle;
+
+  /// No description provided for @scheduleConfigChangeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change setup?'**
+  String get scheduleConfigChangeTitle;
+
+  /// No description provided for @scheduleConfigChangeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This clears courses and custom blocks from every plan. {planCount} plans contain {courseCount} courses and {eventCount} blocks. Plan names are kept.'**
+  String scheduleConfigChangeBody(
+    int planCount,
+    int courseCount,
+    int eventCount,
+  );
+
+  /// No description provided for @scheduleConfigChangePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}: {courseCount} courses, {eventCount} blocks'**
+  String scheduleConfigChangePlan(String name, int courseCount, int eventCount);
+
+  /// No description provided for @scheduleConfigChangeSync.
+  ///
+  /// In en, this message translates to:
+  /// **'If these plans are already synced, the cleared contents also sync to other devices.'**
+  String get scheduleConfigChangeSync;
+
+  /// No description provided for @scheduleConfigChangeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear plans and switch'**
+  String get scheduleConfigChangeConfirm;
+
+  /// No description provided for @scheduleConfigChangeUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Plans changed. Choose again and review the current impact.'**
+  String get scheduleConfigChangeUpdated;
+
+  /// No description provided for @unreadStyleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread indicators'**
+  String get unreadStyleTitle;
+
+  /// No description provided for @unreadStyleNumbers.
+  ///
+  /// In en, this message translates to:
+  /// **'Show unread counts'**
+  String get unreadStyleNumbers;
+
+  /// No description provided for @unreadStyleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.'**
+  String get unreadStyleHint;
+
+  /// No description provided for @unreadStyleSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving indicator style…'**
+  String get unreadStyleSaving;
 }
 
 class _AppLocalizationsDelegate

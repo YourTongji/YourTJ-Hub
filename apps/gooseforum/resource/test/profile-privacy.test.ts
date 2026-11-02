@@ -141,7 +141,7 @@ describe('UserPage visibility', () => {
       visibility: { ...memberProfile.visibility, profileLikes: { visible: false, reason: 'followers' } },
     })
     const shown = { ...hidden, likes: [like], user: { ...hidden.user, isFollowing: true }, visibility: { ...hidden.visibility, profileLikes: { visible: true } } }
-    vi.mocked(followUser).mockResolvedValue(undefined as never)
+    vi.mocked(followUser).mockResolvedValue({ isFollowing: true, isMutualFollowing: false })
     vi.mocked(fetchPage).mockResolvedValueOnce({ props: shown } as never)
     wrapper = mount(UserPage, { props: { layout, props: hidden }, global })
     expect(wrapper.find('[data-test="profile-section-hidden"]').exists()).toBe(true)
@@ -161,7 +161,7 @@ describe('UserPage visibility', () => {
 
   test('following does not re-read the page when nothing is hidden for followers', async () => {
     const open = profile({ section: 'activity', activityTab: 'likes', canFollow: true, user: { ...memberProfile.user, isSelf: false, isFollowing: false } })
-    vi.mocked(followUser).mockResolvedValue(undefined as never)
+    vi.mocked(followUser).mockResolvedValue({ isFollowing: true, isMutualFollowing: false })
     wrapper = mount(UserPage, { props: { layout, props: open }, global })
     await wrapper.findAll('button').find(b => /关注/.test(b.text()))!.trigger('click')
     await flushPromises()
@@ -207,6 +207,24 @@ describe('ProfilePrivacySettings', () => {
     expect(select(wrapper, 'profileLikes').props('options').map((o: { value: string }) => o.value)).toEqual(['everyone', 'followers', 'self'])
     expect(select(wrapper, 'followingList').props('options').map((o: { value: string }) => o.value)).toEqual(['everyone', 'followers', 'mutual', 'self'])
     expect(wrapper.get('a[href="/u/1024"]').text()).toBe('查看我的主页')
+  })
+
+  test('chat offers exactly three policies, saves server-confirmed values and preserves them on failure', async () => {
+    vi.mocked(getPrivacySettings).mockResolvedValue(defaults)
+    vi.mocked(updatePrivacySettings).mockResolvedValueOnce({ ...defaults, chatMessagePolicy: 'nobody' }).mockRejectedValueOnce(new Error('offline'))
+    const w = await mountSettings()
+    const chat = () => w.get('[data-test="chat-permissions"]').findComponent(SiteSelect)
+    expect(chat().props('modelValue')).toBe('everyone')
+    expect(chat().props('options').map((o: { value: string }) => o.value)).toEqual(['everyone', 'mutual', 'nobody'])
+    chat().vm.$emit('update:modelValue', 'nobody')
+    await flushPromises()
+    expect(updatePrivacySettings).toHaveBeenLastCalledWith({ chatMessagePolicy: 'nobody' })
+    expect(chat().props('modelValue')).toBe('nobody')
+    chat().vm.$emit('update:modelValue', 'everyone')
+    await flushPromises()
+    expect(document.querySelector('[data-test="profile-privacy-widen"]')).toBeNull()
+    expect(chat().props('modelValue')).toBe('nobody')
+    expect(w.get('[data-test="chat-permissions"] [role="alert"]').text()).toContain('未能保存')
   })
 
   test('bookmarks are listed as only-you with nothing to choose', async () => {

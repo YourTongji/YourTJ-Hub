@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+import 'gf_design.dart';
+
 /// Keeps Flutter's filled-field label layout inside the surface while drawing
 /// a continuous rounded focus/error outline. An OutlineInputBorder would place
 /// floating labels across the top edge, even when its border is invisible.
 class GfFilledInputBorder extends UnderlineInputBorder {
   const GfFilledInputBorder({
     super.borderSide = BorderSide.none,
-    super.borderRadius = const BorderRadius.all(Radius.circular(16)),
+    super.borderRadius = const BorderRadius.all(Radius.circular(GfRadius.md)),
   });
 
   @override

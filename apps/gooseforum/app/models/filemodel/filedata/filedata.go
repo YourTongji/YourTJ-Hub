@@ -15,11 +15,14 @@ const fieldUpdateTime = "update_time"
 
 // StorageStatus values for the direct upload lifecycle (issue #366): rows are
 // created pending before the browser uploads to S3, then flipped to ready once
-// the object is verified. The column defaults to ready so existing rows remain
+// the object is verified. Internal copies use copying; their consumed source
+// stays cleanup until expiry. The column defaults to ready so existing rows remain
 // visible without a backfill.
 const (
 	StorageStatusPending = "pending"
 	StorageStatusReady   = "ready"
+	StorageStatusCleanup = "cleanup"
+	StorageStatusCopying = "copying"
 )
 
 type Entity struct {
@@ -32,7 +35,7 @@ type Entity struct {
 	Height        int                  `gorm:"column:image_height;not null;default:0;" json:"height,omitempty"`
 	Variants      []storedImageVariant `gorm:"column:image_variants;type:text;serializer:json" json:"-"`
 	ParentName    string               `gorm:"column:parent_name;type:varchar(256);not null;default:'';index:idx_file_data_parent_name" json:"-"`
-	StorageStatus string               `gorm:"column:storage_status;type:varchar(32);not null;default:'ready';index;" json:"storageStatus"`                    // pending | ready
+	StorageStatus string               `gorm:"column:storage_status;type:varchar(32);not null;default:'ready';index;" json:"storageStatus"`                    // pending | copying | ready | cleanup
 	UserId        uint64               `gorm:"column:user_id;index;not null;default:0;index:idx_file_data_user_created,priority:1;" json:"userId"`             //
 	CreatedAt     time.Time            `gorm:"column:created_at;index;autoCreateTime;<-:create;index:idx_file_data_user_created,priority:2;" json:"createdAt"` //
 	UpdatedAt     time.Time            `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`

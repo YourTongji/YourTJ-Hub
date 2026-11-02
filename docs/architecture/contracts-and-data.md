@@ -252,6 +252,9 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
 - **Fixtures are representative wire samples**: committed JSON fixtures capture stable envelope shape,
   message codes, and rate-limit metadata. The route-level Go tests exercise real Gin route chains and
   assert the actual status, envelope, result shape, and `Retry-After` behavior against those fixtures.
+  Push subscription/device writes include missing-session, frozen/pending-account, CSRF and shared
+  `interact` rate-limit responses. Their HTTP fixtures exercise the production `apiRoute` assembly;
+  contract script tests also require the 429 header/schema and the pending-account example.
 - **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
   this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
   exercise their runtime deserialization where the mobile client consumes a controlled operation.
@@ -290,7 +293,9 @@ complete operation coverage and the precondition for such a gate is met.
 - Post revisions: `post_revisions` retains immutable body/rendered HTML, content type and first-post
   title/categories/gallery snapshots. Review status, reason, actor and time are mutable results.
   `posts.latest_revision_id` selects the latest submission; `published_revision_id` records the approved
-  version. Normal public rows remain unchanged while a new candidate is pending or rejected. The
+  version. After a direct owner edit `latest_revision_id` becomes 0 while `published_revision_id` keeps
+  the last approved snapshot, so a zero `latest_revision_id` means the row itself is the public
+  projection. Normal public rows remain unchanged while a new candidate is pending or rejected. The
   owner overlay is built on copies and never enters a shared public cache. Legacy public rows get a
   baseline from the current row on their next moderated edit; existing active pending rows are adopted
   by data migration 31, in bounded batches, idempotently. A legacy overwritten public version is not
@@ -308,6 +313,14 @@ complete operation coverage and the precondition for such a gate is met.
   apply to revision projections and files as well as ordinary posts. Final deletion retains audit bodies
   under [the retention decision](../decisions/0021-deletion-final-state-data-retention.md), while normal
   read/export/review paths cannot expose or republish them.
+- Manual topic/post rejection requires a nonblank author-visible plain-text reason, bounded to 512
+  Unicode characters. The existing revision stores the reason, actor and review time; operation logs
+  reference the revision without duplicating its private explanation. Compatibility rejection of an
+  unversioned row creates this decision snapshot under the post/topic locks in the same transaction as
+  its blocked status, retaining its already registered inline/gallery image references as private
+  revision references. Appeal approval can then publish those same references without losing image
+  read access; it grants no new URL ownership. Rollback removes both, and a later reviewer cannot overwrite it. Author views and
+  appeals reuse this record; notification, push and external HTTP payloads omit the explanation.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
@@ -319,12 +332,14 @@ complete operation coverage and the precondition for such a gate is met.
   explicit rotation. Rotation, disablement, and profile changes use column-scoped updates rather
   than saving stale snapshots; successful authentication touches `last_used_at` at most once per
   minute.
-- Agent public API coverage: the six operations under `/api/v1/agent` (`me`, topic list/create,
-  post list/create, search) are `Current` in the OpenAPI contract (`Agent` tag, `agentBearerAuth`
-  security scheme, `paths/agent.yaml`, dedicated schemas and fixtures). The route-level contract
-  tests assert all six operations plus the canonical `auth.required` 401 envelope shared by every
-  failed Agent credential. Agent writes reuse the human topic/post rate limits; browser-only
-  honeypot, captcha, and new-user cooldown gates are skipped.
+- Agent public API coverage is `Current` under `/api/v1/agent`: identity, topic list/create,
+  post list/create and search are described in [agent.yaml](../../packages/api-contract/paths/agent.yaml);
+  event inbox/cursor reads, individual event reads and ACK are described in
+  [agent-events.yaml](../../packages/api-contract/paths/agent-events.yaml). These Agent operations use
+  the `Agent` tag and `agentBearerAuth` security scheme. Route-level tests cover the core forum operations and
+  canonical `auth.required` 401 envelope, plus event ownership, cursor reset, ACK and withdrawal.
+  Agent content writes reuse the human topic/post rate limits; browser-only honeypot, captcha,
+  and new-user cooldown gates are skipped.
 - `Current`: Agent mention candidates, durable interaction and broadcast events, cursor/ACK,
   signed Webhooks, and source-linked idempotent writes are covered by the Agent event contract.
   Content transactions freeze source intents and subscription generations; workers materialize
@@ -627,9 +642,24 @@ the current cursor appears on refresh. This is a live filtered feed, not a froze
 to bookmark entries. These are hand-written page contracts in Go, TypeScript and Dart; no new
 `/api` operation or schema migration is involved. Authors are fetched once per batch, content
 visibility requires an active published topic and a matching, active, normal, undeleted first post,
-resolved in one batch. Anonymous reply bookmarks omit author identity. Reply
-excerpts are plain Markdown previews. Missing fields on older servers remain valid. Bookmark
-ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
+resolved in one batch. Anonymous reply bookmarks omit author identity. Reply excerpts are
+plain-text previews: in prose, Markdown escapes and HTML entities resolve to the final characters
+and sticker tokens are dropped; tokens inside code spans, code blocks, link targets and math keep
+their literal source, matching rendering. Topic list descriptions (`description`/`excerpt`) are
+image-capable: prose sticker tokens stay in the stored excerpt so cards and hover previews render
+resolvable names as images, while small-text surfaces (list rows, pinned strip, crawler/no-JS SSR
+list) show them as `[name]` text. Unknown and disabled names are omitted in previews, while
+personal `u_*` names render in Web/App client previews (the resolve API keys on the enabled state,
+matching the in-topic rendering) and are omitted only in crawler SSR pages, where public
+indexable HTML must not hotlink personal storage assets. Truncation never splits a token; the
+text-only projections of the same value (liked-topic and bookmark lists, my-content and
+deleted-content lists, draft lists, the admin topic list, moderator review-queue excerpts, the Agent
+topic list, meta/OG descriptions, RSS, share cards, llms export, notification text) strip the
+tokens. Report evidence snapshots strip them before storage, and stored snapshots are stripped
+again when read back into the moderator operation log, report-list excerpts and quick-action
+preview; the admin topic editor source (`TopicSource`) keeps the stored excerpt unchanged. Missing
+fields on older servers remain valid. Bookmark ordering and cursor semantics are unchanged;
+activity reply URLs include the post number when known.
 
 `Current`: profile topics use the same batched current-viewer interaction hydration as the home
 feed. Activity entries optionally expose `liked`, `bookmarked` and `likeCount`; comment activities
@@ -637,6 +667,10 @@ resolve reply state, while topic publication/like activities resolve topic state
 unavailable targets omit personal state. These additions use the existing hand-written page
 contracts, with no API route or database schema change.
 
+`Current`: follow activities in the same timeline store no preview; `contentPreview` is resolved at
+read time from the followed user's `nickname`, falling back to `username`. `UserConnectionPayload.isMutualFollowing`
+is part of the same hand-written page contract and is a viewer-perspective flag: the server decides
+mutuality, so a one-way follow reports `false`.
 
 `Current`: notification `actor.avatarUrl` is populated from current public user presentation in
 one batch. The existing `content` field uses a visible reply's readable preview for likes with no
@@ -781,3 +815,11 @@ items include the `originalReviewReason`. Failures use specific `content.appeal.
 set `notifications.templates.appeal{Submitted,Approved,Rejected,Stale}` template keys.
 Audit records follow [governance retention](../decisions/0021-deletion-final-state-data-retention.md);
 product limits and tradeoffs live in [0098](../decisions/0098-moderation-appeals.md).
+
+## Topic summary projection
+
+`Current`: Markdown summaries retain every nonempty readable text block, including one-character
+paragraphs and headings. Images and code blocks do not supply summary text. The existing 200-rune
+limit remains. Versioned data migration v34 repairs empty persisted summaries of public forum topics
+from the effective public first post, without reading pending revision candidates or changing
+publication/update timestamps. Existing nonempty summaries and nonpublic topics are preserved.

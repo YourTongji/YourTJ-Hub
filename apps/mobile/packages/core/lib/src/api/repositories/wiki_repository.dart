@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../gen/wiki.dart';
 import '../../gen/wiki_search.dart';
 import '../gf_api_client.dart';
@@ -28,13 +30,18 @@ class WikiRepository {
         WikiNamespaceList.fromJson(Map<String, dynamic>.from(json as Map)),
   );
 
-  Future<WikiSearchResult> search(String query) =>
-      _client.get<WikiSearchResult>(
-        '$_base/search',
-        queryParameters: {'q': query},
-        parser: (json) =>
-            WikiSearchResult.fromJson(Map<String, dynamic>.from(json as Map)),
-      );
+  /// 页面级搜索；[limit] 为页面数上限（服务端 1–20，缺省 12）。
+  Future<WikiSearchResult> search(
+    String query, {
+    int? limit,
+    CancelToken? cancelToken,
+  }) => _client.get<WikiSearchResult>(
+    '$_base/search',
+    cancelToken: cancelToken,
+    queryParameters: {'q': query, 'limit': ?limit},
+    parser: (json) =>
+        WikiSearchResult.fromJson(Map<String, dynamic>.from(json as Map)),
+  );
 
   /// 首页 feed（命名空间概览 + 最近更新）。
   Future<WikiHomeData> home() => _client.get<WikiHomeData>(

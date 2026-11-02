@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
-import 'package:forum_app/src/pages/wiki/wiki_search_page.dart';
+import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'widget_test.dart' show MemoryTokenStorage;
@@ -16,8 +16,11 @@ class _Repository extends WikiRepository {
     : super(GfApiClient(dio: Dio(), tokenStorage: MemoryTokenStorage()));
   final requests = <String, Completer<WikiSearchResult>>{};
   @override
-  Future<WikiSearchResult> search(String query) =>
-      (requests[query] = Completer()).future;
+  Future<WikiSearchResult> search(
+    String query, {
+    int? limit,
+    CancelToken? cancelToken,
+  }) => (requests[query] = Completer()).future;
 }
 
 WikiSearchResult _result(String title) => WikiSearchResult.fromJson({
@@ -52,7 +55,7 @@ void main() {
           locale: const Locale('zh'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const WikiSearchPage(initialQuery: '选课'),
+          home: const SearchPage(initialScope: 'wiki', initialQuery: '选课'),
         ),
       ),
     );
@@ -67,12 +70,15 @@ void main() {
     );
   });
   testWidgets(
-    'search debounces, ignores stale responses, and opens the hit anchor',
+    'submitted Wiki searches ignore stale responses and open the hit anchor',
     (tester) async {
       final repository = _Repository();
       final router = GoRouter(
         routes: [
-          GoRoute(path: '/', builder: (_, _) => const WikiSearchPage()),
+          GoRoute(
+            path: '/',
+            builder: (_, _) => const SearchPage(initialScope: 'wiki'),
+          ),
           GoRoute(
             path: '/wiki/:path(.*)',
             builder: (_, _) => const Scaffold(body: Text('destination')),
@@ -94,11 +100,13 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'old');
-      await tester.pump(const Duration(milliseconds: 150));
-      expect(repository.requests, isEmpty);
-      await tester.pump(const Duration(milliseconds: 150));
-      await tester.enterText(find.byType(TextField), 'new');
       await tester.pump(const Duration(milliseconds: 300));
+      expect(repository.requests, isEmpty);
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'new');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
       repository.requests['new']!.complete(_result('新结果'));
       await tester.pumpAndSettle();
       repository.requests['old']!.complete(_result('旧结果'));

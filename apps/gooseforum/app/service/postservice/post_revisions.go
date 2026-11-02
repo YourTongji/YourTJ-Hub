@@ -100,12 +100,15 @@ func appendPostRevision(tx *gorm.DB, post *posts.Entity, editorID uint64, proces
 	}); err != nil {
 		return err
 	}
+	// 直改路径只清 latest_revision_id（表示本次编辑未经发布/审核流程），
+	// 不清 published_revision_id：它标记「上一次真正公开的修订」，清掉会让
+	// 审核通知的 Edited 标记（approval_notify_handler）与申诉/提交的基线回退
+	// 到内容匹配推测（issue #1284 A4）。
 	return tx.Table("posts").
 		Where("id = ?", post.Id).
 		Updates(map[string]any{
-			"latest_revision_id":    0,
-			"published_revision_id": 0,
-			"last_editor_id":        editorID,
-			"last_edited_at":        now,
+			"latest_revision_id": 0,
+			"last_editor_id":     editorID,
+			"last_edited_at":     now,
 		}).Error
 }

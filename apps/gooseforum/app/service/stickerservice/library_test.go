@@ -27,7 +27,7 @@ func stickerLibraryDB(t *testing.T) *gorm.DB {
 	}
 	sqlDB.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}, &fileUsage.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}, &sticker.PackSubscription{}, &fileUsage.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	return conn
@@ -181,7 +181,7 @@ func TestPersonalStickerLibraryQuotaOnPostgreSQL(t *testing.T) {
 	if err := conn.Migrator().DropTable(&sticker.LibraryEntry{}, &sticker.LibraryOwner{}, &sticker.Entity{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}); err != nil {
+	if err := conn.AutoMigrate(&sticker.Entity{}, &sticker.Alias{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}, &sticker.PackSubscription{}); err != nil {
 		t.Fatal(err)
 	}
 	assertLibraryConcurrency(t, conn)

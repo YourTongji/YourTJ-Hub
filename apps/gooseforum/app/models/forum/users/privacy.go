@@ -12,38 +12,43 @@ import (
 
 // Profile audiences, ordered from the widest to the narrowest.
 const (
-	AudienceEveryone  = "everyone"
-	AudienceMembers   = "members"
-	AudienceFollowers = "followers"
-	AudienceMutual    = "mutual"
-	AudienceSelf      = "self"
+	AudienceEveryone    = "everyone"
+	AudienceMembers     = "members"
+	AudienceFollowers   = "followers"
+	AudienceMutual      = "mutual"
+	AudienceSelf        = "self"
+	ChatMessageEveryone = "everyone"
+	ChatMessageMutual   = "mutual"
+	ChatMessageNobody   = "nobody"
 )
 
 var ErrPrivacyAudience = errors.New("invalid privacy audience")
 
-// PrivacySettingsEntity stores which profile aggregates other people may see.
+// PrivacySettingsEntity stores owner profile audiences and new-chat permissions.
 // A missing row means the public defaults that predate the setting, so
-// existing accounts need no backfill. It never controls access to the
-// underlying topics, replies or relationships.
+// existing accounts need no backfill. Profile audiences never change access to
+// underlying topics, replies or relationships; chat policy applies only to new conversations.
 type PrivacySettingsEntity struct {
-	UserID          uint64    `gorm:"primaryKey;autoIncrement:false;not null" json:"-"`
-	ProfileTopics   string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"profileTopics"`
-	ProfileActivity string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"profileActivity"`
-	ProfileLikes    string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"profileLikes"`
-	FollowingList   string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"followingList"`
-	FollowersList   string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"followersList"`
-	UpdatedAt       time.Time `json:"-"`
+	ChatMessagePolicy string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"chatMessagePolicy"`
+	UserID            uint64    `gorm:"primaryKey;autoIncrement:false;not null" json:"-"`
+	ProfileTopics     string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"profileTopics"`
+	ProfileActivity   string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"profileActivity"`
+	ProfileLikes      string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"profileLikes"`
+	FollowingList     string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"followingList"`
+	FollowersList     string    `gorm:"type:varchar(16);not null;default:'everyone'" json:"followersList"`
+	UpdatedAt         time.Time `json:"-"`
 }
 
 func (PrivacySettingsEntity) TableName() string { return "user_privacy_settings" }
 
 // PrivacySettingsUpdate carries a partial owner update; nil fields keep their value.
 type PrivacySettingsUpdate struct {
-	ProfileTopics   *string
-	ProfileActivity *string
-	ProfileLikes    *string
-	FollowingList   *string
-	FollowersList   *string
+	ChatMessagePolicy *string
+	ProfileTopics     *string
+	ProfileActivity   *string
+	ProfileLikes      *string
+	FollowingList     *string
+	FollowersList     *string
 }
 
 var allProfileAudiences = []string{AudienceEveryone, AudienceMembers, AudienceFollowers, AudienceMutual, AudienceSelf}
@@ -51,22 +56,28 @@ var allProfileAudiences = []string{AudienceEveryone, AudienceMembers, AudienceFo
 // PrivacyAudiences lists the audiences each setting accepts. Likes and
 // relationship lists omit combinations the issue contract does not offer.
 var PrivacyAudiences = map[string][]string{
-	"profileTopics":   allProfileAudiences,
-	"profileActivity": allProfileAudiences,
-	"profileLikes":    {AudienceEveryone, AudienceFollowers, AudienceSelf},
-	"followingList":   {AudienceEveryone, AudienceFollowers, AudienceMutual, AudienceSelf},
-	"followersList":   {AudienceEveryone, AudienceFollowers, AudienceMutual, AudienceSelf},
+	"chatMessagePolicy": {ChatMessageEveryone, ChatMessageMutual, ChatMessageNobody},
+	"profileTopics":     allProfileAudiences,
+	"profileActivity":   allProfileAudiences,
+	"profileLikes":      {AudienceEveryone, AudienceFollowers, AudienceSelf},
+	"followingList":     {AudienceEveryone, AudienceFollowers, AudienceMutual, AudienceSelf},
+	"followersList":     {AudienceEveryone, AudienceFollowers, AudienceMutual, AudienceSelf},
 }
 
 func DefaultPrivacySettings(userID uint64) PrivacySettingsEntity {
-	return PrivacySettingsEntity{UserID: userID, ProfileTopics: AudienceEveryone, ProfileActivity: AudienceEveryone, ProfileLikes: AudienceEveryone, FollowingList: AudienceEveryone, FollowersList: AudienceEveryone}
+	return PrivacySettingsEntity{UserID: userID, ChatMessagePolicy: ChatMessageEveryone, ProfileTopics: AudienceEveryone, ProfileActivity: AudienceEveryone, ProfileLikes: AudienceEveryone, FollowingList: AudienceEveryone, FollowersList: AudienceEveryone}
 }
 
 // GetPrivacySettings returns stored settings or the public defaults. Storage
 // errors are returned so callers can fail closed.
 func GetPrivacySettings(userID uint64) (PrivacySettingsEntity, error) {
+	return GetPrivacySettingsWithDB(db.Connect(), userID)
+}
+
+// GetPrivacySettingsWithDB reads preferences in the caller's transaction.
+func GetPrivacySettingsWithDB(conn *gorm.DB, userID uint64) (PrivacySettingsEntity, error) {
 	settings := DefaultPrivacySettings(userID)
-	err := db.Connect().Where("user_id = ?", userID).Take(&settings).Error
+	err := conn.Where("user_id = ?", userID).Take(&settings).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return DefaultPrivacySettings(userID), nil
 	}
@@ -86,6 +97,7 @@ func updatePrivacySettings(conn *gorm.DB, userID uint64, update PrivacySettingsU
 		value  *string
 		apply  func(*PrivacySettingsEntity, string)
 	}{
+		{"chatMessagePolicy", "chat_message_policy", update.ChatMessagePolicy, func(s *PrivacySettingsEntity, v string) { s.ChatMessagePolicy = v }},
 		{"profileTopics", "profile_topics", update.ProfileTopics, func(s *PrivacySettingsEntity, v string) { s.ProfileTopics = v }},
 		{"profileActivity", "profile_activity", update.ProfileActivity, func(s *PrivacySettingsEntity, v string) { s.ProfileActivity = v }},
 		{"profileLikes", "profile_likes", update.ProfileLikes, func(s *PrivacySettingsEntity, v string) { s.ProfileLikes = v }},
@@ -99,6 +111,11 @@ func updatePrivacySettings(conn *gorm.DB, userID uint64, update PrivacySettingsU
 	}
 	var settings PrivacySettingsEntity
 	err := conn.Transaction(func(tx *gorm.DB) error {
+		if update.ChatMessagePolicy != nil {
+			if err := LockInteractionUserIDs(tx, []uint64{userID}); err != nil {
+				return err
+			}
+		}
 		settings = DefaultPrivacySettings(userID)
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).Take(&settings).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err

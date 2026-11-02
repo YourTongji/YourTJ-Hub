@@ -23,6 +23,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
@@ -509,11 +510,13 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 				nickname = ""
 				userAvatarUrl = ""
 			}
+			// Description 只服务列表展示（line-clamp 摘要）；编辑器回填走 TopicSource，
+			// 不能共用剥除，否则会静默丢掉正文里的 token。
 			return TopicInfoAdminVo{
 				TopicAdminBaseVo: TopicAdminBaseVo{
 					Id:            t.Id,
 					Title:         t.Title,
-					Description:   t.Excerpt,
+					Description:   markdown2html.StripStickerTokens(t.Excerpt),
 					CategoryId:    t.CategoryIds,
 					UserId:        t.UserId,
 					TopicStatus:   t.Status,
@@ -1656,9 +1659,9 @@ func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) co
 
 // GetRateLimitSettings 获取滥用防护（限流）设置
 func GetRateLimitSettings(req component.BetterRequest[component.Null]) component.Response {
-	defaultSettings := defaultconfig.GetDefaultRateLimitConfig()
-	res := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultSettings)
-	return component.SuccessResponse(res)
+	// Show the same effective actions the middleware enforces, including defaults
+	// added after an administrator last saved the configuration.
+	return component.SuccessResponse(hotdataserve.GetRateLimitConfigCache())
 }
 
 type SaveRateLimitSettingsReq struct {
@@ -1955,6 +1958,14 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 		channel := pageConfig.NormalizeHttpNotifyChannel(ep.ChannelType)
 		if channel == "" {
 			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		}
+		// 地址非空时按通知目标策略校验（URL + DNS，issue #1280）：本机、链路本地、
+		// 保留地址和解析不出的域名不允许保存；留空表示沿用已存密文，不做 DNS 校验。
+		// 失败只回固定消息码，不回显解析到的地址。
+		if plainURL := strings.TrimSpace(ep.URL); plainURL != "" {
+			if err := httpnotifyservice.ValidateEndpointTarget(betterRequestContext(req), plainURL); err != nil {
+				return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+			}
 		}
 		key := ep.Id
 		if key == "" {
@@ -2381,12 +2392,13 @@ func notifyReviewResult(authorID uint64, approved bool, topicID uint64, title st
 	}
 }
 
-// reviewSubjectTitle 通知里的内容标题：无标题瞬间回落摘要（截断）。
+// reviewSubjectTitle 通知里的内容标题：无标题瞬间回落摘要（截断）。通知是纯文本，
+// 摘要里的贴纸 token 在这里无法展开，先去 token 再截断以免只切出半个 token。
 func reviewSubjectTitle(title, excerpt string) string {
 	if strings.TrimSpace(title) != "" {
 		return title
 	}
-	runes := []rune(strings.TrimSpace(excerpt))
+	runes := []rune(markdown2html.StripStickerTokens(strings.TrimSpace(excerpt)))
 	if len(runes) > 40 {
 		return string(runes[:40]) + "…"
 	}
@@ -2491,7 +2503,7 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 				username = u.Username
 				nickname = u.Nickname
 			}
-			excerpt := t.Excerpt
+			excerpt := markdown2html.StripStickerTokens(t.Excerpt)
 			if excerpt == "" {
 				excerpt = t.Title
 			}
@@ -2553,9 +2565,10 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 			if t, ok := topicMap[p.TopicId]; ok {
 				title = t.Title
 			}
-			excerpt := p.Content
-			if len(excerpt) > 120 {
-				excerpt = excerpt[:120]
+			excerpt := markdown2html.StripStickerTokens(p.Content)
+			// 按 rune 截断，否则多字节汉字会被切成半个（对齐 moderationExcerpt）。
+			if runes := []rune(excerpt); len(runes) > 120 {
+				excerpt = string(runes[:120])
 			}
 			items = append(items, ReviewQueueItem{
 				Id: p.Id, Title: title, Excerpt: excerpt, RevisionId: revision.Id, Content: p.Content, ReviewReason: revision.ReviewReason,
@@ -2619,6 +2632,13 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 // 完全一致。自动结论不回写人工标签、不记操作日志；自动通过不通知作者（发布时
 // 已告知通过后公开），自动拒绝照常通知。
 func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, automatic bool) component.Response {
+	if !automatic && !params.Approve {
+		var err error
+		params.Reason, err = publicationservice.NormalizeRejectionReason(params.Reason)
+		if err != nil {
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		}
+	}
 	post := posts.Get(params.Id)
 	if params.Kind == "topic" {
 		post = posts.Get(topics.Get(params.Id).FirstPostId)
@@ -2638,7 +2658,7 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		if !automatic {
-			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post", optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})
+			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post", optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve, "revisionId": params.RevisionId})
 		}
 		return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 	}
@@ -2669,6 +2689,13 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 				if _, err := posts.GetUnscopedTx(tx, topic.FirstPostId); err != nil {
 					return err
 				}
+			}
+			if !params.Approve && !automatic {
+				revisionID, err := publicationservice.RecordLegacyRejectionTx(tx, topic.FirstPostId, actorID, params.Reason)
+				if err != nil {
+					return err
+				}
+				params.RevisionId = revisionID
 			}
 			if err := topics.UpdateProcessStatusTx(tx, topic.Id, targetStatus); err != nil {
 				return err
@@ -2702,6 +2729,9 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			}
 			return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 		}); err != nil {
+			if errors.Is(err, publicationservice.ErrUnavailable) {
+				return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+			}
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
@@ -2738,7 +2768,7 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		}
 		if !automatic {
 			optlogger.UserOptCode(actorID, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
-				optlogger.MessageParams{"id": topic.Id, "approve": params.Approve})
+				optlogger.MessageParams{"id": topic.Id, "approve": params.Approve, "revisionId": params.RevisionId})
 		}
 	} else {
 		post := posts.Get(params.Id)
@@ -2758,6 +2788,13 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		var hasPriorPublic bool
 		usePublicationBaseline := agentinstance.Current().ID != "" && agentinstance.Current().Epoch != ""
 		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if !params.Approve && !automatic {
+				revisionID, err := publicationservice.RecordLegacyRejectionTx(tx, post.Id, actorID, params.Reason)
+				if err != nil {
+					return err
+				}
+				params.RevisionId = revisionID
+			}
 			if err := posts.UpdateProcessStatusTx(tx, post.Id, targetStatus); err != nil {
 				return err
 			}
@@ -2779,6 +2816,9 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			}
 			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
 		}); err != nil {
+			if errors.Is(err, publicationservice.ErrUnavailable) {
+				return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+			}
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
@@ -2821,7 +2861,7 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		}
 		if !automatic {
 			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post",
-				optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})
+				optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve, "revisionId": params.RevisionId})
 		}
 	}
 	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)

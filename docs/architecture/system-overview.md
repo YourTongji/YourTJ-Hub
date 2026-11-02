@@ -32,6 +32,10 @@ flowchart TB
 - **Single binary**: forum frontend (Vue 3 output static/dist + GoHTML templates) is fully go:embed'd
   into the Go binary. In development, set `[app] env = "local"` in `config.toml` and browse the
   backend on :5234; it proxies `/assets` to Vite on :3010. Production serves embedded assets. No nginx/CDN split.
+- `Current`: production HTML follows the Vite manifest's static import graph to emit deduplicated
+  `modulepreload` hints, including the home component on an initial home document. Other dynamic page
+  chunks remain lazy. The initial topic list comes from the embedded page payload; this optimization
+  changes asset discovery, not topic ranking or API reads. Development retains the same-origin Vite proxy.
 - Dependency services (Meilisearch/PostgreSQL) are orchestrated with docker-compose;
   `services/` holds deployment configs only, not third-party source. Deployments default to
   PostgreSQL for the main database; local development and tests default to SQLite.

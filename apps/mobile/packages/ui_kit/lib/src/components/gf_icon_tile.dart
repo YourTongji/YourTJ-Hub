@@ -15,8 +15,12 @@ class GfIconTile extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: tone.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(11),
+        color: tone.withValues(
+          alpha: GfTheme.colorsOf(context).isDark ? 0.18 : 0.1,
+        ),
+        borderRadius: BorderRadius.circular(
+          size >= 48 ? GfRadius.md : GfRadius.sm,
+        ),
       ),
       alignment: Alignment.center,
       child: GfSymbol(symbol, size: size * 0.55, color: tone),

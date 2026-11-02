@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 
@@ -16,7 +17,7 @@ func init() {
 	cmd := &cobra.Command{
 		Use:   "mock-posts",
 		Short: "Mock topic posts",
-		Run:   runMockTopicPosts,
+		RunE:  runMockTopicPosts,
 	}
 	cmd.Flags().Uint64("topic-id", 0, "Only mock posts for the specified topic")
 	cmd.Flags().Int("count", 0, "Post count for --topic-id mode")
@@ -25,8 +26,9 @@ func init() {
 	appendCommand(cmd)
 }
 
-func runMockTopicPosts(cmd *cobra.Command, args []string) {
-
+// runMockTopicPosts 批量创建 mock 楼层。任一 CreatePost 失败使命令返回非零退出状态,
+// 不能用正常退出掩盖部分或全部失败(issue #1284)。
+func runMockTopicPosts(cmd *cobra.Command, args []string) error {
 	fmt.Println("Starting to mock posts...")
 	topicID, _ := cmd.Flags().GetUint64("topic-id")
 	count, _ := cmd.Flags().GetInt("count")
@@ -43,14 +45,12 @@ func runMockTopicPosts(cmd *cobra.Command, args []string) {
 	// 1. Get the latest published topics.
 	topicList, err := topics.GetLatestPublished(topicLimit)
 	if err != nil {
-		fmt.Printf("Failed to load topics: %v\n", err)
-		return
+		return fmt.Errorf("load topics: %w", err)
 	}
 	if topicID > 0 {
 		topic := topics.Get(topicID)
 		if topic.Id == 0 {
-			fmt.Printf("Topic %d not found.\n", topicID)
-			return
+			return fmt.Errorf("topic %d not found", topicID)
 		}
 		topicList = []*topics.Entity{&topic}
 		if count <= 0 {
@@ -60,8 +60,7 @@ func runMockTopicPosts(cmd *cobra.Command, args []string) {
 	fmt.Printf("Found %d topics\n", len(topicList))
 
 	if len(topicList) == 0 {
-		fmt.Println("No topics found.")
-		return
+		return errors.New("no topics found")
 	}
 
 	// 2. Get all users
@@ -71,20 +70,18 @@ func runMockTopicPosts(cmd *cobra.Command, args []string) {
 	})
 
 	if len(userIds) == 0 {
-		fmt.Println("No users found.")
-		return
+		return errors.New("no users found, please create users first")
 	}
 	fmt.Printf("Found %d users\n", len(userIds))
 
 	// 3. Loop topics and generate posts.
-	totalPosts := 0
+	created, failed := 0, 0
 	for i, topic := range topicList {
 		postCount := count
 		if topicID == 0 {
-			postCount = rand.Intn(maxPerTopic)
-		}
-		if postCount == 0 {
-			continue
+			// rand.Intn 可能为 0；至少建一条，否则 --max-per-topic 1 时整条
+			// 命令一条也不建却声称成功（issue #1284）。
+			postCount = rand.Intn(maxPerTopic) + 1
 		}
 
 		for j := range postCount {
@@ -101,12 +98,21 @@ func runMockTopicPosts(cmd *cobra.Command, args []string) {
 			resp := api.CreatePost(req)
 
 			if resp.Data.Code != component.SUCCESS {
+				failed++
 				fmt.Printf("Error creating post for topic %d: %s\n", topic.Id, resp.Data.MessageCode)
 			} else {
-				totalPosts++
+				created++
 			}
 		}
 	}
 
-	fmt.Printf("Success: Created %d mock posts for %d topics.\n", totalPosts, len(topicList))
+	fmt.Printf("Mock posts generation done: created=%d failed=%d topics=%d\n", created, failed, len(topicList))
+	if created == 0 {
+		// 未指定 --max-per-topic 时每条话题至少建一条，故 0 条只可能来自全部失败。
+		return fmt.Errorf("created no mock posts (per-topic upper bound %d)", maxPerTopic)
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d mock posts failed to create", failed)
+	}
+	return nil
 }

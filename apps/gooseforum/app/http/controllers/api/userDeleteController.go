@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
@@ -118,7 +119,7 @@ func MyContentList(req component.BetterRequest[MyContentListReq]) component.Resp
 				ID:          topic.Id,
 				ContentType: "topic",
 				Title:       topic.Title,
-				Excerpt:     topic.Excerpt,
+				Excerpt:     markdown2html.StripStickerTokens(topic.Excerpt),
 				CreatedAt:   topic.CreatedAt.Format(time.RFC3339),
 			})
 		}
@@ -358,7 +359,7 @@ func DeletedContentList(req component.BetterRequest[DeletedContentListReq]) comp
 				ID:           topic.Id,
 				ContentType:  "topic",
 				Title:        topic.Title,
-				Excerpt:      topic.Excerpt,
+				Excerpt:      markdown2html.StripStickerTokens(topic.Excerpt),
 				Visibility:   topic.VisibilityStatus,
 				Retention:    topic.RetentionStatus,
 				DeletedAt:    formatDeletedAt(topic.DeletedAt.Time),
@@ -472,10 +473,13 @@ func lastCursorID(items []DeletedContentItem) uint64 {
 	return items[len(items)-1].ID
 }
 
+// excerptOf is a text-only reply preview: sticker tokens are dropped before the
+// rune cut so the list never shows a raw token or half of one.
 func excerptOf(content string) string {
-	runes := []rune(content)
+	text := markdown2html.StripStickerTokens(content)
+	runes := []rune(text)
 	if len(runes) > 100 {
 		return string(runes[:100])
 	}
-	return content
+	return text
 }

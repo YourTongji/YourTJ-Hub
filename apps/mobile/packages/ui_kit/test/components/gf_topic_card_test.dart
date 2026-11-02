@@ -126,7 +126,8 @@ void main() {
       expect(category.right, lessThanOrEqualTo(card.right));
       for (final target in [author, category]) {
         expect(target.width, greaterThanOrEqualTo(44));
-        expect(target.height, greaterThanOrEqualTo(44));
+        // 卡片位于分数坐标时 getRect 的高度差带浮点尾差，布局高度实际为 44。
+        expect(target.height, closeTo(44, 0.01));
       }
       final nameText = tester.widget<Text>(find.text(name));
       final nameParagraph = tester.renderObject<RenderParagraph>(
@@ -432,6 +433,41 @@ void main() {
     },
   );
 
+  testWidgets('avatar and name may open different author targets', (
+    tester,
+  ) async {
+    var avatarTaps = 0;
+    var nameTaps = 0;
+    var cardTaps = 0;
+    Widget card({VoidCallback? onAvatarTap}) => gfApp(
+      SizedBox(
+        width: 390,
+        child: GfTopicCard(
+          title: 'Campus',
+          description: '',
+          authorName: 'Student',
+          authorAvatarUrl: '',
+          activityText: 'now',
+          categories: const [],
+          imageUrls: const [],
+          replyCount: 0,
+          viewCount: 0,
+          onAuthorTap: () => nameTaps++,
+          onAvatarTap: onAvatarTap,
+          onTap: () => cardTaps++,
+        ),
+      ),
+    );
+    await tester.pumpWidget(card(onAvatarTap: () => avatarTaps++));
+    await tester.tap(find.byType(GfAvatar));
+    await tester.tap(find.text('Student'));
+    expect((avatarTaps, nameTaps, cardTaps), (1, 1, 0));
+    // Without a dedicated avatar target the avatar keeps the author target.
+    await tester.pumpWidget(card());
+    await tester.tap(find.byType(GfAvatar));
+    expect((avatarTaps, nameTaps, cardTaps), (1, 2, 0));
+  });
+
   testWidgets('author name and image support keyboard activation', (
     tester,
   ) async {
@@ -710,6 +746,48 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('a title span owns the title slot with inline widgets', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      gfApp(
+        GfTopicCard(
+          title: 'plain fallback',
+          titleSpan: const TextSpan(
+            text: '瞬间 ',
+            children: <InlineSpan>[
+              WidgetSpan(
+                child: SizedBox(key: Key('inline'), width: 20, height: 20),
+              ),
+            ],
+          ),
+          description: '',
+          authorName: 'Student',
+          authorAvatarUrl: '',
+          activityText: 'now',
+          categories: const <GfTopicCategory>[],
+          imageUrls: const <String>[],
+          replyCount: 0,
+          viewCount: 1,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('inline')), findsOneWidget);
+    expect(find.text('plain fallback'), findsNothing);
+    final RichText title = tester.widget<RichText>(
+      find
+          .ancestor(
+            of: find.byKey(const Key('inline')),
+            matching: find.byType(RichText),
+          )
+          .first,
+    );
+    expect(title.text.style?.fontWeight, FontWeight.w600);
+    expect(title.maxLines, 2);
+    expect(tester.takeException(), isNull);
+  });
 
   group('feed context', () {
     Widget card({

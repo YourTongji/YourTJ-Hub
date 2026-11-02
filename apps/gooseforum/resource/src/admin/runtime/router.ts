@@ -75,6 +75,10 @@ export const adminRouter = createRouter({
       component: () => import('@/admin/pages/management/StickersManagementPage.vue'),
     },
     {
+      path: '/admin/sticker-market',
+      component: () => import('@/admin/pages/management/StickerMarketManagementPage.vue'),
+    },
+    {
       path: '/admin/files/resources',
       component: () => import('@/admin/pages/management/FileResourcesManagementPage.vue'),
     },

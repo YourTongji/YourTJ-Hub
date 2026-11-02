@@ -14,7 +14,7 @@ web: ## Run frontend dev server (:3010; run pnpm install first)
 
 build: ## Build frontend output + forum single binary
 	cd apps/gooseforum/resource && pnpm build
-	cd apps/gooseforum && go build -o ../../bin/yourtj-hub .
+	cd apps/gooseforum && go build -tags nodynamic -o ../../bin/yourtj-hub .
 
 contract-lint: ## Validate and bundle the OpenAPI contract
 	cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run lint && pnpm run bundle

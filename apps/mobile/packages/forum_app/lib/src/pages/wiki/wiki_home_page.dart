@@ -99,12 +99,12 @@ class _WikiHomePageState extends ConsumerState<WikiHomePage> {
                       ),
                       const SizedBox(height: 16),
                       InkWell(
-                        onTap: () => context.push('/wiki/search'),
+                        onTap: () => context.push('/search?scope=wiki'),
                         child: Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             color: GfTheme.colorsOf(context).base200,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(GfRadius.sm),
                           ),
                           child: Row(
                             children: [
@@ -184,7 +184,7 @@ class _SectionLabel extends StatelessWidget {
       child: GfText(
         text,
         style: GfTheme.typographyOf(context).small.copyWith(
-          color: colors.baseContent.withValues(alpha: 0.55),
+          color: colors.textSecondary,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -207,8 +207,8 @@ class _NamespaceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography typography = GfTheme.typographyOf(context);
-    final Color muted = colors.baseContent.withValues(alpha: 0.55);
-    final Color faint = colors.baseContent.withValues(alpha: 0.45);
+    final Color muted = colors.textSecondary;
+    final Color faint = colors.textSecondary;
     return GfCard(
       onTap: onTap,
       showDivider: showDivider,
@@ -295,7 +295,7 @@ class _RecentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography typography = GfTheme.typographyOf(context);
-    final Color faint = colors.baseContent.withValues(alpha: 0.45);
+    final Color faint = colors.textSecondary;
     return GfCard(
       onTap: onTap,
       showDivider: showDivider,

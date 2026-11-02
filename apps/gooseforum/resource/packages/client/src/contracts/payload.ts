@@ -45,6 +45,8 @@ export interface ErrorPageProps {
 }
 
 export interface LoginPageProps {
+  /** Public advisory state; the server revalidates every registration. */
+  passwordSignupState?: 'open' | 'disabled' | 'daily_limit' | 'mail_unavailable' | 'unavailable'
   tongjiRegistration?: boolean
   initialMode: 'login' | 'register' | 'forgot'
   redirectUrl: string
@@ -59,6 +61,8 @@ export interface LoginPageProps {
   termsOfServiceEnabled: boolean
   privacyPolicyEnabled: boolean
   allowedDomains: string[]
+  // issue #1278: 站点关闭验证码时前端不渲染、不校验验证码；缺省按开启处理。
+  captchaRequired?: boolean
   oauthNotice: boolean
 }
 
@@ -221,9 +225,18 @@ export interface ThemePreviewProps {
   defaults: SiteThemeConfig
 }
 
+export type UnreadBadgeStyle = 'number' | 'dot'
+
+export interface NotificationPreferences {
+  badgeStyle: UnreadBadgeStyle
+}
+
 export interface UnreadStatusPayload {
   notifications: boolean
   messages: boolean
+  badgeStyle?: UnreadBadgeStyle
+  notificationCount?: number
+  messageCount?: number
   moderationReports?: boolean
   latestNotificationType?: string
   /** 最新一条未读通知的 id（单调递增；仅在有未读时存在）。 */
@@ -236,7 +249,6 @@ export interface SitePayload {
   url?: string
   logo: string
   favicon: string
-  externalLinks?: string
   brandType: string
   brandText: string
   brandImage: string
@@ -335,6 +347,11 @@ export interface SeenPatch {
 export interface FeedRefreshRequest {
   seenPatches?: SeenPatch[]
   replaceSnapshotId?: string
+}
+export interface FeedReconcileRequest {
+  topicIds: number[]
+  /** Regular feeds may retain their viewer's public topics; For You defaults to false. */
+  includeOwn?: boolean
 }
 export interface FeedSessionResponse {
   viewerId: number
@@ -697,6 +714,8 @@ export interface UserCardPayload {
   collectionCount: number
   isOnline: boolean
   isFollowing: boolean
+  // viewer 视角：当前登录者与对方互相关注（issue #1320）
+  isMutualFollowing: boolean
   isSelf: boolean
   displayBadges?: UserBadgePayload[]
   badges: UserBadgePayload[]
@@ -819,6 +838,8 @@ export interface UserConnectionPayload {
   bio: string
   url: string
   isFollowing: boolean
+  // viewer 视角：当前登录者与对方互相关注（issue #1320）
+  isMutualFollowing: boolean
   isSelf: boolean
 }
 

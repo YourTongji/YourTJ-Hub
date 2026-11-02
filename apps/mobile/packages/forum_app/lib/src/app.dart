@@ -8,6 +8,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../l10n/app_localizations.dart';
 import 'navigation/session_overlays.dart';
+import 'navigation/account_return.dart';
 import 'analytics/analytics_host.dart';
 import 'router.dart';
 import 'private_notes.dart';
@@ -15,6 +16,7 @@ import 'app_locale.dart';
 import 'external_link_policy.dart';
 import 'site_theme.dart';
 import 'theme_mode.dart';
+import 'navigation_style.dart';
 import 'push/push_service.dart';
 import 'reading_preferences.dart';
 import 'startup_experience.dart';
@@ -54,6 +56,9 @@ class GfApp extends ConsumerWidget {
     // 外链免确认白名单（issue #1200）：随应用启动拉取一次并写入
     // LinkNavigation；失败静默保留当前清单。
     ref.watch(externalLinkPolicyProvider);
+    // Start before storage/bootstrap gates; the stream retains a cold-start
+    // return until AccountReturnHost can navigate after the gates are ready.
+    ref.watch(accountReturnLinksProvider);
     final reset = ref.watch(storageResetStateProvider);
     // The brand layer holds on top of the storage gate until local data is
     // prepared, so cold start shows one waiting surface instead of two. The
@@ -85,21 +90,23 @@ class GfApp extends ConsumerWidget {
       themeAnimationCurve: GfMotion.layoutCurve,
       routerConfig: appRouter,
       builder: (context, child) => AppTextScaleScope(
-        child: AppSystemUiOverlay(
-          child: StartupExperience(
-            readiness: readiness,
-            child: StorageGate(
-              child: _AppBusinessHosts(
-                locale: locale,
-                child: AppConfig.preview
-                    ? Banner(
-                        message: AppConfig.previewLabel,
-                        location: BannerLocation.topEnd,
-                        child: PreviewStatusHost(
-                          child: child ?? const SizedBox.shrink(),
-                        ),
-                      )
-                    : child ?? const SizedBox.shrink(),
+        child: AppNavigationStyleScope(
+          child: AppSystemUiOverlay(
+            child: StartupExperience(
+              readiness: readiness,
+              child: StorageGate(
+                child: _AppBusinessHosts(
+                  locale: locale,
+                  child: AppConfig.preview
+                      ? Banner(
+                          message: AppConfig.previewLabel,
+                          location: BannerLocation.topEnd,
+                          child: PreviewStatusHost(
+                            child: child ?? const SizedBox.shrink(),
+                          ),
+                        )
+                      : child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),
@@ -151,24 +158,28 @@ class _AppBusinessHosts extends ConsumerWidget {
     ref.listen(scheduleWidgetLinkProvider, (_, next) {
       final uri = next.valueOrNull;
       if (uri?.scheme == 'yourtj' && uri?.host == 'campus') {
+        ref.read(scheduleWidgetEntryProvider.notifier).state++;
         appRouter.go('/campus');
       }
     });
 
-    return MediaHost(
-      repository: mediaRepository,
-      scopeKey: mediaScope,
-      apiOrigin: origin,
-      readAccessToken: ref.read(tokenStorageProvider).read,
-      imageErrorBuilder: mediaImageFailure,
-      child: MobileUpdateHost(
-        key: appUpdateHostKey,
-        navigatorKey: appNavigatorKey,
-        child: SessionOverlayHost(
-          registry: appSessionOverlays,
-          child: AnalyticsHost(
-            router: appRouter,
-            child: PrivateNotesHost(child: child),
+    return AccountReturnHost(
+      router: appRouter,
+      child: MediaHost(
+        repository: mediaRepository,
+        scopeKey: mediaScope,
+        apiOrigin: origin,
+        readAccessToken: ref.read(tokenStorageProvider).read,
+        imageErrorBuilder: mediaImageFailure,
+        child: MobileUpdateHost(
+          key: appUpdateHostKey,
+          navigatorKey: appNavigatorKey,
+          child: SessionOverlayHost(
+            registry: appSessionOverlays,
+            child: AnalyticsHost(
+              router: appRouter,
+              child: PrivateNotesHost(child: child),
+            ),
           ),
         ),
       ),

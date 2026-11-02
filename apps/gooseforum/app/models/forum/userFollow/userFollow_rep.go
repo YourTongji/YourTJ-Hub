@@ -44,6 +44,44 @@ func IsFollowing(userId, followUserId uint64) bool {
 	return count > 0
 }
 
+// MutualFollowingMap 返回 targetIDs 中与 viewerID 双向关注（两侧 status=1）的 id 集合。
+// 两次批量查询取交集：viewer 关注了谁、谁关注了 viewer，交集即互关。
+// 避免相关子查询与表名拼接，SQLite 与 PostgreSQL 行为一致。
+// viewerID 为 0 或 targetIDs 为空时返回空 map，不发查询。
+func MutualFollowingMap(viewerID uint64, targetIDs []uint64) map[uint64]bool {
+	mutual := make(map[uint64]bool)
+	if viewerID == 0 || len(targetIDs) == 0 {
+		return mutual
+	}
+
+	var followedIDs []uint64
+	builder().Select(fieldFollowUserId).
+		Where(queryopt.Eq(fieldUserId, viewerID)).
+		Where(queryopt.In(fieldFollowUserId, targetIDs)).
+		Where(queryopt.Eq(fieldStatus, 1)).
+		Pluck(fieldFollowUserId, &followedIDs)
+	if len(followedIDs) == 0 {
+		return mutual
+	}
+	followed := make(map[uint64]struct{}, len(followedIDs))
+	for _, id := range followedIDs {
+		followed[id] = struct{}{}
+	}
+
+	var followerIDs []uint64
+	builder().Select(fieldUserId).
+		Where(queryopt.In(fieldUserId, targetIDs)).
+		Where(queryopt.Eq(fieldFollowUserId, viewerID)).
+		Where(queryopt.Eq(fieldStatus, 1)).
+		Pluck(fieldUserId, &followerIDs)
+	for _, id := range followerIDs {
+		if _, ok := followed[id]; ok {
+			mutual[id] = true
+		}
+	}
+	return mutual
+}
+
 // GetFollowingList returns followed users for a page.
 func GetFollowingList(userId uint64, page, pageSize int) []*users.EntityComplete {
 	offset := (page - 1) * pageSize

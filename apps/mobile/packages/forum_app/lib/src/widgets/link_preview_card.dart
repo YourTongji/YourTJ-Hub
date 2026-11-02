@@ -93,7 +93,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
               children: <Widget>[
                 if (faviconUrl != null) ...<Widget>[
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(GfRadius.xs),
                     child: GfNetworkImage(
                       faviconUrl,
                       width: 16,
@@ -117,9 +117,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: colors.baseContent.withValues(alpha: 0.6),
-                              ),
+                              ?.copyWith(color: colors.textSecondary),
                         ),
                       ),
                       // 资源类型徽标只在严格识别出平台资源时出现（服务端
@@ -132,7 +130,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
+                            borderRadius: BorderRadius.circular(GfRadius.full),
                             border: Border.all(
                               color: colors.line,
                               width: borders.width,
@@ -144,9 +142,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                                 ?.copyWith(
                                   fontSize: 11,
                                   height: 1.2,
-                                  color: colors.baseContent.withValues(
-                                    alpha: 0.6,
-                                  ),
+                                  color: colors.textSecondary,
                                 ),
                           ),
                         ),
@@ -176,7 +172,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontSize: 12,
-                  color: colors.baseContent.withValues(alpha: 0.6),
+                  color: colors.textSecondary,
                 ),
               ),
             ],
@@ -188,7 +184,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontSize: 13,
-                  color: colors.baseContent.withValues(alpha: 0.65),
+                  color: colors.textSecondary,
                   height: 1.4,
                 ),
               ),
@@ -201,7 +197,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontSize: 11,
-                  color: colors.baseContent.withValues(alpha: 0.5),
+                  color: colors.textSecondary,
                 ),
               ),
             ],
@@ -261,7 +257,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                         width: coverWidth,
                         height: railCover ? null : coverWidth,
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(GfRadius.xs),
                           child: GfNetworkImage(
                             coverUrl,
                             fit: railCover ? BoxFit.contain : BoxFit.cover,

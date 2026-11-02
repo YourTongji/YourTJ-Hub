@@ -15,14 +15,18 @@ import '../l10n/app_localizations.dart';
 import 'navigation/auth_navigation.dart';
 import 'navigation/session_overlays.dart';
 import 'navigation/tab_scroll_registry.dart';
+import 'navigation/shell_sections.dart';
 import 'navigation/route_visibility.dart';
 import 'navigation/reading_chrome.dart';
 import 'navigation/reading_window.dart';
+import 'notifications/unread_display.dart';
+import 'navigation/window_reserved_regions.dart';
 import 'widgets/account_drawer.dart';
+import 'widgets/campus_shortcuts.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/admin/admin_page.dart';
 import 'pages/campus/campus_page.dart';
-import 'pages/campus/campus_explore_page.dart';
+import 'pages/campus/campus_settings_page.dart';
 import 'pages/content/content_page.dart';
 import 'pages/category/category_page.dart';
 import 'pages/courses/catalog_page.dart';
@@ -39,11 +43,11 @@ import 'pages/settings/anonymous_identity_page.dart';
 import 'pages/publish/publish_page.dart';
 import 'pages/wiki/wiki_home_page.dart';
 import 'pages/wiki/wiki_page.dart';
-import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/profile_privacy_page.dart';
 import 'pages/settings/settings_page.dart';
+import 'widgets/stickers/sticker_library_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
@@ -72,6 +76,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   CancelToken? _unreadCancel;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
+  int? _unreadNotificationCount, _unreadMessageCount;
   ShortcutRegistryEntry? _shortcuts;
 
   @override
@@ -290,6 +295,8 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
 
   Future<void> _fetchUnread() async {
     final epoch = ref.read(offlineCacheEpochProvider);
+    final display = ref.read(unreadDisplayProvider.notifier);
+    final displayRevision = display.revision;
     final cancel = _unreadCancel = CancelToken();
     try {
       final String? token = await ref.read(tokenStorageProvider).read();
@@ -302,19 +309,89 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
+      display.acceptRemote(
+        UnreadBadgeStyle.parse(status.badgeStyle),
+        expectedRevision: displayRevision,
+      );
       if (_unreadNotifications == status.notifications &&
-          _unreadMessages == status.messages) {
+          _unreadMessages == status.messages &&
+          _unreadNotificationCount == status.notificationCount &&
+          _unreadMessageCount == status.messageCount) {
         return;
       }
       setState(() {
         _unreadNotifications = status.notifications;
         _unreadMessages = status.messages;
+        _unreadNotificationCount = status.notificationCount;
+        _unreadMessageCount = status.messageCount;
       });
     } catch (_) {
       // Unread state is best-effort and never blocks navigation.
     } finally {
       if (identical(_unreadCancel, cancel)) _unreadCancel = null;
     }
+  }
+
+  /// Opens [section] of [destination] from the dock's long-press menu.
+  void _openSection(GfShellDestination destination, String section) {
+    ref.read(shellSectionsProvider).request(destination, section);
+    ref.read(readingChromeProvider).show();
+    if (widget.navigationShell.currentIndex != destination.index) {
+      widget.navigationShell.goBranch(destination.index);
+    }
+  }
+
+  /// The section [destination] shows, checked in its menu only while that
+  /// destination is the one on screen.
+  String? _shownSection(GfShellDestination destination, String fallback) {
+    if (widget.navigationShell.currentIndex != destination.index) return null;
+    return ref.read(shellSectionsProvider).currentOf(destination) ?? fallback;
+  }
+
+  /// Campus tabs for a signed-in reader, then the campus tools that open
+  /// their own pages.
+  List<GfDockMenuEntry> _campusMenu(AppLocalizations l10n) {
+    final current = _shownSection(
+      GfShellDestination.campus,
+      campusTabSymbols.keys.first,
+    );
+    final labels = campusTabLabels(l10n);
+    return [
+      if (ref.read(currentUserProvider).valueOrNull != null)
+        for (final MapEntry(key: tab, value: symbol)
+            in campusTabSymbols.entries)
+          GfDockMenuEntry(
+            label: labels[tab]!,
+            symbol: symbol,
+            selected: tab == current,
+            onSelected: () => _openSection(GfShellDestination.campus, tab),
+          ),
+      for (final (symbol, label, route) in campusTools(l10n))
+        GfDockMenuEntry(
+          label: label,
+          symbol: symbol,
+          group: 1,
+          opensPage: true,
+          onSelected: () => context.push(route),
+        ),
+    ];
+  }
+
+  List<GfDockMenuEntry> _notificationsMenu(AppLocalizations l10n) {
+    final current = _shownSection(
+      GfShellDestination.notifications,
+      notificationCategories.first.$1,
+    );
+    return [
+      for (final (category, symbol) in notificationCategories)
+        GfDockMenuEntry(
+          label: notificationCategoryLabel(l10n, category),
+          symbol: symbol,
+          selected: category == current,
+          onSelected: () =>
+              _openSection(GfShellDestination.notifications, category),
+        ),
+    ];
   }
 
   void _selectDestination(int index) {
@@ -352,6 +429,11 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
       }
     });
 
+    final unreadStyle = ref.watch(unreadDisplayProvider.select((s) => s.style));
+    // Every notification category asks a guest to sign in; skip that menu.
+    final signedIn = ref.watch(
+      currentUserProvider.select((user) => user.valueOrNull != null),
+    );
     final destinations = [
       for (final destination in GfShellDestination.values)
         GfBottomNavigationItem(
@@ -361,6 +443,13 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
           badge: destination == GfShellDestination.notifications
               ? _unreadNotifications
               : destination == GfShellDestination.messages && _unreadMessages,
+          badgeCount: unreadStyle == UnreadBadgeStyle.number
+              ? switch (destination) {
+                  GfShellDestination.notifications => _unreadNotificationCount,
+                  GfShellDestination.messages => _unreadMessageCount,
+                  _ => null,
+                }
+              : null,
           badgeSemanticLabel:
               (destination == GfShellDestination.notifications &&
                       _unreadNotifications) ||
@@ -368,12 +457,26 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
                       _unreadMessages)
               ? l10n.notificationsUnread
               : null,
+          menu: switch (destination) {
+            GfShellDestination.campus => () => _campusMenu(l10n),
+            GfShellDestination.notifications when signedIn =>
+              () => _notificationsMenu(l10n),
+            _ => null,
+          },
+          menuHint:
+              destination == GfShellDestination.campus ||
+                  (destination == GfShellDestination.notifications && signedIn)
+              ? l10n.navShortcutsHint
+              : null,
         ),
     ];
 
     final GfShellDestination currentDestination =
         GfShellDestination.values[widget.navigationShell.currentIndex];
     return Scaffold(
+      // Branch pages own keyboard avoidance. Resizing here first also changes
+      // their window height, so composers would subtract the keyboard twice.
+      resizeToAvoidBottomInset: false,
       body: AccountDrawerLayer(
         key: accountDrawerLayerKey,
         // The drawer overlays the page; chrome keeps whatever state the
@@ -420,6 +523,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
             return false;
           },
           child: ReadingWindow(
+            reservedRegions: ref.watch(windowReservedRegionsProvider).value,
             navigationRailWidth: ReadingNavigationRail.widthFor(
               context,
               destinations,
@@ -569,7 +673,10 @@ final GoRouter appRouter = GoRouter(
     _readingPageRoute(
       path: '/search',
       maxContentWidth: 1120,
-      builder: (_, _) => const SearchPage(),
+      builder: (_, state) => SearchPage(
+        initialScope: state.uri.queryParameters['scope'] ?? 'all',
+        initialQuery: state.uri.queryParameters['q'] ?? '',
+      ),
     ),
     _readingPageRoute(
       path: '/publish',
@@ -592,7 +699,7 @@ final GoRouter appRouter = GoRouter(
         categoryId: int.parse(state.pathParameters['id']!),
       ),
     ),
-    _readingPageRoute(
+    GoRoute(
       path: '/p/:postId',
       builder: (BuildContext context, GoRouterState state) => TopicPage(
         topicId: int.parse(state.pathParameters['postId']!),
@@ -622,6 +729,10 @@ final GoRouter appRouter = GoRouter(
           ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
     ),
     _readingPageRoute(
+      path: '/stickers',
+      builder: (_, _) => const StickerLibraryPage(),
+    ),
+    _readingPageRoute(
       path: '/settings',
       maxContentWidth: 1120,
       builder: (_, _) => const SettingsPage(),
@@ -630,6 +741,11 @@ final GoRouter appRouter = GoRouter(
       path: '/settings/widgets',
       maxContentWidth: 1120,
       builder: (_, _) => const SettingsPage(initialSection: 'widgets'),
+    ),
+    _readingPageRoute(
+      path: '/settings/chat-permissions',
+      maxContentWidth: 1120,
+      builder: (_, _) => const ProfilePrivacyPage(chatOnly: true),
     ),
     _readingPageRoute(
       path: '/settings/profile-privacy',
@@ -645,6 +761,8 @@ final GoRouter appRouter = GoRouter(
       path: '/settings/:section',
       maxContentWidth: 1120,
       builder: (_, state) => SettingsPage(
+        // The same route matches every section; each location owns its editor state.
+        key: ValueKey(state.uri.toString()),
         initialSection: state.pathParameters['section'],
         autoEditProfile: state.uri.queryParameters['edit'] == '1',
       ),
@@ -656,7 +774,8 @@ final GoRouter appRouter = GoRouter(
     _readingPageRoute(
       path: '/my-content',
       maxContentWidth: 1120,
-      builder: (_, _) => const ContentPage(),
+      builder: (_, state) =>
+          ContentPage(initialType: state.uri.queryParameters['type']),
     ),
     _readingPageRoute(
       path: '/recycle-bin',
@@ -698,10 +817,11 @@ final GoRouter appRouter = GoRouter(
       builder: (_, _) => const AdminPage(target: MobileWebTarget.courseReviews),
     ),
     GoRoute(path: '/campus/official', redirect: (_, _) => '/campus'),
+    GoRoute(path: '/campus/explore', redirect: (_, _) => '/campus'),
     _readingPageRoute(
-      path: '/campus/explore',
-      maxContentWidth: 1120,
-      builder: (_, _) => const CampusExplorePage(),
+      path: '/campus/settings',
+      maxContentWidth: 720,
+      builder: (_, _) => const CampusSettingsPage(),
     ),
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
     GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
@@ -710,7 +830,15 @@ final GoRouter appRouter = GoRouter(
       maxContentWidth: 1120,
       builder: (_, _) => const DraftsPage(),
     ),
-    GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
+    GoRoute(
+      path: '/schedule',
+      builder: (_, state) => SchedulePage(
+        courseCode: state.uri.queryParameters['course'],
+        classCode: state.uri.queryParameters['class'],
+        termCode: state.uri.queryParameters['term'],
+        courseName: state.uri.queryParameters['name'],
+      ),
+    ),
     _readingPageRoute(
       path: '/courses',
       maxContentWidth: 1120,
@@ -732,8 +860,15 @@ final GoRouter appRouter = GoRouter(
     ),
     _readingPageRoute(
       path: '/wiki/search',
-      builder: (_, state) =>
-          WikiSearchPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
+      redirect: (_, state) => Uri(
+        path: '/search',
+        queryParameters: {
+          'scope': 'wiki',
+          if (state.uri.queryParameters['q']?.isNotEmpty ?? false)
+            'q': state.uri.queryParameters['q']!,
+        },
+      ).toString(),
+      builder: (_, _) => const SizedBox.shrink(),
     ),
     _readingPageRoute(
       path: '/wiki',

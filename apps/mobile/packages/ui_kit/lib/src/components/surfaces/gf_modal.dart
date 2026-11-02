@@ -10,7 +10,7 @@ class GfModal extends StatelessWidget {
     super.key,
     required this.child,
     this.width,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = const EdgeInsets.all(GfSpace.xxl),
   });
 
   final Widget child;
@@ -20,8 +20,10 @@ class GfModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: GfTheme.colorsOf(context).base100,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      color: GfTheme.colorsOf(context).surfaceRaised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(GfRadius.xl),
+      ),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: width ?? 560),
@@ -45,7 +47,7 @@ Future<T?> showGfModal<T>(
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.all(16),
+      insetPadding: const EdgeInsets.all(GfSpace.xxl),
       child: GfModal(child: Builder(builder: builder)),
     ),
     barrierDismissible: barrierDismissible,

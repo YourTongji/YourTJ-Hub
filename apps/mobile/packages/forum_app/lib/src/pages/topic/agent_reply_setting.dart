@@ -75,7 +75,7 @@ class _AgentReplySettingState extends ConsumerState<AgentReplySetting> {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.base200.withValues(alpha: .6),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(GfRadius.md),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

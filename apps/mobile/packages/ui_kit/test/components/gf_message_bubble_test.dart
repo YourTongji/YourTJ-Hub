@@ -112,20 +112,25 @@ void main() {
           final colors = GfColors.forBrightness(brightness);
           final bubble = tester.widget<Container>(find.byKey(bubbleKey));
           final decoration = bubble.decoration! as BoxDecoration;
+          expect(decoration.color, mine ? colors.messageOutgoing : colors.fill);
           expect(
-            decoration.color,
-            mine ? const Color(0xFF2563EB) : colors.base300,
+            decoration.borderRadius,
+            BorderRadiusDirectional.only(
+              topStart: const Radius.circular(GfRadius.lg),
+              topEnd: const Radius.circular(GfRadius.lg),
+              bottomStart: Radius.circular(mine ? GfRadius.lg : GfRadius.xs),
+              bottomEnd: Radius.circular(mine ? GfRadius.xs : GfRadius.lg),
+            ),
           );
-          expect(decoration.borderRadius, BorderRadius.circular(20));
           expect(
             bubble.padding,
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           );
           expect(
             DefaultTextStyle.of(
               tester.element(find.text('Ordinary message')),
             ).style.color,
-            mine ? Colors.white : colors.baseContent,
+            mine ? colors.messageOutgoingContent : colors.baseContent,
           );
         },
       );

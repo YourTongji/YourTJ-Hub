@@ -44,7 +44,7 @@ void main() {
                             canModerateTopic: true,
                           ),
                         ),
-                        firstPostId: post.id,
+                        firstPost: post,
                         onChanged: () async {},
                       )
                     : PostActions(

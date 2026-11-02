@@ -11,7 +11,8 @@ import '../../messages/forward_messages_page.dart';
 import '../../messages/forwarded_message.dart';
 import '../../report_content.dart';
 import '../../user_blocks.dart';
-import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/stickers/sticker_suggestion_bar.dart';
+import '../../widgets/stickers/sticker_text_controller.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import '../../widgets/stickers/sticker_library_page.dart';
@@ -21,6 +22,7 @@ import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
 import '../../messages/chat_drafts.dart';
 import '../../messages/chat_reply.dart';
+import '../../notifications/unread_display.dart';
 import '../../messages/chat_timeline.dart';
 import '../../messages/chat_viewport_scroll_physics.dart';
 import '../../messages/visible_chat_reads.dart';
@@ -669,15 +671,24 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         }
         final window = context
             .dependOnInheritedWidgetOfExactType<ReadingWindowScope>();
-        final bottomInset = window != null && !window.hasRail
-            ? GfBottomNavigation.metrics(
-                safeAreaBottom: MediaQuery.paddingOf(context).bottom,
+        final bottomInset =
+            window != null &&
+                !window.hasRail &&
+                MediaQuery.viewInsetsOf(context).bottom == 0
+            ? GfBottomNavigation.metricsOf(
+                context,
                 barHeight: GfBottomNavigation.heightFor(
                   context,
                   labels: GfShellDestination.values.map(
                     (destination) => destination.label(l10n),
                   ),
-                  availableWidth: window.navigationWidth,
+                  // Mirror the shell's own measurement so a labeled dock
+                  // wraps at the same width here and in the root surface.
+                  availableWidth: math.max(
+                    1,
+                    window.navigationWidth -
+                        MediaQuery.paddingOf(context).horizontal,
+                  ),
                   showLabels: shellNavigationShowsLabels,
                 ),
               ).contentBottomInset
@@ -691,7 +702,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
                 enabled: showDirectory && TickerMode.valuesOf(context).enabled,
                 child: SizedBox(
                   width: _wideLayout ? directoryWidth : constraints.maxWidth,
-                  child: directory,
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeRight: _wideLayout,
+                    child: directory,
+                  ),
                 ),
               ),
             ),
@@ -700,32 +715,39 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
               child: ColoredBox(color: GfTheme.colorsOf(context).line),
             ),
             Expanded(
-              child: Offstage(
-                offstage: !_wideLayout && targetConversation == null,
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: bottomInset),
-                  child: targetConversation == null
-                      ? _ChatEmptyState(
-                          title: l10n.messagesStartChat,
-                          description: l10n.messagesEmptyDescription,
-                        )
-                      : _ConversationPage(
-                          key: ValueKey<int>(targetConversation.peerId),
-                          conv: targetConversation,
-                          viewerAvatar: _viewerAvatar,
-                          viewerDecoration: _viewerDecoration,
-                          viewerUsername: _viewerUsername,
-                          onBack:
-                              !_wideLayout &&
-                                  _selectedConversation != null &&
-                                  widget.targetUserId == null
-                              ? () {
-                                  FocusManager.instance.primaryFocus?.unfocus();
-                                  setState(() => _selectedConversation = null);
-                                  unawaited(_load(silent: true));
-                                }
-                              : null,
-                        ),
+              child: MediaQuery.removePadding(
+                context: context,
+                removeLeft: _wideLayout,
+                child: Offstage(
+                  offstage: !_wideLayout && targetConversation == null,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: bottomInset),
+                    child: targetConversation == null
+                        ? _ChatEmptyState(
+                            title: l10n.messagesStartChat,
+                            description: l10n.messagesEmptyDescription,
+                          )
+                        : _ConversationPage(
+                            key: ValueKey<int>(targetConversation.peerId),
+                            conv: targetConversation,
+                            viewerAvatar: _viewerAvatar,
+                            viewerDecoration: _viewerDecoration,
+                            viewerUsername: _viewerUsername,
+                            onBack:
+                                !_wideLayout &&
+                                    _selectedConversation != null &&
+                                    widget.targetUserId == null
+                                ? () {
+                                    FocusManager.instance.primaryFocus
+                                        ?.unfocus();
+                                    setState(
+                                      () => _selectedConversation = null,
+                                    );
+                                    unawaited(_load(silent: true));
+                                  }
+                                : null,
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -762,7 +784,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   late final ChatDrafts _drafts;
   bool _restoringDraft = false;
   final List<ChatMessagePayload> _messages = [];
-  final TextEditingController _input = TextEditingController();
+  // Chat messages are plain text: tokens in backticks still render.
+  final StickerTextEditingController _input = StickerTextEditingController(
+    markdown: false,
+  );
   final FocusNode _composerFocus = FocusNode();
   bool _selecting = false;
   bool _attachingImage = false;
@@ -2083,6 +2108,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   @override
   Widget build(BuildContext context) {
+    _input.library = ref.watch(stickerLibraryProvider);
     ref.listen<int>(
       cacheClearEpochProvider.select(
         (epochs) => epochs[CacheCategory.chat] ?? 0,
@@ -2191,7 +2217,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
               ? IconButton(
                   onPressed: _endSelection,
                   tooltip: l10n.commonCancel,
-                  icon: const Icon(Icons.close),
+                  icon: const GfSymbol('x'),
                 )
               : widget.onBack != null
               ? BackButton(onPressed: widget.onBack)
@@ -2246,7 +2272,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                           GfText(
                             l10n.messagesConversation,
                             style: TextStyle(
-                              color: colors.baseContent.withValues(alpha: 0.5),
+                              color: colors.textSecondary,
                               fontSize: 11,
                               fontWeight: FontWeight.w400,
                             ),
@@ -2318,11 +2344,16 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                             : ListView.builder(
                                 controller: _scrollController,
                                 physics: const ChatViewportScrollPhysics(),
-                                padding: const EdgeInsets.fromLTRB(
+                                // Only the timeline scrolls clear of the side
+                                // capsule; the input keeps its own safe area.
+                                padding: EdgeInsets.fromLTRB(
                                   12,
                                   12,
                                   12,
-                                  18,
+                                  18 +
+                                      ReadingWindowScope.edgeContentBottomInsetOf(
+                                        context,
+                                      ),
                                 ),
                                 itemCount:
                                     timeline.length +
@@ -2431,7 +2462,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                                 alpha: 0.08,
                                               )
                                             : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(
+                                          GfRadius.sm,
+                                        ),
                                       ),
                                       child: Column(
                                         children: <Widget>[
@@ -2579,7 +2612,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                               side: BorderSide(color: colors.line),
                               shape: const RoundedRectangleBorder(
                                 borderRadius: BorderRadius.horizontal(
-                                  left: Radius.circular(24),
+                                  left: Radius.circular(GfRadius.xl),
                                 ),
                               ),
                             ),
@@ -2590,7 +2623,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       ),
                     if (_unseenNewMessages)
                       Positioned(
-                        right: 12,
+                        right:
+                            12 +
+                            (ReadingWindowScope.edgeNavigationOf(context)
+                                ? MediaQuery.paddingOf(context).right
+                                : 0),
                         bottom: 12,
                         child: FloatingActionButton.small(
                           key: const Key('chat-new-messages'),
@@ -2615,7 +2652,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       onPressed: _selectedMessages.isEmpty
                           ? null
                           : () => _forward(_selectedMessages.toList()),
-                      icon: const Icon(Icons.forward),
+                      icon: const GfSymbol('share-2', size: GfIconSize.md),
                       label: GfText(l10n.messageForward),
                     ),
                   ),
@@ -2700,10 +2737,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                     GfChatInput(
                       controller: _input,
                       focusNode: _composerFocus,
-                      previewBuilder: (text) =>
-                          StickerDraftPreview(content: text),
+                      previewBuilder: (_) =>
+                          StickerSuggestionBar.text(controller: _input),
                       accessoryBuilder: (insert) =>
                           StickerPicker(onInsert: insert),
+                      accessoryMinHeight: StickerPicker.comfortableHeight,
                       onAttach: _showAttachments,
                       attachLabel: l10n.messagesAttachments,
                       clearOnSend: false,
@@ -2731,7 +2769,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   }
 }
 
-class _ConversationList extends StatelessWidget {
+class _ConversationList extends ConsumerWidget {
   const _ConversationList({
     required this.controller,
     this.padding = EdgeInsets.zero,
@@ -2761,7 +2799,8 @@ class _ConversationList extends StatelessWidget {
   final ValueChanged<ChatItemPayload> onOpen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(unreadDisplayProvider.select((s) => s.style));
     final String normalized = query.trim().toLowerCase();
     final List<ChatItemPayload> filtered = items.where((ChatItemPayload item) {
       return normalized.isEmpty ||
@@ -2830,6 +2869,7 @@ class _ConversationList extends StatelessWidget {
             time: formatChatTime(conversation.lastMsgTime, l10n: l10n),
             unreadCount: conversation.unreadCount,
             unreadLabel: l10n.notificationsUnread,
+            showUnreadCount: style == UnreadBadgeStyle.number,
             onTap: conversation.convId == 0 && !canOpenNewConversation
                 ? null
                 : () => onOpen(conversation),
@@ -2896,7 +2936,7 @@ class _ReplyPreview extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(10, 6, 0, 6),
         decoration: BoxDecoration(
           color: colors.base200,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(GfRadius.md),
         ),
         child: Row(
           children: <Widget>[
@@ -2933,10 +2973,7 @@ class _ReplyPreview extends StatelessWidget {
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.baseContent.withValues(alpha: 0.7),
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -3107,7 +3144,7 @@ class _NewChatEmptyState extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: colors.baseContent.withValues(alpha: 0.55),
+                color: colors.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -3182,7 +3219,7 @@ class _NewChatUserRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.55),
+                        color: colors.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -3207,7 +3244,7 @@ class _ChatEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -3230,10 +3267,7 @@ class _ChatEmptyState extends StatelessWidget {
             GfText(
               description,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.baseContent.withValues(alpha: 0.55),
-                fontSize: 14,
-              ),
+              style: TextStyle(color: colors.textSecondary, fontSize: 14),
             ),
           ],
         ),
@@ -3260,12 +3294,12 @@ class _DatePill extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: colors.base300,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(GfRadius.full),
           ),
           child: GfText(
             label,
             style: TextStyle(
-              color: colors.baseContent.withValues(alpha: 0.55),
+              color: colors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),

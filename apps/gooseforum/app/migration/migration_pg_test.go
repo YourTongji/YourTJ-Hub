@@ -9,10 +9,12 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/decoration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	xpmodel "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/xp"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -45,6 +47,15 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	}
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("AutoMigrate on postgres failed: %v", err)
+	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("install XP append-only guards on postgres: %v", err)
+	}
+	if err := db.AutoMigrate(SchemaModels()...); err != nil {
+		t.Fatalf("repeat AutoMigrate on postgres: %v", err)
+	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("repeat XP append-only guard installation on postgres: %v", err)
 	}
 
 	// 关键新表必须存在（issue #8 回归点；agents 为本仓库 Agent 模型新增表）
@@ -82,6 +93,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"push_device",
 		"sticker_library_owners",
 		"user_stickers",
+		"xp_balances", "xp_entries", "xp_rule_sets", "xp_rule_publication_locks", "xp_reward_rules", "xp_daily_usage", "xp_daily_rule_usage",
 		// 站内信域（issue #770）：7 表。
 		"inbox_message",
 		"inbox_message_version",
@@ -102,6 +114,9 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	}
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
+	}
+	if !db.Migrator().HasColumn(&xpmodel.Entry{}, "actor_user_id") || !db.Migrator().HasColumn(&xpmodel.RuleSet{}, "published_by") {
+		t.Error("XP actor audit columns missing after postgres migration")
 	}
 	// Agent 评论策略（管理端按主题禁止 Agent 评论）：topics.agent_comment_disabled。
 	if !db.Migrator().HasColumn(&topics.Entity{}, "agent_comment_disabled") {
@@ -137,9 +152,25 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.Exec(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`).Error; err != nil {
 		t.Fatalf("reset schema: %v", err)
 	}
-	legacy := []any{&users.EntityComplete{}, &userOAuth.Entity{}, &topics.Entity{}, &pointsRecord.Entity{}}
+	legacy := []any{&users.EntityComplete{}, &userOAuth.Entity{}, &topics.Entity{}, &pointsRecord.Entity{}, &posts.Entity{}}
 	if err := db.AutoMigrate(legacy...); err != nil {
 		t.Fatalf("AutoMigrate legacy subset failed: %v", err)
+	}
+	// issue #1284 A1：posts 也要进入 legacy 集合。此前升级测试只覆盖
+	// users/topics/points_record，而 posts 是最大的表：最近一次「迁移整表重建」
+	// 之所以逃过 CI，就是因为即使它丢行或丢正文也没任何断言会红。
+	// 先删掉 dev 新增的列模拟旧库，再插入存量行，升级后断言行与正文仍在、新列已补齐。
+	for _, legacyMissingPostColumn := range []string{
+		"latest_revision_id", "published_revision_id", "last_editor_id", "last_edited_at",
+		"agent_event_depth", "wiki_synced_revision_no", "first_public_at",
+	} {
+		if err := db.Migrator().DropColumn(&posts.Entity{}, legacyMissingPostColumn); err != nil {
+			t.Fatalf("drop legacy-missing posts.%s: %v", legacyMissingPostColumn, err)
+		}
+	}
+	if err := db.Exec(`INSERT INTO posts (id, topic_id, post_no, user_id, content, rendered_html, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+		7, 1301, 1, 1, "legacy post body", "<p>legacy post body</p>").Error; err != nil {
+		t.Fatalf("insert legacy post: %v", err)
 	}
 	if err := db.Migrator().DropColumn(&userOAuth.Entity{}, "apple_refresh_token"); err != nil {
 		t.Fatal(err)
@@ -215,6 +246,15 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("upgrade AutoMigrate on postgres failed: %v", err)
 	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("install XP append-only guards on upgraded postgres: %v", err)
+	}
+	if err := db.AutoMigrate(SchemaModels()...); err != nil {
+		t.Fatalf("repeat AutoMigrate on upgraded postgres: %v", err)
+	}
+	if err := xpmodel.EnsureAppendOnlyGuards(db); err != nil {
+		t.Fatalf("repeat XP append-only guard installation on upgraded postgres: %v", err)
+	}
 	if !db.Migrator().HasColumn(&userOAuth.Entity{}, "apple_refresh_token") {
 		t.Fatal("Apple revocation column missing after upgrade")
 	}
@@ -243,6 +283,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"push_device",
 		"sticker_library_owners",
 		"user_stickers",
+		"xp_balances", "xp_entries", "xp_rule_sets", "xp_rule_publication_locks", "xp_reward_rules", "xp_daily_usage", "xp_daily_rule_usage",
 		// 站内信域（issue #770）：存量库升级也必须补齐 7 表。
 		"inbox_message",
 		"inbox_message_version",
@@ -259,6 +300,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after upgrade migration")
+	}
+	if !db.Migrator().HasColumn(&xpmodel.Entry{}, "actor_user_id") || !db.Migrator().HasColumn(&xpmodel.RuleSet{}, "published_by") {
+		t.Error("XP actor audit columns missing after postgres upgrade")
 	}
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "email_changed_at") {
 		t.Error("users.email_changed_at column missing after upgrade migration")
@@ -281,6 +325,37 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if legacyPointsCount != 1 {
 		t.Errorf("legacy points record count after upgrade = %d, want 1", legacyPointsCount)
+	}
+	// issue #1284 A1：存量 posts 行必须存活且正文未变（整表重建会丢行或改内容），
+	// 新增的发布指针/编辑列按默认值补齐。
+	var legacyPost struct {
+		Content             string
+		LatestRevisionId    uint64
+		PublishedRevisionId uint64
+		LastEditorId        uint64
+	}
+	if err := db.Table("posts").Select("content, latest_revision_id, published_revision_id, last_editor_id").
+		Where("id = ?", 7).Take(&legacyPost).Error; err != nil {
+		t.Fatalf("legacy post missing after upgrade: %v", err)
+	}
+	if legacyPost.Content != "legacy post body" {
+		t.Errorf("legacy post content after upgrade = %q, want it preserved", legacyPost.Content)
+	}
+	if legacyPost.LatestRevisionId != 0 || legacyPost.PublishedRevisionId != 0 || legacyPost.LastEditorId != 0 {
+		t.Errorf("legacy post pointer columns = (%d, %d, %d), want zero defaults", legacyPost.LatestRevisionId, legacyPost.PublishedRevisionId, legacyPost.LastEditorId)
+	}
+	for _, column := range []string{"latest_revision_id", "published_revision_id", "last_editor_id", "last_edited_at", "agent_event_depth", "wiki_synced_revision_no", "first_public_at"} {
+		if !db.Migrator().HasColumn(&posts.Entity{}, column) {
+			t.Errorf("posts.%s column missing after upgrade migration", column)
+		}
+	}
+	// 正文列必须是 PG 原生 text（曾经的方言专属类型会在这里暴露）。
+	var contentType string
+	if err := db.Raw(`SELECT data_type FROM information_schema.columns WHERE table_name = 'posts' AND column_name = 'content'`).Scan(&contentType).Error; err != nil {
+		t.Fatalf("read posts.content data type: %v", err)
+	}
+	if contentType != "text" {
+		t.Errorf("posts.content data type after upgrade = %q, want text", contentType)
 	}
 }
 

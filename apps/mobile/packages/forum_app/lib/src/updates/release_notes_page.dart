@@ -91,7 +91,7 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   onPressed: _openAppStore,
-                  icon: const Icon(Icons.open_in_new),
+                  icon: const GfSymbol('external-link', size: GfIconSize.md),
                   label: GfText(l10n.updateOpenAppStore),
                 ),
               ),
@@ -134,7 +134,7 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
                     GfText(l10n.releaseNotesHistoryError),
                     TextButton.icon(
                       onPressed: _load,
-                      icon: const Icon(Icons.refresh),
+                      icon: const GfSymbol('refresh-cw', size: GfIconSize.md),
                       label: GfText(l10n.commonRetry),
                     ),
                   ],
@@ -223,7 +223,7 @@ class _ReleaseTimelineEntry extends StatelessWidget {
                         TextSpan(
                           text: ' · ${release.buildNumber}',
                           style: type.caption.copyWith(
-                            color: colors.baseContent.withValues(alpha: 0.6),
+                            color: colors.textSecondary,
                           ),
                         ),
                       ],

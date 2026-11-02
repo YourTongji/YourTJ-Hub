@@ -41,7 +41,7 @@ Future<void> openScheduleSearch(
   SharedPreferences.setMockInitialValues({});
   final notifier = ScheduleStoreNotifier();
   await notifier.ready;
-  notifier.setMajorSelection(
+  await notifier.setMajorSelection(
     PkMajorSelection(
       calendarId: 119,
       grade: 2025,

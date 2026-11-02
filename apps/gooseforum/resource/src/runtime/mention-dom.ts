@@ -59,7 +59,7 @@ export function isInsideFencedCode(prefix: string): boolean {
 
 }
 
-export function replaceMentionTokenInElement(element: HTMLElement, queryLength: number, replacement: string): boolean {
+export function replaceMentionTokenInElement(element: HTMLElement, queryLength: number, replacement: string, trailingSpace = true): boolean {
   const selection = window.getSelection()
   if (!selection || selection.rangeCount === 0) return false
   const range = selection.getRangeAt(0)
@@ -102,5 +102,5 @@ export function replaceMentionTokenInElement(element: HTMLElement, queryLength: 
   tokenRange.setEnd(range.startContainer, range.startOffset)
   selection.removeAllRanges()
   selection.addRange(tokenRange)
-  return document.execCommand('insertText', false, `${replacement} `)
+  return document.execCommand('insertText', false, trailingSpace ? `${replacement} ` : replacement)
 }

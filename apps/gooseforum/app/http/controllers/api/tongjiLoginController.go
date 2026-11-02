@@ -216,7 +216,13 @@ func TongjiRegister(c *gin.Context) {
 	}
 	tongjiRegistrationCookie(c, "", -1)
 	if err := finishTongjiSession(c, result); err != nil {
-		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageAuthRegisterFailed, nil))
+		redirect := result.Redirect
+		if !forum.IsSafeRedirect(redirect) {
+			redirect = "/"
+		}
+		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageAuthTongjiRetryLogin, component.MessageParams{
+			"restartUrl": "/api/auth/tongji?redirect=" + url.QueryEscape(redirect),
+		}))
 		return
 	}
 	c.JSON(http.StatusOK, component.SuccessData(map[string]string{"redirect": result.Redirect}))

@@ -22,19 +22,17 @@ class GfPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
 
     // 用 Material(而非 DecoratedBox)承载背景,保证内部 ListTile 等
     // Material 组件能找到 Material 祖先(Flutter debug 断言要求)。
     return Material(
-      color: colors.base100,
+      color: emphasized ? colors.surfaceGrouped : colors.canvas,
       shape: RoundedRectangleBorder(
         borderRadius: emphasized
-            ? BorderRadius.circular(radii.box)
+            ? BorderRadius.circular(GfRadius.lg)
             : BorderRadius.zero,
-        side: emphasized
-            ? BorderSide(color: colors.line, width: borders.width)
+        side: emphasized && colors.isDark
+            ? BorderSide(color: colors.separator, width: gfHairline(context))
             : BorderSide.none,
       ),
       clipBehavior: Clip.antiAlias,

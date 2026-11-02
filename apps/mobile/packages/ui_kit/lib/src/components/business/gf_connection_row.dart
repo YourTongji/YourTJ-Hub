@@ -5,6 +5,7 @@ import '../../theme/gf_theme.dart';
 import '../../twemoji/twemoji_text.dart';
 import '../atoms/gf_avatar.dart';
 import '../atoms/gf_loading_indicator.dart';
+import '../gf_symbol.dart';
 
 /// A person in a relationship list, with identity and bio on one reading axis.
 class GfConnectionRow extends StatelessWidget {
@@ -130,9 +131,12 @@ class GfFollowButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.busy = false,
+    this.symbol,
   });
   final bool following, busy;
   final String label;
+  // 可选前置图标：互关时用与其他状态不同的符号区分（issue #1320）。
+  final String? symbol;
   final VoidCallback? onPressed;
   @override
   Widget build(BuildContext context) {
@@ -164,6 +168,14 @@ class GfFollowButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+          ],
+          if (symbol != null) ...[
+            GfSymbol(
+              symbol!,
+              size: 16,
+              color: following ? colors.baseContent : colors.base100,
+            ),
+            const SizedBox(width: 6),
           ],
           Flexible(child: GfText(label, textAlign: TextAlign.center)),
         ],

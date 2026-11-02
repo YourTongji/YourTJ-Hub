@@ -6,11 +6,33 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-10-23
 
 This standard applies the native reading direction in [0037](../decisions/0037-adaptive-mobile-reading-window.md)
 to the Flutter app. [Mobile experience](mobile-experience.md) records implemented behavior. Rules marked
 `Planned` below are acceptance requirements, not a claim that every screen already conforms.
+
+## Mobile component roles
+
+`Current`: `ui_kit` owns a mobile geometry and emphasis layer in `gf_design.dart`, above the unchanged
+Web/mobile palette mirror. A 4dp spacing grid uses 16dp page gutters and 24dp between groups. Radius
+roles are 6/10/14/20/28dp, with capsules for buttons, chips, search and segmented choices. UI body text
+uses 16/24; the 12 named typography roles cover display titles through metadata. Rich reading retains
+its separate reading-size preference. Compact/regular/large controls paint at 32/40/48dp, fields use
+52dp, and interactive controls retain at least 44dp targets independently of their painted size.
+
+`Current`: primary/secondary/placeholder/disabled text, neutral fill, grouped canvas, grouped card and
+raised surface are derived from the active palette. Light floating surfaces use soft elevations; dark
+surfaces use brighter fills and separators. Semantic labels derive a foreground with at least 4.5:1
+contrast on supported neutral surfaces; export cards retain their own theme-specific contrast rules.
+Destructive actions use the error role. `GfListSection` provides inset groups and aligned separators;
+settings symbols share a 24dp icon column; custom avatars retain their intrinsic square dimensions. Source rationale is recorded in
+[0112](../decisions/0112-mobile-component-geometry-and-color-roles.md).
+
+`Current`: the standalone `ui_kit/example` gallery previews real components and synthetic screens in
+both themes, without a forum account. It supplements production-page workflow checks; it does not
+replace them. Acceptance captures remain outside Git under the existing
+[visual verification policy](../development/testing.md).
 
 ## Content and visual hierarchy
 
@@ -56,9 +78,11 @@ second action region. The visible icon may be 20–24 pixels, but its focusable 
 44 × 44 logical pixels, preferably 48 × 48 on touch surfaces. Adjacent hit regions must not overlap.
 Pressed, selected, pending, failed and disabled states are distinguishable without color alone.
 
-`Planned`: the avatar and author name open the author, images open the shared gallery at the selected
-image, and the body opens the discussion. Child actions consume their own gestures. A guest/offline
-identity uses the brand mark or a deliberate person glyph, never a broken-image placeholder.
+`Current`: Home cards, topic posts and notifications open a profile preview from the avatar and the
+full profile from the author name. Chat headers and user-search rows open the full profile directly;
+anonymous identities retain their existing privacy rules. Images open the shared gallery at the
+selected image, and the body opens the discussion. Child actions consume their own gestures. A
+guest/offline identity uses the brand mark or a deliberate person glyph, never a broken-image placeholder.
 
 ## Navigation and windows
 
@@ -66,14 +90,36 @@ Navigation uses the same destinations, icons and unread meaning at every window 
 rail stays reachable independently of reading scroll; compact controls reclaim vertical reading
 space. Compose menus follow their source column and consume system insets once. Implemented
 breakpoints and bounds live in [mobile experience](mobile-experience.md#navigation-and-reading).
-`Current`: pushed reading pages use a centered bounded column, including their headers;
+`Current`: navigation shortcuts open above a bottom dock or toward the content beside a rail,
+including side-pocket navigation. Window, safe-area and keyboard changes cancel the transient
+menu before a held pointer can select at its old coordinates. Layout follows the current window,
+as required by [Apple's Duo resizing guidance](https://developer.apple.com/iphone-duo/prepare/),
+rather than a device name or orientation.
+`Current`: pushed reading pages use a centered bounded column or topic workspace, including their headers;
 the page receives the actual column width and retains its state across window changes. Timetable,
 management, login and image-viewer pages retain their full viewport; login keeps its form bounded on a continuous background.
-The wide rail shows destination names
+The wide rail floats on the shared Dock glass surface and shows destination names
 beside their icons when space permits, otherwise below them, with wrapping labels and scrolling at enlarged text sizes.
+`Current`: when iOS reports a clear pocket in an existing side safe area, the glass navigation
+capsule uses that pocket with icon-only actions and accessible names. It aligns to the pocket's
+bottom and avoids system occlusions. Reading content extends beneath the translucent capsule;
+headers and fixed actions remain inside their safe areas, and trailing scroll space keeps the
+last content reachable above navigation. The right pocket is
+preferred; rotation can move it to the left. Unavailable or insufficient native geometry retains
+the ordinary safe-area navigation layout.
+When the software keyboard opens in a side-pocket workspace, the capsule hides while content
+keeps its width and navigation mode; it does not fall back to a left rail. Closing the keyboard
+restores navigation in the current clear pocket. The hidden capsule reserves no trailing space.
 `Current`: Home presents category navigation in a horizontal row above its topic feed, settings presents its directory
 beside the current section, and publishing presents editor and preview together when space permits.
-Wide Home windows use a right column for search and existing Hot topics. Messages shows its conversation
+Home keeps a single centered reading column at wide widths; search and Hot remain in its header and
+sort tabs, as recorded in [0110](../decisions/0110-single-column-home-reading.md). Topic details pair the original
+post on the left with comments on the right when space permits, using a quiet separator and independently
+scrolling panes. Topic navigation and discussion actions share the side-pocket glass capsule when
+available; the page then removes the duplicate header Back button and bottom action bar. Reply
+composition and the floor picker stay with comments; folding combines both into one reading flow
+while retaining the active reading offset and draft. See [0111](../decisions/0111-topic-content-and-comments-panes.md).
+Messages shows its conversation
 directory beside the selected chat; course and Wiki workspaces keep their selectors beside their content.
 Drafts keeps its filters and search beside the retained draft list; content management keeps topic/reply
 selection beside its retained results. Site information keeps its directory beside the selected document.
@@ -93,13 +139,22 @@ underline moves with the changing cell widths, with reduced-motion support. Load
 tab row remain stable. Direct selection by tap animates the same icon, label and underline transition
 with the 180 ms content motion. Loaded pages and scroll positions are independent per stream, while obsolete
 requests are cancelled or ignored. Following/follower statistics open the matching lists.
-Device preferences are separate from account editing, binding and security. Appearance offers System,
+Device preferences are separate from account editing, account security and privacy. The settings
+directory and compact index share the same groups, with one profile editor and a separate combined
+badge editor. Standard setting-row icons use a 24-pixel slot; custom avatars and artwork preserve
+their dimensions, with a 24-pixel minimum column for smaller marks;
+destructive rows use error text and omit navigation chevrons. Appearance offers System,
 Light and Dark, and an already open choice sheet updates with the selected theme.
+
+`Current`: the profile editor's single-line nickname input, label and trailing length counter share
+the row's vertical center. The counter updates by grapheme cluster without reserving a second line
+inside the input. Multiline fields keep their counters below their content. Decoration artwork bounds
+reserve the configured scale so frames cannot overlap a neighbouring name or row.
 
 ## Transient surfaces and input
 
-`Current`: repository-owned Flutter components define filled 16-pixel form fields, capsule search/chat,
-pill buttons, 24-pixel dialogs and consistent outline symbols. Native text selection, autofill,
+`Current`: repository-owned Flutter components define filled 14-pixel form fields, capsule search/chat,
+pill buttons, 28-pixel dialogs and consistent outline symbols. Native text selection, autofill,
 input purposes and focus remain intact. Search, short reply and long-form writing use distinct
 surfaces with shared colors and state treatment; the component model is recorded in
 [0039](../decisions/0039-native-gf-component-foundation.md).
@@ -111,7 +166,7 @@ introductory guidance, retain focus, and keep the primary action reachable. Impl
 lives in [mobile experience](mobile-experience.md#publishing).
 
 `Current`: profile and password editing use pages and preserve input on failed saves. Shared short
-choice sheets use a drag handle, 24-pixel top corners, one safe-area boundary and a 640-pixel width
+choice sheets use a drag handle, 28-pixel top corners, one safe-area boundary and a 640-pixel width
 limit. Menus, choices and confirmations use Material presentation on every platform; see
 [0100](../decisions/0100-material-interaction-surfaces-on-ios.md).
 `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
@@ -209,13 +264,25 @@ interaction targets do not stretch the artwork. Native page actions, notificatio
 ratings and image controls use ReIcon SVGs on a 24-pixel grid. Compact inline marks commonly render
 at 16 pixels, actions at 20–24 pixels, and navigation at 24 pixels inside independent touch targets.
 The bottom bar and wide rail switch each active destination from Outline to the matching Filled
-ReIcon glyph. The compact shell bottom bar is icon-only at a fixed compact height with 44-pixel targets;
-destination names stay in the accessibility label and a long-press tooltip. The bar and the root
-header separate from content with a one-physical-pixel `line` hairline instead of a logical-pixel rule. Its iOS surface
-may use a restrained Flutter blur/translucency, while Android, high-contrast mode, reduced motion
-and accessible-navigation mode use the opaque theme surface. This does not claim adoption of a
-native iOS Liquid Glass API. Selecting a destination uses one interruptible 160 ms transition for its indicator,
-icon color and, where shown, label style; reduced motion settles that state immediately. Selected ratings use a filled counterpart. Brand marks and functional radio and
+ReIcon glyph. The compact shell bottom bar is a floating dock by default, or a full-width classic
+bar chosen in Appearance (frosted chrome under a hairline, with a selection pill per destination;
+the two morph into each other) — either is icon-only at a fixed compact
+height with 44-pixel targets; destination names stay in the accessibility label and a long-press
+tooltip, except where a long press opens that destination's shortcut menu. Its floating shape, glass material, lens selection, drag gestures and accessibility
+fallbacks follow the
+[shell navigation entry](mobile-experience.md#navigation-and-reading). The root
+header keeps the one-physical-pixel `line` hairline instead of a logical-pixel rule; the floating
+dock separates from content by elevation instead. The floating dock and wide rail share the same
+glass surface — a translucent raised surface over a blurred, saturated backdrop on iOS and Android —
+while high-contrast mode, reduced motion and accessible-navigation mode use the opaque theme
+surface. The compose action and its menu are the same glass ([0120](../decisions/0120-glass-compose-action.md)):
+the action is primary-tinted glass dense enough to keep its glyph at 3:1 on any content, menu items
+are dock-tinted capsules over a frosted, lightly dimmed page, and the close button sits exactly over
+the action while its plus turns into the close mark. A press swells the glass around steady content
+and a soft light follows the finger; the same accessibility fallbacks give an opaque surface that
+tints on press. This does not claim adoption of a native iOS Liquid Glass API. Selecting a destination
+springs a lens between destinations, and reduced motion settles it at once; the rail keeps ordinary
+button activation and its selected icon and label. Selected ratings use a filled counterpart. Brand marks and functional radio and
 strikethrough glyphs retain their source artwork, as recorded in the
 [UI Kit asset inventory](../../apps/mobile/packages/ui_kit/assets/README.md).
 Pinned topic markers use `thumbtack` Filled in the theme's red at 16 pixels on both list rows

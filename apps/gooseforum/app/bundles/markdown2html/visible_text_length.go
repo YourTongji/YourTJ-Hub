@@ -48,13 +48,7 @@ func VisibleTextLength(markdown string) int {
 		}
 		switch node := n.(type) {
 		case *ast.Text:
-			value := node.Segment.Value(source)
-			if !node.IsRaw() {
-				value = util.UnescapePunctuations(value)
-				value = util.ResolveNumericReferences(value)
-				value = util.ResolveEntityNames(value)
-			}
-			builder.Write(value)
+			builder.Write(unescapeTextNode(node, node.Segment.Value(source)))
 			if node.SoftLineBreak() || node.HardLineBreak() {
 				builder.WriteByte('\n')
 			}
@@ -92,7 +86,8 @@ func countVisibleRunes(text string) int {
 	return count
 }
 
-// stripStickerTokens 移除渲染期会展开为图片的贴纸 token，使其不参与计数。
+// stripStickerTokens 移除渲染期会展开为图片的贴纸 token，使其不参与可见
+// 文字计数，也不进入纯文本预览（ExtractPreview、StripStickerTokens）。
 // 位置判定与 RenderWithStickerTokens 共用 stickerRanges：代码、链接目标等
 // 位置里的 token 渲染时保持字面量，这里也保持原样、照常计入。
 func stripStickerTokens(markdown string) string {

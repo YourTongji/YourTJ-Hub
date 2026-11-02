@@ -107,13 +107,27 @@ Future<({GoRouter router, ProviderContainer container})> pumpNavigation(
   return (router: router, container: container);
 }
 
+/// Text outside any Material falls back to the debug error style, drawn with
+/// a double underline.
+bool _hasMissingMaterialText(WidgetTester tester) {
+  for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
+    var found = false;
+    text.text.visitChildren((span) {
+      found = span.style?.decorationStyle == TextDecorationStyle.double;
+      return !found;
+    });
+    if (found) return true;
+  }
+  return false;
+}
+
 void main() {
   for (final value in [2, 3, 1]) {
     testWidgets('compose first level routes type $value only after choosing', (
       tester,
     ) async {
       final app = await pumpNavigation(tester);
-      await tester.tap(find.byType(FloatingActionButton));
+      await tester.tap(find.byKey(const ValueKey('root-compose-action')));
       await tester.pumpAndSettle();
       expect(app.router.state.uri.path, '/');
       for (final type in [2, 3, 1]) {
@@ -126,12 +140,86 @@ void main() {
     });
   }
 
+  testWidgets('compose menu is glass that opens from the action', (
+    tester,
+  ) async {
+    await pumpNavigation(tester);
+    final action = find.byKey(const ValueKey('root-compose-action'));
+    final actionRect = tester.getRect(action);
+    expect(
+      find.descendant(of: action, matching: find.byType(GfNavigationSurface)),
+      findsOneWidget,
+    );
+
+    await tester.tap(action);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    // The close button covers the action from the first frame; the plus is
+    // still mostly a plus while it turns.
+    final close = find.byTooltip('关闭');
+    expect(tester.getRect(close), actionRect);
+    double opacityOf(String symbol) => tester
+        .widget<Opacity>(
+          find
+              .ancestor(
+                of: find.descendant(
+                  of: close,
+                  matching: find.byWidgetPredicate(
+                    (widget) => widget is GfSymbol && widget.name == symbol,
+                  ),
+                ),
+                matching: find.byType(Opacity),
+              )
+              .first,
+        )
+        .opacity;
+    expect(opacityOf('plus'), greaterThan(0));
+
+    await tester.pumpAndSettle();
+    expect(opacityOf('x'), 1);
+    expect(_hasMissingMaterialText(tester), isFalse);
+    expect(opacityOf('plus'), 0);
+    for (final type in [1, 2, 3]) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('compose-$type')),
+          matching: find.byType(GfNavigationSurface),
+        ),
+        findsOneWidget,
+      );
+    }
+    // The page behind the menu is frosted, not only dimmed.
+    expect(
+      find.descendant(
+        of: find.byType(Overlay).first,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is BackdropFilter &&
+              find
+                  .descendant(
+                    of: find.byWidget(widget),
+                    matching: find.byKey(const ValueKey('compose-menu')),
+                  )
+                  .evaluate()
+                  .isEmpty &&
+              widget.child is ColoredBox,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(close);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('compose-menu')), findsNothing);
+    expect(tester.getRect(action), actionRect);
+  });
+
   testWidgets('compose closes with backdrop, close button and system back', (
     tester,
   ) async {
     final app = await pumpNavigation(tester);
     for (final dismissal in ['backdrop', 'close', 'back']) {
-      await tester.tap(find.byType(FloatingActionButton));
+      await tester.tap(find.byKey(const ValueKey('root-compose-action')));
       await tester.pumpAndSettle();
       switch (dismissal) {
         case 'backdrop':
@@ -150,7 +238,7 @@ void main() {
   testWidgets('new conversation keeps its direct action', (tester) async {
     var calls = 0;
     await pumpNavigation(tester, onAction: () => calls++);
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.byKey(const ValueKey('root-compose-action')));
     await tester.pumpAndSettle();
     expect(calls, 1);
     expect(find.byKey(const ValueKey('compose-2')), findsNothing);
@@ -224,7 +312,7 @@ void main() {
     await pumpNavigation(tester, locale: const Locale('de'), textScale: 2);
     tester.view.physicalSize = const Size(320, 640);
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.byKey(const ValueKey('root-compose-action')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.binding.handlePopRoute();
