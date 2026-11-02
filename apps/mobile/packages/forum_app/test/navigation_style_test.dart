@@ -140,13 +140,9 @@ void main() {
         .setStyle(GfNavigationStyle.dock);
     await tester.pumpAndSettle();
     expect(find.byType(GfNavigationBarSurface), findsNothing);
-    expect(
-      contentBottom(),
-      GfBottomNavigation.metrics(
-        safeAreaBottom: 34,
-        barHeight: 56,
-      ).contentBottomInset,
-    );
+    // No home indicator on this platform: the dock clears the whole 34-pixel
+    // system inset, over the 56-pixel dock and 12 pixels of air.
+    expect(contentBottom(), 34 + 56 + 12);
     expect(tester.takeException(), isNull);
   });
 }
