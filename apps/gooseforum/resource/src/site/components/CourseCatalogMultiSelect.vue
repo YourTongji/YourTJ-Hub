@@ -66,11 +66,14 @@ function onRootKeydown(e: KeyboardEvent) {
     return
   }
   if (!open.value || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return
-  e.preventDefault()
   const boxes = Array.from(panelRef.value?.querySelectorAll<HTMLElement>('input[type="checkbox"]') ?? [])
+    .filter((box) => box.getClientRects().length > 0)
   if (!boxes.length) return
+  e.preventDefault()
   const idx = boxes.indexOf(document.activeElement as HTMLElement)
-  const next = e.key === 'ArrowDown' ? (idx + 1) % boxes.length : (idx - 1 + boxes.length) % boxes.length
+  const next = idx < 0
+    ? (e.key === 'ArrowDown' ? 0 : boxes.length - 1)
+    : (idx + (e.key === 'ArrowDown' ? 1 : -1) + boxes.length) % boxes.length
   boxes[next].focus()
 }
 
@@ -107,7 +110,15 @@ function onDocMouseDown(e: MouseEvent) {
 }
 
 function onViewportChange() {
-  if (open.value) computePlacement()
+  if (!open.value) return
+  const rect = triggerRef.value?.getBoundingClientRect()
+  if (!rect || rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
+    // Do not restore focus here: focusing an off-screen trigger would undo
+    // the user's scroll. Hidden controls remain associated with the GET form.
+    open.value = false
+    return
+  }
+  computePlacement()
 }
 
 onMounted(() => {

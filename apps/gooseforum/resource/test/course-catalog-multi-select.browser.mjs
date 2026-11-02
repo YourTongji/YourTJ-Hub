@@ -13,6 +13,38 @@ before(async () => {
 })
 after(async () => { await browser?.close(); await server?.close() })
 
+test('搜索后的方向键只遍历可见选项，隐藏选中项仍随 GET 表单提交', async () => {
+  const page = await browser.newPage({ viewport: { width: 375, height: 700 } })
+  try {
+    await page.goto(`${origin}/assets/test/fixtures/browser/course-catalog-multi-select.html?side=down`)
+    await page.getByRole('button', { name: '全部院系' }).click()
+    await page.getByLabel('计算机科学与技术', { exact: true }).check()
+    const search = page.getByRole('textbox', { name: '搜索选项' })
+    await search.fill('数学')
+    await search.press('ArrowDown')
+    assert.equal(await page.getByLabel('数学科学学院', { exact: true }).evaluate((el) => el === document.activeElement), true)
+    await page.getByLabel('数学科学学院', { exact: true }).press('ArrowUp')
+    assert.equal(await page.getByLabel('数学科学学院', { exact: true }).evaluate((el) => el === document.activeElement), true)
+    assert.deepEqual(await page.locator('#course-more-filters').evaluate((form) => [...new FormData(form).getAll('department')]), ['CS'])
+    await page.getByLabel('数学科学学院', { exact: true }).press('Escape')
+    assert.equal(await page.getByRole('group').isVisible(), false)
+    assert.equal(await page.getByRole('button', { name: '全部院系' }).evaluate((el) => el === document.activeElement), true)
+  } finally { await page.close() }
+})
+
+test('触发按钮滚出视口时收起外置面板，保留已经选择的筛选值', async () => {
+  const page = await browser.newPage({ viewport: { width: 375, height: 700 } })
+  try {
+    await page.goto(`${origin}/assets/test/fixtures/browser/course-catalog-multi-select.html?side=down`)
+    await page.getByRole('button', { name: '全部院系' }).click()
+    await page.getByLabel('计算机科学与技术', { exact: true }).check()
+    await page.evaluate(() => window.scrollTo(0, 600))
+    await page.waitForFunction(() => document.querySelector('button').getBoundingClientRect().bottom < 0)
+    await page.getByRole('group').waitFor({ state: 'hidden', timeout: 1000 })
+    assert.deepEqual(await page.locator('#course-more-filters').evaluate((form) => [...new FormData(form).getAll('department')]), ['CS'])
+  } finally { await page.close() }
+})
+
 for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 700 }, { width: 320, height: 700 }]) for (const side of ['up', 'down']) {
   test(`课程更多筛选下拉越过卡片边缘仍完整可见且可选 (${viewport.width}px, ${side})`, async () => {
     const page = await browser.newPage({ viewport })

@@ -14,7 +14,10 @@ const form = h('form', { id: 'course-more-filters', action: '/courses', method: 
       modelName: 'department',
       form: 'course-more-filters',
       label: '全部院系',
-      options: [{ value: 'CS', label: '计算机科学与技术' }],
+      options: [
+        { value: 'CS', label: '计算机科学与技术' },
+        { value: 'MATH', label: '数学科学学院' },
+      ],
       selected: [],
       icon: Building2,
     }),
