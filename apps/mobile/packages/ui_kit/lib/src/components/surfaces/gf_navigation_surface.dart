@@ -91,6 +91,136 @@ class GfNavigationSurface extends StatelessWidget {
   }
 }
 
+/// Edge-anchored glass for a full-width bar along the bottom of the screen.
+/// Content scrolling under it is frosted under a thinner tint than the
+/// floating dock carries, so the bar reads as a lighter material on the same
+/// page. It needs no rim or shadow: a hairline marks the edge it shares with
+/// the content, with a lit line just inside it where the glass catches the
+/// light. Where glass is skipped, the bar is the opaque canvas under a hairline.
+class GfNavigationBarSurface extends StatelessWidget {
+  const GfNavigationBarSurface({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final double hairline = gfHairline(context);
+    if (!GfNavigationSurface.usesGlass(context)) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.canvas,
+          border: Border(
+            top: BorderSide(color: colors.separator, width: hairline),
+          ),
+        ),
+      );
+    }
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.compose(
+          outer: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          inner: ColorFilter.matrix(_saturation(colors.isDark ? 1.5 : 1.8)),
+        ),
+        child: CustomPaint(
+          painter: _BarGlassPainter(colors, hairline),
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+  }
+}
+
+/// The single surface [GfBottomNavigation] paints while it changes style:
+/// the dock's glass at [barness] 0, the bar's at 1, and one material in
+/// between. Its tint, rim, sheen and shadow blend over one shared backdrop,
+/// so the blur never drops out partway.
+class GfNavigationMorphSurface extends StatelessWidget {
+  const GfNavigationMorphSurface({
+    super.key,
+    required this.barness,
+    required this.radius,
+  });
+
+  final double barness;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final double hairline = gfHairline(context);
+    final double t = barness.clamp(0.0, 1.0);
+    final BorderRadius borderRadius = BorderRadius.circular(radius);
+    if (!GfNavigationSurface.usesGlass(context)) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: Color.lerp(colors.surfaceRaised, colors.canvas, t),
+          borderRadius: borderRadius,
+          border: Border.all(
+            color: Color.lerp(colors.outline, colors.separator, t)!,
+            width: hairline,
+          ),
+        ),
+      );
+    }
+    final List<BoxShadow> shadows = <BoxShadow>[
+      for (final BoxShadow shadow in colors.elevation(GfElevation.mid))
+        shadow.copyWith(
+          color: shadow.color.withValues(alpha: shadow.color.a * (1 - t)),
+        ),
+    ];
+    return CustomPaint(
+      painter: _DockShadowPainter(shadows, borderRadius),
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.compose(
+            outer: ImageFilter.blur(sigmaX: 18 + 6 * t, sigmaY: 18 + 6 * t),
+            inner: ColorFilter.matrix(
+              _saturation(colors.isDark ? 1.4 + 0.1 * t : 1.7 + 0.1 * t),
+            ),
+          ),
+          child: CustomPaint(
+            painter: _MorphGlassPainter(colors, hairline, borderRadius, t),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MorphGlassPainter extends CustomPainter {
+  const _MorphGlassPainter(this.colors, this.hairline, this.radius, this.t);
+
+  final GfColors colors;
+  final double hairline;
+  final BorderRadius radius;
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Rect bounds = Offset.zero & size;
+    void blend(CustomPainter painter, double amount) {
+      if (amount <= 0) return;
+      canvas.saveLayer(
+        bounds,
+        Paint()..color = Colors.black.withValues(alpha: amount),
+      );
+      painter.paint(canvas, size);
+      canvas.restore();
+    }
+
+    blend(_GlassPainter(colors, hairline, radius), 1 - t);
+    blend(_BarGlassPainter(colors, hairline), t);
+  }
+
+  @override
+  bool shouldRepaint(_MorphGlassPainter oldDelegate) =>
+      oldDelegate.colors != colors ||
+      oldDelegate.hairline != hairline ||
+      oldDelegate.radius != radius ||
+      oldDelegate.t != t;
+}
+
 /// Casts the floating elevation only outside the pill, so translucent glass
 /// never shows its own shadow through itself.
 class _DockShadowPainter extends CustomPainter {
@@ -188,6 +318,54 @@ class _GlassPainter extends CustomPainter {
       oldDelegate.colors != colors ||
       oldDelegate.hairline != hairline ||
       oldDelegate.radius != radius;
+}
+
+class _BarGlassPainter extends CustomPainter {
+  const _BarGlassPainter(this.colors, this.hairline);
+
+  final GfColors colors;
+  final double hairline;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bool dark = colors.isDark;
+    final Rect bounds = Offset.zero & size;
+    canvas.drawRect(
+      bounds,
+      Paint()..color = colors.canvas.withValues(alpha: dark ? 0.72 : 0.76),
+    );
+    // A faint sheen settles from the top edge, so the glass reads lit from
+    // above rather than as a flat tint.
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.center,
+          colors: <Color>[
+            Colors.white.withValues(alpha: dark ? 0.04 : 0.2),
+            Colors.white.withValues(alpha: 0),
+          ],
+        ).createShader(bounds),
+    );
+    // The lit line sits just inside the edge...
+    canvas.drawRect(
+      Rect.fromLTWH(0, hairline, size.width, 1),
+      Paint()..color = Colors.white.withValues(alpha: dark ? 0.06 : 0.55),
+    );
+    // ...and the hairline keeps the bar distinct on a matching page.
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, hairline),
+      Paint()
+        ..color = dark
+            ? colors.line
+            : colors.baseContent.withValues(alpha: 0.1),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BarGlassPainter oldDelegate) =>
+      oldDelegate.colors != colors || oldDelegate.hairline != hairline;
 }
 
 /// Primary-tinted glass, read as a thick lens: light from above lights the

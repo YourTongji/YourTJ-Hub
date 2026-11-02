@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/app_locale.dart';
 import 'package:forum_app/src/site_theme.dart';
 import 'package:forum_app/src/theme_mode.dart';
+import 'package:forum_app/src/navigation_style.dart';
+import 'package:ui_kit/ui_kit.dart' show GfNavigationStyle;
 import 'package:forum_app/src/providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
@@ -40,7 +42,7 @@ class NoTokens implements TokenStorage {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final owner in ['theme', 'locale', 'site']) {
+  for (final owner in ['theme', 'locale', 'site', 'navigation']) {
     test('reset drains an already issued $owner preference write', () async {
       SharedPreferences.setMockInitialValues({});
       final store = DelayedPreferences();
@@ -57,6 +59,10 @@ void main() {
       } else if (owner == 'locale') {
         final notifier = container.read(appLocaleProvider.notifier);
         notifier.setLocale(const Locale('en'));
+        reset = notifier.resetToDefault;
+      } else if (owner == 'navigation') {
+        final notifier = container.read(navigationStyleProvider.notifier);
+        notifier.setStyle(GfNavigationStyle.bar);
         reset = notifier.resetToDefault;
       } else {
         final notifier = container.read(siteThemeProvider.notifier);

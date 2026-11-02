@@ -23,6 +23,8 @@ import '../../messages/chat_drafts.dart';
 import '../../asset_url.dart';
 import '../../server_messages.dart';
 import '../../theme_mode.dart';
+import '../../navigation_style.dart';
+import 'navigation_style_picker.dart';
 import '../../app_locale.dart';
 import '../../widgets/language_picker.dart';
 import '../../site_theme.dart';
@@ -1305,6 +1307,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
         ],
+        const SizedBox(height: 12),
+        GfListSection(
+          header: l10n.settingsNavigationStyle,
+          footer: l10n.settingsNavigationStyleDesc,
+          margin: EdgeInsets.zero,
+          children: [
+            NavigationStylePicker(
+              value: ref.watch(navigationStyleProvider),
+              onChanged: ref.read(navigationStyleProvider.notifier).setStyle,
+            ),
+          ],
+        ),
       ],
     );
   }

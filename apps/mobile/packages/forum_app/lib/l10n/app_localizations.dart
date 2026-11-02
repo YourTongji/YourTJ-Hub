@@ -2646,6 +2646,30 @@ abstract class AppLocalizations {
   /// **'Use server-issued site colors'**
   String get settingsFollowSiteThemeDesc;
 
+  /// No description provided for @settingsNavigationStyle.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation'**
+  String get settingsNavigationStyle;
+
+  /// No description provided for @settingsNavigationDock.
+  ///
+  /// In en, this message translates to:
+  /// **'Floating dock'**
+  String get settingsNavigationDock;
+
+  /// No description provided for @settingsNavigationBar.
+  ///
+  /// In en, this message translates to:
+  /// **'Classic bar'**
+  String get settingsNavigationBar;
+
+  /// No description provided for @settingsNavigationStyleDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Wide windows keep the side rail.'**
+  String get settingsNavigationStyleDesc;
+
   /// No description provided for @richContentCopyCode.
   ///
   /// In en, this message translates to:

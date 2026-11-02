@@ -1386,6 +1386,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsFollowSiteThemeDesc => 'サイトで設定された配色を使用';
 
   @override
+  String get settingsNavigationStyle => 'ナビゲーション';
+
+  @override
+  String get settingsNavigationDock => 'フローティングドック';
+
+  @override
+  String get settingsNavigationBar => 'クラシックバー';
+
+  @override
+  String get settingsNavigationStyleDesc => 'ワイドウィンドウでは常にサイドレールを使用します。';
+
+  @override
   String get richContentCopyCode => 'コードをコピー';
 
   @override
