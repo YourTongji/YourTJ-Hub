@@ -377,7 +377,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('Cannot verify'), findsOneWidget);
+    expect(find.textContaining('Cannot read dev distribution status'), findsOneWidget);
     expect(find.byKey(const Key('bottom')), findsNothing);
     final rail = tester.getRect(find.byKey(const Key('rail')));
     final content = tester.getRect(find.byKey(const Key('content')));

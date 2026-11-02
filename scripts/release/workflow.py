@@ -165,11 +165,25 @@ def main():
         pr_number = args.pr or event.get("pull_request", {}).get("number")
         if args.command == "validate-pr":
             # Read-only PR CI; actual authorization comes from the trusted target controller.
-            paths = git("diff", "--name-only", "--no-renames", event.get("pull_request", {}).get("base", {}).get("sha", "HEAD^"), "HEAD", "--").splitlines()
+            pr = event.get('pull_request')
+            if pr:
+                parents = git('rev-list', '--parents', '-n', '1', 'HEAD').split()
+                # GitHub's synthetic merge snapshots the tested target. The event
+                # base may be older if main advanced while this check was queued.
+                base = parents[1] if len(parents) == 3 and parents[2] == pr['head']['sha'] else pr['base']['sha']
+            paths = (git('diff', '--name-only', '--no-renames',
+                         base + '...' + pr['head']['sha'], '--') if pr else
+                     git('diff', '--name-only', '--no-renames', 'HEAD^', 'HEAD', '--')).splitlines()
             ids = {p.split("/")[2] for p in paths if p.startswith("releases/requests/") and len(p.split("/")) > 3}
             for candidate_id in ids:
-                folder = Path(candidate_path(candidate_id))
-                validate_candidate(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder)
+                if pr:
+                    # A queued check's synthetic merge can contain newer main code.
+                    # Validate the proposed candidate bytes and branch diff directly.
+                    with tempfile.TemporaryDirectory() as temporary:
+                        load_candidate(candidate_id, pr['head']['sha'], Path(temporary))
+                else:
+                    folder = Path(candidate_path(candidate_id))
+                    validate_candidate(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder)
             if pr_number and event["pull_request"]["head"]["ref"].startswith("codex/release/"):
                 require(len(ids) == 1 and all(p.startswith(candidate_path(next(iter(ids))) + "/") for p in paths), "Release PR includes unrelated changes")
             return
