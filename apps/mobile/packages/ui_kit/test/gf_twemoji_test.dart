@@ -520,6 +520,74 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets(
+    'selection area double click selects a desktop word without tapping',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.macOS),
+          home: Scaffold(
+            body: GfSelectionArea(
+              selectionSource: 'hello world',
+              onTap: () => taps++,
+              child: const GfText('hello world'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final Offset point = tester.getCenter(find.text('hello world'));
+      await tester.tapAt(point, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tapAt(point, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      expect(taps, 0);
+      final region = tester.state<SelectableRegionState>(
+        find.byType(SelectableRegion),
+      );
+      expect(
+        region.contextMenuButtonItems.map(
+          (ContextMenuButtonItem item) => item.type,
+        ),
+        contains(ContextMenuButtonType.copy),
+      );
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
+  testWidgets('selection area body tap does not steal child taps', (
+    tester,
+  ) async {
+    var bodyTaps = 0;
+    var childTaps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GfSelectionArea(
+            selectionSource: 'hello world',
+            onTap: () => bodyTaps++,
+            child: GestureDetector(
+              onTap: () => childTaps++,
+              child: const GfText('hello world'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('hello world'));
+    await tester.pumpAndSettle();
+
+    expect(childTaps, 1);
+    expect(bodyTaps, 0);
+  });
+
   testWidgets('Emoji SelectableText retains native selection parameters', (
     tester,
   ) async {

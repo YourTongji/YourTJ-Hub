@@ -197,8 +197,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   at 2×, and windows under 360 logical pixels tighten them one more step), inline code and code blocks are one step
   smaller, tables inherit the body size, and course reviews use the same profile at a compact
   ~15.5-pixel baseline. The first post and reply bodies support platform-native
-  text selection. Tapping a reply body opens the reply composer targeted at that floor; after a
-  selection, the first tap only dismisses it.
+  text selection. On touch devices, tapping a reply body opens the reply composer targeted at that
+  floor; after a selection, the first tap only dismisses it. Desktop mouse clicks stay dedicated to
+  native selection (drag or double-click), and the toolbar reply action remains the explicit entry.
 - `Current`: Settings → Text size opens a live preview page with two layered sliders
   in 10% steps. App text (90%–130%) scales every text in the app, rich content included; reading
   text (80%–140%) then adjusts only rich content bodies — posts, Wiki and course reviews — on top of

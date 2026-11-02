@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/gf_rich_content_typography.dart';
-import '../theme/gf_theme.dart';
 import 'twemoji_asset_map.g.dart';
 
 /// A text segment that should use the bundled Twemoji artwork.
@@ -315,13 +314,26 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
   Widget build(BuildContext context) {
     Widget child = widget.child;
     if (widget.onTap != null) {
-      child = InkWell(
-        onTap: _handleTap,
-        borderRadius: BorderRadius.circular(GfRadius.sm),
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: GfTheme.colorsOf(
-          context,
-        ).primary.withValues(alpha: .05),
+      // Mouse clicks must reach SelectionArea so double-click still selects a
+      // word. Restrict the reply tap recognizer to touch-like devices; desktop
+      // users keep the explicit reply action in the floor toolbar.
+      child = RawGestureDetector(
+        gestures: <Type, GestureRecognizerFactory>{
+          TapGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                () => TapGestureRecognizer(
+                  supportedDevices: const <PointerDeviceKind>{
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.stylus,
+                    PointerDeviceKind.invertedStylus,
+                    PointerDeviceKind.unknown,
+                  },
+                ),
+                (TapGestureRecognizer instance) {
+                  instance.onTap = _handleTap;
+                },
+              ),
+        },
         child: Listener(
           onPointerDown: _handlePointerDown,
           onPointerUp: _handlePointerUp,
