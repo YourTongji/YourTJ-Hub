@@ -121,8 +121,12 @@ def resolve(github, candidate, folder, linked_run=None):
     from state import latest_receipt
     require(all(latest_receipt(github, candidate, c) is None for c in manifest['channels']),
             'Formal publication already started; recover its original artifacts instead of building an RC')
-    require(github.api('git/ref/tags/' + manifest['tag'], missing=True) is None,
-            'Final tag already reserved; continue formal publication instead of building an RC')
+    existing = github.api('git/ref/tags/' + manifest['tag'], missing=True)
+    if manifest['operation'] == 'promote-ios':
+        from controller import verify_reservation
+        verify_reservation(manifest, {}, github, existing)
+    else:
+        require(existing is None, 'Final tag already reserved; continue formal publication instead of building an RC')
     return manifest, folder
 
 
