@@ -71,6 +71,8 @@ export interface components {
         MobileReleaseRecord: {
             version: string;
             buildNumber: number;
+            /** @description UTC+8 date and daily sequence; optional for historical releases */
+            displayBuild?: string;
             channels: ("android" | "ios-app-store" | "ios-testflight")[];
             highlights: components["schemas"]["MobileReleaseNote"][];
             breaking: components["schemas"]["MobileReleaseNote"][];

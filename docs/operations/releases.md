@@ -114,6 +114,11 @@ date ID in parentheses; old history without it shows its recorded counter. Stabl
 marketing version. Actual Apple upload validation, not the local metadata validator, establishes
 acceptance of a native number.
 
+Dev bundles and RCs hold one shared packaging lock from allocation through native upload, so Apple
+cannot receive a later reserved number before an earlier in-flight bundle. This does not block dev
+Web. Confirm's existing-build metadata publisher uses a separate queue: it neither allocates a new
+number nor uploads another binary, and does not wait behind a new dev compile.
+
 ## Oryn drafting
 
 RC preparation defaults to deterministic editable drafts. Set `draft_notes=true` (CLI `--draft-notes`)
