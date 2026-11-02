@@ -70,7 +70,7 @@ def validate_widget_entitlements(entitlements, team):
         raise ValueError("Exported widget must carry the schedule App Group entitlement")
 
 
-def validate_exported_ipa(path, team):
+def validate_exported_ipa(path, team, *, allow_release_candidate=False):
     # Inspect the signed artifact, not just its provisioning input.
     with tempfile.TemporaryDirectory(prefix="yourtj-ipa-check-") as temporary:
         with zipfile.ZipFile(path) as archive:
@@ -82,7 +82,7 @@ def validate_exported_ipa(path, team):
         apps = list((Path(temporary) / "Payload").glob("*.app"))
         if len(apps) != 1:
             raise ValueError("Expected exactly one exported iOS application")
-        validate_build_metadata(apps[0])
+        validate_build_metadata(apps[0], allow_release_candidate=allow_release_candidate)
         raw = subprocess.check_output(["codesign", "-d", "--entitlements", ":-", str(apps[0])], stderr=subprocess.DEVNULL)
         validate_app_entitlements(plistlib.loads(raw), team)
         widgets = list(apps[0].glob("PlugIns/ScheduleWidgets.appex"))
@@ -96,15 +96,16 @@ def validate_exported_ipa(path, team):
         validate_privacy_resources(apps[0])
 
 
-def validate_build_metadata(app):
+def validate_build_metadata(app, *, allow_release_candidate=False):
     """Validate the exported app and widget, rather than the runner's default SDK."""
     for bundle in (app, app / "PlugIns/ScheduleWidgets.appex"):
         info = plistlib.loads((bundle / "Info.plist").read_bytes())
         sdk = re.fullmatch(r"iphoneos(\d+)\.(\d+)", info.get("DTSDKName", ""))
         if sdk is None or tuple(map(int, sdk.groups())) < (27, 2):
             raise ValueError(f"{bundle.name} requires an iOS 27.2 device SDK")
-        if info.get("DTXcodeBuild") != "27B52":
-            raise ValueError(f"{bundle.name} requires Xcode 27.2 release (27B52)")
+        allowed_builds = {"27B52", "27B48"} if allow_release_candidate else {"27B52"}
+        if info.get("DTXcodeBuild") not in allowed_builds:
+            raise ValueError(f"{bundle.name} requires an approved Xcode 27.2 build: {sorted(allowed_builds)}")
         minimum = str(info.get("MinimumOSVersion", ""))
         if not re.fullmatch(r"\d+(?:\.\d+){0,2}", minimum) or int(minimum.split(".")[0]) < 15:
             raise ValueError(f"{bundle.name} requires an iOS 15 or later deployment floor")
@@ -231,7 +232,8 @@ def main():
             artifacts = list((output / "ios").glob("*.ipa"))
             if len(artifacts) != 1:
                 raise ValueError("Expected one IPA after export")
-            validate_exported_ipa(artifacts[0], team)
+            validate_exported_ipa(artifacts[0], team, allow_release_candidate=(
+                os.environ.get('MOBILE_ENVIRONMENT') == 'dev' and os.environ.get('MOBILE_PREVIEW') == 'true'))
         finally:
             # Attempt every cleanup even when a keychain operation fails.
             with ExitStack() as cleanup:
