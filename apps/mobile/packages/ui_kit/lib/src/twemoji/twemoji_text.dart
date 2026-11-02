@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart' as cupertino;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -210,12 +212,17 @@ typedef GfSelectionAreaContextMenuBuilder =
     );
 
 class _GfSelectionAreaState extends State<GfSelectionArea> {
-  final GlobalKey<SelectionAreaState> _selectionAreaKey =
+  // Replacing the key when the source changes rebuilds SelectionArea, which
+  // drops stale selections without imperatively clearing a region that may be
+  // mutating its selection containers in the same frame.
+  GlobalKey<SelectionAreaState> _selectionAreaKey =
       GlobalKey<SelectionAreaState>();
   late _TwemojiSelectionRegistry _registry = _TwemojiSelectionRegistry(
     widget.selectionSource,
   );
   String? _selectedText;
+  Timer? _longPressTimer;
+  var _longPressSeen = false;
 
   @override
   void didUpdateWidget(covariant GfSelectionArea oldWidget) {
@@ -223,15 +230,35 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
     if (oldWidget.selectionSource != widget.selectionSource) {
       _registry = _TwemojiSelectionRegistry(widget.selectionSource);
       _selectedText = null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _selectionAreaKey.currentState?.selectableRegion.clearSelection();
-        }
-      });
+      _selectionAreaKey = GlobalKey<SelectionAreaState>();
     }
   }
 
+  @override
+  void dispose() {
+    _longPressTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    _longPressTimer?.cancel();
+    _longPressSeen = false;
+    _longPressTimer = Timer(kLongPressTimeout, () => _longPressSeen = true);
+  }
+
+  void _handlePointerUp(PointerEvent event) {
+    _longPressTimer?.cancel();
+  }
+
   void _handleTap() {
+    // SelectionArea owns the long-press gesture. If a platform still delivers
+    // the competing tap after that timeout, it must not open the reply
+    // composer; the pointer timer also covers selection callbacks that have not
+    // reached onSelectionChanged yet.
+    if (_longPressSeen) {
+      _longPressSeen = false;
+      return;
+    }
     final SelectableRegionState? region =
         _selectionAreaKey.currentState?.selectableRegion;
     if (_selectedText != null) {
@@ -289,7 +316,12 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
         highlightColor: GfTheme.colorsOf(
           context,
         ).primary.withValues(alpha: .05),
-        child: child,
+        child: Listener(
+          onPointerDown: _handlePointerDown,
+          onPointerUp: _handlePointerUp,
+          onPointerCancel: _handlePointerUp,
+          child: child,
+        ),
       );
     }
     return Actions(
