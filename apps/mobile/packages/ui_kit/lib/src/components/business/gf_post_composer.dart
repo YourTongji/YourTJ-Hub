@@ -211,7 +211,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
                         Row(
                           children: [
                             GfSymbol(
-                              'corner-down-left',
+                              'comment-plus',
                               size: 17,
                               color: colors.iconMuted,
                             ),

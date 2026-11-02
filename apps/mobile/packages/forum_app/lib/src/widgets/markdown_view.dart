@@ -57,6 +57,7 @@ class GfMarkdownView extends ConsumerStatefulWidget {
     this.images,
     this.mentions = const <PostMention>[],
     this.selectable = false,
+    this.onTap,
     this.stickerSize,
     this.screenshot = false,
     this.colors,
@@ -70,6 +71,10 @@ class GfMarkdownView extends ConsumerStatefulWidget {
   final List<String>? images;
 
   final bool selectable;
+
+  /// 点击正文的快捷操作。仅在 [selectable] 为 true 时生效；手势位于选择区域
+  /// 内部，因此长按仍由选择区域接管，链接和图片继续优先处理自己的点击。
+  final VoidCallback? onTap;
 
   /// Null sizes each sticker from its surrounding text
   /// ([StickerImage.inlineScale]); callers may pin a fixed size instead.
@@ -452,6 +457,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
           : '';
       return GfSelectionArea(
         selectionSource: '$data$entityText$_linkPreviewSelectionSource',
+        onTap: widget.onTap,
         child: child,
       );
     }

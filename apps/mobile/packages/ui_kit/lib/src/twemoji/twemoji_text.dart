@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/gf_rich_content_typography.dart';
+import '../theme/gf_theme.dart';
 import 'twemoji_asset_map.g.dart';
 
 /// A text segment that should use the bundled Twemoji artwork.
@@ -163,6 +164,12 @@ class _TwemojiSelectionScope extends InheritedWidget {
 
 /// A platform-adaptive selection area that restores inline image placeholders
 /// to their original Unicode Emoji sequences when selected text is copied.
+///
+/// Selection itself stays with Flutter's [SelectionArea]: Android/Fuchsia get
+/// Material handles, the touch magnifier and a selection click; iOS gets
+/// Cupertino handles and its magnifier; desktop gets mouse drag selection and
+/// desktop controls. This wrapper only replaces the copy action so Twemoji
+/// placeholders are restored to their source Unicode.
 class GfSelectionArea extends StatefulWidget {
   const GfSelectionArea({
     super.key,
@@ -172,6 +179,7 @@ class GfSelectionArea extends StatefulWidget {
     this.selectionControls,
     this.magnifierConfiguration,
     this.contextMenuBuilder,
+    this.onTap,
   });
 
   final Widget child;
@@ -185,6 +193,11 @@ class GfSelectionArea extends StatefulWidget {
   final TextMagnifierConfiguration? magnifierConfiguration;
   final GfSelectionAreaContextMenuBuilder? contextMenuBuilder;
 
+  /// A plain tap on the selectable body. When a selection is active the tap
+  /// clears it instead, so dismissing the selection cannot trigger the
+  /// surrounding action.
+  final VoidCallback? onTap;
+
   @override
   State<GfSelectionArea> createState() => _GfSelectionAreaState();
 }
@@ -197,11 +210,12 @@ typedef GfSelectionAreaContextMenuBuilder =
     );
 
 class _GfSelectionAreaState extends State<GfSelectionArea> {
+  final GlobalKey<SelectionAreaState> _selectionAreaKey =
+      GlobalKey<SelectionAreaState>();
   late _TwemojiSelectionRegistry _registry = _TwemojiSelectionRegistry(
     widget.selectionSource,
   );
   String? _selectedText;
-  var _selectionGeneration = 0;
 
   @override
   void didUpdateWidget(covariant GfSelectionArea oldWidget) {
@@ -209,8 +223,23 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
     if (oldWidget.selectionSource != widget.selectionSource) {
       _registry = _TwemojiSelectionRegistry(widget.selectionSource);
       _selectedText = null;
-      _selectionGeneration++;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _selectionAreaKey.currentState?.selectableRegion.clearSelection();
+        }
+      });
     }
+  }
+
+  void _handleTap() {
+    final SelectableRegionState? region =
+        _selectionAreaKey.currentState?.selectableRegion;
+    if (_selectedText != null) {
+      region?.clearSelection();
+      _selectedText = null;
+      return;
+    }
+    widget.onTap?.call();
   }
 
   List<ContextMenuButtonItem> _buttonItems(SelectableRegionState selection) =>
@@ -250,39 +279,53 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
   }
 
   @override
-  Widget build(BuildContext context) => Actions(
-    // SelectableRegion's CopySelectionTextIntent is overridable. Place this
-    // action above SelectionArea so its keyboard shortcut finds it while the
-    // selection region dispatches copy.
-    actions: <Type, Action<Intent>>{
-      CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
-        onInvoke: (_) {
-          _copySelectedText();
-          return null;
-        },
-      ),
-    },
-    child: SelectionArea(
-      key: ValueKey<int>(_selectionGeneration),
-      focusNode: widget.focusNode,
-      selectionControls: widget.selectionControls,
-      magnifierConfiguration: widget.magnifierConfiguration,
-      onSelectionChanged: (content) => _selectedText = content?.plainText,
-      contextMenuBuilder: (context, selection) {
-        final buttonItems = _buttonItems(selection);
-        return widget.contextMenuBuilder?.call(
-              context,
-              selection,
-              buttonItems,
-            ) ??
-            AdaptiveTextSelectionToolbar.buttonItems(
-              anchors: selection.contextMenuAnchors,
-              buttonItems: buttonItems,
-            );
+  Widget build(BuildContext context) {
+    Widget child = widget.child;
+    if (widget.onTap != null) {
+      child = InkWell(
+        onTap: _handleTap,
+        borderRadius: BorderRadius.circular(GfRadius.sm),
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: GfTheme.colorsOf(
+          context,
+        ).primary.withValues(alpha: .05),
+        child: child,
+      );
+    }
+    return Actions(
+      // SelectableRegion's CopySelectionTextIntent is overridable. Place this
+      // action above SelectionArea so its keyboard shortcut finds it while the
+      // selection region dispatches copy.
+      actions: <Type, Action<Intent>>{
+        CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
+          onInvoke: (_) {
+            _copySelectedText();
+            return null;
+          },
+        ),
       },
-      child: _TwemojiSelectionScope(registry: _registry, child: widget.child),
-    ),
-  );
+      child: SelectionArea(
+        key: _selectionAreaKey,
+        focusNode: widget.focusNode,
+        selectionControls: widget.selectionControls,
+        magnifierConfiguration: widget.magnifierConfiguration,
+        onSelectionChanged: (content) => _selectedText = content?.plainText,
+        contextMenuBuilder: (context, selection) {
+          final buttonItems = _buttonItems(selection);
+          return widget.contextMenuBuilder?.call(
+                context,
+                selection,
+                buttonItems,
+              ) ??
+              AdaptiveTextSelectionToolbar.buttonItems(
+                anchors: selection.contextMenuAnchors,
+                buttonItems: buttonItems,
+              );
+        },
+        child: _TwemojiSelectionScope(registry: _registry, child: child),
+      ),
+    );
+  }
 }
 
 /// Matches the longest complete sequence in the pinned Twemoji 17.0.3 map.

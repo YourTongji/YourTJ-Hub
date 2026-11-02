@@ -2969,7 +2969,16 @@ class _PostCard extends StatelessWidget {
           if (post.isAuthorDeleted || post.isModeratorRemoved)
             GfText(l10n.topicRemoved)
           else
-            GfMarkdownView(data: post.content, mentions: post.mentions),
+            // Tapping the comment body is a shortcut for replying. The
+            // Markdown links, images and text selection keep their own
+            // gestures; a drag is claimed by the page scroll view.
+            GfMarkdownView(
+              key: ValueKey<String>('post-reply-tap-${post.id}'),
+              data: post.content,
+              mentions: post.mentions,
+              selectable: true,
+              onTap: onReply,
+            ),
           // 待审回复（issue #975）：作者与审核员可见，标明尚未公开。
           if (post.processStatus == 2) ...<Widget>[
             const SizedBox(height: 6),

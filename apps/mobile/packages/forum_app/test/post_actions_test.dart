@@ -512,7 +512,7 @@ void main() {
     expect(symbols.map((symbol) => symbol.name), [
       'heart',
       'bookmark',
-      'corner-down-left',
+      'comment-plus',
       'ellipsis',
     ]);
     expect(symbols.every((symbol) => symbol.size == 20), isTrue);

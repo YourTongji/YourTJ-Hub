@@ -196,7 +196,9 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   with the system font scale and reading size the levels move closer, down to 40% of the extra size
   at 2×, and windows under 360 logical pixels tighten them one more step), inline code and code blocks are one step
   smaller, tables inherit the body size, and course reviews use the same profile at a compact
-  ~15.5-pixel baseline. The first post supports text selection.
+  ~15.5-pixel baseline. The first post and reply bodies support platform-native
+  text selection. Tapping a reply body opens the reply composer targeted at that floor; after a
+  selection, the first tap only dismisses it.
 - `Current`: Settings → Text size opens a live preview page with two layered sliders
   in 10% steps. App text (90%–130%) scales every text in the app, rich content included; reading
   text (80%–140%) then adjusts only rich content bodies — posts, Wiki and course reviews — on top of
@@ -773,7 +775,8 @@ validation; simulator/debug execution does not establish production frame-rate g
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
   share one bottom dock. The AppBar shows a generic topic label until the body title scrolls out of
   view, then shows that title. Actions use Web's semantic tints and localized accessible labels;
-  the like action includes its count. The reply heading has no decorative discussion icon.
+  the like action includes its count. Reply actions use the comment-plus glyph rather than a
+  return-arrow glyph. The reply heading has no decorative discussion icon.
   Topic subscriptions use topic-specific labels; reply commands have no toggle semantics. The dock
   keeps the floor number at its natural width and switches to an accessible icon-only reply action
   when that action's label cannot fit, including long translations and enlarged text, reserving no

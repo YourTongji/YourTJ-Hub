@@ -307,7 +307,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
           IconButton(
             tooltip: l10n.topicReply,
             onPressed: _busy ? null : widget.onReply,
-            icon: const GfSymbol('corner-down-left', size: _postActionIconSize),
+            icon: const GfSymbol('comment-plus', size: _postActionIconSize),
           ),
       ],
       GfPopupMenuButton<String>(

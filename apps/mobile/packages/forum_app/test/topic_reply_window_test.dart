@@ -1279,4 +1279,77 @@ void main() {
     expect(find.text(l10nOf(tester).publishCaptchaExplanation), findsNothing);
     await disposePage(tester);
   });
+
+  testWidgets('点击楼层正文直接以该楼层为回复目标', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[floorPost(1), floorPost(2), floorPost(3)],
+      hasBefore: false,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, floors: 3);
+    final Finder body = find.text('2楼内容', findRichText: true);
+    expect(body, findsOneWidget);
+
+    await tester.tap(body);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-reply-composer')), findsOneWidget);
+    final GfPostComposer replyComposer = composer(tester);
+    expect(replyComposer.targetName, 'user2');
+    expect(replyComposer.controller.text, '@user2 ');
+    await disposePage(tester);
+  });
+
+  testWidgets('长按楼层正文可以选择文本且不误触直接回复', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[floorPost(1), floorPost(2), floorPost(3)],
+      hasBefore: false,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, floors: 3);
+    final Finder body = find.text('2楼内容', findRichText: true);
+    expect(body, findsOneWidget);
+
+    await tester.longPress(body);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
+    final SelectableRegionState region = tester.state<SelectableRegionState>(
+      find.byType(SelectableRegion).first,
+    );
+    expect(region.contextMenuButtonItems, isNotEmpty);
+
+    // 选择态下再次轻点正文只应清除选择，不应误触回复。
+    await tester.tap(body);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
+    await disposePage(tester);
+  });
+
+  testWidgets('点击楼层操作栏或拖动滚动不会误触直接回复', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[floorPost(1), floorPost(2), floorPost(3)],
+      hasBefore: false,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, floors: 3);
+    final AppLocalizations l10n = l10nOf(tester);
+    final PostActions actions = tester
+        .widgetList<PostActions>(find.byType(PostActions))
+        .firstWhere((PostActions action) => action.post.postNo == 2);
+    await tester.tap(
+      find.descendant(
+        of: find.byWidget(actions),
+        matching: find.byTooltip(l10n.topicLike),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
+
+    final Finder body = find.text('2楼内容', findRichText: true);
+    await tester.drag(body, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('topic-reply-composer')), findsNothing);
+    await disposePage(tester);
+  });
 }

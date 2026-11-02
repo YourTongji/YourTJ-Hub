@@ -226,7 +226,7 @@ class _ReplyControl extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         GfSymbol(
-                          'corner-down-left',
+                          'comment-plus',
                           size: _symbolExtent,
                           color: color,
                         ),

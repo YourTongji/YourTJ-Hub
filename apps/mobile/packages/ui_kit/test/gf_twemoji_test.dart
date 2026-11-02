@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -432,6 +433,92 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     },
   );
+
+  testWidgets(
+    'selection area long press wins over body tap on Android and iOS',
+    (tester) async {
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      for (final platform in <TargetPlatform>[
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      ]) {
+        debugDefaultTargetPlatformOverride = platform;
+        var taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(platform: platform),
+            home: Scaffold(
+              body: GfSelectionArea(
+                selectionSource: 'hello world',
+                onTap: () => taps++,
+                child: const GfText('hello world'),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await tester.longPress(find.text('hello world'));
+        await tester.pumpAndSettle();
+        expect(taps, 0, reason: '$platform long press must not tap');
+        final region = tester.state<SelectableRegionState>(
+          find.byType(SelectableRegion),
+        );
+        expect(
+          region.contextMenuButtonItems,
+          isNotEmpty,
+          reason: '$platform long press selects text',
+        );
+
+        // 第一次轻点只清除选择，第二次轻点才执行正文快捷操作。
+        await tester.tap(find.text('hello world'));
+        await tester.pumpAndSettle();
+        expect(taps, 0, reason: '$platform first tap dismisses selection');
+        await tester.tap(find.text('hello world'));
+        await tester.pumpAndSettle();
+        expect(taps, 1, reason: '$platform tap after dismissal');
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
+  testWidgets('selection area mouse drag selects on desktop without tapping', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    var taps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.macOS),
+        home: Scaffold(
+          body: GfSelectionArea(
+            selectionSource: 'hello world',
+            onTap: () => taps++,
+            child: const GfText('hello world'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final Rect textRect = tester.getRect(find.text('hello world'));
+    final TestGesture gesture = await tester.startGesture(
+      Offset(textRect.left + 2, textRect.center.dy),
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveTo(Offset(textRect.right - 2, textRect.center.dy));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(taps, 0);
+    final region = tester.state<SelectableRegionState>(
+      find.byType(SelectableRegion),
+    );
+    expect(region.contextMenuButtonItems, isNotEmpty);
+    debugDefaultTargetPlatformOverride = null;
+  });
 
   testWidgets('Emoji SelectableText retains native selection parameters', (
     tester,
