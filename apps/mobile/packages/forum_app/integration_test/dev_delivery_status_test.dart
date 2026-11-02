@@ -10,6 +10,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
   testWidgets('dev identity and status remain informational on native widths', (
     tester,
   ) async {
@@ -81,12 +82,17 @@ void main() {
           } else {
             expect(find.text(l10n.previewStatusLink), findsNothing);
           }
+          await tester.pump(const Duration(milliseconds: 250));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 200)),
+          );
           await binding.takeScreenshot(
-            'dev-${brightness.name}-${width.toInt()}-$state',
+            'dev-${brightness.name}-${width == 320 ? '320' : 'native'}-$state',
           );
         }
       }
     }
     await tester.pumpWidget(const SizedBox());
+    debugDefaultTargetPlatformOverride = null;
   });
 }
