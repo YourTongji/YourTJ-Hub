@@ -20,7 +20,7 @@ permissions:
   pull-requests: read
   checks: read
 concurrency:
-  group: ${{ (inputs.scope == 'web' || startsWith(inputs.candidate, 'web-')) && 'release-web-packaging' || 'release-mobile-packaging' }}
+  group: ${{ (startsWith(inputs.candidate, 'web-') || (inputs.candidate == '' && inputs.scope == 'web')) && 'release-web-packaging' || 'release-mobile-packaging' }}
   cancel-in-progress: false
   queue: max
 jobs:

@@ -28,7 +28,7 @@ python3 scripts/release/cli.py confirm --candidate mobile-X.Y.Z-N --apply
 Commands with side effects default to dry-run; `--apply` executes existing user authorization.
 `mobile` means Android and iOS; `web`, `android` and `ios` select only that scope. The RC entry defaults
 to both mobile platforms and App Store (including production TestFlight); explicitly choose TestFlight
-for beta-only distribution. Android-only RCs must use `--ios-destination testflight`.
+for beta-only distribution. The iOS destination selector is ignored for Web/Android-only scopes.
 
 Source must already be in main history. `main` resolves once to a full application SHA; preparing an RC
 never implicitly merges dev. Source promotion uses an ordinary reviewed code PR. Dev delivery is
@@ -44,6 +44,10 @@ RC preparation queries actual per-channel baselines, reserves identity under a s
 collects source evidence and opens `codex/release/<id>` against main. Only `releases/requests/<id>/`
 may change. Editable drafts do not delay building the RC. Signing executes trusted-main controller
 code with the selected source in a separate checkout; release data cannot edit publisher workflows.
+
+Metadata CI compares the proposed branch from its merge base and validates that head's candidate
+bytes. New main commits arriving while a check is queued are not treated as changes in the request;
+actual unrelated edits on the request branch still fail the candidate-only scope rule.
 
 | File | Purpose |
 |---|---|
@@ -232,7 +236,7 @@ Legacy requests keep their original recovery rules, including the strictly bound
 when every original archive upload was skipped and no release/image was published.
 
 `promote-ios --release ID --apply` enters RC preparation for a published schema-4 TestFlight request,
-prepares App Store notes for its exact original build and selects its original RC without compiling.
+prepares App Store notes for its exact original build, verifies the original reserved stable tag and selects its original RC without compiling.
 Confirm authorizes that metadata snapshot. It does not assign a new date or native counter. Legacy
 metadata corrections use their already prepared requests and original recovery paths.
 

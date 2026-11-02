@@ -91,6 +91,16 @@ def verify_results(plan, needs):
             raise ValueError(f"{domain}: expected {expected}, got {result}; {selection['reason']}")
 
 
+def pr_base(base, head, checkout='HEAD'):
+    if not base or not head:
+        raise ValueError('Missing PR comparison identity')
+    parents = subprocess.check_output(['git', 'rev-list', '--parents', '-n', '1', checkout], text=True).split()
+    # A queued event can name an older base than GitHub's tested synthetic merge.
+    if len(parents) == 3 and parents[2] == head:
+        base = parents[1]
+    return subprocess.check_output(['git', 'merge-base', base, head], text=True).strip()
+
+
 def changed_paths(base, head):
     # Both old and new paths, including deletions, without GitHub's 300/3000-file API limits.
     result = subprocess.run(["git", "diff", "--name-only", "--no-renames", "-z", base, head, "--"], capture_output=True, text=True)
@@ -122,9 +132,11 @@ def main():
         try:
             if not base or set(base) == {"0"}:
                 raise ValueError("No comparison base")
+            head = args.head
             if event.get("pull_request"):
-                base = subprocess.check_output(["git", "merge-base", base, args.head], text=True).strip()
-            plan = select(changed_paths(base, args.head))
+                head = event['pull_request'].get('head', {}).get('sha') if head == 'HEAD' else head
+                base = pr_base(base, head, args.head)
+            plan = select(changed_paths(base, head))
         except (ValueError, subprocess.CalledProcessError):
             plan = {d: {"run": True, "reason": "Comparison unavailable; conservative full validation"} for d in DOMAINS}
     Path(args.output).write_text(json.dumps(plan, indent=2) + "\n")
