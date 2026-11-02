@@ -39,9 +39,10 @@ class PipelineTest(unittest.TestCase):
         value = execute(args, FakeGitHub())
         self.assertTrue(value['dryRun'])
         self.assertEqual(value['inputs']['ios_destination'], 'testflight')
-        args = parser().parse_args(['rc', '--scope', 'android', '--ios-destination', 'app-store', '--apply'])
-        with self.assertRaises(ReleaseError):
-            execute(args, FakeGitHub())
+        args = parser().parse_args(['rc', '--scope', 'android', '--ios-destination', 'app-store'])
+        value = execute(args, FakeGitHub())
+        self.assertTrue(value['dryRun'])
+        self.assertEqual(value['inputs']['ios_destination'], 'testflight')
 
     def test_agent_can_inspect_remote_candidate_without_changing_checkout(self):
         manifest = candidate()

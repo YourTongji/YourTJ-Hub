@@ -28,16 +28,13 @@ jobs:
   starting-status:
     needs: admit
     if: needs.admit.outputs.eligible == 'true'
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/dev-status.yml
     permissions: {contents: write, deployments: read}
-    concurrency:
-      group: dev-public-status
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with: {persist-credentials: false}
-      - env: {GH_TOKEN: '${{ github.token }}'}
-        run: python3 scripts/release/dev_delivery.py status
+  web-status:
+    needs: web
+    if: needs.web.result == 'success'
+    uses: ./.github/workflows/dev-status.yml
+    permissions: {contents: write, deployments: read}
   web:
     needs: admit
     if: needs.admit.outputs.eligible == 'true'
@@ -71,13 +68,5 @@ jobs:
   status:
     needs: [admit, web, mobile]
     if: always() && needs.admit.outputs.eligible == 'true'
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/dev-status.yml
     permissions: {contents: write, deployments: read}
-    concurrency:
-      group: dev-public-status
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with: {persist-credentials: false}
-      - env: {GH_TOKEN: '${{ github.token }}'}
-        run: python3 scripts/release/dev_delivery.py status

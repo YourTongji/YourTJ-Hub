@@ -11,7 +11,7 @@ on:
       display_build: {type: string, default: ''}
       ios_number: {type: string, default: ''}
 permissions:
-  contents: read
+  contents: write
   actions: read
   deployments: write
   pull-requests: read
@@ -20,7 +20,13 @@ concurrency:
   cancel-in-progress: false
   queue: max
 jobs:
+  status:
+    needs: preview
+    if: inputs.automatic && needs.preview.result == 'success'
+    uses: ./.github/workflows/dev-status.yml
+    permissions: {contents: write, deployments: read}
   preview:
+    permissions: {contents: read, actions: read, deployments: write, pull-requests: read}
     if: github.ref == 'refs/heads/main'
     runs-on: xcode-27
     environment: mobile-release

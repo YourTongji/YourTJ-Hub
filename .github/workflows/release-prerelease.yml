@@ -124,7 +124,7 @@ jobs:
       number: ${{ needs.identity.outputs.number }}
       tag: ${{ needs.identity.outputs.tag }}
     secrets: inherit
-    permissions: {contents: write, actions: read, deployments: read, pull-requests: read}
+    permissions: {contents: write, actions: read, deployments: write, pull-requests: read}
   ios:
     needs: [begin, identity]
     if: ${{ !cancelled() && needs.identity.result == 'success' && contains(fromJSON(needs.begin.outputs.artifacts), 'ios') }}
@@ -136,6 +136,7 @@ jobs:
       version: ${{ needs.identity.outputs.version }}
       number: ${{ needs.identity.outputs.number }}
     secrets: inherit
+    permissions: {contents: write, actions: read, deployments: write, pull-requests: read}
   ready:
     needs: [begin, identity, dev, android, ios]
     if: always()

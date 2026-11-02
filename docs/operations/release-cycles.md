@@ -54,7 +54,8 @@ platform completion may differ temporarily; do not claim all platforms are on th
 the recorded platform sources agree.
 
 The `dev-latest` GitHub prerelease contains current dev SHA, latest successful source/run/downloads
-for each platform and `dev-status.json`. Native dev UI uses an informational notice for a newer ready
+for each platform and `dev-status.json`. Every successful platform receipt triggers a short serialized
+status refresh; Android discovery does not wait for iOS or Web to finish. Native dev UI uses an informational notice for a newer ready
 build, a build still running or unavailable status. There is no time expiry and no app-use restriction.
 A date/SHA badge identifies the installed build. Offline status does not certify availability or QA.
 

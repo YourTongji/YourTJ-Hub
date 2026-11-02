@@ -1,0 +1,19 @@
+name: Dev / Refresh distribution status
+on:
+  workflow_call:
+permissions:
+  contents: write
+  deployments: read
+jobs:
+  status:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: dev-public-status
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - env: {GH_TOKEN: '${{ github.token }}'}
+        run: python3 scripts/release/dev_delivery.py status
