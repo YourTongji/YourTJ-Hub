@@ -76,14 +76,17 @@ def main():
         existing_id = os.environ.get("EXISTING_RELEASE")
         if existing_id:
             original, original_binding = authorize(existing_id, github, args.folder / "original")
-            cycle = None if original['schemaVersion'] == 3 else production_gate(
+            require(original['schemaVersion'] == 4 and original['rcRun'],
+                    'New existing-build promotions require an original schema-4 RC; recover legacy requests through their original workflow')
+            cycle = None if original['schemaVersion'] >= 3 else production_gate(
                 github, original['sourceSha'], ['ios-app-store'], manifest=original,
                 binding=original_binding, promotion=True)
             receipt = latest_receipt(github, existing_id, "ios-testflight")
             require(receipt and receipt["status"] and receipt["status"]["state"] == "success", "Promotion requires successful original TestFlight receipt")
             build_id = receipt["deployment"]["payload"]["details"]["buildId"]
             found = (apple or {}).get('validBuilds', {}).get(build_id)
-            require(found and found['version'] == original['version'] and str(found['buildNumber']) == str(original['buildNumber']),
+            require(found and found['version'] == original['version']
+                    and str(found['buildNumber']) == str(original.get('iosBuildNumber') or original['buildNumber']),
                     'Discover the exact valid original Apple build before promotion')
             manifest = original | {"candidateId": original["candidateId"] + f"-store-{os.environ['GITHUB_RUN_ID']}",
                          "operation": "promote-ios", "existingRelease": {"candidateId": existing_id, "buildId": build_id},

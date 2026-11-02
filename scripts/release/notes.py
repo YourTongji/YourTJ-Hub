@@ -228,6 +228,7 @@ def _is_initial_changelog_scaffold(path, folder, manifest):
         scaffold = {key: value for key, value in scaffold.items() if key != "notesFormatVersion"}
     return (isinstance(evidence, dict) and "draft" not in evidence
             and scaffold == {"schemaVersion": 1, "version": manifest["version"],
+                **({'displayBuild': manifest['displayBuild']} if manifest.get('displayBuild') else {}),
                 "buildNumber": manifest["buildNumber"], "highlights": [], "breaking": [],
                 "requiredActions": [], "evidence": {}, "testflightNotes": []})
 

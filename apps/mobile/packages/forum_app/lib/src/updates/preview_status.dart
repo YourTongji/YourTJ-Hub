@@ -163,45 +163,74 @@ class _PreviewStatusHostState extends State<PreviewStatusHost>
 
   @override
   Widget build(BuildContext context) {
-    if (_validity == PreviewValidity.current) return widget.child;
     final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         Material(
-          color: Theme.of(context).colorScheme.secondaryContainer,
+          color: Theme.of(context).colorScheme.surfaceContainer,
           child: SafeArea(
             bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GfText(
-                      _validity == PreviewValidity.building
-                          ? l10n.previewBuildPending
-                          : _validity == PreviewValidity.stale
-                          ? l10n.previewStale
-                          : l10n.previewStatusUnknown,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      try {
-                        await launchUrl(
-                          Uri.parse(previewStatusUrl),
-                          mode: LaunchMode.externalApplication,
-                        );
-                      } catch (_) {
-                        // Keep the notice and app available when no browser can open.
-                      }
-                    },
-                    child: GfText(l10n.previewStatusLink),
-                  ),
-                ],
+            child: SizedBox(
+              width: double.infinity,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                child: GfText(
+                  AppConfig.previewLabel,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
               ),
             ),
           ),
         ),
+        if (_validity != PreviewValidity.current)
+          Material(
+            color: Theme.of(context).colorScheme.secondaryContainer,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final stacked =
+                      constraints.maxWidth < 600 ||
+                      MediaQuery.textScalerOf(context).scale(14) > 21;
+                  final message = GfText(
+                    _validity == PreviewValidity.building
+                        ? l10n.previewBuildPending
+                        : _validity == PreviewValidity.stale
+                        ? l10n.previewStale
+                        : l10n.previewStatusUnknown,
+                  );
+                  return Flex(
+                    direction: stacked ? Axis.vertical : Axis.horizontal,
+                    crossAxisAlignment: stacked
+                        ? CrossAxisAlignment.stretch
+                        : CrossAxisAlignment.center,
+                    children: [
+                      if (stacked) message else Expanded(child: message),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () async {
+                            try {
+                              await launchUrl(
+                                Uri.parse(previewStatusUrl),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } catch (_) {
+                              // Keep the notice and app available when no browser can open.
+                            }
+                          },
+                          child: GfText(l10n.previewStatusLink),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
         Expanded(child: widget.child),
       ],
     );

@@ -32,6 +32,8 @@ def artifact_name(identity, name):
 
 
 def validate_identity(identity, expected):
+    if expected.get('operation') == 'promote-ios':
+        expected = expected | {'candidateId': expected['existingRelease']['candidateId']}
     keys = IDENTITY_KEYS + tuple(k for k in ['displayBuild', 'iosBuildNumber'] if k in expected)
     require(all(identity.get(k) == expected.get(k) for k in keys)
             and identity.get('environment') == 'production' and identity.get('preview') is False,
@@ -66,6 +68,9 @@ def read_record(github, run_id, manifest):
     result = read_json_artifact(github, run_id, f"rc-record-{run['run_attempt']}", 'rc-record.json')
     identity = result['identity']
     validate_identity(identity, manifest)
+    if manifest.get('operation') == 'promote-ios':
+        require(result.get('platforms', {}).get('ios', {}).get('buildId') == manifest['existingRelease']['buildId'],
+                'Store promotion must use the original RC Apple build')
     require(identity['run'] == str(run_id) and identity['controllerSha'] == run['head_sha'],
             'RC record run/controller mismatch')
     # Collection seals only successful platform results. A later request-attachment
@@ -106,8 +111,8 @@ def resolve(github, candidate, folder, linked_run=None):
             and pr['head']['ref'] == f'codex/release/{candidate}', 'Untrusted RC request')
     git('fetch', 'origin', 'main', f"refs/pull/{pr['number']}/head", '--tags')
     manifest, folder = load_candidate(candidate, pr['head']['sha'], folder, draft=True)
-    require(manifest['schemaVersion'] in {3, 4} and manifest['operation'] == 'release'
-            and manifest['rcRun'] in {None, linked_run},
+    require(manifest['schemaVersion'] in {3, 4} and (manifest['operation'] == 'promote-ios'
+            or manifest['rcRun'] in {None, linked_run}),
             'Build a fresh schema-3 request; promotion requests cannot create another RC')
     require(pr.get('state') == 'open' or manifest['rcRun'] is not None,
             'Start RC before merging the request so its final head can select the artifacts')
@@ -252,6 +257,12 @@ def main():
         run = trusted_run(github, run_id)
         with tempfile.TemporaryDirectory() as temp:
             manifest, _ = resolve(github, args.candidate, Path(temp), linked_run=run_id)
+        if manifest['operation'] == 'promote-ios':
+            require(manifest['schemaVersion'] == 4 and manifest['rcRun'],
+                    'Legacy existing-build promotion uses its existing recovery entry')
+            read_record(github, manifest['rcRun'], manifest)
+            output({'candidate': args.candidate, 'platforms': '[]', 'metadata_only': 'true', 'new_identity': 'false'})
+            return
         platforms = sorted({platform(c) for c in manifest['channels']})
         value = {k: manifest[k] for k in IDENTITY_KEYS} | {
             'environment': 'production', 'preview': False, 'run': run_id,

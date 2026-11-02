@@ -95,8 +95,9 @@ class ReleaseNoteVersion {
     final build = value['buildNumber'];
     final display = value['displayBuild'];
     if (display != null &&
-        (display is! String || !RegExp(r'^[0-9]{12}$').hasMatch(display)))
+        (display is! String || !RegExp(r'^[0-9]{12}$').hasMatch(display))) {
       return null;
+    }
     final rawChannels = value['channels'];
     const allowedChannels = {'android', 'ios-app-store', 'ios-testflight'};
     if (version is! String ||

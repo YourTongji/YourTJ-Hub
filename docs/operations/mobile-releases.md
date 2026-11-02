@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-11-02
+> Last verified: 2026-11-03
 
 `Current`: YourTJ is publicly distributed through the iPhone/iPad App Store and signed Android APKs,
 linked from [the official download page](https://yourtj.de/#download). Public channel status and direct
@@ -15,17 +15,17 @@ links are maintained in [Distribution and updates](../product/mobile-experience.
 Each new candidate still requires the reviewed release workflow on `main`, configured
 `mobile-release` environment secrets and successful platform execution. Apple review and the Android
 system installer remain independent gates; a completed upload does not mean distribution approval.
-The [release-cycle runbook](release-cycles.md) defines selectable preview platforms, fixed-source
-rebuilds, old-candidate notices, admin ownership changes and failed-publication exit.
+The [dev delivery runbook](release-cycles.md) defines automatic same-source Web/mobile development
+builds, retry identity and informational build status.
 GPL source/license delivery and iOS distribution checks follow the
 [licensing guide](../development/licensing.md#许可兼容与分发), including the confirmed standard EULA
 configuration and the remaining GPL compatibility verification.
 `Partial`: native push delivery and signed upgrade/device journeys need candidate-specific evidence;
 public availability does not establish the full physical-device acceptance matrix.
 
-Production RCs and direct Release share the final production builder; RC promotion restores the
+Production RCs use the final production builder; RC promotion restores the
 original APKs/image or selects the exact Apple build. Release workflows do not rerun source test
-suites. The [release runbook](releases.md#optional-production-rc) owns this behavior and compatibility.
+suites. The [release runbook](releases.md#production-rc) owns this behavior and compatibility.
 
 ## iOS build requirements
 
@@ -53,24 +53,20 @@ silently falling back; runner availability is not proof that a signed build has 
 
 ## Version and activation
 
-Dev-connected TestFlight/Android previews follow the
-[release-cycle runbook](release-cycles.md). They have environment/SHA badges, isolated dev storage,
-and no stable update/catalog publication. Their dedicated internal TestFlight group does not replace
-the formal production TestFlight group. Builds defining `YOURTJ_ENVIRONMENT=dev` use the Android
-package `tj.yourtj.forum_app.dev`, label `YourTJ Dev` and the badged icon in
-`android/app/src/devIdentity`; the publisher verifies that package. Source QA and production
-configuration QA precede Prepare.
+Dev-connected packages follow [continuous dev delivery](release-cycles.md), with isolated storage,
+internal developer distribution and no stable update/catalog publication. Android dev installs beside
+production; iOS replaces the installed app under its existing ID.
 
-Use [Release / Prepare and the portable release CLI](releases.md). Source must already be in main;
-release preparation does not promote dev. Choose Android, iOS or both. iOS defaults to TestFlight;
-App Store needs an explicitly approved destination or an existing-build promotion request.
+Use [Release / RC then Confirm](releases.md). Source must already be in main. Select mobile, Android,
+iOS or Web; the RC entry defaults to mobile/App Store, with TestFlight-only selectable explicitly.
+The RC builds final production configuration once. Confirm binds final notes and promotes the original
+APKs or exact Apple build without compiling. Legacy requests retain their original authorization.
 
-Mobile retains `mobile-vX.Y.Z` and a shared monotonically increasing base build number. Android/iOS
-can publish independently and skip versions. The approved source SHA controls the build and tag;
-the Release PR head controls notes and targets. Final-head human review is mandatory. Android
-What's New comes only from `android.zh-CN.md`; iOS store text comes from `ios.zh-Hans.txt`, and
-TestFlight uses separate English testing notes. Static store description/screenshots remain under
-`apps/mobile/store/`; `metadata.json` What's New is not a publishing fallback.
+Stable tags remain `mobile-vX.Y.Z`. [Build identities](releases.md#build-identities) define the UTC+8
+daily date ID, iOS native number and separate increasing internal Android/catalog counter. Android and
+iOS may publish independently. Android What's New, App Store What's New and TestFlight instructions
+remain separate, evidence-bound files; opposite-platform names are rejected before publication.
+Static store description/screenshots remain under `apps/mobile/store/`; static What's New is no fallback.
 
 The user-facing app renders structured formal release notes with its own typography and sections;
 it does not display the App Store text file. iOS About history shows only App Store releases, without
@@ -449,11 +445,10 @@ Public provider setup references: [Apple APNs keys](https://developer.apple.com/
 
 ## Release verification and privacy disclosures
 
-`Current`: normal Android and iOS releases both depend on the same `verify` job against the
-reserved source SHA. It runs Flutter analysis/tests and release-tool tests before signing or
-publishing. Publisher-only iOS recovery explicitly skips this build gate because it reuses an
-already uploaded immutable build; it still runs publisher-tool checks. A successful local subset
-does not establish CI or physical-device acceptance.
+`Current`: normal source CI owns analysis, tests and native compilation checks. RC packaging does not
+repeat those matrices, and final Confirm promotes original signed artifacts without compiling or
+uploading again. Packaging still validates signatures, identities, entitlements and actual exported
+privacy manifests. A successful build does not establish CI or physical-device acceptance.
 
 Runner, ScheduleWidgets and the bundled home_widget SDK contain privacy manifests. SwiftPM and
 CocoaPods both include the SDK resource. The exported IPA validator checks those actual bundles

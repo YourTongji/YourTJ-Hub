@@ -98,6 +98,8 @@ def record(github, manifest, binding, channel, state, details=None):
     require(channel in manifest["channels"], "Receipt channel is not approved")
     payload = {"schemaVersion": 1, "candidateId": manifest["candidateId"], "tag": manifest["tag"],
                "binding": binding, "channel": channel, "details": details or {}}
+    if manifest['schemaVersion'] >= 4:
+        payload['catalogBuildNumber'] = manifest['buildNumber']
     deployment = github.api("deployments", method="POST", data={"ref": manifest["sourceSha"],
         "environment": f"release-{channel}", "auto_merge": False, "required_contexts": [], "payload": payload,
         "description": f"{manifest['candidateId']} / {channel}", "production_environment": channel != "ios-testflight"})

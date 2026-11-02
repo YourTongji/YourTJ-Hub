@@ -11,7 +11,7 @@ wire contracts, database shape, implementation, tests, and documentation synchro
 Release preparation/status uses [yourtj-release](../yourtj-release/SKILL.md); platform prose uses
 [yourtj-release-notes](../yourtj-release-notes/SKILL.md), and distribution failures use
 [yourtj-release-recovery](../yourtj-release-recovery/SKILL.md). These share the repository CLI and do
-not grant an agent authority to replace the required human release review.
+not themselves grant publication authority. Schema-4 uses explicit operator Confirm; legacy schemas retain human review.
 
 ## 1. Establish authority and workspace
 

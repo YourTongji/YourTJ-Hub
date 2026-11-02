@@ -190,9 +190,12 @@ def create_pr(manifest, folder, github, notes_status=None, cycle=None):
     previews = "\n\n".join(f"### {channel}\n\n{(Path(folder) / filename).read_text(encoding='utf-8')}" for channel, filename in manifest["notes"].items())
     body = (f"Release request `{candidate_id}`\n\n{notes_banner(manifest, notes_status)}\n\nSource: `{manifest['sourceSha']}`\n\n"
             f"Targets: {', '.join(manifest['channels'])}\n\n"
-            "A release maintainer must review the final head. For schema 2/3 mobile requests, edit changelog.json, attach evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive platform files; review TestFlight English separately. Verify platform scope, disclosures and server prerequisites, then approve and merge. Bots cannot approve. The publisher independently rechecks approval.\n\n"
+            "Edit changelog.json with evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive separate platform files. Review TestFlight English, disclosures and server prerequisites. "
+            + ("After the RC finishes and final notes are ready, run `python3 scripts/release/cli.py confirm --candidate " + candidate_id + " --apply`. Confirm seals this exact head and RC, merges this request and promotes original artifacts. It does not compile again.\n\n"
+               if manifest['schemaVersion'] == 4 else
+               "An eligible human must approve the final head before merge. The publisher independently verifies that GitHub review.\n\n") +
             f"Baselines:\n```json\n{json.dumps(manifest['baselines'], indent=2)}\n```\n\n{previews}\n\n"
-            "Evidence and uncertainties: `evidence.json`. Source, targets and note edits require fresh approval.")
+            "Evidence and uncertainties: `evidence.json`. Source, targets and note edits invalidate the previous confirmation.")
     if cycle:
         body += (f"\n\nRelease tracking: #{cycle['issue']} · cycle `{cycle['id']}` · "
                  f"owner at preparation: @{cycle['owner']}.\n"

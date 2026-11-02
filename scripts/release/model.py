@@ -164,7 +164,6 @@ def validate_candidate(manifest, folder, draft=False):
             datetime.strptime(value[:8], '%Y%m%d')
         except ValueError:
             require(False, 'Invalid build ID calendar date')
-        require(manifest['operation'] == 'release', 'New releases use RC then Confirm')
         ios_number = manifest['iosBuildNumber']
         require((isinstance(ios_number, str) and re.fullmatch(r'[1-9][0-9]{0,17}', ios_number))
                 if any(c.startswith('ios-') for c in manifest['channels']) else ios_number is None,

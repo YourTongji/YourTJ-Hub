@@ -56,10 +56,13 @@ def main():
     if args.command == 'record':
         seal = json.loads(Path('confirmation.json').read_text())
         require(seal['run'] == os.environ['GITHUB_RUN_ID'], 'Wrong confirmation run')
-        github.api('deployments', method='POST', data={
+        deployment = github.api('deployments', method='POST', data={
             'ref': seal['sourceSha'], 'environment': 'release-confirmation', 'auto_merge': False,
             'required_contexts': [], 'production_environment': False,
             'payload': {k: seal[k] for k in ['candidateId', 'head', 'run', 'attempt']}})
+        github.api(f"deployments/{deployment['id']}/statuses", method='POST', data={
+            'state': 'success', 'auto_inactive': False,
+            'log_url': f"https://github.com/{github.repository}/actions/runs/{seal['run']}"})
         return
     from controller import load_candidate, trusted_request, candidate_binding
     from build_identity import verify_production_number

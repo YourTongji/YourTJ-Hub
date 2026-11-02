@@ -11,6 +11,7 @@ on:
       bump: {description: 'Version increment', type: choice, options: [patch, minor, major], default: patch}
       ios_destination: {description: 'Final iOS targets', type: choice, options: [app-store, testflight], default: app-store}
       draft_notes: {description: 'Optional AI notes drafting', type: boolean, default: false}
+      existing_release: {description: 'Optional published schema-4 TestFlight request to promote unchanged to App Store', type: string}
 permissions:
   contents: write
   actions: read
@@ -29,6 +30,7 @@ jobs:
       bump: ${{ inputs.bump }}
       ios_destination: ${{ inputs.ios_destination }}
       draft_notes: ${{ inputs.draft_notes }}
+      existing_release: ${{ inputs.existing_release }}
     secrets: inherit
   identity:
     needs: prepare
@@ -48,6 +50,7 @@ jobs:
       platforms: ${{ steps.identity.outputs.platforms }}
       display: ${{ steps.identity.outputs.display_build }}
       ios_number: ${{ steps.identity.outputs.ios_number }}
+      metadata_only: ${{ steps.identity.outputs.metadata_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with: {fetch-depth: 0, persist-credentials: false}
@@ -102,7 +105,7 @@ jobs:
     secrets: inherit
   ready:
     needs: [identity, android, ios, web]
-    if: always() && needs.identity.result == 'success'
+    if: always() && needs.identity.result == 'success' && needs.identity.outputs.metadata_only != 'true'
     runs-on: ubuntu-latest
     environment: mobile-release
     steps:

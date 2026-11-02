@@ -121,11 +121,12 @@ def execute(args, github):
     if args.command == "promote-ios":
         candidate_path(args.release)
         inputs = {"scope": "ios", "bump": "patch", "source": "main", "ios_destination": "app-store", "existing_release": args.release}
-        return github.dispatch("release-prepare.yml", inputs) if args.apply else {"dryRun": True, "inputs": inputs, "requiresFreshHumanReview": True}
+        return github.dispatch("release-rc.yml", inputs) if args.apply else {
+            "dryRun": True, "workflow": "release-rc.yml", "ref": "main", "inputs": inputs, "requiresConfirmation": True}
     if args.command == "status" and not args.candidate:
         prs = github.pages("pulls?state=open&base=main")
         return {"requests": [{"candidateId": p["head"]["ref"].split("/")[-1], "url": p["html_url"]} for p in prs if trusted_request(p, github) and p["head"]["ref"].startswith("codex/release/")],
-                "nextActions": ["status --candidate <id>", "prepare --apply"]}
+                "nextActions": ["status --candidate <id>", "rc --apply"]}
     folder = Path(candidate_path(args.candidate))
     if not folder.exists():
         # Agents normally work on dev, while release data belongs to main/its Release PR.
@@ -146,7 +147,8 @@ def inspect_candidate(args, github, folder):
     require(manifest['candidateId'] == args.candidate, 'Candidate directory and manifest identity differ')
     content_digest = validate_candidate(manifest, folder, draft=args.command == "status")
     if args.command == "validate":
-        return {"candidateId": args.candidate, "valid": True, "contentDigest": content_digest, "approval": "must be checked against live GitHub reviews"}
+        return {"candidateId": args.candidate, "valid": True, "contentDigest": content_digest,
+                "approval": "requires exact RC confirmation" if manifest['schemaVersion'] == 4 else "requires current-head human GitHub review"}
     if args.command == "publish":
         # A reserved tag does not mean a publisher started. Once any channel has a start
         # receipt, resume original artifacts with Recover rather than rebuilding its identity.
