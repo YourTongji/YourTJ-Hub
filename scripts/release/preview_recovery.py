@@ -20,7 +20,7 @@ def read_identity(github, cycle, run_id, purpose):
     jobs = {}
     for job in sorted(github.pages(f'actions/runs/{run_id}/jobs?filter=all', 'jobs'), key=lambda j: j['id']):
         jobs[job['name']] = job
-    require(jobs.get('validated', {}).get('conclusion') == 'success'
+    require((jobs.get('begin') or jobs.get('validated', {})).get('conclusion') == 'success'
             and any(s['name'] == 'Build App Store IPA' and s['conclusion'] == 'success'
                     for s in jobs.get('ios / preview', {}).get('steps', [])),
             'Original preview source checks and signed IPA build must have succeeded')

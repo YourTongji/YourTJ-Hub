@@ -1,0 +1,113 @@
+name: Release / RC
+on:
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Prepared schema-3 release request ID; builds production bytes without publishing stable channels
+        type: string
+        required: true
+permissions:
+  contents: write
+  actions: read
+  deployments: write
+  packages: write
+  pull-requests: read
+  checks: read
+jobs:
+  identity:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    concurrency:
+      group: release-candidate-${{ inputs.candidate }}
+      cancel-in-progress: false
+      queue: max
+    outputs:
+      candidate: ${{ steps.identity.outputs.candidate }}
+      source: ${{ steps.identity.outputs.source }}
+      version: ${{ steps.identity.outputs.version }}
+      number: ${{ steps.identity.outputs.number }}
+      tag: ${{ steps.identity.outputs.tag }}
+      platforms: ${{ steps.identity.outputs.platforms }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {fetch-depth: 0, persist-credentials: false}
+      - id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE: ${{ inputs.candidate }}
+        run: python3 scripts/release/rc.py begin
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: steps.identity.outputs.new_identity == 'true'
+        with:
+          name: rc-identity
+          path: rc-identity.json
+          if-no-files-found: error
+          retention-days: 90
+  android:
+    needs: identity
+    if: contains(fromJSON(needs.identity.outputs.platforms), 'android')
+    uses: ./.github/workflows/release-android.yml
+    with:
+      candidate: ${{ needs.identity.outputs.candidate }}
+      source: ${{ needs.identity.outputs.source }}
+      version: ${{ needs.identity.outputs.version }}
+      number: ${{ needs.identity.outputs.number }}
+      tag: ${{ needs.identity.outputs.tag }}
+      rc_build: true
+    secrets: inherit
+  ios:
+    needs: identity
+    if: contains(fromJSON(needs.identity.outputs.platforms), 'ios')
+    uses: ./.github/workflows/release-ios.yml
+    with:
+      candidate: ${{ needs.identity.outputs.candidate }}
+      source: ${{ needs.identity.outputs.source }}
+      version: ${{ needs.identity.outputs.version }}
+      number: ${{ needs.identity.outputs.number }}
+      channels: '["ios-testflight"]'
+      rc_build: true
+    secrets: inherit
+  web:
+    needs: identity
+    if: contains(fromJSON(needs.identity.outputs.platforms), 'web')
+    uses: ./.github/workflows/release-web.yml
+    with:
+      candidate: ${{ needs.identity.outputs.candidate }}
+      source: ${{ needs.identity.outputs.source }}
+      tag: ${{ needs.identity.outputs.tag }}
+      rc_build: true
+    secrets: inherit
+  ready:
+    needs: [identity, android, ios, web]
+    if: always() && needs.identity.result == 'success'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          pattern: rc-result-*
+          path: rc-results
+          merge-multiple: true
+      - env: {GH_TOKEN: '${{ github.token }}'}
+        run: python3 scripts/release/rc.py collect
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: rc-record-${{ github.run_attempt }}
+          path: rc-record.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Mint the existing release preparation identity
+        id: author
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510
+        with:
+          client-id: ${{ vars.ORYN_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ORYN_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: read
+          permission-actions: read
+      - name: Select these artifacts in the editable release request
+        env: {GH_TOKEN: '${{ steps.author.outputs.token }}'}
+        run: python3 scripts/release/rc.py attach

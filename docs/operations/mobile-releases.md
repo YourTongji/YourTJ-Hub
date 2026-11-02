@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-03
+> Last verified: 2026-11-02
 
 `Current`: YourTJ is publicly distributed through the iPhone/iPad App Store and signed Android APKs,
 linked from [the official download page](https://yourtj.de/#download). Public channel status and direct
@@ -22,6 +22,10 @@ GPL source/license delivery and iOS distribution checks follow the
 configuration and the remaining GPL compatibility verification.
 `Partial`: native push delivery and signed upgrade/device journeys need candidate-specific evidence;
 public availability does not establish the full physical-device acceptance matrix.
+
+Production RCs and direct Release share the final production builder; RC promotion restores the
+original APKs/image or selects the exact Apple build. Release workflows do not rerun source test
+suites. The [release runbook](releases.md#optional-production-rc) owns this behavior and compatibility.
 
 ## iOS build requirements
 
@@ -46,7 +50,7 @@ silently falling back; runner availability is not proof that a signed build has 
 
 ## Version and activation
 
-Dev-connected TestFlight/Android previews and production configuration rehearsals follow the
+Dev-connected TestFlight/Android previews follow the
 [release-cycle runbook](release-cycles.md). They have environment/SHA badges, isolated dev storage,
 and no stable update/catalog publication. Their dedicated internal TestFlight group does not replace
 the formal production TestFlight group. Builds defining `YOURTJ_ENVIRONMENT=dev` use the Android
@@ -237,10 +241,10 @@ Dart hot-code update. Debug-signed installations cannot update to the distributi
 ## iOS upload and review
 
 `Current`: preview and formal iOS publishers execute the trusted workflow, toolchain selector and
-exported-artifact checks from `main`; the application checkout is the cycle's selected source.
+exported-artifact checks from `main`; the application checkout is the selected immutable source.
 The [shared selector](../../.github/actions/setup-ios-toolchain/action.yml) requires the iOS 27.2 SDK.
 Dev previews accept Xcode 27.2 release 27B52 or the
-[hosted-image RC 27B48](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md); production rehearsals and formal new builds
+[hosted-image RC 27B48](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md); production RCs and formal new builds
 require 27B52. Other beta/RC builds are rejected. The exported Runner and Widget metadata must also
 match the permitted build, device SDK and iOS 15-or-later deployment floor. Release-candidate native
 checks load this selector from the trusted controller, independently of the application checkout.
