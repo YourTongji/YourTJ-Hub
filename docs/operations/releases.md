@@ -163,7 +163,7 @@ Failed generation leaves explicit drafts for human completion; it never blocks t
 A candidate cannot publish while any channel lacks notes: PR validation and every publisher reject a
 `[DRAFT:` note, and a schema-2 mobile channel with no reviewed changelog entry. Rendering preserves
 human-edited files; regeneration must be deliberate and reviewed. No model runs after release approval. Static validation
-checks shape and evidence references; semantic correctness still requires a person.
+checks shape, evidence references, and store-channel isolation: iOS What's New and TestFlight notes must not name Android, and Android notes must not name Apple's mobile platforms. A structured changelog entry is rejected when its title or summary names the opposite platform for a platform it lists. Validate previously did not prove this boundary. Other semantic correctness still requires a person.
 
 New mobile candidates use schema 3 (schema-2 structured notes plus an explicit nullable `rcRun`) and retain the exact reviewed changelog and evidence bytes in the
 candidate digest. Android, App Store, and TestFlight notes are rendered from that structure; a
