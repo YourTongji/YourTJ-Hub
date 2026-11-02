@@ -110,7 +110,7 @@ class TopicSideActions extends StatelessWidget {
                         ),
                       if (onOpenReply != null)
                         GfIconButton(
-                          symbol: 'corner-down-left',
+                          symbol: 'comment-plus',
                           tooltip: l10n.topicJoinDiscussion,
                           size: 48,
                           color: colors.primary,

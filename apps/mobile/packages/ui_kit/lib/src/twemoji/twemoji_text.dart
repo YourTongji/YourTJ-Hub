@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart' as cupertino;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -163,6 +165,12 @@ class _TwemojiSelectionScope extends InheritedWidget {
 
 /// A platform-adaptive selection area that restores inline image placeholders
 /// to their original Unicode Emoji sequences when selected text is copied.
+///
+/// Selection itself stays with Flutter's [SelectionArea]: Android/Fuchsia get
+/// Material handles, the touch magnifier and a selection click; iOS gets
+/// Cupertino handles and its magnifier; desktop gets mouse drag selection and
+/// desktop controls. This wrapper only replaces the copy action so Twemoji
+/// placeholders are restored to their source Unicode.
 class GfSelectionArea extends StatefulWidget {
   const GfSelectionArea({
     super.key,
@@ -172,6 +180,7 @@ class GfSelectionArea extends StatefulWidget {
     this.selectionControls,
     this.magnifierConfiguration,
     this.contextMenuBuilder,
+    this.onTap,
   });
 
   final Widget child;
@@ -185,6 +194,11 @@ class GfSelectionArea extends StatefulWidget {
   final TextMagnifierConfiguration? magnifierConfiguration;
   final GfSelectionAreaContextMenuBuilder? contextMenuBuilder;
 
+  /// A plain tap on the selectable body. When a selection is active the tap
+  /// clears it instead, so dismissing the selection cannot trigger the
+  /// surrounding action.
+  final VoidCallback? onTap;
+
   @override
   State<GfSelectionArea> createState() => _GfSelectionAreaState();
 }
@@ -197,11 +211,18 @@ typedef GfSelectionAreaContextMenuBuilder =
     );
 
 class _GfSelectionAreaState extends State<GfSelectionArea> {
+  // Replacing the key when the source changes rebuilds SelectionArea, which
+  // drops stale selections without imperatively clearing a region that may be
+  // mutating its selection containers in the same frame.
+  GlobalKey<SelectionAreaState> _selectionAreaKey =
+      GlobalKey<SelectionAreaState>();
   late _TwemojiSelectionRegistry _registry = _TwemojiSelectionRegistry(
     widget.selectionSource,
   );
   String? _selectedText;
-  var _selectionGeneration = 0;
+  Timer? _longPressTimer;
+  var _longPressSeen = false;
+  var _hadSelectionAtPointerDown = false;
 
   @override
   void didUpdateWidget(covariant GfSelectionArea oldWidget) {
@@ -209,8 +230,48 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
     if (oldWidget.selectionSource != widget.selectionSource) {
       _registry = _TwemojiSelectionRegistry(widget.selectionSource);
       _selectedText = null;
-      _selectionGeneration++;
+      _selectionAreaKey = GlobalKey<SelectionAreaState>();
     }
+  }
+
+  @override
+  void dispose() {
+    _longPressTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    // SelectionArea may clear the selection while handling the tap down, so
+    // remember whether a selection existed before it does.
+    _hadSelectionAtPointerDown = _selectedText != null;
+    _longPressTimer?.cancel();
+    _longPressSeen = false;
+    _longPressTimer = Timer(kLongPressTimeout, () => _longPressSeen = true);
+  }
+
+  void _handlePointerUp(PointerEvent event) {
+    _longPressTimer?.cancel();
+  }
+
+  void _handleTap() {
+    // SelectionArea owns the long-press gesture. If a platform still delivers
+    // the competing tap after that timeout, it must not open the reply
+    // composer; the pointer timer also covers selection callbacks that have not
+    // reached onSelectionChanged yet.
+    if (_longPressSeen) {
+      _longPressSeen = false;
+      return;
+    }
+    final SelectableRegionState? region =
+        _selectionAreaKey.currentState?.selectableRegion;
+    final hadSelection = _hadSelectionAtPointerDown || _selectedText != null;
+    _hadSelectionAtPointerDown = false;
+    if (hadSelection) {
+      region?.clearSelection();
+      _selectedText = null;
+      return;
+    }
+    widget.onTap?.call();
   }
 
   List<ContextMenuButtonItem> _buttonItems(SelectableRegionState selection) =>
@@ -250,39 +311,71 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
   }
 
   @override
-  Widget build(BuildContext context) => Actions(
-    // SelectableRegion's CopySelectionTextIntent is overridable. Place this
-    // action above SelectionArea so its keyboard shortcut finds it while the
-    // selection region dispatches copy.
-    actions: <Type, Action<Intent>>{
-      CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
-        onInvoke: (_) {
-          _copySelectedText();
-          return null;
+  Widget build(BuildContext context) {
+    Widget child = widget.child;
+    if (widget.onTap != null) {
+      // Mouse clicks must reach SelectionArea so double-click still selects a
+      // word. Restrict the reply tap recognizer to touch-like devices; desktop
+      // users keep the explicit reply action in the floor toolbar.
+      child = RawGestureDetector(
+        gestures: <Type, GestureRecognizerFactory>{
+          TapGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                () => TapGestureRecognizer(
+                  supportedDevices: const <PointerDeviceKind>{
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.stylus,
+                    PointerDeviceKind.invertedStylus,
+                    PointerDeviceKind.unknown,
+                  },
+                ),
+                (TapGestureRecognizer instance) {
+                  instance.onTap = _handleTap;
+                },
+              ),
         },
-      ),
-    },
-    child: SelectionArea(
-      key: ValueKey<int>(_selectionGeneration),
-      focusNode: widget.focusNode,
-      selectionControls: widget.selectionControls,
-      magnifierConfiguration: widget.magnifierConfiguration,
-      onSelectionChanged: (content) => _selectedText = content?.plainText,
-      contextMenuBuilder: (context, selection) {
-        final buttonItems = _buttonItems(selection);
-        return widget.contextMenuBuilder?.call(
-              context,
-              selection,
-              buttonItems,
-            ) ??
-            AdaptiveTextSelectionToolbar.buttonItems(
-              anchors: selection.contextMenuAnchors,
-              buttonItems: buttonItems,
-            );
+        child: Listener(
+          onPointerDown: _handlePointerDown,
+          onPointerUp: _handlePointerUp,
+          onPointerCancel: _handlePointerUp,
+          child: child,
+        ),
+      );
+    }
+    return Actions(
+      // SelectableRegion's CopySelectionTextIntent is overridable. Place this
+      // action above SelectionArea so its keyboard shortcut finds it while the
+      // selection region dispatches copy.
+      actions: <Type, Action<Intent>>{
+        CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
+          onInvoke: (_) {
+            _copySelectedText();
+            return null;
+          },
+        ),
       },
-      child: _TwemojiSelectionScope(registry: _registry, child: widget.child),
-    ),
-  );
+      child: SelectionArea(
+        key: _selectionAreaKey,
+        focusNode: widget.focusNode,
+        selectionControls: widget.selectionControls,
+        magnifierConfiguration: widget.magnifierConfiguration,
+        onSelectionChanged: (content) => _selectedText = content?.plainText,
+        contextMenuBuilder: (context, selection) {
+          final buttonItems = _buttonItems(selection);
+          return widget.contextMenuBuilder?.call(
+                context,
+                selection,
+                buttonItems,
+              ) ??
+              AdaptiveTextSelectionToolbar.buttonItems(
+                anchors: selection.contextMenuAnchors,
+                buttonItems: buttonItems,
+              );
+        },
+        child: _TwemojiSelectionScope(registry: _registry, child: child),
+      ),
+    );
+  }
 }
 
 /// Matches the longest complete sequence in the pinned Twemoji 17.0.3 map.
