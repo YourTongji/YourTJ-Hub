@@ -30,9 +30,11 @@ or later. CocoaPods builds dependencies with at least that floor, preserving hig
 minimums. iOS 13/14 devices cannot install new builds from this source.
 
 `Current`: native iOS CI, new iOS preview and formal builds use the `xcode-27` runner image with Xcode 27.2
-release build `27B52` explicitly selected by `setup-ios-toolchain`. The action checks the device SDK before signing;
+reviewed release build `27B52` or RC build `27B48` explicitly selected by `setup-ios-toolchain`.
+The action checks the device SDK before signing;
 the IPA validator independently checks that Runner and ScheduleWidgets were built with an
-iOS 27.2 device SDK, Xcode build `27B52`, and have an iOS 15 or later deployment floor. Existing-artifact
+iOS 27.2 device SDK, reviewed Xcode build `27B52` or `27B48`, and an iOS 15 or later deployment floor.
+Existing-artifact
 recovery and existing-build promotion do not rebuild or replace their reviewed binaries.
 
 `Partial`: full-screen iPhone Duo acceptance requires actual candidate evidence. A candidate
@@ -41,7 +43,8 @@ coverage is recorded with the candidate; see the [Duo compatibility decision](..
 The runner's [documented Xcode inventory](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)
 lists available toolchains, which may lag Apple's [release availability](https://developer.apple.com/news/releases/).
 The `Xcode_27.2.app` alias can refer to an RC on an older image: both the action and exported-bundle
-validator reject `27B48` and other unapproved builds. An unavailable toolchain fails instead of
+validator accept only the two reviewed builds; other RC and beta builds remain rejected.
+An unavailable toolchain fails instead of
 silently falling back; runner availability is not proof that a signed build has run.
 
 ## Version and activation
@@ -239,9 +242,14 @@ Dart hot-code update. Debug-signed installations cannot update to the distributi
 `Current`: preview and formal iOS publishers execute the trusted workflow, toolchain selector and
 exported-artifact checks from `main`; the application checkout is the cycle's selected source.
 The [shared selector](../../.github/actions/setup-ios-toolchain/action.yml) requires the iOS 27.2 SDK.
-Dev previews accept Xcode 27.2 release 27B52 or the
-[hosted-image RC 27B48](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md); production rehearsals and formal new builds
-require 27B52. Other beta/RC builds are rejected. The exported Runner and Widget metadata must also
+Dev previews, production rehearsals and formal new builds accept only Xcode 27.2 release 27B52 or
+the [hosted-image RC 27B48](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md).
+Apple's [App Store Connect release notes](https://developer.apple.com/help/app-store-connect/release-notes/)
+explicitly opened Xcode 27.2 RC App Store and TestFlight submissions on October 20, 2026;
+its [release inventory](https://developer.apple.com/news/releases/) identifies that RC as 27B48.
+This is an exact reviewed-build allowlist, not permission to use arbitrary beta/RC builds.
+Apple processing/submission and candidate-specific production QA remain required; a supported toolchain
+does not establish that this app will be accepted. The exported Runner and Widget metadata must also
 match the permitted build, device SDK and iOS 15-or-later deployment floor. Release-candidate native
 checks load this selector from the trusted controller, independently of the application checkout.
 Updating candidate-source workflows alone does not update these publishers.

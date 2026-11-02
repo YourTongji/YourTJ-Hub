@@ -1,8 +1,8 @@
 name: Select the reviewed iOS toolchain
-description: Select Xcode 27.2 and verify the device SDK; only dev previews may use the reviewed RC.
+description: Select an approved Xcode 27.2 build and verify the device SDK before signing.
 inputs:
   purpose:
-    description: dev permits RC 27B48; production and its rehearsals require release 27B52.
+    description: Build purpose (dev or production); both require reviewed Xcode 27.2 build 27B52 or 27B48.
     default: production
 runs:
   using: composite
