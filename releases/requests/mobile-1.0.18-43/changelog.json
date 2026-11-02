@@ -2,11 +2,246 @@
   "schemaVersion": 1,
   "notesFormatVersion": 2,
   "version": "1.0.18",
-  "displayBuild": "202611030003",
   "buildNumber": 43,
-  "highlights": [],
+  "displayBuild": "202611030003",
+  "highlights": [
+    {
+      "id": "pr-1535",
+      "title": "Duo 宽屏适配",
+      "summary": "优化宽屏阅读和私信布局，弹出键盘时隐藏 Dock，保留当前会话与页面状态。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1532",
+      "title": "导航样式选择",
+      "summary": "可在浮动玻璃 Dock 与磨砂经典标签栏之间切换。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1530",
+      "title": "导航快捷操作",
+      "summary": "新增导航快捷菜单与未读角标，支持从首页标志下拉刷新。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1433",
+      "title": "贴纸市场与管理",
+      "summary": "按分类浏览并添加贴纸包，支持管理个人贴纸名称。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1390",
+      "title": "课表与排课",
+      "summary": "完善课表备忘和区块展示；排课支持按专业名称或代码搜索，并补齐未连接课表、空结果与方案变更提示。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1542",
+      "title": "回复与文字选择",
+      "summary": "点按帖子回复正文即可打开回复框，长按仍可选择和复制文字。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1456",
+      "title": "草稿恢复",
+      "summary": "修复本机草稿被隐藏的问题，在登录失效及邮箱验证恢复过程中保留写作内容。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1451",
+      "title": "新私信权限",
+      "summary": "可设置接收全部、仅互关或禁止新私信；已有真实消息的会话可以继续，屏蔽始终优先。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1453",
+      "title": "注册与登录恢复",
+      "summary": "完善注册后的登录与激活衔接，显示激活邮件去向及重发状态，修复切换登录方式时残留的双重验证步骤。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1490",
+      "title": "未读提示样式",
+      "summary": "未读提示可选择显示数字或圆点，并与网页端同步设置。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1325",
+      "title": "评论加载",
+      "summary": "点赞后保留已经加载的评论窗口，减少重复加载。",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "kind": "fix"
+    }
+  ],
   "breaking": [],
-  "requiredActions": [],
-  "evidence": {},
-  "testflightNotes": []
+  "requiredActions": [
+    {
+      "id": "ios-15-minimum",
+      "title": "系统要求",
+      "summary": "本版 iPhone/iPad App 最低需要 iOS/iPadOS 15。",
+      "platforms": [
+        "ios"
+      ],
+      "kind": "improvement"
+    }
+  ],
+  "evidence": {
+    "ios-15-minimum": [
+      "3a0d8655a41ff907e24dbe67"
+    ],
+    "pr-1535": [
+      "836fca32d6410d354af40636",
+      "3614d356112220d16fb2e118"
+    ],
+    "pr-1532": [
+      "c057505a6e602d8f13554f6b",
+      "e05eb2dd787e31f71e90567f"
+    ],
+    "pr-1530": [
+      "0e7351f1c3c5216f26442120",
+      "3d1672595a113705fa3d59d2",
+      "836fca32d6410d354af40636",
+      "2fcd4dd0ab2ae2b9ad54e987"
+    ],
+    "pr-1433": [
+      "2ebaed60c40f46f0ac8e853a",
+      "31fa0a1bd0f8b96634471280",
+      "d21e196a2e0df1b6b44a047a",
+      "f2c49650f767785505430139"
+    ],
+    "pr-1390": [
+      "1142f7168a9f903cbcfdb5aa",
+      "4f36eb1a14f7eb5c54f47742",
+      "fed164309c62517e27958530",
+      "e97b86cbc3493f7ced287237",
+      "d80ac383637a71d940414392",
+      "3f4167bd28d52632461c4125"
+    ],
+    "pr-1542": [
+      "096b87edc9fab0dcdf942bb8",
+      "f15821e807696bf38bddeb45",
+      "23ce582eb6128a0a06513890",
+      "b1776b6b36c63b0efcd80ca8"
+    ],
+    "pr-1456": [
+      "611f6fa7588bd3a88725145f",
+      "b7125a481e6c5a780cdf56e8",
+      "9d02f9bff7a98d2d726a8626",
+      "113e8e074f024ca1dc44f614"
+    ],
+    "pr-1451": [
+      "1bb04b9e22d356695f56d58f",
+      "152c28c23801aed2f872fbc8"
+    ],
+    "pr-1453": [
+      "4e478fe455d987690990edeb",
+      "607db0594ff2b9e324f9cbbf"
+    ],
+    "pr-1490": [
+      "c057505a6e602d8f13554f6b",
+      "e05eb2dd787e31f71e90567f"
+    ],
+    "pr-1325": [
+      "096b87edc9fab0dcdf942bb8",
+      "23ce582eb6128a0a06513890"
+    ],
+    "duo-keyboard-check": [
+      "ed60b0407ef241c736abac33",
+      "42b73d58e3964cd6c86b4c1a"
+    ],
+    "navigation-reply-check": [
+      "1d42f17c24a075ce6d30245a",
+      "58405590c48c7105fc55f9ef",
+      "bd50dde6a65d57e8a78542e9"
+    ],
+    "draft-permission-check": [
+      "295693623dfbd434a1f5b1a0",
+      "c6a347599bb32eab8ee3be2f",
+      "d25fb6247f8f0ad7c0f121a1"
+    ],
+    "timetable-minimum-check": [
+      "1f3699eaee9cd6fac4313dda",
+      "defcd370008d5ca03af7cd27",
+      "c50079f3bc206e029e98c77c"
+    ]
+  },
+  "testflightNotes": [
+    {
+      "id": "duo-keyboard-check",
+      "text": "On iPhone Duo, open a conversation in portrait and landscape, type with the software keyboard, dismiss it and repeat. Check that the Dock hides without moving the chat pane or losing the active conversation, text or scroll position.",
+      "evidenceIds": [
+        "ed60b0407ef241c736abac33",
+        "42b73d58e3964cd6c86b4c1a"
+      ]
+    },
+    {
+      "id": "navigation-reply-check",
+      "text": "Switch between the glass Dock and classic tab bar. Check shortcut menus and number/dot unread indicators. Tap a forum reply body to reply; long-press text to select/copy it. Links and images should keep their own actions.",
+      "evidenceIds": [
+        "1d42f17c24a075ce6d30245a",
+        "58405590c48c7105fc55f9ef",
+        "bd50dde6a65d57e8a78542e9"
+      ]
+    },
+    {
+      "id": "draft-permission-check",
+      "text": "Verify local draft recovery after an expired session or email-verification recovery. With test accounts, check everyone/mutual-only/no-new-message permissions, existing conversations and blocks. Browse/add sticker packs and rename a personal sticker.",
+      "evidenceIds": [
+        "295693623dfbd434a1f5b1a0",
+        "c6a347599bb32eab8ee3be2f",
+        "d25fb6247f8f0ad7c0f121a1"
+      ]
+    },
+    {
+      "id": "timetable-minimum-check",
+      "text": "Requires iOS/iPadOS 15 or later. Check timetable memos, course blocks, major-name/code search and confirmation before replacing a planning setup. Verify the schedule widget after changing timetable data.",
+      "evidenceIds": [
+        "1f3699eaee9cd6fac4313dda",
+        "defcd370008d5ca03af7cd27",
+        "c50079f3bc206e029e98c77c"
+      ]
+    }
+  ]
 }
