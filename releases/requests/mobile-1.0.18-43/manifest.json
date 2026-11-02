@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 4,
+  "candidateId": "mobile-1.0.18-43",
+  "sourceSha": "dcc4c43e1d2168be60304075c055d44112972caf",
+  "rcRun": null,
+  "displayBuild": "202611030003",
+  "iosBuildNumber": "202611030003",
+  "product": "mobile",
+  "version": "1.0.18",
+  "tag": "mobile-v1.0.18",
+  "buildNumber": 43,
+  "channels": [
+    "android",
+    "ios-testflight",
+    "ios-app-store"
+  ],
+  "operation": "release",
+  "existingRelease": null,
+  "baselines": {
+    "android": {
+      "tag": "mobile-v1.0.17",
+      "sourceSha": "f34e7b04c2880b4ab1eb3ee220291715ba2ec72f"
+    },
+    "ios-testflight": {
+      "tag": "mobile-v1.0.17",
+      "sourceSha": "f34e7b04c2880b4ab1eb3ee220291715ba2ec72f",
+      "buildId": "e382f4dd-6a90-45d8-aec8-e40b5dafde72",
+      "state": "IN_BETA_TESTING"
+    },
+    "ios-app-store": {
+      "tag": "mobile-v1.0.17",
+      "sourceSha": "f34e7b04c2880b4ab1eb3ee220291715ba2ec72f",
+      "buildId": "e382f4dd-6a90-45d8-aec8-e40b5dafde72",
+      "state": "READY_FOR_SALE"
+    }
+  },
+  "notes": {
+    "android": "android.zh-CN.md",
+    "ios-testflight": "testflight.en-US.txt",
+    "ios-app-store": "ios.zh-Hans.txt"
+  },
+  "serverRequirement": null,
+  "requiredDisclosures": []
+}
