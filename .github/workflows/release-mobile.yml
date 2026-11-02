@@ -7,5 +7,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo 'Use Release / Prepare on main. Recovery uses Release / Recover and a reviewed candidate.'
+          echo 'Use Release / RC then Release / Confirm on main. Recovery uses Release / Recover and a reviewed candidate.'
           exit 1

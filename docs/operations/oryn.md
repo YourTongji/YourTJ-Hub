@@ -88,7 +88,7 @@ required wherever existing repository CI selects them. Oryn cannot repair its ow
 
 ## Release drafting
 
-[Release / Prepare](../../.github/workflows/release-prepare.yml) uses the runtime's dedicated
+[RC preparation](../../.github/workflows/release-prepare.yml) uses the runtime's dedicated
 Release Notes schema through the isolated Core runner. Evidence and output are channel-specific;
 no repository tools, signing credentials, target token or publication authority enter the model
 child. Notes expose only `oryn_submit_report` from the first turn. The host validates evidence

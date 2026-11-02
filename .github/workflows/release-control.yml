@@ -21,7 +21,7 @@ on:
   schedule:
     - cron: '17 3 * * *'
   workflow_run:
-    workflows: ['Release / Publish', 'Release / Recover']
+    workflows: ['Release / Promote original artifacts', 'Release / Recover']
     types: [completed]
     branches: [main]
 permissions:
