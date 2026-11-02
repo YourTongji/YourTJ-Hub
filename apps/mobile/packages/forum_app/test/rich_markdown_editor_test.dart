@@ -10,6 +10,7 @@ import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/editor/course_review_templates.dart';
 import 'package:forum_app/src/widgets/editor/rich_markdown_editor.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 class _MemoryTokenStorage implements TokenStorage {
@@ -111,6 +112,57 @@ void main() {
     );
 
     expect(find.byKey(const Key('rich-markdown-toolbar')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sticker embeds scale with the system text size', (tester) async {
+    final controller = QuillController(
+      document: MarkdownConverter().mdToDocument('[:sticker:smile:]'),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    final focusNode = FocusNode();
+    final library = StickerLibrary(_EmptyStickerRepository())
+      ..remember([
+        const StickerItemPayload(name: 'smile', url: '/sticker.png'),
+      ]);
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+    addTearDown(library.dispose);
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+        child: ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: RichMarkdownEditor(
+                controller: controller,
+                focusNode: focusNode,
+                placeholder: 'Review',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final sticker = tester.widget<StickerImage>(find.byType(StickerImage));
+    final fontSize = tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .config
+        .customStyles!
+        .paragraph!
+        .style
+        .fontSize!;
+    expect(
+      sticker.size,
+      closeTo(fontSize * 1.3 * StickerImage.inlineScale, 0.1),
+    );
     expect(tester.takeException(), isNull);
   });
 

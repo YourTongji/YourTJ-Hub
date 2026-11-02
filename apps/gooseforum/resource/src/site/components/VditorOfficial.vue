@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { textBeforeCaret, isInsideFencedCode, replaceMentionTokenInElement } from "@/runtime/mention-dom"
-import { deleteStickerAtCaret, stickerDeleteDirection } from "@/runtime/sticker-atomic"
+import { deleteStickerAtCaret, stickerBeforeInputDirection, stickerDeleteDirection } from "@/runtime/sticker-atomic"
 import { decorateStickerTokens, type StickerInlineAsset } from "@/runtime/sticker-inline-editor"
 import StickerSuggestions from '@/site/components/StickerSuggestions.vue'
 import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
@@ -241,6 +241,15 @@ function handleStickerKeydown(event: KeyboardEvent) {
   const direction = stickerDeleteDirection(event)
   if (!direction) return
   if (!deleteStickerAtCaret(element, direction)) return
+  event.preventDefault()
+  event.stopPropagation()
+}
+
+function handleStickerBeforeInput(event: InputEvent) {
+  const element = currentModeElement()
+  if (!element || !(event.target instanceof Node) || !element.contains(event.target)) return
+  const direction = stickerBeforeInputDirection(event)
+  if (!direction || !deleteStickerAtCaret(element, direction)) return
   event.preventDefault()
   event.stopPropagation()
 }
@@ -1611,6 +1620,7 @@ onMounted(async () => {
   root.value.addEventListener('compositionstart', handleCompositionStart, true)
   root.value.addEventListener('compositionend', handleCompositionEnd, true)
   root.value.addEventListener('keydown', handleStickerKeydown, true)
+  root.value.addEventListener('beforeinput', handleStickerBeforeInput, true)
   root.value.addEventListener('focusout', handleEditorFocusOut)
   document.addEventListener('selectionchange', handleSelectionChange)
   linkPreviewHintController.schedule(props.modelValue)
@@ -1800,6 +1810,7 @@ onBeforeUnmount(() => {
   root.value?.removeEventListener('compositionstart', handleCompositionStart, true)
   root.value?.removeEventListener('compositionend', handleCompositionEnd, true)
   root.value?.removeEventListener('keydown', handleStickerKeydown, true)
+  root.value?.removeEventListener('beforeinput', handleStickerBeforeInput, true)
   root.value?.removeEventListener('focusout', handleEditorFocusOut)
   document.removeEventListener('selectionchange', handleSelectionChange)
   stickerObserver?.disconnect()

@@ -13632,7 +13632,7 @@ AdminStickerMarketItemSaveRequest:
       description: New token name (letters, digits, `_` and `-`); empty or omitted keeps the current name.
     isEnabled:
       type: boolean
-      description: False withdraws the sticker; it can no longer be inserted and sent tokens stop resolving.
+      description: False withdraws the sticker; it can no longer be inserted and sent tokens stop resolving. Omitted leaves its current state unchanged.
   additionalProperties: false
 
 ActivationStatus:

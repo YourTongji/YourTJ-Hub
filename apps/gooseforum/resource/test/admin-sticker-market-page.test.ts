@@ -82,6 +82,12 @@ function mountPage() {
   return { page: wrapper, body: new DOMWrapper(document.body) }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((yes) => { resolve = yes })
+  return { promise, resolve }
+}
+
 function buttonWithText(text: string) {
   return wrapper!.findAll('button').find(button => button.text().includes(text))!
 }
@@ -134,6 +140,64 @@ describe('sticker market management page', () => {
     expect(getStickerMarket).toHaveBeenCalledTimes(3)
     expect(page.text()).toContain('stickerMarketStatusReady')
     expect(page.find('[role="progressbar"]').exists()).toBe(false)
+  })
+
+  test('does not restart polling when an in-flight refresh finishes after unmount', async () => {
+    vi.useFakeTimers()
+    const importing = pack({ status: 'importing' })
+    const refresh = deferred<AdminStickerMarketPage>()
+    vi.mocked(getStickerMarket)
+      .mockResolvedValueOnce(marketPage([importing]))
+      .mockReturnValueOnce(refresh.promise)
+    const { page } = mountPage()
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(getStickerMarket).toHaveBeenCalledTimes(2)
+    page.unmount()
+    refresh.resolve(marketPage([importing]))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(3000)
+
+    expect(getStickerMarket).toHaveBeenCalledTimes(2)
+  })
+
+  test('closes stale details when the pack leaves the current result page', async () => {
+    const importing = pack({ status: 'importing' })
+    vi.mocked(getStickerMarket)
+      .mockResolvedValueOnce(marketPage([importing]))
+      .mockResolvedValueOnce(marketPage([]))
+    vi.mocked(getStickerMarketPack).mockResolvedValue({ pack: importing, items: [] })
+    const { page, body } = mountPage()
+    await flushPromises()
+    await page.get('button[title="stickerMarketViewStickers"]').trigger('click')
+    await flushPromises()
+    expect(body.get('[role="dialog"]').exists()).toBe(true)
+
+    await page.get('button[aria-label="k004q"]').trigger('click')
+    await flushPromises()
+
+    expect(body.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  test('does not reopen a detail request after its pack leaves the result page', async () => {
+    const importing = pack({ status: 'importing' })
+    const detail = deferred<{ pack: AdminStickerMarketPack, items: [] }>()
+    vi.mocked(getStickerMarket)
+      .mockResolvedValueOnce(marketPage([importing]))
+      .mockResolvedValueOnce(marketPage([]))
+    vi.mocked(getStickerMarketPack).mockReturnValueOnce(detail.promise)
+    const { page, body } = mountPage()
+    await flushPromises()
+    await page.get('button[title="stickerMarketViewStickers"]').trigger('click')
+    await flushPromises()
+
+    await page.get('button[aria-label="k004q"]').trigger('click')
+    await flushPromises()
+    detail.resolve({ pack: importing, items: [] })
+    await flushPromises()
+
+    expect(body.find('[role="dialog"]').exists()).toBe(false)
   })
 
   test('shows a server-made cover before import and falls back when it fails', async () => {

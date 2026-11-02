@@ -183,7 +183,7 @@ describe('StickerPicker 表情包选择面板（MADR 0030）', () => {
     wrapper.unmount()
   })
 
-  test('市场浏览：添加表情包乐观更新，失败时回滚并提示', async () => {
+  test('市场浏览：添加表情包后回读成员状态，失败时提示', async () => {
     getForumStickers.mockResolvedValue(stickers)
     getStickerMarket.mockResolvedValue({ topics: [{ id: 'anime', label: '动画' }], packs: [marketPack], total: 1, page: 1, pageSize: 24 })
     saveMyStickerPack.mockRejectedValueOnce(new Error('最多添加 50 个表情包，请先移除一些。'))
@@ -202,6 +202,7 @@ describe('StickerPicker 表情包选择面板（MADR 0030）', () => {
     expect(wrapper.get('[role="alert"]').text()).toContain('50')
 
     saveMyStickerPack.mockResolvedValueOnce(marketPack)
+    getMyStickerPacks.mockResolvedValueOnce([marketPack])
     await add().trigger('click')
     await flushPromises()
     expect(wrapper.find(`button[aria-label="${i18n.global.t('stickers.removePackLabel', { name: 'Pack One' })}"]`).exists()).toBe(true)

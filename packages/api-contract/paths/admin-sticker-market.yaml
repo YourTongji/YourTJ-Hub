@@ -444,7 +444,8 @@ adminStickerMarketItemSave:
       `admin.sticker.nameInvalid`, another sticker's current name with
       `admin.sticker.nameExists` and another sticker's previous name with
       `admin.sticker.nameReserved`. Ids that are not market stickers fail with
-      `admin.sticker.notFound`. Changes are recorded in the operation log.
+      `admin.sticker.notFound`. Omitting `isEnabled` preserves its current state,
+      allowing a rename-only request. Changes are recorded in the operation log.
     security:
       - bearerAuth: []
       - accessTokenCookie: []

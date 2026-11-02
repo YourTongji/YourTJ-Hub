@@ -350,7 +350,14 @@ func SubscribeMarketPack(ctx context.Context, userID, packID uint64) (MarketPack
 			}
 			order = max(order, subscription.SortOrder+1)
 		}
-		if len(subscriptions) >= MaxPackSubscriptions {
+		var publishedCount int64
+		if err := tx.Table("user_sticker_packs AS usp").
+			Joins("JOIN sticker_market_packs AS smp ON smp.id = usp.pack_id").
+			Where("usp.user_id = ? AND smp.published = ?", userID, true).
+			Count(&publishedCount).Error; err != nil {
+			return err
+		}
+		if publishedCount >= MaxPackSubscriptions {
 			return ErrMarketSubscriptionFull
 		}
 		return sticker.SaveSubscriptionTx(tx, &sticker.PackSubscription{UserID: userID, PackID: packID, SortOrder: order})
@@ -435,7 +442,7 @@ func SaveMarketPack(ctx context.Context, input SaveMarketPackInput) (sticker.Mar
 type SaveMarketStickerInput struct {
 	StickerID uint64
 	Name      string
-	IsEnabled bool
+	IsEnabled *bool
 }
 
 // SaveMarketSticker applies an administrator's change to one market sticker.
@@ -458,8 +465,13 @@ func SaveMarketSticker(ctx context.Context, input SaveMarketStickerInput) (befor
 			return err
 		}
 		row = before
-		row.IsEnabled = input.IsEnabled
+		if input.IsEnabled != nil {
+			row.IsEnabled = *input.IsEnabled
+		}
 		if name == "" || name == row.Name {
+			if input.IsEnabled == nil {
+				return nil
+			}
 			return tx.Model(&sticker.Entity{}).Where("id = ?", row.Id).Update("is_enabled", row.IsEnabled).Error
 		}
 		if err := checkStickerNameTx(tx, row.Id, name); err != nil {
