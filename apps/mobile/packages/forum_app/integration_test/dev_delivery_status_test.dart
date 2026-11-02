@@ -109,13 +109,15 @@ void main() {
                     'version': build == 43 ? '1.0.18' : '1.0.17',
                     'buildNumber': build,
                     if (build == 43) 'displayBuild': '202611030003',
-                    'channels': ['ios-app-store'],
+                    // History uses dart:io's native platform, independently of
+                    // the iOS-style status fixture above.
+                    'channels': ['android', 'ios-app-store'],
                     'highlights': [
                       {
                         'id': 'entry-$build',
                         'title': '版本编号',
                         'summary': '发布历史保留每个版本的编号。',
-                        'platforms': ['ios-app-store'],
+                        'platforms': ['android', 'ios-app-store'],
                         'kind': 'improvement',
                       },
                     ],
