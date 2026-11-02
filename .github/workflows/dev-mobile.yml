@@ -8,6 +8,12 @@ permissions:
   actions: read
   deployments: write
   pull-requests: read
+concurrency:
+  # Allocate only after the preceding bundle has uploaded: Apple numbers increase
+  # in upload order even when dev and production RCs share an app ID.
+  group: release-mobile-packaging
+  cancel-in-progress: false
+  queue: max
 jobs:
   identity:
     if: github.ref == 'refs/heads/main'
