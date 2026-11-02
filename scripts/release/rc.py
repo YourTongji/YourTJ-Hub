@@ -45,8 +45,7 @@ def trusted_run(github, run_id, completed=False):
             and run.get('head_repository', {}).get('full_name', '').lower() == github.repository.lower(),
             'RC must come from the trusted-main RC workflow')
     if completed:
-        require(run.get('status') == 'completed' and run.get('conclusion') == 'success',
-                'Selected RC did not finish successfully')
+        require(run.get('status') == 'completed', 'Selected RC is still running')
     return run
 
 
@@ -68,11 +67,14 @@ def read_record(github, run_id, manifest):
     validate_identity(identity, manifest)
     require(identity['run'] == str(run_id) and identity['controllerSha'] == run['head_sha'],
             'RC record run/controller mismatch')
-    require(result.get('platforms') and set(result['platforms']) <= set(identity['platforms']),
+    # Collection seals only successful platform results. A later request-attachment
+    # failure must not invalidate those original bytes or force another build.
+    require(result.get('platforms') and set(result['platforms']) == set(identity['platforms']),
             'RC platform record mismatch')
     for name, details in result['platforms'].items():
         require(name in {'web', 'android', 'ios'} and details.get('buildRunId') == str(run_id)
                 and details.get('artifact') == artifact_name(identity, name), 'RC artifact identity mismatch')
+        reusable(result, name)
     return result
 
 

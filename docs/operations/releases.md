@@ -129,13 +129,20 @@ number still increases. Web request IDs include the preparation run ID so replac
 reuse a closed branch. The final `vX.Y.Z` / `mobile-vX.Y.Z` tag is created only for formal publication.
 
 With `rcRun=null`, formal Release builds directly. With an explicit RC run, it consumes only that
-successful trusted-main run's immutable record: Android restores the original signed APKs and copies
+completed trusted-main run's complete immutable record of successful platform results: Android restores the original signed APKs and copies
 those bytes into the stable release; iOS submits the same Apple build ID; Web publishes the original
 archives and deploys the same image digest. It never selects a global latest RC or silently rebuilds
 an expired/missing original. RC records are retained 90 days, signed artifacts 30 days; publish within
 the available artifact window. Existing Apple builds can still be promoted using the existing-build
 entry when the IPA archive has expired. Dev prerelease packages have different compilation inputs
 and cannot become production RCs; only their dependency caches may be shared.
+
+If only request attachment fails after the complete `rc-record-<attempt>` artifact was sealed,
+finalize that record from a full repository checkout instead of building again. Download its exact
+`rc-record.json`, validate it with `rc.read_record(GitHub(), RUN_ID, identity)`, then run
+`GITHUB_RUN_ID=RUN_ID python3 scripts/release/rc.py attach` from that checkout. The helper updates only
+the matching request's `rcRun`; normal final-head approval still applies. A failed or incomplete
+platform build has no complete seal and cannot use this metadata recovery.
 
 ## Oryn drafting
 
