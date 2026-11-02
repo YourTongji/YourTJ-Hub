@@ -18,7 +18,7 @@ for (const name of ['ci-mobile.yml', 'ci-mobile-native.yml']) {
     }
   });
   test(`${name}: PR build steps cannot inherit checkout credentials`, () => {
-    const checkouts = steps.filter(step => step.startsWith('uses: actions/checkout@'));
+    const checkouts = steps.filter(step => /\buses: actions\/checkout@/.test(step));
     assert.ok(checkouts.length > 0);
     for (const checkout of checkouts) {
       assert.match(checkout, /^          persist-credentials: false$/m);
