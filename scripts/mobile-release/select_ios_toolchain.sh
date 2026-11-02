@@ -10,11 +10,10 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode_27.2.app/Contents/Dev
 test -d "$DEVELOPER_DIR"
 xcode_version="$(xcodebuild -version)"
 printf '%s\n' "$xcode_version"
-if [[ "$xcode_version" != $'Xcode 27.2\nBuild version 27B52' ]]; then
-  if [[ "$purpose" != dev || "$xcode_version" != $'Xcode 27.2\nBuild version 27B48' ]]; then
-    echo 'Expected Xcode 27.2 release (27B52), or the reviewed RC (27B48) for dev previews only.' >&2
-    exit 1
-  fi
+if [[ "$xcode_version" != $'Xcode 27.2\nBuild version 27B52' &&
+      "$xcode_version" != $'Xcode 27.2\nBuild version 27B48' ]]; then
+  echo 'Expected reviewed Xcode 27.2 release (27B52) or RC (27B48).' >&2
+  exit 1
 fi
 sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
 if [[ "$sdk_version" != '27.2' ]]; then

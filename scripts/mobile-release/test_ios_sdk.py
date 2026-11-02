@@ -10,7 +10,7 @@ import build_ios
 
 
 class IOSSDKTest(unittest.TestCase):
-    def test_exported_rc_ipa_requires_the_explicit_dev_exception(self):
+    def test_exported_reviewed_rc_ipa_passes_production_validation(self):
         with tempfile.TemporaryDirectory() as directory:
             ipa = Path(directory) / 'rc.ipa'
             metadata = {'DTSDKName': 'iphoneos27.2', 'DTXcodeBuild': '27B48', 'MinimumOSVersion': '15.0'}
@@ -31,12 +31,10 @@ class IOSSDKTest(unittest.TestCase):
                                    'com.apple.security.application-groups': [build_ios.WIDGET_APP_GROUP]}
             with patch('build_ios.subprocess.check_output', side_effect=[
                     plistlib.dumps(app_entitlements), plistlib.dumps(widget_entitlements)]) as codesign:
-                with self.assertRaises(ValueError):
-                    build_ios.validate_exported_ipa(ipa, team)
-                codesign.assert_not_called()
-                build_ios.validate_exported_ipa(ipa, team, allow_release_candidate=True)
+                build_ios.validate_exported_ipa(ipa, team)
+                self.assertEqual(codesign.call_count, 2)
 
-    def test_dev_preview_accepts_the_reviewed_rc_but_production_stays_strict(self):
+    def test_reviewed_rc_metadata_keeps_sdk_and_widget_validation(self):
         with tempfile.TemporaryDirectory() as directory:
             app = Path(directory) / 'Runner.app'
             widget = app / 'PlugIns/ScheduleWidgets.appex'
@@ -44,9 +42,7 @@ class IOSSDKTest(unittest.TestCase):
             valid = {'DTSDKName': 'iphoneos27.2', 'DTXcodeBuild': '27B48', 'MinimumOSVersion': '15.0'}
             for bundle in (app, widget):
                 (bundle / 'Info.plist').write_bytes(plistlib.dumps(valid))
-            build_ios.validate_build_metadata(app, allow_release_candidate=True)
-            with self.assertRaises(ValueError):
-                build_ios.validate_build_metadata(app)
+            build_ios.validate_build_metadata(app)
             for bundle in (app, widget):
                 for invalid in (
                     {**valid, 'DTXcodeBuild': '27B47'},
@@ -57,7 +53,7 @@ class IOSSDKTest(unittest.TestCase):
                     with self.subTest(bundle=bundle.name, metadata=invalid):
                         (bundle / 'Info.plist').write_bytes(plistlib.dumps(invalid))
                         with self.assertRaises(ValueError):
-                            build_ios.validate_build_metadata(app, allow_release_candidate=True)
+                            build_ios.validate_build_metadata(app)
                         (bundle / 'Info.plist').write_bytes(plistlib.dumps(valid))
 
     def test_export_entry_rejects_an_old_sdk_before_signing_checks(self):
@@ -84,7 +80,8 @@ class IOSSDKTest(unittest.TestCase):
                 for invalid in (
                     {**valid, 'DTSDKName': 'iphoneos26.5'},
                     {**valid, 'DTSDKName': 'iphoneos27.1'},
-                    {**valid, 'DTXcodeBuild': '27B48'},
+                    {**valid, 'DTXcodeBuild': '27B47'},
+                    {**valid, 'DTXcodeBuild': '27B5038j'},
                     {**valid, 'DTSDKName': 'iphonesimulator27.2'},
                     {**valid, 'MinimumOSVersion': '14.0'},
                     {'MinimumOSVersion': '15.0'},
