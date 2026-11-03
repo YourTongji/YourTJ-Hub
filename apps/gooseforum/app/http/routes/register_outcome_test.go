@@ -94,10 +94,9 @@ func TestRegistrationAfterCreateFailureOutcomes(t *testing.T) {
 					t.Fatalf("definite mail rejection inserted a task: %d %v", count, err)
 				}
 			}
-			// A retry must use the existing generic failure, never repeat account creation
-			// or reveal whether username or email was the occupied field.
+			// 重试命中已创建账号。用户名与邮箱都已占用，按字段顺序返回用户名占用，且不再建号。
 			again := serveAccountRecoveryJSON(router, "/api/register", body)
-			if code := decodeContractEnvelope(t, again).MessageCode; code != string(component.MessageAuthRegisterFailed) {
+			if code := decodeContractEnvelope(t, again).MessageCode; code != string(component.MessageAuthUsernameExists) {
 				t.Fatalf("repeat registration: %s", code)
 			}
 		})

@@ -44,6 +44,7 @@ let captchaGeneration = 0
 const captchaUnavailable = computed(() => captchaRequired.value && (captchaLoading.value || !captchaId.value))
 const notice = ref('')
 const error = ref('')
+const registerErrorCode = ref('')
 const passkeyEnabled = ref(false)
 const loading = reactive({
   login: false,
@@ -76,6 +77,11 @@ const forgotForm = reactive({
 })
 
 const passwordSignupOpen = computed(() => (page.props.passwordSignupState ?? 'open') === 'open')
+const registerFieldError = computed(() => {
+  if (registerErrorCode.value === 'auth.username.exists') return 'username'
+  if (registerErrorCode.value === 'auth.email.exists') return 'email'
+  return ''
+})
 const signupUnavailableMessage = computed(() => {
   const codes: Record<string, string | undefined> = { disabled: 'auth.signupDisabled', daily_limit: 'auth.register.dailyQuota', mail_unavailable: 'auth.mail.notConfigured' }
   const code = codes[page.props.passwordSignupState ?? 'unavailable']
@@ -150,6 +156,7 @@ function switchMode(next: Mode) {
   captchaError.value = ''
   mode.value = next
   error.value = ''
+  registerErrorCode.value = ''
   notice.value = ''
   void refreshCaptcha()
 }
@@ -290,12 +297,14 @@ async function handleRegister() {
   }
   loading.register = true
   error.value = ''
+  registerErrorCode.value = ''
   try {
     const message = await register(registerForm.username, email, registerForm.password, captchaId.value, registerForm.captcha, String(locale.value), registerForm.website)
     queueFlashMessage(message || t('auth.validation.registerSuccess'), 'success')
     window.location.href = homeUrl.value
   } catch (err) {
     error.value = errorMessage(err, t('auth.validation.registerFailed'))
+    registerErrorCode.value = messageCodeOf(err)
     registerForm.captcha = ''
     refreshCaptcha()
   } finally {
@@ -344,6 +353,11 @@ function setLang(lang: Locale) {
 
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error && err.message ? err.message : fallback
+}
+
+function messageCodeOf(err: unknown) {
+  if (!err || typeof err !== 'object' || !('messageCode' in err)) return ''
+  return typeof err.messageCode === 'string' ? err.messageCode : ''
 }
 
 function onToggleTheme() {
@@ -440,7 +454,7 @@ function onToggleTheme() {
           </div>
 
           <p v-if="tongjiNotice" class="gf-status-message gf-status-message-error mb-4">{{ tongjiNotice }}</p>
-          <p v-if="error" id="auth-form-error" role="alert" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
+          <p v-if="error && !registerFieldError" id="auth-form-error" role="alert" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
           <p v-if="captchaError" id="auth-captcha-error" role="alert" class="gf-status-message gf-status-message-error mb-4">{{ captchaError }}</p>
           <p v-if="notice" class="gf-status-message gf-status-message-success mb-4">{{ notice }}</p>
           <div v-if="page.props.oauthNotice && mode === 'register'" class="gf-status-message gf-status-message-info mb-4">
@@ -523,16 +537,17 @@ function onToggleTheme() {
               <span class="sr-only">{{ t('auth.username') }}</span>
               <span class="relative block">
                 <UserRound class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model.trim="registerForm.username" aria-describedby="register-username-rules" class="gf-input pl-10" :placeholder="t('auth.username')" autocomplete="username" />
+                <input v-model.trim="registerForm.username" :aria-invalid="registerFieldError === 'username' || undefined" :aria-describedby="registerFieldError === 'username' ? 'register-username-error register-username-rules' : 'register-username-rules'" class="gf-input pl-10" :placeholder="t('auth.username')" autocomplete="username" />
               </span>
             </label>
+            <p v-if="registerFieldError === 'username'" id="register-username-error" role="alert" class="text-xs font-medium leading-relaxed text-error [overflow-wrap:anywhere]">{{ error }}</p>
             <p id="register-username-rules" class="text-xs leading-relaxed text-base-content/65 [overflow-wrap:anywhere]">{{ t('auth.registrationUsernameRules') }}</p>
             <div class="registration-email">
               <label for="register-email" class="sr-only">{{ t('auth.email') }}</label>
               <span v-if="allowedDomains.length > 0" class="registration-email-control gf-input flex overflow-hidden !p-0 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
                 <span class="relative min-w-0 flex-1">
                   <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                  <input id="register-email" v-model.trim="registerForm.email" type="text" inputmode="email" class="h-full w-full bg-transparent pl-10 pr-2 text-base outline-none sm:text-sm" :placeholder="t('auth.emailPrefix')" />
+                  <input id="register-email" v-model.trim="registerForm.email" type="text" inputmode="email" class="h-full w-full bg-transparent pl-10 pr-2 text-base outline-none sm:text-sm" :placeholder="t('auth.emailPrefix')" :aria-invalid="registerFieldError === 'email' || undefined" :aria-describedby="registerFieldError === 'email' ? 'register-email-error' : undefined" />
                 </span>
                 <span v-if="allowedDomains.length === 1" class="registration-email-domain flex shrink-0 items-center border-l border-line bg-base-200/70 px-3 text-sm font-medium text-base-content/70">
                   @{{ allowedDomains[0] }}
@@ -548,9 +563,10 @@ function onToggleTheme() {
               </span>
               <span v-else class="relative block">
                 <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input id="register-email" v-model.trim="registerForm.email" type="email" class="gf-input pl-10" :placeholder="t('auth.email')" autocomplete="email" />
+                <input id="register-email" v-model.trim="registerForm.email" type="email" class="gf-input pl-10" :placeholder="t('auth.email')" autocomplete="email" :aria-invalid="registerFieldError === 'email' || undefined" :aria-describedby="registerFieldError === 'email' ? 'register-email-error' : undefined" />
               </span>
             </div>
+            <p v-if="registerFieldError === 'email'" id="register-email-error" role="alert" class="text-xs font-medium leading-relaxed text-error [overflow-wrap:anywhere]">{{ error }}</p>
             <label class="block">
               <span class="sr-only">{{ t('auth.password') }}</span>
               <PasswordInput v-model="registerForm.password" description-id="register-password-rules" :placeholder="t('auth.password')" autocomplete="new-password" :label="t('auth.password')" />
@@ -562,7 +578,7 @@ function onToggleTheme() {
             </label>
             <div v-if="captchaRequired" class="flex gap-3">
               <span class="relative min-w-0 flex-1">
-                <input v-model.trim="registerForm.captcha" class="gf-input" :placeholder="t('auth.captcha')" :aria-label="t('auth.captcha')" :aria-describedby="captchaError ? 'auth-captcha-error' : error ? 'auth-form-error' : undefined" />
+                <input v-model.trim="registerForm.captcha" class="gf-input" :placeholder="t('auth.captcha')" :aria-label="t('auth.captcha')" :aria-describedby="captchaError ? 'auth-captcha-error' : error && !registerFieldError ? 'auth-form-error' : undefined" />
               </span>
               <button type="button" class="relative h-10 w-28 overflow-hidden gf-panel" :disabled="captchaLoading" :aria-busy="captchaLoading" :aria-label="t('auth.refreshCaptcha')" @click="refreshCaptcha">
                 <LoaderCircle v-if="captchaLoading" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />

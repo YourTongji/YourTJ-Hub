@@ -1361,7 +1361,8 @@ retain separate identities and detail links. Identity text wraps with enlarged t
   warning directing the user to email settings for retry or an address change.
   They do not become the ordinary “check your inbox” confirmation. A created
   account whose automatic sign-in failed instead asks the user to sign in without
-  registering again; public occupied-account failures remain generic.
+  registering again. An occupied username or email shows that field's reason;
+  creation failures that are not occupancy stay generic.
 
 - `Current`: successful password registration accepts its newly issued forum session through the
   same cache cleanup, secure-storage commit and provider invalidation used for sign-in. It restores
@@ -1383,9 +1384,11 @@ cannot restore the old challenge. Selecting the same form preserves an active TO
 - `Current`: the restricted email field accepts either a prefix or a full address at a published
   domain, matching domains without case sensitivity. A full address selects its own domain instead
   of appending another suffix; malformed or unlisted addresses stay on the form with a localized
-  error. Registration API failures use the shared server-message catalog, including daily quotas
-  and retry-login instructions. Occupied usernames/emails and creation failures retain the same
-  generic registration error, preserving the server's account-enumeration boundary.
+  error. Registration API failures use the shared server-message catalog, including daily quotas,
+  retry-login instructions, occupied usernames, and occupied emails. An occupied username is shown
+  on the username field and an occupied email on the email field. Creation failures that are not
+  occupancy keep the generic registration error. Login and password recovery keep their uniform
+  responses.
 - `Current`: native password registration submits the current resolved UI language (`zh`, `en`,
   `ja` or `de`) as the account's initial locale, including after a language change on the same form.
   Following the system uses the existing supported-language resolution and Chinese fallback.
