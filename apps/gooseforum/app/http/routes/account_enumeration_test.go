@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
+	"github.com/gin-gonic/gin"
 )
 
 // postRegister 通过 gin.CreateTestContext 直调 api.Register，返回 recorder 与
@@ -34,10 +34,9 @@ func postRegister(t *testing.T, body string) (*httptest.ResponseRecorder, compon
 	return recorder, res
 }
 
-// TestRegisterOccupiedUsernameReturnsGenericError 验证注册用户名被占用时返回与其他
-// 注册失败一致的通用错误体 auth.register.failed，而非之前的 auth.username.exists。
-// 否则攻击者可一次请求确定性枚举用户名占用状态。
-func TestRegisterOccupiedUsernameReturnsGenericError(t *testing.T) {
+// TestRegisterOccupiedUsernameReturnsExists 验证用户名被占用时返回 auth.username.exists，
+// 而不是建号失败用的 auth.register.failed。
+func TestRegisterOccupiedUsernameReturnsExists(t *testing.T) {
 	setupEmailChangeTestDB(t)
 	disableForgotPasswordCaptcha(t)
 	createEmailChangeUser(t, 9201, "occupieduser", "correct-password-123")
@@ -46,15 +45,13 @@ func TestRegisterOccupiedUsernameReturnsGenericError(t *testing.T) {
 	if res.Code != component.FAIL {
 		t.Fatalf("code = %d, want FAIL", res.Code)
 	}
-	if res.MessageCode != component.MessageAuthRegisterFailed {
-		t.Fatalf("messageCode = %q, want %q", res.MessageCode, component.MessageAuthRegisterFailed)
+	if res.MessageCode != component.MessageAuthUsernameExists {
+		t.Fatalf("messageCode = %q, want %q", res.MessageCode, component.MessageAuthUsernameExists)
 	}
 }
 
-// TestRegisterOccupiedEmailReturnsGenericError 验证注册邮箱被占用时返回通用错误体
-// auth.register.failed，而非之前的 auth.email.exists。否则攻击者可一次请求确定性
-// 枚举邮箱注册状态（PII 级身份关联信息）。
-func TestRegisterOccupiedEmailReturnsGenericError(t *testing.T) {
+// TestRegisterOccupiedEmailReturnsExists 验证邮箱被占用时返回 auth.email.exists。
+func TestRegisterOccupiedEmailReturnsExists(t *testing.T) {
 	setupEmailChangeTestDB(t)
 	disableForgotPasswordCaptcha(t)
 	createEmailChangeUser(t, 9202, "freshuser2", "correct-password-123")
@@ -63,15 +60,31 @@ func TestRegisterOccupiedEmailReturnsGenericError(t *testing.T) {
 	if res.Code != component.FAIL {
 		t.Fatalf("code = %d, want FAIL", res.Code)
 	}
-	if res.MessageCode != component.MessageAuthRegisterFailed {
-		t.Fatalf("messageCode = %q, want %q", res.MessageCode, component.MessageAuthRegisterFailed)
+	if res.MessageCode != component.MessageAuthEmailExists {
+		t.Fatalf("messageCode = %q, want %q", res.MessageCode, component.MessageAuthEmailExists)
 	}
 }
 
-// TestRegisterEnumerationResponsesIdentical 是核心枚举断言：用户名占用与邮箱占用两种
-// 请求的响应体必须逐字节完全一致，且都解出 auth.register.failed。修复前两者返回
-// 不同 messageCode，攻击者可据此区分到底哪个字段被占用。
-func TestRegisterEnumerationResponsesIdentical(t *testing.T) {
+// TestRegisterOccupiedUsernameAndEmailPrefersUsername 验证用户名与邮箱同时被占用时
+// 按表单字段顺序返回 auth.username.exists。
+func TestRegisterOccupiedUsernameAndEmailPrefersUsername(t *testing.T) {
+	setupEmailChangeTestDB(t)
+	disableForgotPasswordCaptcha(t)
+	createEmailChangeUser(t, 9201, "occupieduser", "correct-password-123")
+	createEmailChangeUser(t, 9202, "freshuser2", "correct-password-123")
+
+	_, res := postRegister(t, `{"email":"freshuser2@example.com","userName":"occupieduser","passWord":"password123"}`)
+	if res.Code != component.FAIL {
+		t.Fatalf("code = %d, want FAIL", res.Code)
+	}
+	if res.MessageCode != component.MessageAuthUsernameExists {
+		t.Fatalf("messageCode = %q, want %q", res.MessageCode, component.MessageAuthUsernameExists)
+	}
+}
+
+// TestRegisterEnumerationResponsesDistinct 验证用户名占用与邮箱占用的响应体不同，
+// 分别是 auth.username.exists 与 auth.email.exists。
+func TestRegisterEnumerationResponsesDistinct(t *testing.T) {
 	setupEmailChangeTestDB(t)
 	disableForgotPasswordCaptcha(t)
 	createEmailChangeUser(t, 9201, "occupieduser", "correct-password-123")
@@ -80,15 +93,14 @@ func TestRegisterEnumerationResponsesIdentical(t *testing.T) {
 	recUsername, resUsername := postRegister(t, `{"email":"brandnew@example.com","userName":"occupieduser","passWord":"password123"}`)
 	recEmail, resEmail := postRegister(t, `{"email":"freshuser2@example.com","userName":"brandnewuser1","passWord":"password123"}`)
 
-	if !bytes.Equal(recUsername.Body.Bytes(), recEmail.Body.Bytes()) {
-		t.Fatalf("register enumeration responses differ:\nusername-occupied: %s\nemail-occupied:     %s",
-			recUsername.Body.String(), recEmail.Body.String())
+	if bytes.Equal(recUsername.Body.Bytes(), recEmail.Body.Bytes()) {
+		t.Fatalf("username-taken and email-taken responses must differ, both were: %s", recUsername.Body.String())
 	}
-	if resUsername.MessageCode != component.MessageAuthRegisterFailed {
-		t.Fatalf("username-occupied messageCode = %q, want %q", resUsername.MessageCode, component.MessageAuthRegisterFailed)
+	if resUsername.MessageCode != component.MessageAuthUsernameExists {
+		t.Fatalf("username-occupied messageCode = %q, want %q", resUsername.MessageCode, component.MessageAuthUsernameExists)
 	}
-	if resEmail.MessageCode != component.MessageAuthRegisterFailed {
-		t.Fatalf("email-occupied messageCode = %q, want %q", resEmail.MessageCode, component.MessageAuthRegisterFailed)
+	if resEmail.MessageCode != component.MessageAuthEmailExists {
+		t.Fatalf("email-occupied messageCode = %q, want %q", resEmail.MessageCode, component.MessageAuthEmailExists)
 	}
 }
 

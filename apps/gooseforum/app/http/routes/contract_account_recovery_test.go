@@ -135,9 +135,9 @@ func TestRegisterHTTPContractSuccess(t *testing.T) {
 	}
 }
 
-// TestRegisterHTTPContractEnumerationIdentical 固定注册反枚举不变量：
-// 用户名占用与邮箱占用两种失败的响应体必须逐字节一致（auth.register.failed）。
-func TestRegisterHTTPContractEnumerationIdentical(t *testing.T) {
+// TestRegisterHTTPContractOccupancyDistinct 固定普通注册的占用码：用户名占用与邮箱占用
+// 使用不同信封；两者同时占用时返回用户名占用。建号失败仍使用 register-failed。
+func TestRegisterHTTPContractOccupancyDistinct(t *testing.T) {
 	conn, router := setupAccountRecoveryContractTest(t)
 	t.Cleanup(func() { cleanAccountRecoveryTables(t, conn) })
 	createRecoveryUser(t, conn, 9001, "occupieduser", "occupied@example.com")
@@ -146,16 +146,18 @@ func TestRegisterHTTPContractEnumerationIdentical(t *testing.T) {
 		`{"email":"fresh@example.com","userName":"occupieduser","passWord":"password123"}`)
 	recEmail := serveAccountRecoveryJSON(router, "/api/register",
 		`{"email":"occupied@example.com","userName":"freshuser1","passWord":"password123"}`)
+	recBoth := serveAccountRecoveryJSON(router, "/api/register",
+		`{"email":"occupied@example.com","userName":"occupieduser","passWord":"password123"}`)
 
-	if recUsername.Code != http.StatusOK || recEmail.Code != http.StatusOK {
-		t.Fatalf("enumeration probes must stay HTTP 200: %d / %d", recUsername.Code, recEmail.Code)
+	if recUsername.Code != http.StatusOK || recEmail.Code != http.StatusOK || recBoth.Code != http.StatusOK {
+		t.Fatalf("occupancy probes must stay HTTP 200: %d / %d / %d", recUsername.Code, recEmail.Code, recBoth.Code)
 	}
-	if recUsername.Body.String() != recEmail.Body.String() {
-		t.Fatalf("register enumeration responses differ:\nusername-occupied: %s\nemail-occupied:     %s",
-			recUsername.Body.String(), recEmail.Body.String())
+	if recUsername.Body.String() == recEmail.Body.String() {
+		t.Fatalf("username-taken and email-taken responses must differ, both were: %s", recUsername.Body.String())
 	}
-	resUsername := decodeContractEnvelope(t, recUsername)
-	assertFixtureEnvelope(t, resUsername, contractFixture(t, "register-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recUsername), contractFixture(t, "register-username-exists.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recEmail), contractFixture(t, "register-email-exists.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recBoth), contractFixture(t, "register-username-exists.json"))
 }
 
 // TestRegisterHTTPContractHoneypotSilentRejects 验证注册蜜罐：website 非空时

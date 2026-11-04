@@ -99,6 +99,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
   LoginPageProps? _registration;
   bool _registrationLoading = false;
   String? _registrationError;
+  String? _occupancyCode;
   String? _emailDomain;
   bool _agreed = false;
   _AuthMode _mode = _AuthMode.login;
@@ -157,9 +158,21 @@ class _LoginPageState extends ConsumerState<LoginPage>
           authRepository: AuthRepository(_authClient),
           apiClient: _authClient,
           tokenStorage: _authTokenStorage,
-          registrationErrorMessage: (error) => mounted
-              ? resolveErrorMessage(AppLocalizations.of(context), error)
-              : null,
+          registrationErrorMessage: (error) {
+            final code = error.messageCode;
+            if (mounted) {
+              setState(() {
+                _occupancyCode =
+                    code == 'auth.username.exists' ||
+                        code == 'auth.email.exists'
+                    ? code
+                    : null;
+              });
+            }
+            return mounted
+                ? resolveErrorMessage(AppLocalizations.of(context), error)
+                : null;
+          },
         );
     _authIme = AuthImeStabilizer<FocusNode>(
       enabled: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
@@ -689,14 +702,20 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
     final l10n = AppLocalizations.of(context);
     if (_password.text != _confirmPassword.text) {
-      setState(() => _registrationError = l10n.authPasswordMismatch);
+      setState(() {
+        _registrationError = l10n.authPasswordMismatch;
+        _occupancyCode = null;
+      });
       return;
     }
     if ((options.termsOfServiceEnabled || options.privacyPolicyEnabled) &&
         !_agreed) {
       return;
     }
-    setState(() => _registrationError = null);
+    setState(() {
+      _registrationError = null;
+      _occupancyCode = null;
+    });
     final email = _registrationEmail(options, l10n);
     if (email == null) return;
     final String? captchaId = _authController.captcha?.captchaId;
@@ -730,6 +749,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
       );
       await _finishAuthentication(saveAutofill: true);
     }
+  }
+
+  String? _occupancyMessage(String code) {
+    if (_mode != _AuthMode.register || _occupancyCode != code) return null;
+    final message = _authController.error.trim();
+    return message.isEmpty ? null : message;
   }
 
   String? _registrationEmail(LoginPageProps options, AppLocalizations l10n) {
@@ -1040,6 +1065,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       _suppressPasswordTapOutside = false;
       _captchaCodeMissing = false;
       _oidcError = '';
+      _occupancyCode = null;
     });
   }
 
@@ -1165,6 +1191,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     required bool compactHeader,
   }) {
     final bool registrationHeader = _mode == _AuthMode.register;
+    final emailOccupancy = _occupancyMessage('auth.email.exists');
     final bool showBrand = !compactHeader;
     final bool showCaptcha =
         _authController.phase == LoginPhase.needsCaptcha ||
@@ -1286,6 +1313,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
                       ? InputDecoration(
                           helperText: l10n.authRegistrationUsernameRules,
                           helperMaxLines: 10,
+                          errorText: _occupancyMessage('auth.username.exists'),
+                          errorMaxLines: 4,
                         )
                       : null,
                   prefixIcon: const GfSymbol('user-round', size: 20),
@@ -1319,6 +1348,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
                       ? l10n.authEmailPrefix
                       : l10n.authEmail,
                   prefixIcon: const GfSymbol('mail', size: 20),
+                  decoration: emailOccupancy == null
+                      ? null
+                      : InputDecoration(
+                          errorText: emailOccupancy,
+                          errorMaxLines: 4,
+                        ),
                 ),
               ),
               if (_mode == _AuthMode.register &&
@@ -1522,7 +1557,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
               ),
             ],
             if (_captchaCodeMissing ||
-                _authController.error.isNotEmpty ||
+                (_authController.error.isNotEmpty && _occupancyCode == null) ||
                 _oidcError.isNotEmpty ||
                 _cacheError.isNotEmpty) ...<Widget>[
               const SizedBox(height: 12),

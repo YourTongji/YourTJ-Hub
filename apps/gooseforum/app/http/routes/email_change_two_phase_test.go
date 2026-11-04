@@ -91,15 +91,15 @@ func TestTwoPhaseEmailChangeStageKeepsOldEmailOccupied(t *testing.T) {
 	// 核心 #678 断言：暂存期内用旧邮箱注册新账号必须被拒。
 	regBody := fmt.Sprintf(`{"username":"twophase%d","password":"secret123","email":%q}`, user.Id, oldEmail)
 	recorder := serveJSON(router, "/api/register", regBody, "")
-	if envelope := decodeContractEnvelope(t, recorder); envelope.Code == 0 || envelope.MessageCode != "auth.register.failed" {
-		t.Fatalf("old-email register envelope = %+v, want auth.register.failed", envelope)
+	if envelope := decodeContractEnvelope(t, recorder); envelope.Code == 0 || envelope.MessageCode != "auth.email.exists" {
+		t.Fatalf("old-email register envelope = %+v, want auth.email.exists", envelope)
 	}
 
 	// 暂存的新邮箱同样不可被他人抢注（防切换时唯一索引冲突）。
 	hijackBody := fmt.Sprintf(`{"username":"hijack%d","password":"secret123","email":%q}`, user.Id, newEmail)
 	recorder = serveJSON(router, "/api/register", hijackBody, "")
-	if envelope := decodeContractEnvelope(t, recorder); envelope.Code == 0 || envelope.MessageCode != "auth.register.failed" {
-		t.Fatalf("staged-email register envelope = %+v, want auth.register.failed", envelope)
+	if envelope := decodeContractEnvelope(t, recorder); envelope.Code == 0 || envelope.MessageCode != "auth.email.exists" {
+		t.Fatalf("staged-email register envelope = %+v, want auth.email.exists", envelope)
 	}
 
 	// 旧邮箱仍可密码登录（保持账号可达性，受害者可自救）。

@@ -281,8 +281,11 @@ social counts and badges, and moderator access rules beyond today's public profi
   settings. It does not claim rejection or SMTP delivery. Session-creation failure
   instead returns `auth.register.retryLogin` without credentials, explaining that
   the account exists and sign-in can recover it. Neither outcome rolls back or
-  repeats registration; occupied/failed-create cases keep the generic public
-  failure. Pending sessions retain the existing write gates, and asynchronous
+  repeats registration. An occupied username returns `auth.username.exists`; an
+  occupied email, including a fresh pending email-change address, returns
+  `auth.email.exists`. When both are taken, the response is `auth.username.exists`.
+  Account-creation failures that are not occupancy stay `auth.register.failed`.
+  Pending sessions retain the existing write gates, and asynchronous
   delivery failure is not inferred from an accepted queue acknowledgement.
 - Activation-link recovery (`Current`): missing, invalid and genuinely expired
   links have separate localized explanations. Invalid signatures, unavailable
@@ -602,8 +605,9 @@ support.
 read structured failure codes and parameters even on non-2xx responses. Rate limits
 retain the server's retry duration (`Retry-After` takes precedence); messages use the
 current client locale. Unknown codes, non-JSON errors and raw server `message`/`result`
-text do not reveal internal/provider errors. This preserves the ordinary registration
-anti-enumeration response while allowing published validation and recovery guidance.
+text do not reveal internal/provider errors. Published validation, occupancy, and
+recovery guidance stay localized. Login and password recovery keep their uniform
+responses.
 
 ## Security notes
 
@@ -621,14 +625,14 @@ anti-enumeration response while allowing published validation and recovery guida
   unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
   reveal whether a username/email is registered. Password login and recovery normalize email input to
   the lowercase, trimmed form used at registration; username matching retains its existing case rules.
-  This lookup does not merge or rewrite legacy accounts. Password registration collapses username/email-taken into
-  the same generic `auth.register.failed` body as other failures (never `auth.username.exists` /
-  `auth.email.exists`) and always runs both existence queries, so the error body no longer reveals
-  which field is taken. The registration protocol itself (immediate account creation + session vs.
-  failure) still inherently distinguishes an already-registered email from a fresh one; removing
-  that residual signal would require an async email-verification flow (product decision, issue #124
-  acceptance item 1). Forgot-password answers unknown emails, bots, and the 24-hour email-change
-  cooldown with the same success message after the same class of work as the registered path (one
+  This lookup does not merge or rewrite legacy accounts. Password registration reports an occupied
+  username as `auth.username.exists` and an occupied email, including a fresh pending email-change
+  address, as `auth.email.exists`. When both are taken, the response is `auth.username.exists`.
+  Account-creation failures that are not occupancy stay `auth.register.failed`. The registration
+  protocol itself (immediate account creation + session vs. failure) still distinguishes an
+  already-registered email from a fresh one. Forgot-password answers unknown emails, bots, and the
+  24-hour email-change cooldown with the same success message after the same class of work as the
+  registered path (one
   HMAC token signing plus a synchronous `email.noop` task, silently consumed and dropped by the
   mail worker so it never accumulates), so probing an email's registration status via response
   time is not reliable (issue #124).

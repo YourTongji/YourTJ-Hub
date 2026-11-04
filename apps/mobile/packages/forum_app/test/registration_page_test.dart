@@ -1126,6 +1126,50 @@ void main() {
     });
   }
 
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    for (final code in ['auth.username.exists', 'auth.email.exists']) {
+      testWidgets('$language $code hangs occupied registration on its field', (
+        tester,
+      ) async {
+        // 每种占用码单独 pump。同一 test 里再次 pumpWidget(const LoginPage())
+        // 会复用 State，第二次提交仍打到第一次的客户端。
+        await pump(
+          tester,
+          locale: Locale(language),
+          registrationMessageCode: code,
+        );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(LoginPage)),
+        );
+        await tester.enterText(input(l10n.authUsername), 'mobile');
+        await tester.enterText(input(l10n.authEmail), 'student@tongji.edu.cn');
+        await tester.enterText(input(l10n.authPassword), 'password123');
+        await tester.enterText(input(l10n.authConfirmPassword), 'password123');
+        await tester.ensureVisible(submit());
+        await tester.tap(submit());
+        await tester.pumpAndSettle();
+        final message = resolveErrorMessage(
+          l10n,
+          ApiException(fallbackMessage: '注册失败', messageCode: code),
+        );
+        expect(message, isNot('注册失败'));
+        expect(message, isNot('Registration failed'));
+        final username = tester.widget<TextField>(input(l10n.authUsername));
+        final email = tester.widget<TextField>(input(l10n.authEmail));
+        if (code == 'auth.username.exists') {
+          expect(username.decoration?.errorText, message);
+          expect(email.decoration?.errorText, isNull);
+        } else {
+          expect(email.decoration?.errorText, message);
+          expect(username.decoration?.errorText, isNull);
+        }
+        expect(find.text(message), findsOneWidget);
+        expect(find.text('注册失败'), findsNothing);
+        expect(find.text('Registration failed'), findsNothing);
+      });
+    }
+  }
+
   testWidgets('registration failure uses the selected Chinese locale', (
     tester,
   ) async {
