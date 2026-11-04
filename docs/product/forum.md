@@ -442,3 +442,13 @@ HTTP 429、`common.rateLimited` 和正整数秒 `Retry-After`；权限检查先�
 - [主题契约](../../packages/api-contract/openapi.yaml)及[路由覆盖报告入口](../../packages/api-contract/coverage-matrix.md)。
 - [Web 组件测试](../../apps/gooseforum/resource/package.json)与[验证指南](../development/testing.md)。
 - [HTTP 安全头实现](../../apps/gooseforum/app/http/middleware/securityHeaders.go)是逐路由响应头的事实源。
+
+## Public avatar caching
+
+`Current`: successfully served uploaded images with an active, unexpired user-avatar reference,
+including derived sizes, return `Cache-Control: public, max-age=300`. Uploading a replacement creates
+a new URL. A removed avatar may remain visible to a client with a fresh cached copy for up to five
+minutes; subsequent reads enforce the current reference state. Errors, orphan uploads, pending/private
+previews, untracked legacy images and ordinary topic images retain their existing no-store policy.
+The market-sticker cache policy is independent. See the
+[cache decision](../decisions/0125-public-avatar-cache.md).

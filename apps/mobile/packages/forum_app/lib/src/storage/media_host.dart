@@ -132,6 +132,13 @@ class _MediaHostState extends State<MediaHost> with WidgetsBindingObserver {
               height: height,
               policy: policy,
               isCurrent: () => repository.isCurrent(generation),
+              cachedIdentity: () => blocked || repository.isSuspended
+                  ? null
+                  : repository.decodedIdentity(
+                      url,
+                      scopeKey: scope,
+                      apiOrigin: origin,
+                    ),
               onDecodeError: () => repository.discard(
                 url,
                 scopeKey: scope,

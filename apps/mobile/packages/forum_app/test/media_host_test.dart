@@ -12,6 +12,7 @@ final _gif = base64Decode(
 );
 
 class _Media extends MediaRepository {
+  bool fresh = false;
   final scopes = <String>[];
   final originPolicies = <Set<String>?>[];
   final tokenReaders = <Future<String?> Function()?>[];
@@ -42,10 +43,53 @@ class _Media extends MediaRepository {
     String url, {
     required String scopeKey,
     required String apiOrigin,
-  }) => null;
+  }) => fresh && scopes.isNotEmpty ? 'fresh-avatar' : null;
 }
 
 void main() {
+  testWidgets('fresh decoded avatars remount synchronously until expiry', (
+    tester,
+  ) async {
+    final repo = _Media()..fresh = true;
+    addTearDown(repo.dispose);
+    Widget app(int page) => MaterialApp(
+      home: MediaHost(
+        repository: repo,
+        scopeKey: 'guest:zh',
+        apiOrigin: 'https://example.test',
+        child: GfMediaOriginPolicy(
+          origins: {'https://example.test'},
+          child: GfAvatar(
+            src: 'https://example.test/image.gif',
+            key: ValueKey(page),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(app(0));
+    for (var i = 0; i < 40; i++) {
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      await tester.pump();
+      if (find.byType(RawImage).evaluate().isNotEmpty) break;
+    }
+    expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+    expect(repo.scopes, hasLength(1));
+
+    await tester.pumpWidget(app(1));
+    // The very first build on the new page must already have the decoded frame.
+    expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+    expect(repo.scopes, hasLength(1));
+
+    repo.fresh = false;
+    await tester.pumpWidget(app(2));
+    expect(repo.scopes, hasLength(2));
+    expect(find.byType(RawImage), findsNothing);
+    expect(find.byType(GfSymbol), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'image origin policy reaches the media transport and partitions providers',
     (tester) async {

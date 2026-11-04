@@ -277,7 +277,7 @@ class MediaRepository extends ChangeNotifier {
     }
   }
 
-  /// Called only after load/revalidation, before consulting decoded ImageCache.
+  /// Fresh public bytes may reuse a decoded frame without another disk read.
   /// Missing/private/expired entries deliberately have no reusable identity.
   Object? decodedIdentity(
     String url, {
