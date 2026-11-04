@@ -102,8 +102,8 @@ class GfMediaScope extends InheritedWidget {
       identity != oldWidget.identity;
 }
 
-/// Fetches/revalidates before consulting Flutter's decoded cache. Consequently a
-/// fresh decoded frame cannot bypass no-cache or reuse bytes past HTTP expiry.
+/// Reuses decoded frames only while the host confirms HTTP freshness; misses
+/// fetch/revalidate bytes before entering Flutter's decoded cache.
 class GfBytesImage extends ImageProvider<GfMediaImageKey> {
   const GfBytesImage({
     required this.identity,
@@ -111,6 +111,7 @@ class GfBytesImage extends ImageProvider<GfMediaImageKey> {
     required this.load,
     required this.isCurrent,
     this.onDecodeError,
+    this.cachedIdentity,
     this.width,
     this.height,
     this.policy = ResizeImagePolicy.exact,
@@ -120,6 +121,9 @@ class GfBytesImage extends ImageProvider<GfMediaImageKey> {
   final Future<GfMediaData> Function() load;
   final bool Function() isCurrent;
   final Future<void> Function()? onDecodeError;
+
+  /// Synchronous host check; null means missing, restricted or expired bytes.
+  final Object? Function()? cachedIdentity;
   final int? width;
   final int? height;
   final ResizeImagePolicy policy;
@@ -129,7 +133,25 @@ class GfBytesImage extends ImageProvider<GfMediaImageKey> {
   }
 
   @override
-  Future<GfMediaImageKey> obtainKey(ImageConfiguration configuration) async {
+  Future<GfMediaImageKey> obtainKey(ImageConfiguration configuration) {
+    if (isCurrent()) {
+      final cached = cachedIdentity?.call();
+      if (cached != null) {
+        final key = GfMediaImageKey(
+          (identity, url, cached, width, height, policy),
+          null,
+          true,
+        );
+        final status = PaintingBinding.instance.imageCache.statusForKey(key);
+        if (status.pending || status.keepAlive || status.live) {
+          return SynchronousFuture(key);
+        }
+      }
+    }
+    return _obtainKey();
+  }
+
+  Future<GfMediaImageKey> _obtainKey() async {
     if (!isCurrent()) return GfMediaImageKey(Object(), null, false);
     try {
       final data = await load();

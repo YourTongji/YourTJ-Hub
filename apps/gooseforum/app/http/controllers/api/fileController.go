@@ -80,6 +80,10 @@ func GetFileByFileName(c *gin.Context) {
 	// 响应类型由存储对象名的规范化扩展名权威决定（issue #408）：对象名在入库时已按
 	// 文件头判定的真实类型改写（issue #1393），因此名字扩展名即真实类型，无需嗅探。
 	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
+	// Avatar URLs change on upload; bound reuse after withdrawal to five minutes.
+	if ok && access.PublicAvatar {
+		c.Header("Cache-Control", "public, max-age=300")
+	}
 	if !ok {
 		// 未知/危险对象（历史残留、无扩展名等）：octet-stream + 附件下载，
 		// 绝不按行内类型内联渲染；nosniff 兜底防类型混淆。

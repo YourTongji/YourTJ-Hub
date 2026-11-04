@@ -2186,6 +2186,13 @@ acceptance; simulator compilation does not establish those results.
 - `Current`: ordinary writing and schedule plans commit to a dedicated encrypted transaction store.
   Legacy schedules without a known site are held for explicit recovery into a confirmed identity;
   they are never automatically adopted by a matching numeric ID on another site.
+- `Current`: avatars share fresh media bytes across pages and app restarts when the server permits
+  caching. A matching decoded avatar is visible on the first frame after navigation; expiry or memory
+  eviction uses the normal loader. Clearing media, signing out or changing the account/site/language
+  invalidates the decoded scope. Uploaded public avatars follow the
+  [five-minute reuse boundary](forum.md#public-avatar-caching).
+- `Partial`: iOS device acceptance for cross-page avatar reuse, cold start and weak networks remains
+  unverified; widget regressions cover the fresh first frame and expiry path.
 - `Partial`: offline coverage is bounded reading recovery for home/topic/chat plus the existing campus
   allowlist. Search, notification, Wiki and course pages do not gain a blanket disk cache. The media
   upload queue is not a durable offline-send service. See the authoritative

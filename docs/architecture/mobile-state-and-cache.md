@@ -146,6 +146,13 @@ before chat/send and restored only for manual retry, then removed after acknowle
 and account deletion also erase them and fence late upload callbacks; ordinary cache eviction does not.
 Picker bytes and uploads whose URL has not yet returned remain outside this recovery guarantee.
 
+`Current`: fresh public media can reuse a matching Flutter decoded frame synchronously without
+reading compressed bytes or rewriting the disk index. The repository checks HTTP expiry on every
+new resolution; an expired or missing identity follows the normal fetch/revalidation path. Decoded
+keys include origin/account/language, origin policy, generation and decode dimensions. Cache clearing,
+scope changes and memory pressure remove decoded frames; private/no-store/no-cache responses do not
+enter `ImageCache`. Disk-cache eligibility remains governed by the response headers.
+
 The managed cache target is 256 MiB: media 192 MiB, forum projections 32 MiB, chat 16 MiB,
 campus documents up to 4 MiB and 12 MiB of accounting headroom. These are cache limits, not the
 application's installed size or total process memory. Category rows estimate payload sizes; the total
