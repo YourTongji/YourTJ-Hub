@@ -46,9 +46,11 @@ content keeps the existing author/reviewer preview rules; recovering or purged c
 inaccessible even to its uploader. Files without any usage record retain legacy public access.
 Read-reference query failures deny access rather than falling back to legacy behavior.
 
-All responses use `no-store`; restricted previews and denials use `private, no-store`. The exception
-is sticker market assets under `stickers/market/`: they are public, content-addressed catalog files
-and use `public, max-age=86400` ([0115](../decisions/0115-sticker-market-subscriptions.md)).
+All responses use `no-store`; restricted previews and denials use `private, no-store`. Two public
+exceptions use `public, max-age=86400`. Sticker market assets under `stickers/market/` are
+content-addressed catalog files ([0115](../decisions/0115-sticker-market-subscriptions.md)). An
+active avatar reference is the other: each upload stores a new object name, so the bytes behind
+that URL do not change. A pending reference on the same file keeps `private, no-store`.
 Changing these headers cannot revoke copies already cached under the former 210-day policy.
 Rechecking permissions increases origin traffic; the reverse proxy must preserve these headers.
 This policy governs the application read route. A public bucket or `publicUrlPrefix` that bypasses

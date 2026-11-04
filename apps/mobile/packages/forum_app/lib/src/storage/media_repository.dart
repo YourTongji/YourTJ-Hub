@@ -63,6 +63,7 @@ class MediaRepository extends ChangeNotifier {
   static const String _mediaAcceptHeader = 'image/*,*/*;q=0.8';
 
   final Map<String, Map<String, dynamic>> _entries = {};
+  final Map<String, Uint8List> _freshBytes = {};
   final Map<String, Future<Uint8List>> _pending = {};
   final Set<CancelToken> _tokens = {};
   final List<Completer<void>> _waiters = [];
@@ -74,6 +75,8 @@ class MediaRepository extends ChangeNotifier {
   bool get isSuspended => _suspensions > 0;
   bool _disposed = false;
   DateTime? _lastSweep;
+  DateTime? _accessDirtyAt;
+  Future<void>? _accessFlush;
   int get generation => _generation;
   bool isCurrent(int generation) => !_disposed && generation == _generation;
 
@@ -127,8 +130,55 @@ class MediaRepository extends ChangeNotifier {
   }
 
   File _file(String key) => File('${_dir!.path}/$key');
+
+  String _cacheKey(String apiOrigin, String scopeKey, String url) => sha256
+      .convert(utf8.encode(jsonEncode([apiOrigin, scopeKey, url])))
+      .toString();
+
+  void _noteAccess(Map<String, dynamic> entry) {
+    entry['accessed'] = _now().millisecondsSinceEpoch;
+    _accessDirtyAt ??= _now();
+  }
+
+  /// Access time only affects eviction. Rewriting the whole index on every
+  /// avatar hit serializes a page of images, so persist it at most every
+  /// five minutes.
+  void _scheduleAccessFlush() {
+    final dirty = _accessDirtyAt;
+    if (dirty == null || _accessFlush != null || _disposed) return;
+    if (_now().difference(dirty) < const Duration(minutes: 5)) return;
+    _accessDirtyAt = null;
+    _accessFlush = _locked(() async {
+      try {
+        if (_dir != null && !_disposed) await _saveIndex();
+      } finally {
+        _accessFlush = null;
+      }
+    });
+  }
+
+  Uint8List? freshBytes(
+    String url, {
+    required String scopeKey,
+    required String apiOrigin,
+  }) {
+    if (_disposed || isSuspended) return null;
+    final key = _cacheKey(apiOrigin, scopeKey, url);
+    final entry = _entries[key];
+    final bytes = _freshBytes[key];
+    if (entry == null || bytes == null) return null;
+    if ((entry['freshUntil'] as int) <= _now().millisecondsSinceEpoch) {
+      _freshBytes.remove(key);
+      return null;
+    }
+    _noteAccess(entry);
+    _scheduleAccessFlush();
+    return bytes;
+  }
+
   Future<void> _delete(String key) async {
     _entries.remove(key);
+    _freshBytes.remove(key);
     final file = _file(key);
     if (await file.exists()) await file.delete();
   }
@@ -240,6 +290,7 @@ class MediaRepository extends ChangeNotifier {
   void invalidate() {
     if (_disposed) return;
     _generation++;
+    _freshBytes.clear();
     for (final token in _tokens.toList()) {
       token.cancel('Media scope changed');
     }
@@ -264,6 +315,7 @@ class MediaRepository extends ChangeNotifier {
       await _locked(() async {
         await _open();
         _entries.clear();
+        _freshBytes.clear();
         await for (final file in _dir!.list(followLinks: false)) {
           await file.delete(recursive: true);
         }
@@ -284,9 +336,7 @@ class MediaRepository extends ChangeNotifier {
     required String scopeKey,
     required String apiOrigin,
   }) {
-    final key = sha256
-        .convert(utf8.encode(jsonEncode([apiOrigin, scopeKey, url])))
-        .toString();
+    final key = _cacheKey(apiOrigin, scopeKey, url);
     final entry = _entries[key];
     if (entry == null ||
         (entry['freshUntil'] as int) <= _now().millisecondsSinceEpoch) {
@@ -305,9 +355,7 @@ class MediaRepository extends ChangeNotifier {
   }) => _locked(() async {
     if (!isCurrent(generation) || isSuspended) return;
     await _open();
-    final key = sha256
-        .convert(utf8.encode(jsonEncode([apiOrigin, scopeKey, url])))
-        .toString();
+    final key = _cacheKey(apiOrigin, scopeKey, url);
     await _delete(key);
     await _saveIndex();
   });
@@ -320,9 +368,12 @@ class MediaRepository extends ChangeNotifier {
     Future<String?> Function()? readAccessToken,
   }) {
     final generation = _generation;
-    final key = sha256
-        .convert(utf8.encode(jsonEncode([apiOrigin, scopeKey, url])))
-        .toString();
+    final cached = freshBytes(url, scopeKey: scopeKey, apiOrigin: apiOrigin);
+    if (cached != null) {
+      _guard(generation);
+      return SynchronousFuture(cached);
+    }
+    final key = _cacheKey(apiOrigin, scopeKey, url);
     final policyKey = allowedOrigins == null
         ? ''
         : (allowedOrigins.toList()..sort()).join(',');
@@ -419,8 +470,8 @@ class MediaRepository extends ChangeNotifier {
         }
         if (publicAddress &&
             (previous!['freshUntil'] as int) > _now().millisecondsSinceEpoch) {
-          previous!['accessed'] = _now().millisecondsSinceEpoch;
-          await _saveIndex();
+          _noteAccess(previous!);
+          _freshBytes[key] = local!;
         } else if (!publicAddress) {
           await _delete(key);
           await _saveIndex();
@@ -428,6 +479,7 @@ class MediaRepository extends ChangeNotifier {
         }
       }
     });
+    _scheduleAccessFlush();
     _guard(generation);
     if (local != null &&
         (previous!['freshUntil'] as int) > _now().millisecondsSinceEpoch) {
@@ -655,6 +707,7 @@ class MediaRepository extends ChangeNotifier {
           }
           await temporary.rename(_file(key).path);
           _entries[key] = entry;
+          _freshBytes[key] = result;
           await _saveIndex();
           if (await _diskBytes() > budgetBytes) {
             await _trim((budgetBytes * .8).floor());

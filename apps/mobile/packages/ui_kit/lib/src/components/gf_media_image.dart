@@ -102,8 +102,10 @@ class GfMediaScope extends InheritedWidget {
       identity != oldWidget.identity;
 }
 
-/// Fetches/revalidates before consulting Flutter's decoded cache. Consequently a
-/// fresh decoded frame cannot bypass no-cache or reuse bytes past HTTP expiry.
+/// A returned [GfMediaData] is already fresh and completes [obtainKey]
+/// synchronously, so a decoded cache hit can paint on the first frame. A
+/// [Future] still revalidates before ImageCache: no-cache and expired bytes
+/// cannot reuse a stale frame.
 class GfBytesImage extends ImageProvider<GfMediaImageKey> {
   const GfBytesImage({
     required this.identity,
@@ -117,7 +119,7 @@ class GfBytesImage extends ImageProvider<GfMediaImageKey> {
   });
   final Object identity;
   final String url;
-  final Future<GfMediaData> Function() load;
+  final FutureOr<GfMediaData> Function() load;
   final bool Function() isCurrent;
   final Future<void> Function()? onDecodeError;
   final int? width;
@@ -128,17 +130,37 @@ class GfBytesImage extends ImageProvider<GfMediaImageKey> {
     if (!isCurrent()) throw StateError('Media image invalidated');
   }
 
+  GfMediaImageKey _keyFor(GfMediaData data) => GfMediaImageKey(
+    (identity, url, data.cacheIdentity ?? Object(), width, height, policy),
+    data.bytes,
+    data.cacheIdentity != null,
+  );
+
   @override
-  Future<GfMediaImageKey> obtainKey(ImageConfiguration configuration) async {
-    if (!isCurrent()) return GfMediaImageKey(Object(), null, false);
+  Future<GfMediaImageKey> obtainKey(ImageConfiguration configuration) {
+    if (!isCurrent()) {
+      return SynchronousFuture(GfMediaImageKey(Object(), null, false));
+    }
+    final FutureOr<GfMediaData> result;
     try {
-      final data = await load();
+      result = load();
+    } catch (error, stack) {
+      return Future<GfMediaImageKey>.error(error, stack);
+    }
+    if (result is GfMediaData) {
+      if (!isCurrent()) {
+        return SynchronousFuture(GfMediaImageKey(Object(), null, false));
+      }
+      return SynchronousFuture(_keyFor(result));
+    }
+    return _obtainKey(result);
+  }
+
+  Future<GfMediaImageKey> _obtainKey(Future<GfMediaData> pending) async {
+    try {
+      final data = await pending;
       if (!isCurrent()) return GfMediaImageKey(Object(), null, false);
-      return GfMediaImageKey(
-        (identity, url, data.cacheIdentity ?? Object(), width, height, policy),
-        data.bytes,
-        data.cacheIdentity != null,
-      );
+      return _keyFor(data);
     } catch (_) {
       if (!isCurrent()) return GfMediaImageKey(Object(), null, false);
       rethrow;
@@ -256,9 +278,13 @@ class GfBytesImage extends ImageProvider<GfMediaImageKey> {
         if (encoded == null) {
           throw StateError('Vector image produced no pixels');
         }
-        final ui.ImmutableBuffer buffer = await ui.ImmutableBuffer.fromUint8List(
-          encoded.buffer.asUint8List(encoded.offsetInBytes, encoded.lengthInBytes),
-        );
+        final ui.ImmutableBuffer buffer =
+            await ui.ImmutableBuffer.fromUint8List(
+              encoded.buffer.asUint8List(
+                encoded.offsetInBytes,
+                encoded.lengthInBytes,
+              ),
+            );
         return await decode(buffer);
       } finally {
         image.dispose();
@@ -509,9 +535,7 @@ bool isSvgDocument(Uint8List bytes) {
     start++;
   }
   final int end = math.min(bytes.length, start + 8192);
-  final String head = latin1
-      .decode(bytes.sublist(start, end))
-      .toLowerCase();
+  final String head = latin1.decode(bytes.sublist(start, end)).toLowerCase();
   return head.startsWith('<svg') ||
       (head.startsWith('<?xml') && head.contains('<svg'));
 }

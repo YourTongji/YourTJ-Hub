@@ -138,25 +138,45 @@ class _MediaHostState extends State<MediaHost> with WidgetsBindingObserver {
                 apiOrigin: origin,
                 generation: generation,
               ),
-              load: () async {
+              load: () {
                 if (blocked || repository.isSuspended) {
-                  throw StateError('Media loading suspended during clear');
+                  return Future<GfMediaData>.error(
+                    StateError('Media loading suspended during clear'),
+                  );
                 }
-                final bytes = await repository.load(
+                final cached = repository.freshBytes(
                   url,
                   scopeKey: scope,
                   apiOrigin: origin,
-                  allowedOrigins: allowedOrigins,
-                  readAccessToken: widget.readAccessToken,
                 );
-                return GfMediaData(
-                  bytes,
-                  cacheIdentity: repository.decodedIdentity(
-                    url,
-                    scopeKey: scope,
-                    apiOrigin: origin,
-                  ),
-                );
+                if (cached != null) {
+                  return GfMediaData(
+                    cached,
+                    cacheIdentity: repository.decodedIdentity(
+                      url,
+                      scopeKey: scope,
+                      apiOrigin: origin,
+                    ),
+                  );
+                }
+                return repository
+                    .load(
+                      url,
+                      scopeKey: scope,
+                      apiOrigin: origin,
+                      allowedOrigins: allowedOrigins,
+                      readAccessToken: widget.readAccessToken,
+                    )
+                    .then(
+                      (bytes) => GfMediaData(
+                        bytes,
+                        cacheIdentity: repository.decodedIdentity(
+                          url,
+                          scopeKey: scope,
+                          apiOrigin: origin,
+                        ),
+                      ),
+                    );
               },
             );
           },

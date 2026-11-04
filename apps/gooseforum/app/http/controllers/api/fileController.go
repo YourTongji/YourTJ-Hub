@@ -77,6 +77,11 @@ func GetFileByFileName(c *gin.Context) {
 	if access.Public && strings.HasPrefix(referenceName, stickerservice.MarketAssetPrefix) {
 		c.Header("Cache-Control", "public, max-age=86400")
 	}
+	// Avatar uploads get a new object name, so an active avatar can use the same
+	// one-day lifetime (issue #1578). A pending reference keeps the default no-store.
+	if access.Public && access.Avatar {
+		c.Header("Cache-Control", "public, max-age=86400")
+	}
 	// 响应类型由存储对象名的规范化扩展名权威决定（issue #408）：对象名在入库时已按
 	// 文件头判定的真实类型改写（issue #1393），因此名字扩展名即真实类型，无需嗅探。
 	contentType, ok := imagepolicy.ContentTypeForFilename(filename)

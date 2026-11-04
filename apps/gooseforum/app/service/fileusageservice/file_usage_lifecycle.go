@@ -142,12 +142,14 @@ type ReadAccess struct {
 	Content       bool
 	Public        bool
 	Pending       bool
+	Avatar        bool
 	UploadOwnerID uint64
 }
 
 func ResolveReadAccess(fileName string) (ReadAccess, error) {
 	refs, err := fileUsage.ListReadReferences(fileName)
 	access := ReadAccess{Tracked: len(refs) > 0}
+	now := time.Now()
 	for _, ref := range refs {
 		if ref.UsageType == fileUsage.UsageUploadOwner {
 			if ref.Status != fileUsage.UsageStatusReclaiming && ref.Status != fileUsage.UsageStatusPurged {
@@ -157,7 +159,14 @@ func ResolveReadAccess(fileName string) (ReadAccess, error) {
 		}
 		access.Content = true
 		access.Pending = access.Pending || ref.Status == fileUsage.UsageStatusPending
-		access.Public = access.Public || ref.Status == fileUsage.UsageStatusActive && (ref.ExpiresAt == nil || ref.ExpiresAt.After(time.Now()))
+		active := ref.Status == fileUsage.UsageStatusActive && (ref.ExpiresAt == nil || ref.ExpiresAt.After(now))
+		access.Public = access.Public || active
+		if active && ref.UsageType == fileUsage.UsageAvatar {
+			access.Avatar = true
+		}
+	}
+	if access.Pending {
+		access.Avatar = false
 	}
 	return access, err
 }

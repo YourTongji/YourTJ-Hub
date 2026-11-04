@@ -33,7 +33,7 @@ class _GfNetworkSvgState extends State<GfNetworkSvg> {
     }
     if (provider != _provider) {
       _provider = provider;
-      _bytes = provider.load().then((data) {
+      _bytes = Future<GfMediaData>.value(provider.load()).then((data) {
         if (!provider.isCurrent()) throw StateError('Media SVG invalidated');
         return data;
       });

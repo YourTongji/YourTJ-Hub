@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -21,9 +22,11 @@ void main() {
     'a fresh avatar does not flash its placeholder on the next page',
     (tester) async {
       var loads = 0;
-      Future<GfMediaData> load() async {
+      FutureOr<GfMediaData> load() {
+        final data = GfMediaData(_gif, cacheIdentity: 'avatar-fresh');
+        if (loads > 0) return data;
         loads++;
-        return GfMediaData(_gif, cacheIdentity: 'avatar-fresh');
+        return Future<GfMediaData>.value(data);
       }
 
       Widget page(Widget child) => gfApp(

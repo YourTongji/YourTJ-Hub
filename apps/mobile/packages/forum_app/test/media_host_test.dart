@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/storage/media_host.dart';
@@ -194,6 +196,84 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  group('fresh avatar across pages', () {
+    late Directory directory;
+    late _GifHttp http;
+    late MediaRepository repository;
+    const origin = 'https://example.test';
+    const url = '$origin/file/img/avatars/1/a.gif';
+
+    setUp(() async {
+      directory = await Directory.systemTemp.createTemp('avatar-page-');
+      http = _GifHttp();
+      repository = MediaRepository(
+        directory: () async => directory,
+        dio: Dio()..httpClientAdapter = http,
+        now: () => DateTime.utc(2026, 11, 4),
+      );
+      await repository.load(url, scopeKey: 'site:7:zh', apiOrigin: origin);
+    });
+
+    tearDown(() async {
+      repository.dispose();
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      await directory.delete(recursive: true);
+    });
+
+    testWidgets(
+      'the next page paints a cached avatar without the placeholder',
+      (tester) async {
+        Widget page(Widget child) => MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: MediaHost(
+            repository: repository,
+            scopeKey: 'site:7:zh',
+            apiOrigin: origin,
+            child: child,
+          ),
+        );
+        const avatar = GfAvatar(src: url, size: 40);
+
+        await tester.pumpWidget(page(avatar));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pump();
+        expect(find.byType(GfSymbol), findsNothing);
+        expect(tester.takeException(), isNull);
+
+        await tester.pumpWidget(page(const SizedBox.shrink()));
+        await tester.pumpWidget(page(avatar));
+        expect(find.byType(GfSymbol), findsNothing);
+        expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+        expect(http.requests, 1);
+      },
+    );
+  });
+}
+
+class _GifHttp implements HttpClientAdapter {
+  int requests = 0;
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? stream,
+    Future<void>? cancel,
+  ) async {
+    requests++;
+    return ResponseBody.fromBytes(
+      _gif,
+      200,
+      headers: {
+        'content-type': ['image/gif'],
+        'cache-control': ['public, max-age=60'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 Widget _error(BuildContext context, Object error, StackTrace? stack) =>
