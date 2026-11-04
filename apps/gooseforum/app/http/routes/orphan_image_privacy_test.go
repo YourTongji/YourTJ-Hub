@@ -166,3 +166,36 @@ func TestMultipartUploadRollsBackOnOwnershipFailure(t *testing.T) {
 		t.Fatalf("ownership failure left %d uploaded files", count)
 	}
 }
+
+// Public avatars are immutable per object name, so a reader may reuse one for a
+// day. Pending and non-avatar files keep the private or no-store policy.
+func TestPublicAvatarCacheHeader(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, nil)
+	owner := createHTTPContractUser(t, conn, contractTestID())
+	image, name := saveContractImage(t, owner.Id)
+	ref := fileUsage.Entity{
+		FileName:   name,
+		TargetType: fileUsage.TargetUser,
+		TargetId:   owner.Id,
+		UserId:     owner.Id,
+		UsageType:  fileUsage.UsageAvatar,
+		Status:     fileUsage.UsageStatusActive,
+	}
+	if err := conn.Create(&ref).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Where("file_name = ?", name).Delete(&fileUsage.Entity{}) })
+
+	res := getImage(router, image, "")
+	if res.Code != http.StatusOK || res.Header().Get("Cache-Control") != "public, max-age=86400" {
+		t.Fatalf("public avatar status=%d cache=%q", res.Code, res.Header().Get("Cache-Control"))
+	}
+
+	if err := conn.Model(&ref).Update("status", fileUsage.UsageStatusPending).Error; err != nil {
+		t.Fatal(err)
+	}
+	pending := getImage(router, image, "")
+	if pending.Code != http.StatusNotFound || pending.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("pending avatar status=%d cache=%q", pending.Code, pending.Header().Get("Cache-Control"))
+	}
+}

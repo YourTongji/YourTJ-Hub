@@ -605,4 +605,13 @@ void main() {
       expect(await cache.usageBytes(), greaterThan(0));
     },
   );
+  test('fresh hits do not rewrite the index on every read', () async {
+    await load();
+    final before = await File('${dir.path}/index.json').readAsString();
+    now = now.add(const Duration(seconds: 30));
+    expect(await load(), [1, 2, 3]);
+    expect(await load(), [1, 2, 3]);
+    expect(http.requests, hasLength(1));
+    expect(await File('${dir.path}/index.json').readAsString(), before);
+  });
 }
