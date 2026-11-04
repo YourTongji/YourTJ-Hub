@@ -1,4 +1,4 @@
 {
-  "result": {"badgeStyle": "number"},
+  "result": {"badgeStyle": "number", "badgeCategories": ["replies", "mentions", "likes", "following", "system"]},
   "code": 0
 }

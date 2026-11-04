@@ -227,13 +227,17 @@ export interface ThemePreviewProps {
 
 export type UnreadBadgeStyle = 'number' | 'dot'
 
+export type UnreadBadgeCategory = 'replies' | 'mentions' | 'likes' | 'following' | 'system'
+
 export interface NotificationPreferences {
   badgeStyle: UnreadBadgeStyle
+  badgeCategories: UnreadBadgeCategory[]
 }
 
 export interface UnreadStatusPayload {
   notifications: boolean
   messages: boolean
+  badgeCategories?: UnreadBadgeCategory[]
   badgeStyle?: UnreadBadgeStyle
   notificationCount?: number
   messageCount?: number

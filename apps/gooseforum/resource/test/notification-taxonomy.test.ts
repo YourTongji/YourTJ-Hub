@@ -10,13 +10,12 @@ const { fetchNotifications, markNotificationRead, markAllNotificationsRead } = v
   markAllNotificationsRead: vi.fn(),
 }))
 vi.mock('../src/runtime/api', () => ({ fetchNotifications, markAllNotificationsRead, markNotificationRead }))
-const { unreadSetNotifications, unreadRefresh, unreadClearNotifications } = vi.hoisted(() => ({
-  unreadSetNotifications: vi.fn(),
+const { unreadRefresh, unreadClearNotifications } = vi.hoisted(() => ({
   unreadRefresh: vi.fn(),
   unreadClearNotifications: vi.fn(),
 }))
 vi.mock('../src/runtime/unread-status', () => ({
-  useUnreadStatus: () => ({ badgeStyle: { value: 'number' }, clearNotifications: unreadClearNotifications, setNotifications: unreadSetNotifications, refresh: unreadRefresh }),
+  useUnreadStatus: () => ({ badgeStyle: { value: 'number' }, clearNotifications: unreadClearNotifications, refresh: unreadRefresh }),
 }))
 import NotificationsPage from '../src/site/pages/NotificationsPage.vue'
 import { markAllNotificationsRead, markNotificationRead } from '../src/runtime/api'

@@ -1571,6 +1571,8 @@ export default {
     summaryWithoutCounts: "返信、いいね、フォロー、システムのお知らせ。",
     unreadIndicator: "未読",
     unreadStyleNumbers: "未読件数を表示",
+    unreadCategories: "未読バッジに含める通知",
+    unreadCategoriesHint: "アカウント間で同期され、通知バッジのみ変更します。既読状態、プッシュ、個別メッセージには影響しません。直接 {'@'}メンションする返信は「メンション」に含まれます。すべて解除すると通知バッジを非表示にします。",
     unreadStyleHint: "オフにすると点のみを表示します。このアカウントの Web と App で同期し、既読状態やプッシュ通知は変更しません。",
     unreadStyleSaving: "表示方法を保存中…",
     systemPushDefaultDescription: "初期設定では審査結果のみ通知します。再度オンにすると通常のシステム通知とバッジも通知します。",

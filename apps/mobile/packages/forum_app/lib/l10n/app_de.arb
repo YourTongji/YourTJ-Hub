@@ -1669,5 +1669,7 @@
   "unreadStyleNumbers": "Anzahl anzeigen",
   "unreadStyleHint": "Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.",
   "unreadStyleSaving": "Anzeige wird gespeichert…",
-  "previewBuildPending": "Ein neuer Dev-Build wird erstellt. Dies ist noch der neueste verfügbare Build für diese Plattform."
+  "previewBuildPending": "Ein neuer Dev-Build wird erstellt. Dies ist noch der neueste verfügbare Build für diese Plattform.",
+"unreadBadgeCategoriesTitle": "Kategorien für Benachrichtigungsabzeichen",
+"unreadBadgeCategoriesHint": "Nur ausgewählte Kategorien zählen zum Abzeichen. Antworten mit direkter @-Erwähnung zählen als Erwähnungen. Lesestatus, Push-Mitteilungen und Abzeichen privater Nachrichten bleiben unverändert."
 }
