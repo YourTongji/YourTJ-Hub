@@ -452,3 +452,10 @@ minutes; subsequent reads enforce the current reference state. Errors, orphan up
 previews, untracked legacy images and ordinary topic images retain their existing no-store policy.
 The market-sticker cache policy is independent. See the
 [cache decision](../decisions/0125-public-avatar-cache.md).
+
+`Current`: reply windows filter other authors’ pending replies before applying their
+page limit, including initial topic windows and forward, reverse and anchored API
+windows. Authors retain their own pending replies; moderators retain their existing
+review visibility. Web and App can page across long hidden runs without receiving
+an empty nonterminal window or pending content. Deleted/removed placeholders keep
+their existing behavior; total/max floor numbers retain their existing semantics.

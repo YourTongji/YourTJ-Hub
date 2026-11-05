@@ -1376,7 +1376,8 @@ func buildHomeMeta(c *gin.Context, page int, sort string, hasNext bool) PageMeta
 
 func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *posts.Entity, anchorPostNo uint64) TopicDetailProps {
 	currentUserID := component.LoginUserId(c)
-	postEntities, hasBefore, hasAfter := topicInitialPosts(topic, anchorPostNo)
+	canModerate := moderationservice.CanModerateAnyCategory(currentUserID, topic.CategoryIds)
+	postEntities, hasBefore, hasAfter := topicInitialPosts(topic, anchorPostNo, posts.WindowViewer{UserID: currentUserID, CanModerate: canModerate})
 	if anchorPostNo <= 1 && len(postEntities) == 0 && firstPost != nil && firstPost.Id != 0 {
 		postEntities = append(postEntities, firstPost)
 	}
@@ -1414,7 +1415,6 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 		userIDs = append(userIDs, item.UserId)
 	}
 	userMap := users.GetMapByIds(userIDs)
-	canModerate := moderationservice.CanModerateAnyCategory(currentUserID, topic.CategoryIds)
 
 	return TopicDetailProps{
 		Topic: buildTopicDetailPayload(c, topic, firstPost, userMap),
@@ -1442,18 +1442,17 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 	}
 }
 
-func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64) ([]*posts.Entity, bool, bool) {
-	if anchorPostNo <= 1 {
-		items := posts.GetFirstPageByTopicId(topic.Id)
-		return items, false, topic.PostSeq > uint64(len(items))
+func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64, viewer posts.WindowViewer) ([]*posts.Entity, bool, bool) {
+	after := uint64(0)
+	if anchorPostNo > 1 {
+		after = anchorPostNo - 1
 	}
-
-	items := posts.GetByTopicPostNoAfter(topic.Id, anchorPostNo-1, postWindowLimit+1)
+	items := posts.GetByTopicPostNoAfter(topic.Id, after, postWindowLimit+1, viewer)
 	hasAfter := len(items) > postWindowLimit
 	if hasAfter {
 		items = items[:postWindowLimit]
 	}
-	return items, true, hasAfter
+	return items, anchorPostNo > 1, hasAfter
 }
 
 func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64, firstPost *posts.Entity) PostWindowPayload {
