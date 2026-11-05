@@ -739,3 +739,14 @@ Revocation invalidates only that Apple-authenticated session, not a subsequent p
 `Partial`: production credentials, physical-device login/bind/cancel/revoke/delete acceptance and
 Apple review must be verified for the delivered candidate. See [release operations](../operations/mobile-releases.md)
 and [the Apple login decision](../decisions/0041-native-apple-login-and-revocation.md).
+
+## Password recovery token boundary
+
+`Current`: emailed password-reset links use a dedicated derived signing key, the
+`password-reset` audience, HS256 and a required expiry. Parsing requires a nonzero
+account ID and a nonempty email; the handler also matches the current email and
+token version. Session, TOTP challenge and activation tokens cannot reset a password.
+A successful reset advances the version, preventing reset-link replay. Empty-email
+accounts use their existing signed-in password setup or administrator recovery flow.
+Links issued with the previous unscoped format are rejected; request a new recovery
+email after upgrading, including when an old link was still queued for delivery.
