@@ -185,7 +185,7 @@ function spawnDissolveEffects(accent: string, bounds: BannerBounds) {
           ? `box-shadow:0 0 ${10 + Math.random() * 12}px color-mix(in oklab, ${accent} 70%, transparent), 0 0 2px ${accent}`
           : `box-shadow:0 0 6px color-mix(in oklab, ${accent} 55%, transparent), 0 0 1px ${accent}`,
         'pointer-events:none',
-        'z-index:200',
+        'z-index:2460',
         'will-change:transform,opacity',
       ].join(';'),
     )
@@ -247,7 +247,7 @@ function spawnDissolveEffects(accent: string, bounds: BannerBounds) {
         `background:linear-gradient(90deg, transparent 0%, color-mix(in oklab, ${accent} 55%, white) 28%, ${accent} 52%, color-mix(in oklab, white 40%, ${accent}) 72%, transparent 100%)`,
         `box-shadow:0 0 14px color-mix(in oklab, ${accent} 65%, transparent), 0 0 2px ${accent}`,
         'pointer-events:none',
-        'z-index:201',
+        'z-index:2461',
         'will-change:transform,opacity',
         'opacity:0',
       ].join(';'),
@@ -302,7 +302,7 @@ function spawnDissolveEffects(accent: string, bounds: BannerBounds) {
         'border-radius:9999px',
         `background:radial-gradient(circle, color-mix(in oklab, ${accent} 70%, white) 0%, color-mix(in oklab, ${accent} 40%, transparent) 38%, color-mix(in oklab, ${accent} 16%, transparent) 62%, transparent 78%)`,
         'pointer-events:none',
-        'z-index:199',
+        'z-index:2459',
         'will-change:transform,opacity',
         'filter:blur(1.5px)',
       ].join(';'),
@@ -387,10 +387,10 @@ function onFlashLeave(el: Element, done: () => void) {
 <template>
   <!--
     玻璃态 Toast 栈：桌面右上、移动端底部安全区。
-    z 高于设置弹层，媒体校验提示始终可见。
+    z 高于排课弹窗与浮层（最高 2300），当前操作反馈始终可见。
   -->
   <div
-    class="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[140] px-4 sm:inset-x-auto sm:bottom-auto sm:right-5 sm:top-[4.75rem] sm:px-0 lg:right-8"
+    class="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[2400] px-4 sm:inset-x-auto sm:bottom-auto sm:right-5 sm:top-[4.75rem] sm:px-0 lg:right-8"
     aria-live="polite"
     aria-relevant="additions text"
   >

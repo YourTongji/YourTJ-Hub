@@ -23,12 +23,13 @@ import {
 } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import SiteSelect from '@/site/components/SiteSelect.vue'
-import { queueFlashMessage } from '@/runtime/flash-message'
+import { useFlashMessages } from '@/runtime/flash-message'
 import { getPkCalendars, getPkGrades, getPkMajors } from '@/runtime/pk-api'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkCalendar, PkMajor } from '@/site/types/pk'
 
 const { t } = useI18n()
+const { push: flash } = useFlashMessages()
 const store = useScheduleStore()
 
 const props = withDefaults(
@@ -72,13 +73,13 @@ async function copyQueryUrl() {
   try {
     await navigator.clipboard.writeText(majorInfoApiUrl.value)
     copied.value = true
-    queueFlashMessage(t('schedule.copyQueryUrlSuccess'), 'success')
+    flash(t('schedule.copyQueryUrlSuccess'), 'success')
     if (copyResetTimer) clearTimeout(copyResetTimer)
     copyResetTimer = setTimeout(() => {
       copied.value = false
     }, 2000)
   } catch {
-    queueFlashMessage(t('schedule.copyQueryUrlSuccess'), 'info')
+    flash(t('schedule.copyQueryUrlSuccess'), 'info')
   }
 }
 
