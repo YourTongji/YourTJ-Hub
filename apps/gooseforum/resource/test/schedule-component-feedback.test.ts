@@ -47,7 +47,9 @@ test.each([false, true])('query link clipboard feedback is immediate (failure=%s
  try {
   await flushPromises()
   await wrapper.findAll('button').find(b => b.text() === '复制')!.trigger('click')
-  await flushPromises(); feedback(failure ? 'info' : 'success')
+  await flushPromises()
+  expect(useFlashMessages().messages.value.at(-1)?.message).toBe(String(i18n.global.t(failure ? 'common.copyFailed' : 'schedule.copyQueryUrlSuccess')))
+  feedback(failure ? 'error' : 'success')
  } finally { wrapper.unmount() }
 })
 test.each(['copy-success', 'copy-failure', 'download-failure'])('image export feedback is immediate: %s', async scenario => {

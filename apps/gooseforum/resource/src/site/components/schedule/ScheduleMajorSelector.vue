@@ -79,7 +79,7 @@ async function copyQueryUrl() {
       copied.value = false
     }, 2000)
   } catch {
-    flash(t('schedule.copyQueryUrlSuccess'), 'info')
+    flash(t('common.copyFailed'), 'error')
   }
 }
 
