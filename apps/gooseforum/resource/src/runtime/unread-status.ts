@@ -22,6 +22,8 @@ let ownerId = 0
 let ownerGeneration = 0
 let readGeneration = 0
 let preferenceRevision = 0
+let notificationRevision = 0
+let messageRevision = 0
 let styleInitialized = false
 let inFlight: Promise<UnreadStatusPayload> | null = null
 let requestAbort: AbortController | undefined
@@ -115,9 +117,20 @@ async function refresh(force = false): Promise<UnreadStatusPayload> {
   if (!inFlight) {
     const captured = readGeneration
     const styleRevision = preferenceRevision
+    const capturedNotifications = notificationRevision
+    const capturedMessages = messageRevision
     const abort = requestAbort = new AbortController()
     const operation = fetchUnreadStatus(abort.signal).then(data => {
-      if (captured === readGeneration) applyUnread(data, { includeStyle: true, styleRevision })
+      if (captured === readGeneration) {
+        // Preserve only the domain changed since this poll began; the other domain can advance.
+        const next = { ...data }
+        if (capturedNotifications !== notificationRevision) Object.assign(next, {
+          notifications: notifications.value, notificationCount: notificationCount.value,
+          latestNotificationType: latestNotificationType.value, latestUnreadId: latestUnreadId.value,
+        })
+        if (capturedMessages !== messageRevision) Object.assign(next, { messages: messages.value, messageCount: messageCount.value })
+        applyUnread(next, { includeStyle: true, styleRevision })
+      }
       return data
     })
     inFlight = operation
@@ -206,13 +219,16 @@ async function updateBadgeStyle(style: UnreadBadgeStyle): Promise<boolean> {
   }
 }
 function clearNotifications() {
+  notificationRevision++
   applyUnread({ ...snapshot(), notifications: false, notificationCount: 0, latestNotificationType: '', latestUnreadId: 0 })
 }
 function setNotifications(hasUnread: boolean, count?: number) {
+  notificationRevision++
   applyUnread({ ...snapshot(), notifications: hasUnread, notificationCount: hasUnread ? countValue(count) : 0,
     latestNotificationType: hasUnread ? latestNotificationType.value : '', latestUnreadId: hasUnread ? latestUnreadId.value : 0 })
 }
 function clearMessages() {
+  messageRevision++
   applyUnread({ ...snapshot(), messages: false, messageCount: 0 })
 }
 export function useUnreadStatus() {

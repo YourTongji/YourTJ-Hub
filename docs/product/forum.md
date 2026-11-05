@@ -452,3 +452,8 @@ minutes; subsequent reads enforce the current reference state. Errors, orphan up
 previews, untracked legacy images and ordinary topic images retain their existing no-store policy.
 The market-sticker cache policy is independent. See the
 [cache decision](../decisions/0125-public-avatar-cache.md).
+
+`Current`: successful local notification/message read updates take precedence over
+polls started earlier. Each unread domain tracks its own revision, so ignoring an
+old notification count does not suppress a newer message count, and later polls
+can still display newly arrived unread items. Cached counts use the same merged state.
