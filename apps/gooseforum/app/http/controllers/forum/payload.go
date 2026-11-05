@@ -3486,6 +3486,8 @@ func buildPublishCategories() []PublishCategoryPayload {
 	return res
 }
 
+var searchPageAggregate = searchservice.AggregateSearch
+
 func buildSearchPageProps(query string, scope string, page int) SearchPageProps {
 	const pageSize = 10
 	normalizedScope := searchservice.NormalizeScope(scope)
@@ -3517,7 +3519,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 	if normalizedScope == searchservice.ScopeTopics || normalizedScope == searchservice.ScopeAll {
 		offset = (page - 1) * pageSize
 	}
-	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
+	result, err := searchPageAggregate(searchservice.AggregateSearchRequest{
 		Query:     query,
 		Scope:     normalizedScope,
 		Limit:     limit,
@@ -3583,6 +3585,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		}
 	})
 	props.Total = result.Total
+	props.TotalPages = totalPageCount
 	props.UsersTotal = result.UsersTotal
 	props.CategoriesTotal = result.CategoriesTotal
 	props.CoursesTotal = result.CoursesTotal

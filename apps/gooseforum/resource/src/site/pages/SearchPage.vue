@@ -44,19 +44,23 @@ const scopeLabelMap: Record<string, string> = {
 const scopeLabels = computed(() => failedScopes.value.map((s) => (scopeLabelMap[s] ? t(`searchPage.${scopeLabelMap[s]}`) : s)).join(', '))
 const searchDescription = computed(() => {
   if (!hasQuery.value) return t('searchPage.emptyPrompt')
-  const count = scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : scope.value === 'courses' ? page.props.coursesTotal : page.props.total
+  const count = scope.value === 'all' ? page.props.total + page.props.usersTotal + page.props.categoriesTotal + page.props.coursesTotal : scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : scope.value === 'courses' ? page.props.coursesTotal : page.props.total
   return `${page.props.query} · ${t('searchPage.resultCount', { count: formatNumber(count) })}`
 })
+
+function scopeCount(key: string, count: number) {
+  return (scope.value === 'all' || scope.value === key) && !failedScopes.value.includes(key) ? count : undefined
+}
 
 const scopeTabs = computed(() => {
   const base = '/search'
   const scopeParam = (value: string) => (value === 'all' || !value ? '' : `&scope=${value}`)
   return [
-    { key: 'all', label: t('searchPage.scopeAll'), url: `${base}?q=${encodeURIComponent(page.props.query)}`, active: scope.value === 'all', count: page.props.total },
-    { key: 'topics', label: t('searchPage.scopeTopics'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('topics')}`, active: scope.value === 'topics', count: page.props.total },
-    { key: 'users', label: t('searchPage.scopeUsers'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('users')}`, active: scope.value === 'users', count: page.props.usersTotal },
-    { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories', count: page.props.categoriesTotal },
-    { key: 'courses', label: t('searchPage.scopeCourses'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('courses')}`, active: scope.value === 'courses', count: page.props.coursesTotal },
+    { key: 'all', label: t('searchPage.scopeAll'), url: `${base}?q=${encodeURIComponent(page.props.query)}`, active: scope.value === 'all', count: undefined },
+    { key: 'topics', label: t('searchPage.scopeTopics'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('topics')}`, active: scope.value === 'topics', count: scopeCount('topics', page.props.total) },
+    { key: 'users', label: t('searchPage.scopeUsers'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('users')}`, active: scope.value === 'users', count: scopeCount('users', page.props.usersTotal) },
+    { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories', count: scopeCount('categories', page.props.categoriesTotal) },
+    { key: 'courses', label: t('searchPage.scopeCourses'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('courses')}`, active: scope.value === 'courses', count: scopeCount('courses', page.props.coursesTotal) },
   ]
 })
 
@@ -144,6 +148,7 @@ watch(
         >
           {{ tab.label }}
           <span
+            v-if="tab.count !== undefined"
             class="ml-1 text-[11px] font-semibold tabular-nums"
             :class="tab.active ? 'text-neutral-content/70' : 'text-base-content/40'"
           >{{ formatNumber(tab.count) }}</span>

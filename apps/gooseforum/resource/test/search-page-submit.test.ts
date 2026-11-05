@@ -107,3 +107,27 @@ describe('SearchPage 搜索表单提交', () => {
     wrapper.unmount()
   })
 })
+
+describe('SearchPage scope counts', () => {
+ test('all describes the combined total and does not label it as the topic total', async () => {
+  const wrapper = await mountPage(makeRouter(), emptyProps({ query: '课程', total: 27, coursesTotal: 257 }))
+  const tabs = wrapper.findAll('[role="group"] a')
+  expect(tabs[0]!.find('span').exists()).toBe(false)
+  expect(tabs[1]!.get('span').text()).toBe('27')
+  expect(wrapper.text()).toContain('284')
+  wrapper.unmount()
+ })
+ test.each(['topics', 'users', 'categories', 'courses'])('only queried %s has a known count after switching scope', async scope => {
+  const wrapper = await mountPage(makeRouter(), emptyProps({ query: '课程', total: 27, coursesTotal: 257 }))
+  await wrapper.setProps({ props: emptyProps({ query: '课程', scope, coursesTotal: scope === 'courses' ? 257 : 0 }) })
+  const tabs = wrapper.findAll('[role="group"] a')
+  expect(tabs.filter(tab => tab.find('span').exists())).toHaveLength(1)
+  expect(tabs.find(tab => tab.attributes('aria-pressed') === 'true')!.get('span').text()).toBe(scope === 'courses' ? '257' : '0')
+  wrapper.unmount()
+ })
+ test('a failed index has no misleading zero', async () => {
+  const wrapper = await mountPage(makeRouter(), emptyProps({ query: '课程', failedScopes: ['courses'] }))
+  expect(wrapper.findAll('[role="group"] a')[4]!.find('span').exists()).toBe(false)
+  wrapper.unmount()
+ })
+})
