@@ -287,6 +287,7 @@ function courseStyle(name: string) {
   return timetableCourseStyle(name)
 }
 function serviceState(key: CampusDatasetKey) {
+  if (status.value?.binding?.needsAuthorization) return t('campus.authorizationRequired')
   if (failures.value[key]) return t('campus.loadFailed')
   const state = data.value[key]?.status
   return state === 'ready' ? t('campus.connected') : state === 'empty' ? t('campus.empty') : state === 'unavailable' ? t('campus.unavailable') : loading.value ? t('campus.syncing') : t('campus.notSynced')
@@ -522,7 +523,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
           <div class="divide-y divide-line px-4">
             <div v-for="key in keys" :key="key" class="flex items-center justify-between gap-3 py-3.5">
               <h3 class="text-sm font-medium">{{ names[key] }}</h3>
-              <span class="gf-badge shrink-0" :class="data[key]?.status === 'ready' ? 'gf-badge-info' : 'gf-badge-muted'">{{ serviceState(key) }}</span>
+              <span class="gf-badge shrink-0" :class="!status.binding?.needsAuthorization && data[key]?.status === 'ready' ? 'gf-badge-info' : 'gf-badge-muted'">{{ serviceState(key) }}</span>
             </div>
           </div>
           <p class="border-t border-line bg-base-200/50 px-4 py-3 text-xs leading-6 text-base-content/55">{{ t('campus.serviceHint') }}</p>

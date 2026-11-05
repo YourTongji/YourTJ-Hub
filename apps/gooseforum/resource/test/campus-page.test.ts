@@ -485,3 +485,28 @@ test('expired school authorization never presents unloaded datasets as loading',
   expect(api.start).not.toHaveBeenCalled()
  } finally { wrapper.unmount() }
 })
+
+test('expired authorization preserves cached records while marking every service as paused', async () => {
+ const wrapper = setup()
+ try {
+  await flushPromises()
+  await clickTab(wrapper, '学业记录')
+  expect(wrapper.text()).toContain('3.72')
+  await clickTab(wrapper, '连接状态')
+  expect(wrapper.findAll('.divide-y .gf-badge-info').length).toBeGreaterThan(0)
+  const reads = api.dataset.mock.calls.length
+  api.status.mockResolvedValue({ ...status, binding: { ...status.binding!, needsAuthorization: true } })
+  await wrapper.get('button[aria-label="刷新校园数据"]').trigger('click')
+  await flushPromises()
+  expect(wrapper.findAll('.divide-y .gf-badge-info')).toHaveLength(0)
+  const services = wrapper.findAll('.divide-y .gf-badge')
+  expect(services.length).toBeGreaterThan(0)
+  expect(services.every(b => b.text() === '需重新授权')).toBe(true)
+  expect(wrapper.text()).not.toContain('已连接')
+  await clickTab(wrapper, '学业记录')
+  expect(wrapper.text()).toContain('3.72')
+  expect(wrapper.text()).toContain('学校授权需要更新')
+  expect(api.dataset).toHaveBeenCalledTimes(reads)
+  expect(api.start).not.toHaveBeenCalled()
+ } finally { wrapper.unmount() }
+})

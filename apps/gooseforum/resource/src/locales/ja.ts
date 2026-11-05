@@ -702,6 +702,7 @@ export default {
     noTodayCourses: "今日は授業がありません",
     loadFailed: "読み込みに失敗しました",
     connected: "連携済み",
+    authorizationRequired: "再認証が必要",
     empty: "記録なし",
     unavailable: "大学のサービスを利用できません",
     notSynced: "未同期",
