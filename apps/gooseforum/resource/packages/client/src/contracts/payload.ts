@@ -422,7 +422,7 @@ export interface TopicDetailPayload {
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
-  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; decoration?: UserDecoration; wornBadge?: UserBadgePayload | null }>
+  participants: Array<{ kind?: 'member' | 'persona' | 'anonymous'; publicUid?: string; profileUrl?: string; id: number; username: string; nickname?: string; avatarUrl: string; decoration?: UserDecoration; wornBadge?: UserBadgePayload | null }>
   categories: Array<{ id: number; name: string; url: string; color: string }>
   replyCount: number
   maxPostNo: number
@@ -551,7 +551,7 @@ export interface TopicPayload {
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
-  participants: Array<{ id: number; username: string; nickname?: string; avatarUrl: string; decoration?: UserDecoration; wornBadge?: UserBadgePayload | null }>
+  participants: Array<{ kind?: 'member' | 'persona' | 'anonymous'; publicUid?: string; profileUrl?: string; id: number; username: string; nickname?: string; avatarUrl: string; decoration?: UserDecoration; wornBadge?: UserBadgePayload | null }>
   categories: Array<{ id: number; name: string; url: string; color: string }>
   replyCount: number
   viewCount: number

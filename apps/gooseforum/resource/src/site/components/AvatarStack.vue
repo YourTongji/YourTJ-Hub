@@ -6,7 +6,9 @@ import { authorURL, authorKey } from '@/runtime/anonymous-identity'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 
 interface StackUser {
+  kind?: 'member' | 'persona' | 'anonymous'
   publicUid?: string
+  profileUrl?: string
   id: number
   username: string
   /** 当前昵称；无昵称时缺省（备注名显示 note(display name) 用）。 */
