@@ -217,8 +217,8 @@ func TestBeginDirectUploadLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompleteDirectUpload() error = %v", err)
 	}
-	if metadata.Name != session.Metadata.Name {
-		t.Fatalf("completed metadata name = %q, want %q", metadata.Name, session.Metadata.Name)
+	if metadata.Name == session.Metadata.Name {
+		t.Fatal("published client-writable key")
 	}
 	if store.status[metadata.Name] != "ready" {
 		t.Fatalf("row status = %q, want ready", store.status[metadata.Name])
@@ -255,16 +255,17 @@ func TestCompleteDirectUploadDoubleCompleteIdempotent(t *testing.T) {
 		t.Fatalf("BeginDirectUpload() error = %v", err)
 	}
 	provider.objects[session.Metadata.Name] = fakeObject{data: []byte("png!"), contentType: "image/png"}
-	if _, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{Name: session.Metadata.Name, UserId: 1}); err != nil {
+	first, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{Name: session.Metadata.Name, UserId: 1})
+	if err != nil {
 		t.Fatalf("first CompleteDirectUpload() error = %v", err)
 	}
-	// Second complete for the same user is idempotent.
-	metadata, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{Name: session.Metadata.Name, UserId: 1})
+	// A duplicate using the returned final name is idempotent.
+	metadata, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{Name: first.Name, UserId: 1})
 	if err != nil {
 		t.Fatalf("duplicate CompleteDirectUpload() error = %v, want idempotent success", err)
 	}
-	if metadata.Name != session.Metadata.Name {
-		t.Fatalf("duplicate complete metadata name = %q, want %q", metadata.Name, session.Metadata.Name)
+	if metadata.Name != first.Name {
+		t.Fatal("duplicate complete changed final name")
 	}
 }
 
@@ -349,7 +350,7 @@ func TestDirectUploadRenameFailureKeepsCopiesTracked(t *testing.T) {
 	}
 	provider.objects[metadata.Name] = fakeObject{data: []byte("jpeg"), contentType: "image/png"}
 	loser := staleRenameStore{fakeMetadataStore: store, err: errors.New("metadata unavailable")}
-	if _, err := normalizeDirectUploadType(ctx, loser, metadata, "image/jpeg"); err == nil {
+	if _, err := normalizeDirectUploadType(ctx, loser, metadata, "image/jpeg", provider.objects[metadata.Name].data); err == nil {
 		t.Fatal("expected metadata failure")
 	}
 	for name := range provider.objects {
@@ -406,7 +407,7 @@ func TestDirectUploadInterruptedCopyIsReclaimed(t *testing.T) {
 				t.Fatal("copy interruption was not reached")
 			}
 		}()
-		_, _ = normalizeDirectUploadType(ctx, store, source, "image/jpeg")
+		_, _ = normalizeDirectUploadType(ctx, store, source, "image/jpeg", provider.objects[source.Name].data)
 	}()
 	for name := range provider.objects {
 		if _, ok := store.rows[name]; !ok {
@@ -641,3 +642,36 @@ func (localOnlyProvider) Get(_ context.Context, name string) ([]byte, string, er
 }
 func (localOnlyProvider) Delete(_ context.Context, name string) error         { return nil }
 func (localOnlyProvider) Exists(_ context.Context, name string) (bool, error) { return false, nil }
+
+func TestCompleteDirectUploadPublishesValidatedSnapshot(t *testing.T) {
+	for _, detected := range []string{"image/png", "image/jpeg"} {
+		t.Run(detected, func(t *testing.T) {
+			provider, store := setupDirectUploadTest(t)
+			ctx := context.Background()
+			source, err := store.CreateFileMetadata(ctx, 1, "snapshot/source.png", "image/png", 4)
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider.objects[source.Name] = fakeObject{data: []byte("good"), contentType: "image/png"}
+			winner, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{Name: source.Name, UserId: 1, Validator: func(r io.Reader) (string, error) {
+				validated, err := io.ReadAll(r)
+				if err != nil || string(validated) != "good" {
+					t.Fatalf("validator bytes %q, %v", validated, err)
+				}
+				// Replay the client's still-valid credential between validation and publication.
+				provider.objects[source.Name] = fakeObject{data: []byte("evil"), contentType: "image/png"}
+				return detected, nil
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider.objects[source.Name] = fakeObject{data: []byte("late"), contentType: "image/png"}
+			if winner.Name == source.Name || string(provider.objects[winner.Name].data) != "good" {
+				t.Fatalf("published mutable or unvalidated bytes: %+v", winner)
+			}
+			if store.status[source.Name] != "cleanup" {
+				t.Fatal("source has no cleanup record")
+			}
+		})
+	}
+}

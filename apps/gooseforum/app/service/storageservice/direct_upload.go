@@ -192,46 +192,38 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 		}
 		return nil, err
 	}
+	// Read one bounded snapshot and publish exactly the bytes that were validated.
+	data, err := readUploadSnapshot(ctx, metadata)
+	if err != nil {
+		return nil, err
+	}
+	contentType := metadata.Type
 	if request.Validator != nil {
-		// Validate only a bounded header: the object's full size was already
-		// checked by VerifyUpload (StatObject), so the server never downloads
-		// the whole (up to the upload cap) object during a direct upload
-		// publish. Providers that support range reads are preferred; others
-		// fall back to reading the whole object.
-		headerReader, err := readObjectHeader(ctx, request.Name)
+		contentType, err = request.Validator(bytes.NewReader(data))
 		if err != nil {
+			if errors.Is(err, ErrDirectUploadInvalidObject) {
+				return nil, rollbackDirectUpload(ctx, metadataRepo, request.Name, err)
+			}
 			return nil, err
 		}
-		detectedType, validationErr := request.Validator(headerReader)
-		if validationErr != nil {
-			if errors.Is(validationErr, ErrDirectUploadInvalidObject) {
-				return nil, rollbackDirectUpload(ctx, metadataRepo, request.Name, validationErr)
-			}
-			return nil, validationErr
-		}
-		return normalizeDirectUploadType(ctx, metadataRepo, metadata, detectedType)
 	}
-	return metadataRepo.MarkFileReady(ctx, metadata.Name)
+	return normalizeDirectUploadType(ctx, metadataRepo, metadata, contentType, data)
 }
 
-// normalizeDirectUploadType publishes a verified upload. A type conflict uses a
+// normalizeDirectUploadType publishes a verified snapshot. Every upload uses a
 // unique copy key reserved in metadata before any object write. Failed copies
 // remain pending; a published copy leaves a cleanup row for the old key until
 // its object is deleted. CleanupPending can therefore retry either failure.
-func normalizeDirectUploadType(ctx context.Context, metadataRepo DirectUploadMetadataStore, metadata *FileMetadata, contentType string) (*FileMetadata, error) {
+func normalizeDirectUploadType(ctx context.Context, metadataRepo DirectUploadMetadataStore, metadata *FileMetadata, contentType string, data []byte) (*FileMetadata, error) {
 	ext, ok := imagepolicy.ExtForContentType(contentType)
 	if !ok {
 		return nil, fmt.Errorf("detected content type %q has no canonical extension", contentType)
 	}
-	if declaredType, known := imagepolicy.ContentTypeForFilename(metadata.Name); known && declaredType == contentType {
-		return metadataRepo.MarkFileReady(ctx, metadata.Name)
-	}
-	data, _, err := Current().Get(ctx, metadata.Name)
-	if err != nil {
-		return nil, fmt.Errorf("read direct upload object %q: %w", metadata.Name, err)
-	}
 	// Each attempt owns a different key, so rolling back a losing copy cannot
 	// delete a winner's object. Reserve its cleanup record before writing bytes.
+	if declaredType, known := imagepolicy.ContentTypeForFilename(metadata.Name); known && declaredType == contentType {
+		ext = path.Ext(metadata.Name)
+	}
 	newName := NewUploadName("image"+ext, path.Dir(metadata.Name))
 	if _, err := metadataRepo.CreateFileCopyMetadata(ctx, metadata.UserId, newName, contentType, metadata.Size); err != nil {
 		return nil, fmt.Errorf("reserve renamed direct upload %q: %w", newName, err)
@@ -251,25 +243,22 @@ func normalizeDirectUploadType(ctx context.Context, metadataRepo DirectUploadMet
 	return renamed, nil
 }
 
-// readObjectHeader returns a reader over a bounded prefix of the object. When
-// the provider implements ObjectRangeReader the server only pulls the header
-// bytes; otherwise it falls back to reading the whole object and truncating.
-func readObjectHeader(ctx context.Context, name string) (io.Reader, error) {
+// readUploadSnapshot bounds the download by the declared size, not a second mutable stat.
+func readUploadSnapshot(ctx context.Context, metadata *FileMetadata) ([]byte, error) {
+	var data []byte
+	var err error
 	if rangeReader, ok := Current().(ObjectRangeReader); ok {
-		data, _, err := rangeReader.GetRange(ctx, name, 0, imagepolicy.ImageHeaderSniffBytes)
-		if err != nil {
-			return nil, err
-		}
-		return bytes.NewReader(data), nil
+		data, _, err = rangeReader.GetRange(ctx, metadata.Name, 0, metadata.Size+1)
+	} else {
+		data, _, err = Current().Get(ctx, metadata.Name)
 	}
-	data, _, err := Current().Get(ctx, name)
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > imagepolicy.ImageHeaderSniffBytes {
-		data = data[:imagepolicy.ImageHeaderSniffBytes]
+	if int64(len(data)) != metadata.Size {
+		return nil, ErrDirectUploadInvalidObject
 	}
-	return bytes.NewReader(data), nil
+	return data, nil
 }
 
 // AbortDirectUpload verifies ownership and removes both the object and the
