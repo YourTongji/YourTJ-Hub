@@ -105,9 +105,33 @@ function selectFeature(event: MapLayerMouseEvent) {
   if (feature?.id !== undefined && feature.properties?.campus === true)
     emit('select', String(feature.id))
 }
+function disposeMap() {
+  resize?.disconnect()
+  resize = undefined
+  cancelAnimationFrame(frame)
+  frame = 0
+  mapLabels.value = []
+  const current = map
+  map = undefined
+  try {
+    current?.remove()
+  } catch {
+    // MapLibre remove can throw when its constructor returned before creating a painter.
+    host.value?.replaceChildren()
+    host.value?.classList.remove('maplibregl-map')
+  }
+}
+function failMap() {
+  disposeMap()
+  if (alive) emit('failure')
+}
 onMounted(() => {
   if (!host.value) return
   try {
+    // Detect unavailable WebGL2 before MapLibre can return a partially initialized map.
+    const probe = document.createElement('canvas').getContext('webgl2', { antialias: true })
+    if (!probe) { failMap(); return }
+    probe.getExtension('WEBGL_lose_context')?.loseContext()
     // A same-origin worker preserves the forum's script-src 'self' CSP.
     maplibregl.setWorkerUrl(workerUrl)
     map = new maplibregl.Map({
@@ -126,9 +150,10 @@ onMounted(() => {
       attributionControl: false,
       canvasContextAttributes: { antialias: true },
     })
+    if (!map.getCanvas().getContext('webgl2')) { failMap(); return }
     reset(0)
     map.on('load', () => {
-      if (!alive) return
+      if (!alive || !map) return
       for (const layer of selectableLayers) {
         map!.on('click', layer, selectFeature)
         map!.on('mouseenter', layer, () => {
@@ -143,9 +168,7 @@ onMounted(() => {
       updateLocation()
       emit('ready')
     })
-    map.on('error', () => {
-      if (alive) emit('failure')
-    })
+    map.on('error', failMap)
     map.on('move', queueLabels)
     let narrow = window.innerWidth < 700
     resize = new ResizeObserver(() => {
@@ -160,7 +183,7 @@ onMounted(() => {
     })
     resize.observe(host.value)
   } catch {
-    emit('failure')
+    failMap()
   }
 })
 watch(() => props.selected, selectedChanged)
@@ -244,10 +267,7 @@ function north() {
 defineExpose({ reset, zoom, north, focusLocation })
 onBeforeUnmount(() => {
   alive = false
-  resize?.disconnect()
-  cancelAnimationFrame(frame)
-  map?.remove()
-  map = undefined
+  disposeMap()
 })
 </script>
 
