@@ -81,6 +81,10 @@ The account decoration catalog, anonymous identity state and owner appeal-histor
 require a session but have no writable-account guard; GET bypasses cookie CSRF checks,
 so these reads do not declare HTTP `403`. Admin decoration GETs retain `403` because
 their account and administration permission guards can reject the request.
+Author appeal GET/POST ownership or missing-target/version failures use HTTP `200`
+with `content.appeal.notFound`, hiding whether another author's target exists.
+The moderator endpoints retain their `permission.denied` examples for missing
+moderator-access permission; scoped review failures have their own moderation codes.
 
 Chat send and read mutations commit message rows, conversation summaries and unread counters in one
 database transaction. `POST /api/forum/chat/mark-visible` accepts 1–100 explicit incoming message IDs;

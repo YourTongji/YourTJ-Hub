@@ -33,8 +33,8 @@ contentAppeals:
             examples:
               success:
                 externalValue: ../fixtures/moderation-appeal-history.json
-              permissionDenied:
-                externalValue: ../fixtures/permission-denied.json
+              notFound:
+                externalValue: ../fixtures/content-appeal-not-found.json
       '401':
         description: Missing, invalid or revoked access token.
         content:
@@ -75,8 +75,8 @@ contentAppeals:
             examples:
               success:
                 externalValue: ../fixtures/moderation-appeal-submit.json
-              permissionDenied:
-                externalValue: ../fixtures/permission-denied.json
+              notFound:
+                externalValue: ../fixtures/content-appeal-not-found.json
       '401':
         description: Missing, invalid or revoked access token.
         content:
