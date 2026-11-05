@@ -70,14 +70,21 @@ class _AuthImeDartTimer implements AuthImeTimer {
 }
 
 class LoginPage extends ConsumerStatefulWidget {
-  const LoginPage({super.key, this.authController, this.authTokenStorage})
-    : assert(authController == null || authTokenStorage != null);
+  const LoginPage({
+    super.key,
+    this.authController,
+    this.authTokenStorage,
+    this.passkeyAvailability,
+  }) : assert(authController == null || authTokenStorage != null);
 
   /// 测试注入:默认 null 时页面内部构造 [AuthController]。
   final AuthController? authController;
 
   /// 测试注入:认证成功令牌的内存暂存区,必须与 [authController] 使用同一实例。
   final TokenStorage? authTokenStorage;
+
+  /// Tests can supply a deterministic capability probe without platform credentials.
+  final Future<bool> Function()? passkeyAvailability;
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
@@ -106,6 +113,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
   bool _oidcBusy = false;
   bool _passkeyEnabled = false;
   bool _passkeyBusy = false;
+  bool _passkeyStatusLoading = false;
+  bool _passkeyStatusFailed = false;
   // Restores focus to the "more sign-in methods" control after its sheet
   // closes without a choice.
   final FocusNode _moreMethodsFocusNode = FocusNode();
@@ -617,6 +626,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
   }
 
   Future<bool> _passkeyAvailableOnDevice() {
+    final probe = widget.passkeyAvailability;
+    if (probe != null) return probe();
     final availability = PasskeyAuthenticator().getAvailability();
     return resolvePasskeyAvailability(
       isWeb: kIsWeb,
@@ -628,12 +639,26 @@ class _LoginPageState extends ConsumerState<LoginPage>
   }
 
   Future<void> _loadPasskeyStatus() async {
+    if (_passkeyStatusLoading) return;
+    setState(() => _passkeyStatusLoading = true);
     try {
       final status = await AuthRepository(_authClient).getPasskeyStatus();
       final available = status.enabled && await _passkeyAvailableOnDevice();
-      if (mounted) setState(() => _passkeyEnabled = available);
+      if (mounted) {
+        setState(() {
+          _passkeyEnabled = available;
+          _passkeyStatusFailed = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _passkeyEnabled = false);
+      if (mounted) {
+        setState(() {
+          _passkeyEnabled = false;
+          _passkeyStatusFailed = true;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _passkeyStatusLoading = false);
     }
   }
 
@@ -1609,6 +1634,26 @@ class _LoginPageState extends ConsumerState<LoginPage>
                         _finishingAuthentication
                     ? null
                     : _loginWithPasskey,
+              ),
+            ],
+            if (_mode == _AuthMode.login && _passkeyStatusFailed) ...<Widget>[
+              const SizedBox(height: 10),
+              GfStatusMessage(message: l10n.authPasskeyAvailabilityFailed),
+              TextButton(
+                key: const Key('login-passkey-status-retry'),
+                onPressed:
+                    _passkeyStatusLoading ||
+                        _authController.busy ||
+                        _oidcBusy ||
+                        _finishingAuthentication
+                    ? null
+                    : _loadPasskeyStatus,
+                child: _passkeyStatusLoading
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : GfText(l10n.commonRetry),
               ),
             ],
             if (_mode != _AuthMode.forgotPassword) _buildSignInMethods(l10n),

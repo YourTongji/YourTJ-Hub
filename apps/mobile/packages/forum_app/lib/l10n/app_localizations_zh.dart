@@ -3953,6 +3953,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authPasskeyUnavailable => '此设备暂不支持通行密钥。';
 
   @override
+  String get authPasskeyAvailabilityFailed => '暂时无法检查通行密钥是否可用，请重试或使用密码登录。';
+
+  @override
   String get authPasskeyFailed => '通行密钥登录失败，请重试或使用密码登录。';
 
   @override

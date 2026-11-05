@@ -7464,6 +7464,12 @@ abstract class AppLocalizations {
   /// **'Passkeys are not available on this device.'**
   String get authPasskeyUnavailable;
 
+  /// No description provided for @authPasskeyAvailabilityFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check passkey availability. Retry or use your password.'**
+  String get authPasskeyAvailabilityFailed;
+
   /// No description provided for @authPasskeyFailed.
   ///
   /// In en, this message translates to:
