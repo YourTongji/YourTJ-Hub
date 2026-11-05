@@ -21,8 +21,8 @@ const status: CampusStatus = { enabled: true, binding: { maskedId: '***01', revi
 function dataset(key: CampusDatasetKey): CampusDataset {
   return { key, status: 'ready', updatedAt: '2026-09-19T00:00:00Z', metrics: [], columns: [], rows: [], events: [], series: [] }
 }
-function setup(candidate: CampusStatus['candidate'] = null, userId = 42, revision = 'first', locale = 'zh') {
-  api.status.mockResolvedValue({ ...status, binding: {...status.binding!, revision}, candidate })
+function setup(candidate: CampusStatus['candidate'] = null, userId = 42, revision = 'first', locale = 'zh', needsAuthorization = false) {
+  api.status.mockResolvedValue({ ...status, binding: {...status.binding!, revision, needsAuthorization}, candidate })
   api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({ ...dataset(key),
     metrics: key === 'summary' ? [{ label: '综合 GPA', value: '3.72', unit: '' }] : key === 'profile' ? [{ label: '姓名', value: '测试同学', unit: '' }] : key === 'calendar' ? [{ label: '教学周', value: '3', unit: '周' }] : [],
     messages: key === 'messages' ? Array.from({ length: 7 }, (_, i) => ({ id: String(i + 1), title: `校园通知 ${i + 1}`, publisher: '学校', publishedAt: '2026-09-19T10:00:00+08:00' })) : undefined,
@@ -470,3 +470,18 @@ for (const lateResult of ['success', 'failure']) {
   } finally { wrapper.unmount(); vi.useRealTimers() }
  })
 }
+
+test('expired school authorization never presents unloaded datasets as loading', async () => {
+ const wrapper = setup(null, 42, 'first', 'zh', true)
+ try {
+  await flushPromises()
+  for (const tab of ['校园概览','我的课表','学业记录','校园消息']) {
+   await clickTab(wrapper,tab)
+   expect(wrapper.text()).not.toContain('正在读取')
+   expect(wrapper.findAll('.animate-spin')).toHaveLength(0)
+   expect(wrapper.text()).toContain('学校授权需要更新')
+  }
+  expect(api.dataset).not.toHaveBeenCalled()
+  expect(api.start).not.toHaveBeenCalled()
+ } finally { wrapper.unmount() }
+})

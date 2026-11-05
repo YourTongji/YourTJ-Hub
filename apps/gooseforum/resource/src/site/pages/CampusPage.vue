@@ -190,7 +190,13 @@ function activeKeys(): CampusDatasetKey[] {
   return [tab.value as CampusDatasetKey]
 }
 async function loadData(targets = activeKeys(), force = false) {
-  if (!status.value?.binding || status.value.binding.needsAuthorization) return
+  if (!status.value?.binding) return
+  if (status.value.binding.needsAuthorization) {
+    for (const key of targets) {
+      if (!data.value[key]) failures.value[key] = t('campus.authorizationHint')
+    }
+    return
+  }
   const requested = targets.filter(key => !pendingKeys.has(key) && (force || !data.value[key] || (key === 'today' && !todayIsCurrent.value)))
   if (!requested.length) return
   const epoch = generation
