@@ -750,3 +750,7 @@ A successful reset advances the version, preventing reset-link replay. Empty-ema
 accounts use their existing signed-in password setup or administrator recovery flow.
 Links issued with the previous unscoped format are rejected; request a new recovery
 email after upgrading, including when an old link was still queued for delivery.
+The upgrade does not rewrite, re-sign or purge queued emails. A queued legacy link
+may still be delivered through the ordinary mail path, but the reset endpoint rejects
+it. Requesting a new email is the recovery path; no queue migration or signing-key
+rotation is required for this change.

@@ -38,7 +38,7 @@ func TestPasswordResetRequiresAccountEmail(t *testing.T) {
 	}{{12, ""}, {12, "  "}, {0, "reset@example.com"}} {
 		token, err := GeneratePasswordResetToken(tc.id, tc.email, 3)
 		if err != nil {
-			continue
+			t.Fatalf("GeneratePasswordResetToken(user=%d, email=%q): %v", tc.id, tc.email, err)
 		}
 		if _, err := ParsePasswordResetToken(token); err == nil {
 			t.Errorf("accepted reset for user %d email %q", tc.id, tc.email)
