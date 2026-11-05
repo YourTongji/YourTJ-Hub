@@ -42,6 +42,7 @@ let map: maplibregl.Map | undefined
 let resize: ResizeObserver | undefined
 let frame = 0
 let alive = true
+let loaded = false
 const featured = [
   '同济大学图书馆',
   '三好坞餐厅',
@@ -154,6 +155,7 @@ onMounted(() => {
     reset(0)
     map.on('load', () => {
       if (!alive || !map) return
+      loaded = true
       for (const layer of selectableLayers) {
         map!.on('click', layer, selectFeature)
         map!.on('mouseenter', layer, () => {
@@ -168,7 +170,10 @@ onMounted(() => {
       updateLocation()
       emit('ready')
     })
-    map.on('error', failMap)
+    map.on('error', () => {
+      // Tile/source errors after load can recover without discarding a working map.
+      if (!loaded) failMap()
+    })
     map.on('move', queueLabels)
     let narrow = window.innerWidth < 700
     resize = new ResizeObserver(() => {

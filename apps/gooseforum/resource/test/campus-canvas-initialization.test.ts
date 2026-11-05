@@ -15,6 +15,8 @@ vi.mock('maplibre-gl', () => ({
   remove = state.remove
   resize = state.resize
   fitBounds = state.fitBounds
+  isStyleLoaded() { return false }
+  getSource() { return undefined }
  },
 }))
 let observe: ReturnType<typeof vi.fn>
@@ -64,5 +66,20 @@ test('an initialization error disposes the map and suppresses a late load', () =
  expect(wrapper.emitted('ready')).toBeUndefined()
  expect(state.remove).toHaveBeenCalledOnce()
  wrapper.unmount()
+ expect(state.remove).toHaveBeenCalledOnce()
+})
+
+test('a recoverable resource error after load preserves the working map', () => {
+ vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ getExtension: () => null } as unknown as WebGL2RenderingContext)
+ const wrapper = open()
+ try {
+  const load = state.on.mock.calls.find(([name]) => name === 'load')![1]
+  const error = state.on.mock.calls.find(([name]) => name === 'error')![1]
+  load()
+  error({ error: new Error('a tile request failed') })
+  expect(wrapper.emitted('ready')).toHaveLength(1)
+  expect(wrapper.emitted('failure')).toBeUndefined()
+  expect(state.remove).not.toHaveBeenCalled()
+ } finally { wrapper.unmount() }
  expect(state.remove).toHaveBeenCalledOnce()
 })
