@@ -33,7 +33,6 @@ import (
 	xhtml "golang.org/x/net/html"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/net/publicsuffix"
-	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
 
@@ -90,12 +89,24 @@ type Fetcher interface {
 }
 
 type Resolver struct {
-	fetcher Fetcher
-	origins func() []string
-	campus  func() CampusPolicy
-	now     func() time.Time
-	cache   *ttlcache.Cache[string, Preview]
-	group   singleflight.Group
+	fetcher     Fetcher
+	origins     func() []string
+	campus      func() CampusPolicy
+	now         func() time.Time
+	cache       *ttlcache.Cache[string, Preview]
+	flightsMu   sync.Mutex
+	flights     map[string]*previewFlight
+	workTimeout time.Duration
+}
+
+const maxPreviewFlights = 32
+const previewWorkTimeout = 6 * time.Second
+
+type previewFlight struct {
+	done    chan struct{}
+	cancel  context.CancelFunc
+	waiters int
+	preview Preview
 }
 
 func New(fetcher Fetcher, origins func() []string) *Resolver {
@@ -106,10 +117,12 @@ func New(fetcher Fetcher, origins func() []string) *Resolver {
 		origins = func() []string { return nil }
 	}
 	return &Resolver{
-		fetcher: fetcher,
-		origins: origins,
-		campus:  campusPolicyFromConfig,
-		now:     time.Now,
+		fetcher:     fetcher,
+		flights:     make(map[string]*previewFlight),
+		workTimeout: previewWorkTimeout,
+		origins:     origins,
+		campus:      campusPolicyFromConfig,
+		now:         time.Now,
 		cache: ttlcache.New[string, Preview](
 			ttlcache.WithCapacity[string, Preview](1024),
 			ttlcache.WithDisableTouchOnHit[string, Preview](),
@@ -177,35 +190,67 @@ func (r *Resolver) Resolve(ctx context.Context, viewerID uint64, rawURL string) 
 		return preview
 	}
 
-	result := r.group.DoChan(key, func() (any, error) {
-		if item := r.cache.Get(key); item != nil {
-			preview := item.Value()
-			r.log(preview, key, "hit", previewProvider(preview), 0)
-			return preview, nil
+	if ctx.Err() != nil {
+		base.Status = StatusTimeout
+		return base
+	}
+	r.flightsMu.Lock()
+	flight := r.flights[key]
+	if flight == nil {
+		if len(r.flights) >= maxPreviewFlights {
+			r.flightsMu.Unlock()
+			base.Status = StatusUnavailable
+			return base
 		}
-		started := time.Now()
-		// A singleflight call is shared by unrelated HTTP requests. Let one
-		// caller stop waiting without cancelling the bounded fetch for every
-		// other waiter or poisoning the negative cache with its cancellation.
-		preview := r.resolveExternal(context.WithoutCancel(ctx), keyURL, base)
-		r.cache.Set(key, preview, ttlFor(preview.Status))
-		r.log(preview, key, "miss", previewProvider(preview), time.Since(started))
-		return preview, nil
-	})
+		workContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.workTimeout)
+		flight = &previewFlight{done: make(chan struct{}), cancel: cancel}
+		r.flights[key] = flight
+		go r.runFlight(workContext, key, keyURL, base, flight)
+	}
+	flight.waiters++
+	r.flightsMu.Unlock()
+	defer func() {
+		r.flightsMu.Lock()
+		flight.waiters--
+		if flight.waiters == 0 {
+			flight.cancel()
+		}
+		r.flightsMu.Unlock()
+	}()
 	select {
 	case <-ctx.Done():
 		base.Status = StatusTimeout
 		return base
-	case resolved := <-result:
-		if resolved.Err != nil {
-			base.Status = StatusUnavailable
-			return base
-		}
-		preview := resolved.Val.(Preview)
+	case <-flight.done:
+		preview := flight.preview
 		preview.RequestedURL = rawURL
 		preview.URL = rawURL
 		return preview
 	}
+}
+
+func (r *Resolver) runFlight(ctx context.Context, key string, target url.URL, base Preview, flight *previewFlight) {
+	defer flight.cancel()
+	started := time.Now()
+	preview := base
+	if cached := r.cache.Get(key); cached != nil {
+		preview = cached.Value()
+	} else {
+		preview = r.resolveExternal(ctx, target, base)
+		if ctx.Err() == nil {
+			r.cache.Set(key, preview, ttlFor(preview.Status))
+		}
+		r.log(preview, key, "miss", previewProvider(preview), time.Since(started))
+	}
+	if ctx.Err() != nil {
+		preview = base
+		preview.Status = StatusTimeout
+	}
+	r.flightsMu.Lock()
+	flight.preview = preview
+	delete(r.flights, key)
+	close(flight.done)
+	r.flightsMu.Unlock()
 }
 
 // campusCard 用本地派生字段渲染校园网链接。刻意不进缓存、不走单飞：它既不发

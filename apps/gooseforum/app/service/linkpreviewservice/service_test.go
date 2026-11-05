@@ -3,6 +3,7 @@ package linkpreviewservice
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"sync"
 	"sync/atomic"
@@ -192,6 +193,19 @@ func TestResolveCallerCancellationDoesNotPoisonSharedFetch(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	go func() { second <- resolver.Resolve(t.Context(), 0, "https://example.com/") }()
+	deadline := time.Now().Add(time.Second)
+	for {
+		resolver.flightsMu.Lock()
+		joined := resolver.flights["https://example.com/"] != nil && resolver.flights["https://example.com/"].waiters == 2
+		resolver.flightsMu.Unlock()
+		if joined {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("second waiter did not join")
+		}
+		time.Sleep(time.Millisecond)
+	}
 	cancelFirst()
 	if got := <-first; got.Status != StatusTimeout {
 		t.Fatalf("cancelled caller status = %q, want %q", got.Status, StatusTimeout)
@@ -596,5 +610,71 @@ func TestResolveInternalWikiAndUserProfile(t *testing.T) {
 	}
 	if got := resolver.Resolve(t.Context(), 0, "/u/7599"); got.Status != StatusPermissionDenied {
 		t.Fatalf("missing user status = %q", got.Status)
+	}
+}
+
+type contextProbeFetcher struct {
+	started chan context.Context
+	stopped chan struct{}
+}
+
+func (f *contextProbeFetcher) Fetch(ctx context.Context, _ string) (safefetch.Result, error) {
+	f.started <- ctx
+	<-ctx.Done()
+	f.stopped <- struct{}{}
+	return safefetch.Result{}, ctx.Err()
+}
+func (f *contextProbeFetcher) FetchJSON(ctx context.Context, raw string) (safefetch.Result, error) {
+	return f.Fetch(ctx, raw)
+}
+
+func TestResolveSharedWorkHasDeadline(t *testing.T) {
+	f := &contextProbeFetcher{make(chan context.Context, 1), make(chan struct{}, 1)}
+	r := New(f, nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan Preview, 1)
+	go func() { done <- r.Resolve(ctx, 0, "https://example.com/deadline") }()
+	work := <-f.started
+	if _, ok := work.Deadline(); !ok {
+		t.Error("shared work has no deadline covering queue wait")
+	}
+	cancel()
+	<-done
+	select {
+	case <-f.stopped:
+	case <-time.After(time.Second):
+		t.Error("last waiter cancellation left background work running")
+	}
+}
+
+func TestResolveSharedBudgetExpires(t *testing.T) {
+	f := &contextProbeFetcher{make(chan context.Context, 1), make(chan struct{}, 1)}
+	r := New(f, nil)
+	r.workTimeout = 20 * time.Millisecond
+	if got := r.Resolve(t.Context(), 0, "https://example.com/budget"); got.Status != StatusTimeout {
+		t.Fatalf("budget result=%s", got.Status)
+	}
+	<-f.stopped
+}
+
+func TestResolveBoundsDistinctBackgroundWork(t *testing.T) {
+	f := &contextProbeFetcher{make(chan context.Context, maxPreviewFlights), make(chan struct{}, maxPreviewFlights)}
+	r := New(f, nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan Preview, maxPreviewFlights)
+	for i := 0; i < maxPreviewFlights; i++ {
+		go func() { done <- r.Resolve(ctx, 0, fmt.Sprintf("https://example.com/%d", i)) }()
+		<-f.started
+	}
+	overload := r.Resolve(t.Context(), 0, "https://example.com/overload")
+	if overload.Status != StatusUnavailable {
+		t.Fatalf("overload status=%s", overload.Status)
+	}
+	cancel()
+	for i := 0; i < maxPreviewFlights; i++ {
+		<-done
+		<-f.stopped
 	}
 }
