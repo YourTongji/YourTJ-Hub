@@ -44,15 +44,6 @@ contentAppeals:
             examples:
               failure:
                 externalValue: ../fixtures/auth-required.json
-      '403':
-        description: Frozen or unactivated account for writes, or cookie CSRF rejection.
-        content:
-          application/json:
-            schema:
-              $ref: ../components/schemas.yaml#/ApiFailure
-            examples:
-              failure:
-                externalValue: ../fixtures/csrf-rejected.json
   post:
     tags: [Forum]
     summary: Appeal the latest rejected topic or reply revision

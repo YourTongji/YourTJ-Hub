@@ -76,6 +76,12 @@ HTTP `401`, `403`, and `429` with the same failure envelope. Topic write's curre
 wrapper reports malformed or incomplete JSON as
 an HTTP `200` validation failure, not a guaranteed `400`.
 
+Guard failures are declared per operation, not copied from a neighboring write.
+The account decoration catalog, anonymous identity state and owner appeal-history GETs
+require a session but have no writable-account guard; GET bypasses cookie CSRF checks,
+so these reads do not declare HTTP `403`. Admin decoration GETs retain `403` because
+their account and administration permission guards can reject the request.
+
 Chat send and read mutations commit message rows, conversation summaries and unread counters in one
 database transaction. `POST /api/forum/chat/mark-visible` accepts 1–100 explicit incoming message IDs;
 it validates the entire batch before changing any state, acknowledges duplicate/already-read IDs

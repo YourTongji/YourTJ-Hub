@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Read the account decoration catalog, entitlements and effective equipment
-         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         * @description Read the authenticated account's decoration catalog, entitlements and equipment. Frozen and pending accounts may read. This GET has no writable-account or administration guard and is exempt from cookie CSRF checks. Business failures use HTTP 200; inspect code. Catalog availability does not confer ownership.
          */
         get: operations["myDecorations"];
         put?: never;
@@ -542,7 +542,7 @@ export interface paths {
         };
         /**
          * getAnonymousIdentityState
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads share the configurable interaction rate limit with persona writes. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads have no writable-account guard and GET is exempt from cookie CSRF checks. State reads share the configurable interaction rate limit with persona writes. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         get: operations["getAnonymousIdentityState"];
         put?: never;
@@ -17183,15 +17183,6 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen/pending account, or missing administration permission. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
         };
     };
     equipDecorations: {
@@ -18254,15 +18245,6 @@ export interface operations {
             };
             /** @description Authentication required */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Frozen account, write eligibility or CSRF rejected */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -21476,15 +21458,6 @@ export interface operations {
             };
             /** @description Missing, invalid or revoked access token. */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };
