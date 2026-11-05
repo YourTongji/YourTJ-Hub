@@ -232,7 +232,7 @@ func (r *Resolver) Resolve(ctx context.Context, viewerID uint64, rawURL string) 
 func (r *Resolver) runFlight(ctx context.Context, key string, target url.URL, base Preview, flight *previewFlight) {
 	defer flight.cancel()
 	started := time.Now()
-	preview := base
+	var preview Preview
 	if cached := r.cache.Get(key); cached != nil {
 		preview = cached.Value()
 	} else {
