@@ -135,3 +135,7 @@ Web、API 与 Flutter 课程／排课页面为 `Current`；移动端已通过 Ap
 接口结构以 [OpenAPI](../../packages/api-contract/openapi.yaml)、生成类型与路由契约测试为准；
 课程与排课规则分别由 `courseservice`、`pkservice` 和各端页面测试维护。
 [测试指南](../development/testing.md)说明各检查的覆盖范围，本地子集通过不代表生产数据或全平台验收通过。
+
+`Current`: Web scheduler save/sync feedback is shown immediately on the current
+page. Guests saving to the cloud receive a sign-in explanation while their local
+plan remains available. Navigation-only queued notices retain their existing flow.

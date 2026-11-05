@@ -24,7 +24,7 @@ import ScheduleModalLoading from '@/site/components/schedule/ScheduleModalLoadin
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { scheduleSync, startScheduleSync, stopScheduleSync } from '@/site/composables/useScheduleSync'
 import { getPkLatestUpdate, syncPkCourseInfo } from '@/runtime/pk-api'
-import { queueFlashMessage } from '@/runtime/flash-message'
+import { useFlashMessages } from '@/runtime/flash-message'
 import { codesToCsvRows, codesToXlsRows, downloadCsv, downloadXls, jsonToCsv, xlsRowsToXml } from '@/site/utils/pkExport'
 import { fetchPage } from '@/runtime/router'
 import { createSectionTimesRefresher } from '@/site/utils/sectionTimesRefresh'
@@ -105,9 +105,7 @@ const replacingCourse = ref<PkCourseOnTable | null>(null)
 
 const syncing = ref(false)
 
-function flash(message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') {
-  queueFlashMessage(message, type)
-}
+const { push: flash } = useFlashMessages()
 
 /** 方案从列表移入独立恢复草稿后显示非阻塞提示。 */
 watch(scheduleSync.notice, (message) => {
@@ -130,6 +128,10 @@ watch(scheduleSync.mergeBlocked, (blocked) => {
 
 /** 手动保存（「保存课表」按钮）：立即上传本地方案到云端。 */
 async function saveTimetableNow() {
+  if (!pageProps.layout.viewer?.isAuthenticated) {
+    flash(t('schedule.syncLoginRequired'), 'warning')
+    return
+  }
   const adoptPreviousOwner = scheduleSync.needsOwnerConfirmation()
   if (adoptPreviousOwner && !window.confirm(t('planSync.adoptHint'))) return
   const ok = await scheduleSync.saveNow(adoptPreviousOwner)

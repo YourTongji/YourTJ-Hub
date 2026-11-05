@@ -1926,6 +1926,7 @@ export default {
     syncSuccess: 'Synchronisiert',
     // ---- Cloud-Sync (#573: immer hochladen, Auto-Wiederherstellung, manuelles Speichern) ----
     syncSaved: 'Stundenplan gespeichert und mit der Cloud synchronisiert',
+    syncLoginRequired: 'Melde dich an, um deinen Stundenplan in der Cloud zu speichern. Der lokale Plan bleibt erhalten.',
     syncSaveFailed: 'Speichern fehlgeschlagen. Netzwerk prüfen und erneut versuchen',
     syncAdoptPreviousOwner: 'Diese lokalen Pläne gehören zum vorherigen Konto. Im aktuell angemeldeten Konto speichern?',
     syncMergeLimit: 'Die zusammengeführten Pläne überschreiten das Speicherlimit. Lokale Änderungen bleiben erhalten. Anzahl oder Größe der Pläne reduzieren und erneut versuchen.',
