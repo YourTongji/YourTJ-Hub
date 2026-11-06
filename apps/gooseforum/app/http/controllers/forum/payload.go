@@ -186,14 +186,15 @@ type ThemePayload struct {
 }
 
 type UnreadStatusPayload struct {
-	Notifications          bool   `json:"notifications"`
-	Messages               bool   `json:"messages"`
-	ModerationReports      bool   `json:"moderationReports"`
-	LatestNotificationType string `json:"latestNotificationType,omitempty"`
-	LatestUnreadId         uint64 `json:"latestUnreadId,omitempty"`
-	NotificationCount      *int64 `json:"notificationCount,omitempty"`
-	MessageCount           *int64 `json:"messageCount,omitempty"`
-	BadgeStyle             string `json:"badgeStyle"`
+	Notifications          bool     `json:"notifications"`
+	Messages               bool     `json:"messages"`
+	ModerationReports      bool     `json:"moderationReports"`
+	LatestNotificationType string   `json:"latestNotificationType,omitempty"`
+	LatestUnreadId         uint64   `json:"latestUnreadId,omitempty"`
+	NotificationCount      *int64   `json:"notificationCount,omitempty"`
+	MessageCount           *int64   `json:"messageCount,omitempty"`
+	BadgeStyle             string   `json:"badgeStyle"`
+	BadgeCategories        []string `json:"badgeCategories"`
 }
 
 type SitePayload struct {
@@ -939,6 +940,7 @@ func buildUnreadStatus(userID uint64) UnreadStatusPayload {
 		NotificationCount:      status.NotificationCount,
 		MessageCount:           status.MessageCount,
 		BadgeStyle:             status.BadgeStyle,
+		BadgeCategories:        status.BadgeCategories,
 	}
 }
 

@@ -93,3 +93,63 @@ test('an old account response and cache cannot replace the next account snapshot
   const cached = JSON.parse(localStorage.getItem('goose:unread-status:2048')!)
   expect(cached.data.notifications).toBe(false)
 })
+
+
+test('category filtering saves independently, refreshes counts, and keeps browser delivery', async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(response({ badgeStyle: 'dot', badgeCategories: ['replies'] }))
+    .mockResolvedValue(response({ ...initial, notifications: false, notificationCount: 0, latestUnreadId: 22, badgeStyle: 'dot', badgeCategories: ['replies'] }))
+  vi.stubGlobal('fetch', fetch)
+  status.startPolling({ ...initial, badgeStyle: 'dot' }, 1024)
+  expect(status.badgeCategories.value).toHaveLength(5)
+  expect(await status.updateBadgeCategories(['replies'])).toBe(true)
+  await flushPromises()
+  expect(JSON.parse(fetch.mock.calls[0]![1]!.body)).toEqual({ badgeCategories: ['replies'] })
+  expect(status.notificationCount.value).toBe(0)
+  expect(status.badgeStyle.value).toBe('dot')
+  const { maybeNotifyUnread } = await import('../src/runtime/browser-notification')
+  expect(maybeNotifyUnread).toHaveBeenLastCalledWith(true, true, '', 22)
+})
+
+test('category save failure restores selection and account switching drops old saves', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
+  status.startPolling(initial, 1024)
+  expect(await status.updateBadgeCategories([])).toBe(false)
+  expect(status.badgeCategories.value).toHaveLength(5)
+  let finish!: (value: unknown) => void
+  vi.stubGlobal('fetch', vi.fn(() => new Promise(resolve => { finish = resolve })))
+  const save = status.updateBadgeCategories([])
+  status.startPolling({ ...initial, badgeCategories: ['likes'] }, 2048)
+  finish(response({badgeStyle: 'number', badgeCategories: []}))
+  expect(await save).toBe(false)
+  expect(status.badgeCategories.value).toEqual(['likes'])
+})
+
+
+test('category save fences a pre-save poll and starts a fresh filtered snapshot', async () => {
+  let finishOld!: (value: unknown) => void
+  const fetch = vi.fn().mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve }))
+    .mockResolvedValueOnce(response({ badgeStyle: 'number', badgeCategories: ['replies'] }))
+    .mockResolvedValue(response({ ...initial, notifications: false, notificationCount: 0, latestNotificationType: 'comment', latestUnreadId: 22, badgeCategories: ['replies'] }))
+  vi.stubGlobal('fetch', fetch)
+  status.startPolling(initial, 1024)
+  const oldPoll = status.refresh(true)
+  expect(await status.updateBadgeCategories(['replies'])).toBe(true)
+  await flushPromises()
+  expect(status.notifications.value).toBe(false)
+  expect(status.notificationCount.value).toBe(0)
+  expect(status.notificationMessage.value).toBe((await import('../src/runtime/i18n')).i18n.global.t('notifications.noUnread'))
+  finishOld(response(initial))
+  await oldPoll
+  expect(status.notifications.value).toBe(false)
+  expect(status.notificationCount.value).toBe(0)
+  expect(fetch).toHaveBeenCalledTimes(3)
+})
+
+
+test('legacy unread HTTP responses without IDs still trigger browser delivery', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ notifications: true, messages: false })))
+  status.startPolling({ notifications: false, messages: false }, 1024)
+  await status.refresh(true)
+  const { maybeNotifyUnread } = await import('../src/runtime/browser-notification')
+  expect(maybeNotifyUnread).toHaveBeenLastCalledWith(false, true, '', 0)
+})

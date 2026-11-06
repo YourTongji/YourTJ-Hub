@@ -1669,5 +1669,7 @@
   "unreadStyleNumbers": "未読件数を表示",
   "unreadStyleHint": "オフにすると点のみを表示します。このアカウントの Web と App で同期し、既読状態やプッシュ通知は変更しません。",
   "unreadStyleSaving": "表示方法を保存中…",
-  "previewBuildPending": "新しい dev ビルドを作成中です。この端末では現在のビルドが最新の利用可能な開発版です。"
+  "previewBuildPending": "新しい dev ビルドを作成中です。この端末では現在のビルドが最新の利用可能な開発版です。",
+"unreadBadgeCategoriesTitle": "バッジに含める通知",
+"unreadBadgeCategoriesHint": "選択した種類のみ通知バッジに含めます。直接 @ を含む返信は「メンション」に分類されます。既読状態、プッシュ通知、個別メッセージのバッジは変わりません。"
 }

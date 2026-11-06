@@ -16,6 +16,8 @@ func TestUnreadDisplayCountsRetainExistingMembershipAndReadSemantics(t *testing.
 		t.Fatal(err)
 	}
 	owner := users.MakeUser("unread-display", "password123", "unread-display@example.test")
+	pushPreferences := `{"activity":true,"mentionsAndReplies":false}`
+	owner.PushPreferences = &pushPreferences
 	if err := users.Create(owner); err != nil {
 		t.Fatal(err)
 	}
@@ -62,4 +64,16 @@ func TestUnreadDisplayCountsRetainExistingMembershipAndReadSemantics(t *testing.
 	}
 	Invalidate(owner.Id)
 	assertWire(users.UnreadBadgeDot)
+	none := []string{}
+	if _, err := UpdatePreferences(owner.Id, nil, &none); err != nil {
+		t.Fatal(err)
+	}
+	filtered := GetStatus(owner.Id)
+	if filtered.Notifications || *filtered.NotificationCount != 0 || !filtered.Messages || *filtered.MessageCount != 11 || filtered.LatestUnreadId == 0 {
+		t.Fatalf("category filter crossed into private messages or delivery signals: %+v", filtered)
+	}
+	stored, err := users.Get(owner.Id)
+	if err != nil || stored.PushPreferences == nil || *stored.PushPreferences != pushPreferences {
+		t.Fatal("category update changed push preferences")
+	}
 }

@@ -668,7 +668,11 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   thresholds, keyboard overlays and lifecycle behavior still require device validation.
 - `Current`: the authenticated Flutter shell keeps one chat/notification/unread event connection only
   while foregrounded. The server sends an immediate resync instruction and owner-scoped change hints;
-  the app reloads actual messages, notification lists and unread badges through REST. Reconnects and
+  the app reloads actual messages, notification lists and unread badges through REST.
+  Notification settings include account-synced badge categories (replies, mentions, likes, following,
+  system), defaulting to all and allowing none, independently of number/dot style and push consent.
+  Directly mentioned replies belong to mentions. Filtering changes navigation notification counts only;
+  notification lists, read state and private-message badges retain their semantics. Reconnects and
   resumed sessions reconcile again, and a failed or unsupported stream uses foreground polling until
   delivery recovers. Account changes cancel the previous connection and discard stale unread responses.
   Background push delivery is not provided by this stream.

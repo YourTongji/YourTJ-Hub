@@ -2,8 +2,8 @@ preferences:
   get:
     operationId: getNotificationPreferences
     tags: [Forum]
-    summary: Read the caller's account-wide unread indicator style
-    description: Display preference only; independent of notification delivery and read state.
+    summary: Read the caller's account-wide unread indicator preferences
+    description: Display preferences only; independent of notification delivery and read state. Categories filter in-app notification badges, not the notification list or private-message badges.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -31,13 +31,14 @@ preferences:
   put:
     operationId: updateNotificationPreferences
     tags: [Forum]
-    summary: Set the caller's account-wide unread indicator style
+    summary: Set the caller's account-wide unread indicator preferences
     description: |
-      Changes presentation only; counts, messages, read state and push consent remain unchanged.
-      Applies only to the caller, with last committed write winning across devices. Pending email
+      Changes display only: badgeCategories filters notification badge flags/counts, not stored unread facts, notification lists, messages or push consent.
+      Category semantics match the notification center: directly mentioned replies are mentions; unknown event types are system.
+      Default categories include replies, mentions, likes, following and system. An empty array disables notification badges.
+      Applies only to the caller, with last committed write winning per supplied field across devices; omitted/null fields are preserved. Pending email
       activation is allowed for this self-service preference; frozen accounts remain blocked.
-      A private existing unread-change hint asks other sessions to refresh. Invalid/missing enum
-      values return HTTP 200 `common.request.invalidParams` without changing the preference.
+      A private existing unread-change hint asks other sessions to refresh. Invalid enums, duplicate categories or an update with no non-null fields return HTTP 200 `common.request.invalidParams` without changing the preference.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -46,7 +47,7 @@ preferences:
       content:
         application/json:
           schema:
-            $ref: '#/value'
+            $ref: '#/update'
     responses:
       '200':
         description: Committed preference, or a legacy validation/storage failure envelope.
@@ -107,13 +108,35 @@ preferences:
                 externalValue: ../fixtures/account-close-rate-limited.json
 value:
   type: object
-  required: [badgeStyle]
+  required: [badgeStyle, badgeCategories]
   properties:
     badgeStyle:
       type: string
       enum: [number, dot]
       description: Numeric unread count (capped by the UI), or a dot with no displayed count.
+    badgeCategories:
+      $ref: '#/categories'
   additionalProperties: false
+categories:
+  type: array
+  uniqueItems: true
+  maxItems: 5
+  items:
+    type: string
+    enum: [replies, mentions, likes, following, system]
+  description: Account-wide notification badge selection. Default all; empty means none. Replies with a direct mention count as mentions.
+update:
+  type: object
+  minProperties: 1
+  additionalProperties: false
+  properties:
+    badgeStyle:
+      type: [string, 'null']
+      enum: [number, dot, null]
+    badgeCategories:
+      anyOf:
+        - $ref: '#/categories'
+        - type: 'null'
 response:
   oneOf:
     - allOf:

@@ -2900,6 +2900,7 @@ mixin _$UnreadStatusPayload {
   bool get notifications => throw _privateConstructorUsedError;
   bool get messages => throw _privateConstructorUsedError;
   String? get badgeStyle => throw _privateConstructorUsedError;
+  List<String>? get badgeCategories => throw _privateConstructorUsedError;
   int? get notificationCount => throw _privateConstructorUsedError;
   int? get messageCount => throw _privateConstructorUsedError;
   bool? get moderationReports => throw _privateConstructorUsedError;
@@ -2927,6 +2928,7 @@ abstract class $UnreadStatusPayloadCopyWith<$Res> {
     bool notifications,
     bool messages,
     String? badgeStyle,
+    List<String>? badgeCategories,
     int? notificationCount,
     int? messageCount,
     bool? moderationReports,
@@ -2953,6 +2955,7 @@ class _$UnreadStatusPayloadCopyWithImpl<$Res, $Val extends UnreadStatusPayload>
     Object? notifications = null,
     Object? messages = null,
     Object? badgeStyle = freezed,
+    Object? badgeCategories = freezed,
     Object? notificationCount = freezed,
     Object? messageCount = freezed,
     Object? moderationReports = freezed,
@@ -2973,6 +2976,10 @@ class _$UnreadStatusPayloadCopyWithImpl<$Res, $Val extends UnreadStatusPayload>
                 ? _value.badgeStyle
                 : badgeStyle // ignore: cast_nullable_to_non_nullable
                       as String?,
+            badgeCategories: freezed == badgeCategories
+                ? _value.badgeCategories
+                : badgeCategories // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
             notificationCount: freezed == notificationCount
                 ? _value.notificationCount
                 : notificationCount // ignore: cast_nullable_to_non_nullable
@@ -3012,6 +3019,7 @@ abstract class _$$UnreadStatusPayloadImplCopyWith<$Res>
     bool notifications,
     bool messages,
     String? badgeStyle,
+    List<String>? badgeCategories,
     int? notificationCount,
     int? messageCount,
     bool? moderationReports,
@@ -3037,6 +3045,7 @@ class __$$UnreadStatusPayloadImplCopyWithImpl<$Res>
     Object? notifications = null,
     Object? messages = null,
     Object? badgeStyle = freezed,
+    Object? badgeCategories = freezed,
     Object? notificationCount = freezed,
     Object? messageCount = freezed,
     Object? moderationReports = freezed,
@@ -3057,6 +3066,10 @@ class __$$UnreadStatusPayloadImplCopyWithImpl<$Res>
             ? _value.badgeStyle
             : badgeStyle // ignore: cast_nullable_to_non_nullable
                   as String?,
+        badgeCategories: freezed == badgeCategories
+            ? _value._badgeCategories
+            : badgeCategories // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
         notificationCount: freezed == notificationCount
             ? _value.notificationCount
             : notificationCount // ignore: cast_nullable_to_non_nullable
@@ -3089,12 +3102,13 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
     required this.notifications,
     required this.messages,
     this.badgeStyle,
+    final List<String>? badgeCategories,
     this.notificationCount,
     this.messageCount,
     this.moderationReports,
     this.latestNotificationType,
     this.latestUnreadId,
-  });
+  }) : _badgeCategories = badgeCategories;
 
   factory _$UnreadStatusPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$UnreadStatusPayloadImplFromJson(json);
@@ -3105,6 +3119,16 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
   final bool messages;
   @override
   final String? badgeStyle;
+  final List<String>? _badgeCategories;
+  @override
+  List<String>? get badgeCategories {
+    final value = _badgeCategories;
+    if (value == null) return null;
+    if (_badgeCategories is EqualUnmodifiableListView) return _badgeCategories;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   final int? notificationCount;
   @override
@@ -3118,7 +3142,7 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
 
   @override
   String toString() {
-    return 'UnreadStatusPayload(notifications: $notifications, messages: $messages, badgeStyle: $badgeStyle, notificationCount: $notificationCount, messageCount: $messageCount, moderationReports: $moderationReports, latestNotificationType: $latestNotificationType, latestUnreadId: $latestUnreadId)';
+    return 'UnreadStatusPayload(notifications: $notifications, messages: $messages, badgeStyle: $badgeStyle, badgeCategories: $badgeCategories, notificationCount: $notificationCount, messageCount: $messageCount, moderationReports: $moderationReports, latestNotificationType: $latestNotificationType, latestUnreadId: $latestUnreadId)';
   }
 
   @override
@@ -3132,6 +3156,10 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
                 other.messages == messages) &&
             (identical(other.badgeStyle, badgeStyle) ||
                 other.badgeStyle == badgeStyle) &&
+            const DeepCollectionEquality().equals(
+              other._badgeCategories,
+              _badgeCategories,
+            ) &&
             (identical(other.notificationCount, notificationCount) ||
                 other.notificationCount == notificationCount) &&
             (identical(other.messageCount, messageCount) ||
@@ -3151,6 +3179,7 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
     notifications,
     messages,
     badgeStyle,
+    const DeepCollectionEquality().hash(_badgeCategories),
     notificationCount,
     messageCount,
     moderationReports,
@@ -3180,6 +3209,7 @@ abstract class _UnreadStatusPayload implements UnreadStatusPayload {
     required final bool notifications,
     required final bool messages,
     final String? badgeStyle,
+    final List<String>? badgeCategories,
     final int? notificationCount,
     final int? messageCount,
     final bool? moderationReports,
@@ -3196,6 +3226,8 @@ abstract class _UnreadStatusPayload implements UnreadStatusPayload {
   bool get messages;
   @override
   String? get badgeStyle;
+  @override
+  List<String>? get badgeCategories;
   @override
   int? get notificationCount;
   @override

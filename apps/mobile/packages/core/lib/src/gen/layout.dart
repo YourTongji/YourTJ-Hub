@@ -161,6 +161,7 @@ abstract class UnreadStatusPayload with _$UnreadStatusPayload {
     required bool notifications,
     required bool messages,
     String? badgeStyle,
+    List<String>? badgeCategories,
     int? notificationCount,
     int? messageCount,
     bool? moderationReports,
