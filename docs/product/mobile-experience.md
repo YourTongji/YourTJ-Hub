@@ -395,12 +395,14 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
   rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
   moment and article labels are localized, and enlarged text allows the title/excerpt to grow.
-  Home's unfiltered stream, in both list and card mode, folds pinned topics into one initially
+  Home's unfiltered stream and latest-reply category filter (in both list and card mode), and the
+  standalone category page (card mode), fold pinned topics into one initially
   collapsed announcement-style line: pin mark, "Pinned" badge, the first pinned title and, with
   several pins, their count. A single pin opens directly; several unfold into one-line titles led by
   a small author avatar (with unread dot and relative time) inside the same strip, each opening its
-  topic. At large text the badge and time yield to the title. Category streams and Following retain
-  the server's ordering.
+  topic. At large text the badge and time yield to the title. Other category sorts and Following
+  retain the server's ordering without a pinned strip. Only topics returned for the selected
+  category are collected; pin weights remain global.
   Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
