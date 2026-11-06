@@ -21,7 +21,9 @@ class HarmonyReleaseTests(unittest.TestCase):
         class BuildReached(Exception):
             pass
 
-        with patch.dict('os.environ', {'MOBILE_VERSION': '1.0.18', 'MOBILE_BUILD_NUMBER': '36',
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.object(build_harmony, 'ROOT', Path(temp)), \
+                patch.dict('os.environ', {'MOBILE_VERSION': '1.0.18', 'MOBILE_BUILD_NUMBER': '36',
                                      'SOURCE_SHA': 'a' * 40, 'HARMONY_PROFILE_BASE64': '',
                                      'DEVECO_SDK_HOME': '/unused/sdk'}), \
                 patch.object(build_harmony, 'validate_profile'), \
