@@ -508,6 +508,23 @@ func RestoreCascadeDeletedByTopicIDWithVisibility(topicID uint64, deletedBy uint
 	return affected
 }
 
+// WindowViewer limits pending replies before pagination without changing deletion placeholders.
+type WindowViewer struct {
+	UserID      uint64
+	CanModerate bool
+}
+
+func windowBuilder(viewer []WindowViewer) *gorm.DB {
+	query := builder()
+	if len(viewer) == 0 || viewer[0].CanModerate {
+		return query
+	}
+	if viewer[0].UserID == 0 {
+		return query.Where("process_status <> ?", ProcessStatusPending)
+	}
+	return query.Where("(process_status <> ? OR user_id = ?)", ProcessStatusPending, viewer[0].UserID)
+}
+
 func GetFirstPageByTopicId(topicId uint64) (entities []*Entity) {
 	builder().
 		Where(queryopt.Eq("topic_id", topicId)).
@@ -534,8 +551,8 @@ func GetNormalByTopicPostNoAfter(topicID uint64, afterPostNo uint64, limit int) 
 	return
 }
 
-func GetByTopicPostNoAfter(topicId uint64, postNo uint64, limit int) (entities []*Entity) {
-	builder().
+func GetByTopicPostNoAfter(topicId uint64, postNo uint64, limit int, viewer ...WindowViewer) (entities []*Entity) {
+	windowBuilder(viewer).
 		Where(queryopt.Eq("topic_id", topicId)).
 		Where(queryopt.Gt("post_no", postNo)).
 		Limit(limit).
@@ -545,8 +562,8 @@ func GetByTopicPostNoAfter(topicId uint64, postNo uint64, limit int) (entities [
 	return
 }
 
-func GetByTopicPostNoBefore(topicId uint64, postNo uint64, limit int) (entities []*Entity) {
-	builder().
+func GetByTopicPostNoBefore(topicId uint64, postNo uint64, limit int, viewer ...WindowViewer) (entities []*Entity) {
+	windowBuilder(viewer).
 		Where(queryopt.Eq("topic_id", topicId)).
 		Where(queryopt.Lt("post_no", postNo)).
 		Limit(limit).
@@ -557,8 +574,8 @@ func GetByTopicPostNoBefore(topicId uint64, postNo uint64, limit int) (entities 
 	return
 }
 
-func GetByTopicPostNoAtOrAfter(topicId uint64, postNo uint64) (entity Entity, ok bool) {
-	err := builder().
+func GetByTopicPostNoAtOrAfter(topicId uint64, postNo uint64, viewer ...WindowViewer) (entity Entity, ok bool) {
+	err := windowBuilder(viewer).
 		Where(queryopt.Eq("topic_id", topicId)).
 		Where(queryopt.Ge("post_no", postNo)).
 		Order(queryopt.Asc("post_no")).
@@ -579,8 +596,8 @@ func GetByTopicPostNoAtOrAfterContext(ctx context.Context, topicID uint64, postN
 	return entity, err == nil
 }
 
-func GetByTopicPostNoAtOrBefore(topicId uint64, postNo uint64) (entity Entity, ok bool) {
-	err := builder().
+func GetByTopicPostNoAtOrBefore(topicId uint64, postNo uint64, viewer ...WindowViewer) (entity Entity, ok bool) {
+	err := windowBuilder(viewer).
 		Where(queryopt.Eq("topic_id", topicId)).
 		Where(queryopt.Le("post_no", postNo)).
 		Order(queryopt.Desc("post_no")).
@@ -612,8 +629,8 @@ func GetMaxPostNoByTopicId(topicId uint64) uint64 {
 	return entity.PostNo
 }
 
-func GetByTopicIdAfter(topicId uint64, id uint64, limit int) (entities []*Entity) {
-	builder().
+func GetByTopicIdAfter(topicId uint64, id uint64, limit int, viewer ...WindowViewer) (entities []*Entity) {
+	windowBuilder(viewer).
 		Where(queryopt.Eq("topic_id", topicId)).
 		Where(queryopt.Gt("id", id)).
 		Limit(limit).
@@ -622,8 +639,8 @@ func GetByTopicIdAfter(topicId uint64, id uint64, limit int) (entities []*Entity
 	return
 }
 
-func GetByTopicIdBefore(topicId uint64, id uint64, limit int) (entities []*Entity) {
-	builder().
+func GetByTopicIdBefore(topicId uint64, id uint64, limit int, viewer ...WindowViewer) (entities []*Entity) {
+	windowBuilder(viewer).
 		Where(queryopt.Eq("topic_id", topicId)).
 		Where(queryopt.Lt("id", id)).
 		Limit(limit).
