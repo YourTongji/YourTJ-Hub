@@ -48,7 +48,10 @@ class GfAppTextScaler extends TextScaler {
     required TargetPlatform platform,
     required double shortestSide,
   }) {
-    final double base = platform == TargetPlatform.android ? 16 / 17 : 1;
+    final double base =
+        platform == TargetPlatform.android || platform.name == 'ohos'
+        ? 16 / 17
+        : 1;
     return shortestSide > 0 && shortestSide < 360 ? base * .95 : base;
   }
 

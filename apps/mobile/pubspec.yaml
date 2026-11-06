@@ -13,14 +13,20 @@ dependency_overrides:
   # Keep Runner on iOS 13; the Widget Extension separately requires iOS 14.
   home_widget:
     path: third_party/home_widget
+  # Preserve the current editor UI while accepting Flutter OH's platform enum.
+  flutter_quill:
+    path: third_party/flutter_quill
+  # Cross-compile the encrypted engine instead of bundling desktop glibc on OHOS.
+  sqlite3:
+    path: third_party/sqlite3
 melos:
   scripts:
     analyze:
       run: dart run melos exec --concurrency=1 -- "flutter analyze"
       description: Run flutter analyze in all packages (serial; concurrent Flutter commands contend for the startup lock).
     test:
-      run: dart run melos exec --concurrency=1 -- "flutter test"
-      description: Run flutter test in all packages (serial; concurrent flutter test processes contend for the Flutter startup lock).
+      run: dart run melos exec --concurrency=1 --dir-exists=test -- "flutter test"
+      description: Run flutter test in packages with a test directory (serial; concurrent flutter test processes contend for the Flutter startup lock).
     gen:
       run: dart run melos exec --depends-on=build_runner -- "dart run build_runner build --delete-conflicting-outputs"
       description: Regenerate freezed/json_serializable outputs in packages that use build_runner.

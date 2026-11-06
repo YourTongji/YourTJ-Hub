@@ -5484,11 +5484,14 @@ PushConfigResult:
 
 NativePushChannels:
   type: object
-  required: [apnsEnabled, fcmEnabled, jpushEnabled]
+  required: [apnsEnabled, fcmEnabled, jpushEnabled, huaweiEnabled]
   properties:
     apnsEnabled:
       type: boolean
       description: True when [push.apns] credentials are configured so the iOS APNs channel is enabled.
+    huaweiEnabled:
+      type: boolean
+      description: True when HarmonyOS Push Kit service-account credentials are configured.
     jpushEnabled:
       type: boolean
       description: True when the Android JPush delivery channel is configured.
@@ -5594,12 +5597,12 @@ PushDeviceRegisterRequest:
   properties:
     platform:
       type: string
-      enum: [ios, android]
+      enum: [ios, android, ohos]
       description: Device OS; provider selects its compatible delivery channel.
     provider:
       type: string
-      enum: [apns, fcm, jpush]
-      description: Delivery provider. iOS only accepts apns; Android accepts fcm or jpush. Omission preserves legacy ios=apns, android=fcm behavior.
+      enum: [apns, fcm, jpush, huawei]
+      description: Delivery provider. iOS accepts apns, Android accepts fcm or jpush, and HarmonyOS accepts huawei. Omission selects ios=apns, android=fcm, ohos=huawei.
     token:
       type: string
       minLength: 1

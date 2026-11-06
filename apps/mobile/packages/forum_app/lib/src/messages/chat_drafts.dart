@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:auth/auth.dart' show NativeSecureStorage;
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
@@ -87,7 +88,7 @@ final chatDraftsProvider = ChangeNotifierProvider<ChatDrafts>((ref) {
 /// installed plugin shares one native instance with sticky file options.
 class ChatDraftStore {
   ChatDraftStore({
-    this.secureStorage = const FlutterSecureStorage(
+    this.secureStorage = const NativeSecureStorage(
       iOptions: IOSOptions(
         accountName: 'yourtj_chat_drafts',
         accessibility: KeychainAccessibility.first_unlock_this_device,

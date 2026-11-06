@@ -10868,6 +10868,8 @@ export interface components {
         NativePushChannels: {
             /** @description True when [push.apns] credentials are configured so the iOS APNs channel is enabled. */
             apnsEnabled: boolean;
+            /** @description True when HarmonyOS Push Kit service-account credentials are configured. */
+            huaweiEnabled: boolean;
             /** @description True when the Android JPush delivery channel is configured. */
             jpushEnabled: boolean;
             /** @description True when [push.fcm] credentials are configured so the Android FCM channel is enabled. */
@@ -10878,12 +10880,12 @@ export interface components {
              * @description Device OS; provider selects its compatible delivery channel.
              * @enum {string}
              */
-            platform: "ios" | "android";
+            platform: "ios" | "android" | "ohos";
             /**
-             * @description Delivery provider. iOS only accepts apns; Android accepts fcm or jpush. Omission preserves legacy ios=apns, android=fcm behavior.
+             * @description Delivery provider. iOS accepts apns, Android accepts fcm or jpush, and HarmonyOS accepts huawei. Omission selects ios=apns, android=fcm, ohos=huawei.
              * @enum {string}
              */
-            provider?: "apns" | "fcm" | "jpush";
+            provider?: "apns" | "fcm" | "jpush" | "huawei";
             /** @description Push-service device token (APNs device token or FCM registration token); globally unique — re-registering from the same device converges the row to the current user. */
             token: string;
         };

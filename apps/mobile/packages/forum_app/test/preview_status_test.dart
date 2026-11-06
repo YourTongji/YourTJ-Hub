@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
@@ -24,6 +25,45 @@ void main() {
     purpose: 'dev',
     artifact: 'android',
     now: now,
+  );
+
+  test(
+    'preview status uses the current artifact rather than Android readiness',
+    () {
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      for (final platform in TargetPlatform.values) {
+        debugDefaultTargetPlatformOverride = platform;
+        final artifact = previewArtifact;
+        expect(
+          artifact,
+          platform.name == 'iOS'
+              ? 'ios'
+              : platform.name == 'ohos'
+              ? 'harmonyos'
+              : platform.name,
+        );
+        final ready = previewValidity(
+          {
+            'schema': 2,
+            'updatedAt': 999,
+            'source': sha,
+            'platforms': {
+              'android': {'source': sha},
+            },
+          },
+          source: sha,
+          purpose: 'dev',
+          artifact: artifact,
+          now: now,
+        );
+        expect(
+          ready,
+          platform == TargetPlatform.android
+              ? PreviewValidity.current
+              : PreviewValidity.unknown,
+        );
+      }
+    },
   );
 
   test(

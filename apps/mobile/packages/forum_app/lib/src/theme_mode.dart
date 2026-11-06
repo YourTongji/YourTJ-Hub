@@ -56,7 +56,11 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
   }
 
   Future<void> _syncNativeMode(ThemeMode mode) async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform.name != 'ohos')) {
+      return;
+    }
     try {
       await _startupChannel.invokeMethod<bool>('setThemeMode', {
         'mode': mode.name,

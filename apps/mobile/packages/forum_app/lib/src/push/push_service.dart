@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'dart:io';
 
 import 'package:app_settings/app_settings.dart';
@@ -33,8 +36,16 @@ enum PushChannelStatus {
 /// login too; the JPush SDK still starts only after permission is granted.
 class PushDriver {
   static const channel = MethodChannel('yourtj/push');
-  String get platform => Platform.isIOS ? 'ios' : 'android';
-  String get provider => Platform.isIOS ? 'apns' : 'jpush';
+  String get platform => Platform.operatingSystem == 'ohos'
+      ? 'ohos'
+      : Platform.isIOS
+      ? 'ios'
+      : 'android';
+  String get provider => Platform.operatingSystem == 'ohos'
+      ? 'huawei'
+      : Platform.isIOS
+      ? 'apns'
+      : 'jpush';
   Future<bool> configured() async =>
       await channel.invokeMethod<bool>('configured') ?? false;
   Future<bool> permission({required bool request}) async =>
@@ -56,6 +67,10 @@ class PushDriver {
         'userId': userId,
         'peerId': peerId,
         'foreground': foreground,
+        if (platform == 'ohos')
+          'profileId': userId > 0
+              ? sha256.convert(utf8.encode('yourtj:$userId')).toString()
+              : '',
       });
     } on MissingPluginException {
       // Unsupported platforms have no native notification presenter.
@@ -274,9 +289,12 @@ class PushController extends Notifier<PushChannelStatus>
       if (!_current(generation, epoch)) return;
       final config = await session.config();
       if (!_current(generation, epoch)) return;
-      final available = _driver.provider == 'apns'
-          ? config.native?.apnsEnabled == true
-          : config.native?.jpushEnabled == true;
+      final available = switch (_driver.provider) {
+        'apns' => config.native?.apnsEnabled == true,
+        'jpush' => config.native?.jpushEnabled == true,
+        'huawei' => config.native?.huaweiEnabled == true,
+        _ => false,
+      };
       if (!available) {
         state = PushChannelStatus.serverDisabled;
         return;

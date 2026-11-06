@@ -112,7 +112,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   bool get _cameraAvailable =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.iOS ||
-          defaultTargetPlatform == TargetPlatform.android);
+          defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform.name == 'ohos');
 
   @override
   void initState() {

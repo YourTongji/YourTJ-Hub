@@ -5,3 +5,4 @@ export 'src/auth_controller.dart';
 export 'src/oidc_controller.dart';
 export 'src/rsa/rsa_encryptor.dart';
 export 'src/secure_token_storage.dart';
+export 'src/native_secure_storage.dart';
