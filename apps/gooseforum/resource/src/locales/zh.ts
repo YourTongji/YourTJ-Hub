@@ -1929,6 +1929,7 @@ export default {
     syncSuccess: '同步成功',
     // ---- 云同步（#573：默认自动上传、自动恢复、手动保存）----
     syncSaved: '课表已保存并同步到云端',
+    syncLoginRequired: '登录后才能将课表保存到云端，本地课表仍保留。',
     syncSaveFailed: '保存失败，请检查网络后重试',
     syncAdoptPreviousOwner: '这些本地方案属于上一账号。确定将它们保存到当前登录账号？',
     syncMergeLimit: '云端与本地方案合并后超出容量限制。本地修改已保留，请减少方案数量或内容后重试。',
