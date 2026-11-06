@@ -37,7 +37,8 @@ suites. The [release runbook](releases.md#production-rc) owns this behavior and 
 
 先在华为控制台准备邀请测试草稿，填好品牌资料、隐私政策、审核信息、测试时间和测试用户。
 运行工作流时填写版本名称、递增版本号和草稿 ID。已有版本号会阻止重新构建。
-CI 构建生产地址的预览包，固定为 ARM64 Release；手机、平板和 PC/2in1 共用该包。
+CI 构建生产地址的 ARM64 Release 包，并关闭应用内预览标记和状态条。
+手机、平板和 PC/2in1 共用该包；测试资格和有效期由 APP Test 管理。
 测试时间、用户和审核资料以控制台草稿为准，CI 只绑定本次软件包并提交邀请测试审核。
 
 环境需要以下 Secrets：

@@ -68,7 +68,7 @@ def main():
     if not number.isascii() or not number.isdecimal() or not 1 <= int(number) <= 2147483647:
         raise ValueError('Invalid Harmony version code')
     validate_profile(base64.b64decode(os.environ['HARMONY_PROFILE_BASE64'], validate=True))
-    defines = dart_defines('production', os.environ['SOURCE_SHA'], True)
+    defines = dart_defines('production', os.environ['SOURCE_SHA'], False)
     tools = Path(os.environ['DEVECO_SDK_HOME']) / 'default/openharmony/toolchains/lib'
     output_dir = ROOT / 'apps/mobile/build/release/harmonyos'
     output_dir.mkdir(parents=True, exist_ok=True)

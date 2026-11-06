@@ -17,6 +17,24 @@ import publish_harmony
 
 
 class HarmonyReleaseTests(unittest.TestCase):
+    def test_app_test_build_is_production_release_without_preview(self):
+        class BuildReached(Exception):
+            pass
+
+        with patch.dict('os.environ', {'MOBILE_VERSION': '1.0.18', 'MOBILE_BUILD_NUMBER': '36',
+                                     'SOURCE_SHA': 'a' * 40, 'HARMONY_PROFILE_BASE64': '',
+                                     'DEVECO_SDK_HOME': '/unused/sdk'}), \
+                patch.object(build_harmony, 'validate_profile'), \
+                patch.object(build_harmony, 'run', side_effect=BuildReached) as run:
+            with self.assertRaises(BuildReached):
+                build_harmony.main()
+        command = run.call_args.args[0]
+        self.assertIn('--release', command)
+        self.assertIn('--target-platform=ohos-arm64', command)
+        self.assertIn('--dart-define=YOURTJ_PREVIEW=false', command)
+        self.assertIn('--dart-define=YOURTJ_ENVIRONMENT=production', command)
+        self.assertIn('--dart-define=YOURTJ_API_BASE_URL=https://f.yourtj.de', command)
+
     def test_publisher_bundle_matches_native_application(self):
         self.assertEqual(json.loads((build_harmony.APP / 'ohos/AppScope/app.json5').read_text())['app']['bundleName'],
                          harmony_api.BUNDLE)
