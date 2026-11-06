@@ -1,6 +1,8 @@
 package mailservice
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
@@ -23,11 +25,16 @@ func expiredTaskFixture(t *testing.T, kind string, expired bool, signingKey stri
 		expiry = time.Now().Add(-time.Minute)
 	}
 	claims := jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(expiry), IssuedAt: jwt.NewNumericDate(time.Now().Add(-2 * time.Hour))}
+	key := []byte(signingKey)
 	var payload jwt.Claims = &tokenservice.ActivationClaims{UserId: 12, Email: "owner@example.test", RegisteredClaims: claims}
 	if kind == "reset_password" {
+		claims.Audience = jwt.ClaimStrings{"password-reset"}
+		mac := hmac.New(sha256.New, key)
+		mac.Write([]byte("yourtj-password-reset-token"))
+		key = mac.Sum(nil)
 		payload = &tokenservice.PasswordResetClaims{UserId: 12, Email: "owner@example.test", TokenVersion: 3, RegisteredClaims: claims}
 	}
-	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, payload).SignedString([]byte(signingKey))
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, payload).SignedString(key)
 	if err != nil {
 		t.Fatal(err)
 	}
