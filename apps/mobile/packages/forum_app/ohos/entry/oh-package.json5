@@ -1,0 +1,10 @@
+
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "YourTJ native HarmonyOS application.",
+  "main": "",
+  "author": "YourTJ",
+  "license": "GPL-3.0-only",
+  "dependencies": {},
+}

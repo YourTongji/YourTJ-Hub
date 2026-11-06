@@ -51,6 +51,36 @@ dependencies:
   webview_flutter_android: ^4.14.1
   file_selector: ^1.1.0
   path_provider: ^2.1.6
+  path_provider_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: d4e49daa0acbd0bc419d58b1da27d64d44fab54b
+      path: packages/path_provider/path_provider_ohos
+  shared_preferences_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: 143d83e7669a359a1ab1ee6558c4a2e4f7f4c53f
+      path: packages/shared_preferences/shared_preferences_ohos
+  url_launcher_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: ae4494a78db5a9e0fe760b0eba9231605ae45716
+      path: packages/url_launcher/url_launcher_ohos
+  image_picker_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: 1af98579e1a95d4fca19e422d26f5b6856ac38ba
+      path: packages/image_picker/image_picker_ohos
+  file_selector_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: 05111855c6772411f39d10aac43c8a276251c1d3
+      path: packages/file_selector/file_selector_ohos
+  webview_flutter_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: 3467191089ef4abc76132fff65b8e3354c2c21dd
+      path: packages/webview_flutter/webview_flutter_ohos
   tldts: 0.0.1-beta
   flutter_native_splash: ^2.4.8
   flutter_svg: ^2.3.0

@@ -77,7 +77,7 @@ func TestJPushRequestAndFailure(t *testing.T) {
 }
 func TestProviderPreservesLegacyRegistrations(t *testing.T) {
 	for _, tc := range []struct{ platform, provider, want string }{
-		{"ios", "", "apns"}, {"android", "", "fcm"}, {"android", "jpush", "jpush"},
+		{"ios", "", "apns"}, {"android", "", "fcm"}, {"android", "jpush", "jpush"}, {"ohos", "", "huawei"}, {"ohos", "huawei", "huawei"},
 	} {
 		d := pushDevice.Entity{Platform: tc.platform, Provider: tc.provider}
 		if d.DeliveryProvider() != tc.want {

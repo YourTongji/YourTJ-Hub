@@ -49,6 +49,7 @@ problem evidence, research and affected users
 - [Standalone status app](../../apps/status/README.md)
 - [Testing strategy & commands](testing.md)
 - [Mobile performance](mobile-performance.md)
+- [Native HarmonyOS development](mobile-harmonyos.md)
 - [Issues, requirements, review & pull requests](pull-requests.md)
 - [Licensing](licensing.md)
 - [Release workflow and agent entrypoints](../operations/releases.md)

@@ -40,7 +40,8 @@ Future<void> saveImageBytes(
     final bool isMobile =
         !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS);
+            defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform.name == 'ohos');
     if (isMobile) {
       final result = await saveImageToGallery(bytes, fileName);
       if (!context.mounted) return;

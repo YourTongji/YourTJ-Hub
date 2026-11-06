@@ -9,6 +9,8 @@ import 'schedule_widget_projection.dart';
 enum ScheduleWidgetKind { nextClass, today, timeline }
 
 class ScheduleWidgetBridge {
+  static bool get _isOhos => Platform.operatingSystem == 'ohos';
+  static bool get _supported => Platform.isAndroid || Platform.isIOS || _isOhos;
   static const appGroupId = 'group.tj.yourtj.forumApp.widgets';
   static const projectionKey = 'schedule_widget_projection';
   static const emptyStateKey = 'schedule_widget_empty_state';
@@ -33,7 +35,7 @@ class ScheduleWidgetBridge {
   /// Android 8+ launchers may place a widget on request. iOS has no such API;
   /// users add widgets from the Home Screen gallery.
   Future<bool> canRequestPin() async {
-    if (!Platform.isAndroid) return false;
+    if (!Platform.isAndroid && !_isOhos) return false;
     try {
       return await HomeWidget.isRequestPinWidgetSupported() ?? false;
     } catch (_) {
@@ -55,7 +57,7 @@ class ScheduleWidgetBridge {
   /// The native widget container is shared by dev and production app installs.
   /// Clear the previous site's projection before exposing a new environment.
   Future<void> prepareEnvironment(String site) => _serialize(() async {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!_supported) return;
     await HomeWidget.setAppGroupId(appGroupId);
     const key = 'schedule_widget_site';
     final previous =
@@ -106,7 +108,7 @@ class ScheduleWidgetBridge {
       jsonEncode([for (final x in b) x.toJson()]);
 
   Future<void> _write(ScheduleWidgetProjection published) async {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!_supported) return;
     await HomeWidget.setAppGroupId(appGroupId);
     var projection = published;
     final scope = projection.identity.accountScope;
@@ -143,7 +145,7 @@ class ScheduleWidgetBridge {
   }
 
   Future<ScheduleWidgetProjection?> read() async {
-    if (!Platform.isAndroid && !Platform.isIOS) return null;
+    if (!_supported) return null;
     await HomeWidget.setAppGroupId(appGroupId);
     final encoded = await HomeWidget.getWidgetData<String>(projectionKey);
     if (encoded == null || encoded.isEmpty) return null;
@@ -157,7 +159,7 @@ class ScheduleWidgetBridge {
   }
 
   Future<int> usageBytes() async {
-    if (!Platform.isAndroid && !Platform.isIOS) return 0;
+    if (!_supported) return 0;
     await HomeWidget.setAppGroupId(appGroupId);
     var total = 0;
     for (final key in [projectionKey, _temporaryKey]) {
@@ -168,7 +170,7 @@ class ScheduleWidgetBridge {
   }
 
   Future<int> readTransparency() async {
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    if (!_supported) {
       return defaultTransparencyPercent;
     }
     await HomeWidget.setAppGroupId(appGroupId);
@@ -179,7 +181,7 @@ class ScheduleWidgetBridge {
   }
 
   Future<void> setTransparency(int value) async {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!_supported) return;
     await HomeWidget.setAppGroupId(appGroupId);
     await HomeWidget.saveWidgetData<int>(
       transparencyKey,
@@ -194,7 +196,7 @@ class ScheduleWidgetBridge {
   }
 
   Future<void> _clear(String state) async {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!_supported) return;
     await HomeWidget.setAppGroupId(appGroupId);
     await HomeWidget.saveWidgetData<String>(_temporaryKey, null);
     await HomeWidget.saveWidgetData<String>(projectionKey, null);
@@ -211,7 +213,7 @@ class ScheduleWidgetBridge {
   }
 
   Stream<Uri?> links() async* {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!_supported) return;
     yield await HomeWidget.initiallyLaunchedFromHomeWidget();
     yield* HomeWidget.widgetClicked;
   }
@@ -227,7 +229,7 @@ class ScheduleWidgetBridge {
         iOSName: 'TodayScheduleWidget',
       ),
     ];
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid || _isOhos) {
       updates.add(
         HomeWidget.updateWidget(qualifiedAndroidName: _timelineReceiver),
       );

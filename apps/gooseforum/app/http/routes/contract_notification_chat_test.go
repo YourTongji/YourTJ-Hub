@@ -907,6 +907,30 @@ func TestPushUnsubscribeHTTPContract(t *testing.T) {
 	})
 }
 func TestPushDeviceRegisterHTTPContract(t *testing.T) {
+	t.Run("HarmonyOS selects Huawei and rejects other transports", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		response := serveJSON(router, "/api/forum/push/device/register", `{"platform":"ohos","token":"harmony-device"}`, contractSessionToken(t, user))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, response), contractFixture(t, "push-device-register-success.json"))
+		devices := pushDevice.ListByUser(user.Id)
+		if len(devices) != 1 || devices[0].Platform != pushDevice.PlatformHarmony || devices[0].Provider != "huawei" {
+			t.Fatal("HarmonyOS provider not persisted")
+		}
+		for _, body := range []string{
+			`{"platform":"ohos","provider":"jpush","token":"invalid-ohos"}`,
+			`{"platform":"ios","provider":"huawei","token":"invalid-ios"}`,
+			`{"platform":"android","provider":"huawei","token":"invalid-android"}`,
+		} {
+			response = serveJSON(router, "/api/forum/push/device/register", body, contractSessionToken(t, user))
+			if decodeContractEnvelope(t, response).Code == 0 {
+				t.Fatal("incompatible provider accepted")
+			}
+		}
+		if len(pushDevice.ListByUser(user.Id)) != 1 {
+			t.Fatal("invalid transport altered device ownership")
+		}
+	})
+
 	t.Run("jpush provider persists and rejects incompatible platforms", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())

@@ -1,12 +1,13 @@
 import 'package:core/core.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'native_secure_storage.dart';
 
 /// 基于 flutter_secure_storage 的 TokenStorage 实现。
 ///
 /// 同时保存 token 与登录用户信息(轻量会话元数据),供论坛 UI 展示。
 class SecureTokenStorage implements TokenStorage {
   SecureTokenStorage({FlutterSecureStorage? storage, this.namespace = ''})
-    : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const NativeSecureStorage();
 
   /// Empty preserves installed production sessions. Other sites get their own
   /// credentials, metadata and revocation tombstone across app replacement.

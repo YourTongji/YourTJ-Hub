@@ -22,6 +22,33 @@ String launcherSourceDigest(String value) =>
     sha256.convert(utf8.encode(normalizeLineEndings(value))).toString();
 
 void main() {
+  test('Harmony startup and cards reuse transparent artwork', () {
+    const resources = 'ohos/entry/src/main/resources';
+    final pairs = {
+      '$resources/base/media/startup_brand.png': 'assets/splash/brand_mark.png',
+      '$resources/base/media/widget_brand.png':
+          'android/app/src/main/res/drawable/schedule_widget_brand.png',
+      '$resources/dark/media/widget_brand.png':
+          'android/app/src/main/res/drawable-night/schedule_widget_brand.png',
+    };
+    for (final pair in pairs.entries) {
+      final bytes = File(pair.key).readAsBytesSync();
+      expect(bytes, orderedEquals(File(pair.value).readAsBytesSync()));
+      final artwork = img.decodePng(bytes)!;
+      expect(artwork.getPixel(0, 0).a, 0, reason: pair.key);
+      expect(artwork.any((pixel) => pixel.a > 0), isTrue);
+    }
+    expect(
+      File('ohos/entry/src/main/module.json5').readAsStringSync(),
+      contains('"startWindowIcon": "\$media:startup_brand"'),
+    );
+    expect(
+      File('ohos/entry/src/main/ets/widget/pages/ScheduleCard.ets')
+          .readAsStringSync(),
+      contains("Image(\$r('app.media.widget_brand'))"),
+    );
+  });
+
   test('launcher source digest is stable across line endings', () {
     const source = '<svg>\n  <path d="M0 0"/>\n</svg>\n';
     expect(

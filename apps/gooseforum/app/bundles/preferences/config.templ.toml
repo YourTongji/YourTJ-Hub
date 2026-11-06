@@ -84,6 +84,10 @@ environment = ""
 credentials_path = ""
 project_id = ""
 
+# HarmonyOS Push Kit：服务账号 JSON 仅留在服务端，空路径关闭通道。
+[push.huawei]
+credentials_path = ""
+
 # Wiki GitHub 唯一真实源（可选）：配置后 wiki 内容由仓库同步（只读投影），
 # 编辑/审核/历史/贡献者全部走 GitHub PR。repo 留空 = 不启用（站内 wiki 读旧数据）。
 [wiki.git]
