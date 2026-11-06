@@ -14,6 +14,15 @@ Flutter 页面和设计系统。鸿蒙沿用手机端品牌启动层、减弱动
 [原生模块](../../apps/mobile/packages/forum_app/ohos/entry/src/main/module.json5)。
 签名真机、完整视觉与交互验收、Passkey 和应用市场分发尚未完成。
 
+## 应用身份
+
+HarmonyOS 开发者中心的原生应用名称为 `YourTJ`，APP ID 为 `6917621118093079103`，
+包名为 `tj.yourtj.forumapp`，支持手机、平板和 PC/2in1。Android 的
+`tj.yourtj.forum_app` 与 iOS 的 `tj.yourtj.forumApp` 保持各自身份；华为要求原生鸿蒙
+包名不能与 Android 相同，也不能使用 `harmonyos`、`ohos` 保留词，见
+[应用创建规范](https://developer.huawei.com/consumer/cn/doc/app/agc-help-create-app-0000002247955506)。
+公共品牌、应用介绍和隐私政策沿用现有移动端资料；邀请测试不代表应用已上架。
+
 ## 工具与空间边界
 
 当前构建使用 Flutter OH `3.44.9+ohos-1.0.0-beta`（Flutter 提交 `c2fb91fb38c40a6b97b5ae3d9f71107b7dae7ad2`）、
@@ -60,7 +69,7 @@ x64 模拟器改用 `--debug --target-platform=ohos-x64`，ABI 检查改为 `--a
 hvigorw --mode module -p module=entry@ohosTest -p product=default \
   -p buildMode=test assembleHap --no-daemon
 hdc install -r entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap
-hdc shell aa test -b tj.yourtj.forum_app -m entry_test \
+hdc shell aa test -b tj.yourtj.forumapp -m entry_test \
   -s unittest OpenHarmonyTestRunner -w 60
 ```
 

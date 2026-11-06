@@ -27,6 +27,48 @@ Production RCs use the final production builder; RC promotion restores the
 original APKs/image or selects the exact Apple build. Release workflows do not rerun source test
 suites. The [release runbook](releases.md#production-rc) owns this behavior and compatibility.
 
+## HarmonyOS APP Test
+
+`Partial`：原生鸿蒙通过独立的
+[Release / HarmonyOS APP Test](../../.github/workflows/release-harmony-test.yml) 手动分发。
+工作流仅从 `main` 运行，使用现有 `mobile-release` 受保护环境。它不调用正式上架接口，
+也不修改 Android、iOS 的 RC、Confirm 或公开下载目录。
+应用身份和本地开发工具见[鸿蒙开发文档](../development/mobile-harmonyos.md)。
+
+先在华为控制台准备邀请测试草稿，填好品牌资料、隐私政策、审核信息、测试时间和测试用户。
+运行工作流时填写版本名称、递增版本号和草稿 ID。已有版本号会阻止重新构建。
+CI 构建生产地址的预览包，固定为 ARM64 Release；手机、平板和 PC/2in1 共用该包。
+测试时间、用户和审核资料以控制台草稿为准，CI 只绑定本次软件包并提交邀请测试审核。
+
+环境需要以下 Secrets：
+
+- `HARMONY_CLI_DOWNLOAD_URL`：官方 Linux x64 Command Line Tools `26.0.0.865` 下载链接。
+  签名查询参数也属于保密内容；下载器校验域名、版本和固定 SHA-256，并拒绝重定向。
+- `HARMONY_KEYSTORE_BASE64`、`HARMONY_KEYSTORE_PASSWORD`：PKCS12 和密码，密钥别名为 `yourtj-release`。
+- `HARMONY_CERTIFICATE_BASE64`、`HARMONY_PROFILE_BASE64`：发布证书链和同一原生包名的发布 Profile。
+- `HARMONY_SERVICE_ACCOUNT_JSON`：华为下载的 Service Account 凭据，含 `private_key`。
+  使用 APP 管理员角色；平台会包含开发、财务、运营和客服子角色。开发者级凭据可管理账号下其他应用，
+  工作流中的目标应用固定不代表凭据本身具有应用级隔离。
+
+编辑器使用 `READ_PASTEBOARD` ACL。先按“Flutter 开源框架”场景申请权限，审核通过后，
+在发布 Profile 中包含该权限并更新对应 Secret。构建预检拒绝缺少 ACL、包名不符或非发布类型的 Profile。
+待审核申请和短期调试 Profile 都不能替代获批的发布 Profile。
+
+签名包含内部 HAP 和 APP 外层，两层都使用官方工具验签。APP 打包使用
+`--replace-pack-info false`，并检查内部 HAP 字节未变化；仅内部 HAP 验签通过不能证明 APP 可上传。
+软件包上传为“仅测试”，合法性检查成功后才绑定草稿并提交。审核提交成功不代表测试已获批或可安装。
+
+原始 APP 和校验和保留在运行产物 `harmony-app-<run ID>` 中，上传回执保存在
+`harmony-receipt-<run ID>`。发布步骤失败时选择 GitHub 的“重新运行失败的作业”，复用原包和回执。
+回执必须匹配原包 SHA-256、源码 SHA、应用和测试草稿；缺少上传回执或草稿状态改变时停止，
+先到华为控制台核对，不重新构建已分发的版本身份。产物保留 90 天；过期后须使用已安全归档的原包恢复。
+
+接口依据为华为的[服务端鉴权](https://developer.huawei.com/consumer/cn/doc/App/agc-help-connect-api-obtain-server-auth-0000002271134661/)、
+[Testing API](https://developer.huawei.com/consumer/cn/doc/App/agc-help-test-api-guide-0000002236015562)
+和[包解析状态](https://developer.huawei.com/consumer/cn/doc/app/agc-help-publish-api-data-packagestates-0000002271160601)。
+当前完整发布验收仍依赖获批 ACL、有效发布 Profile、已配置测试用户和华为审核结果；
+真实设备安装、推送与签名升级另行验收。
+
 ## iOS build requirements
 
 `Current`: the Runner, ScheduleWidgets extension and the local home_widget bridge require iOS 15
