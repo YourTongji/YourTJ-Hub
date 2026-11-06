@@ -29,6 +29,18 @@ class _PageProps implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    if (request.path == '/api/auth/passkey/status') {
+      return ResponseBody.fromString(
+        jsonEncode({
+          'code': 0,
+          'result': {'enabled': false},
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['application/json'],
+        },
+      );
+    }
     expect(request.path, '/login');
     return ResponseBody.fromString(
       jsonEncode({

@@ -4196,6 +4196,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Passkeys sind auf diesem Gerät nicht verfügbar.';
 
   @override
+  String get authPasskeyAvailabilityFailed =>
+      'Die Verfügbarkeit von Passkeys konnte nicht geprüft werden. Versuche es erneut oder melde dich mit deinem Passwort an.';
+
+  @override
   String get authPasskeyFailed =>
       'Passkey-Anmeldung fehlgeschlagen. Versuche es erneut oder melde dich mit deinem Passwort an.';
 
