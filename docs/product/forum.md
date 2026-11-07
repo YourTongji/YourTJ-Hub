@@ -83,6 +83,10 @@ their separate rules.
 
 ## Feed and reading
 
+`Current`：本人收藏列表混合展示主题和回复收藏。Web 与 Flutter 分页以收藏的 `(type, id)`
+组合识别条目：不同类型即使数字 ID 相同也同时保留，同一类型同号的重复条目不重复展示。
+Web 收藏列表的渲染 key 使用同一组合身份；保持服务端返回顺序和分页游标，不改动收藏记录。
+
 排序、推荐兼容、分页、质量统计和隐私的当前行为见[信息流排序](feed-ranking.md)。
 
 `Current`：Web 桌面（lg 及以上）通过导航栏开关折叠侧栏，内容列填满可用空间；带右侧 rail 的布局
