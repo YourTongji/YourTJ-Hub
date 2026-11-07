@@ -49,6 +49,7 @@ const scopeLabelMap: Record<string, string> = {
 const scopeLabels = computed(() => failedScopes.value.map((s) => (scopeLabelMap[s] ? t(`searchPage.${scopeLabelMap[s]}`) : s)).join(', '))
 const searchDescription = computed(() => {
   if (!hasQuery.value) return t('searchPage.emptyPrompt')
+  if (searchUnavailable.value || hasPartialFailure.value) return page.props.query
   const count = scope.value === 'all' ? page.props.total + page.props.usersTotal + page.props.categoriesTotal + page.props.coursesTotal : scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : scope.value === 'courses' ? page.props.coursesTotal : page.props.total
   return `${page.props.query} · ${t('searchPage.resultCount', { count: formatNumber(count) })}`
 })

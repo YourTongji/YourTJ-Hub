@@ -183,3 +183,34 @@ describe('SearchPage filtered topic pages', () => {
     wrapper.unmount()
   })
 })
+
+describe('SearchPage incomplete result descriptions', () => {
+  test('keeps a confirmed zero count when every index succeeds', async () => {
+    const wrapper = await mountPage(makeRouter(), emptyProps({ query: '课程' }))
+    expect(wrapper.get('header p').text()).toBe(`课程 · ${i18n.global.t('searchPage.resultCount', { count: '0' })}`)
+    wrapper.unmount()
+  })
+
+  test('hides an incomplete all-scope total and restores it when all indexes recover', async () => {
+    const wrapper = await mountPage(makeRouter(), emptyProps({
+      query: '课程', total: 27, failedScopes: ['courses'],
+    }))
+    expect(wrapper.get('header p').text()).toBe('课程')
+    expect(wrapper.findAll('[role="group"] a')[1]!.get('span').text()).toBe('27')
+    expect(wrapper.findAll('[role="group"] a')[4]!.find('span').exists()).toBe(false)
+    expect(wrapper.text()).toContain(i18n.global.t('searchPage.partialFailureTitle'))
+
+    await wrapper.setProps({ props: emptyProps({ query: '课程', total: 27, coursesTotal: 257 }) })
+    expect(wrapper.get('header p').text()).toContain('284')
+    wrapper.unmount()
+  })
+
+  test.each(['all', 'topics'])('does not claim zero results when %s search is unavailable', async scope => {
+    const wrapper = await mountPage(makeRouter(), emptyProps({
+      query: '课程', scope, searchUnavailable: true,
+    }))
+    expect(wrapper.get('header p').text()).toBe('课程')
+    expect(wrapper.text()).toContain(i18n.global.t('searchPage.unavailableTitle'))
+    wrapper.unmount()
+  })
+})

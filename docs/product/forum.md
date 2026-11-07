@@ -463,4 +463,6 @@ clamped before offset multiplication to keep the offset plus page size within th
 integer range. Other scopes use
 their existing single-page limit. Scope tabs show counts only for queried, successful
 indexes; unknown or failed counts are hidden. The “all” tab has no badge, and its
-page description sums the available topic, member, category and course counts.
+page description sums topic, member, category and course counts only when every queried
+index succeeds. During partial failure or unavailable search, the description shows the
+query without a count; successful scope badges remain visible during partial failure.
