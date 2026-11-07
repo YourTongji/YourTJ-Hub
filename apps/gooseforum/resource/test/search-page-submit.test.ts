@@ -131,3 +131,55 @@ describe('SearchPage scope counts', () => {
   wrapper.unmount()
  })
 })
+
+describe('SearchPage filtered topic pages', () => {
+  test.each(['topics', 'all'])('keeps next and previous links on an empty %s page', async scope => {
+    const wrapper = await mountPage(makeRouter(), emptyProps({
+      query: '课程', scope, total: 27, totalPages: 3,
+      pagination: { page: 2, nextPage: 3, hasNext: true, nextUrl: `/search?q=课程&scope=${scope}&page=3` },
+    }))
+    const footer = wrapper.get('footer')
+    expect(footer.get('a[rel="next"]').attributes('href')).toBe(`/search?q=课程&scope=${scope}&page=3`)
+    const previous = new URL(footer.findAll('a')[0]!.attributes('href')!, 'https://example.test')
+    expect(previous.searchParams.get('q')).toBe('课程')
+    expect(previous.searchParams.get('scope')).toBe(scope === 'all' ? null : scope)
+    expect(previous.searchParams.has('page')).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('keeps topic navigation when only another scope has visible results', async () => {
+    const wrapper = await mountPage(makeRouter(), emptyProps({
+      query: '课程', total: 27, totalPages: 3,
+      categories: [{ id: 1, name: '课程分类', slug: 'courses', icon: '', color: '', desc: '' }],
+      categoriesTotal: 1,
+      pagination: { page: 1, nextPage: 2, hasNext: true, nextUrl: '/search?q=课程&page=2' },
+    }))
+    expect(wrapper.text()).toContain('课程分类')
+    expect(wrapper.get('footer a[rel="next"]').attributes('href')).toBe('/search?q=课程&page=2')
+    wrapper.unmount()
+  })
+
+  test('keeps previous navigation on a filtered last page', async () => {
+    const wrapper = await mountPage(makeRouter(), emptyProps({
+      query: '课程', scope: 'topics', total: 27, totalPages: 3,
+      pagination: { page: 3, nextPage: 0, hasNext: false, nextUrl: '' },
+    }))
+    expect(wrapper.get('footer').findAll('a')).toHaveLength(1)
+    expect(new URL(wrapper.get('footer a').attributes('href')!, 'https://example.test').searchParams.get('page')).toBe('2')
+    expect(wrapper.find('footer a[rel="next"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  test.each([
+    { totalPages: 0 },
+    { totalPages: 1 },
+    { query: '', totalPages: 3 },
+    { scope: 'courses', totalPages: 3 },
+    { failedScopes: ['topics'], totalPages: 3 },
+    { searchUnavailable: true, totalPages: 3 },
+  ])('does not show pagination without a successful multi-page topic search: %o', async overrides => {
+    const wrapper = await mountPage(makeRouter(), emptyProps({ query: '课程', ...overrides }))
+    expect(wrapper.find('footer').exists()).toBe(false)
+    wrapper.unmount()
+  })
+})

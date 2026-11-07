@@ -35,6 +35,11 @@ const hasCourseResults = computed(() => courses.value.length > 0)
 const searchUnavailable = computed(() => page.props.searchUnavailable === true)
 const failedScopes = computed(() => page.props.failedScopes || [])
 const hasPartialFailure = computed(() => failedScopes.value.length > 0 && !searchUnavailable.value)
+// Index totals can include topics filtered out by current DB visibility on this page.
+const hasTopicPagination = computed(() =>
+  hasQuery.value && !searchUnavailable.value && !failedScopes.value.includes('topics') &&
+  (scope.value === 'all' || scope.value === 'topics') && page.props.totalPages > 1,
+)
 const scopeLabelMap: Record<string, string> = {
   topics: 'scopeTopics',
   users: 'scopeUsers',
@@ -161,7 +166,7 @@ watch(
       </div>
 
       <section class="gf-card overflow-hidden">
-        <template v-if="hasResults">
+        <template v-if="hasResults || hasTopicPagination">
           <div v-if="hasUserResults && (scope === 'all' || scope === 'users')" class="border-b border-line">
             <h2 class="flex items-center gap-2 px-4 pt-3 text-sm font-semibold text-base-content/70">
               <UsersRound class="h-4 w-4" />
@@ -182,13 +187,19 @@ watch(
             </ul>
           </div>
 
-          <div v-if="hasTopicResults && (scope === 'all' || scope === 'topics')" class="border-b border-line">
+          <div v-if="(hasTopicResults || hasTopicPagination) && (scope === 'all' || scope === 'topics')" class="border-b border-line">
             <h2 v-if="scope === 'all'" class="flex items-center gap-2 px-4 pt-3 text-sm font-semibold text-base-content/70">
               {{ t('searchPage.topicsSection') }}
               <span class="text-xs font-normal text-base-content/45">{{ t('searchPage.topicsCount', { count: formatNumber(page.props.total) }) }}</span>
             </h2>
-            <TopicList :topics="topics" />
-            <footer v-if="(scope === 'topics' || scope === 'all') && page.props.totalPages > 1" class="flex flex-col gap-3 border-t border-line bg-base-200/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <TopicList v-if="hasTopicResults" :topics="topics" />
+            <EmptyState
+              v-else
+              :icon="Search"
+              :title="t('searchPage.noResultsForQuery', { query: page.props.query })"
+              :description="t('searchPage.noResultsDescription')"
+            />
+            <footer v-if="hasTopicPagination" class="flex flex-col gap-3 border-t border-line bg-base-200/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div class="text-sm text-base-content/55">
                 {{ t('common.page', { page: page.props.pagination.page, total: page.props.totalPages }) }}
               </div>
