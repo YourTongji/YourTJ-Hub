@@ -678,3 +678,75 @@ func TestResolveBoundsDistinctBackgroundWork(t *testing.T) {
 		<-f.stopped
 	}
 }
+
+// Pause at the cancellation check after the initial cache miss, before flight
+// admission. This makes the cache-fill race deterministic without timing sleeps.
+type cacheMissContext struct {
+	context.Context
+	once   sync.Once
+	missed chan struct{}
+	resume chan struct{}
+}
+
+func (c *cacheMissContext) Err() error {
+	c.once.Do(func() {
+		close(c.missed)
+		select {
+		case <-c.resume:
+		case <-c.Done():
+		}
+	})
+	return c.Context.Err()
+}
+
+func TestResolveRechecksCacheBeforeRejectingAtCapacity(t *testing.T) {
+	f := &contextProbeFetcher{make(chan context.Context, maxPreviewFlights), make(chan struct{}, maxPreviewFlights)}
+	r := New(f, nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan Preview, maxPreviewFlights)
+	for i := 0; i < maxPreviewFlights; i++ {
+		go func() { done <- r.Resolve(ctx, 0, fmt.Sprintf("https://example.com/busy/%d", i)) }()
+		<-f.started
+	}
+	defer func() {
+		cancel()
+		for range maxPreviewFlights {
+			<-done
+			<-f.stopped
+		}
+	}()
+
+	const key = "https://example.com/completed"
+	const requestedURL = key + "#reader-section"
+	paused := &cacheMissContext{
+		Context: ctx,
+		missed:  make(chan struct{}),
+		resume:  make(chan struct{}),
+	}
+	result := make(chan Preview, 1)
+	go func() { result <- r.Resolve(paused, 0, requestedURL) }()
+	select {
+	case <-paused.missed:
+	case <-time.After(time.Second):
+		t.Fatal("caller did not reach the initial cache miss")
+	}
+	// Reproduce a completed flight publishing its result after the caller's
+	// initial cache lookup, while other URLs occupy every admission slot.
+	r.cache.Set(key, Preview{
+		Kind: KindExternal, Status: StatusReady, Title: "Completed preview",
+		RequestedURL: key + "#original-reader", URL: key + "#original-reader",
+	}, ttlFor(StatusReady))
+	close(paused.resume)
+	select {
+	case got := <-result:
+		if got.Status != StatusReady || got.Title != "Completed preview" {
+			t.Fatalf("cached result at capacity = %#v, want completed preview", got)
+		}
+		if got.RequestedURL != requestedURL || got.URL != requestedURL {
+			t.Fatalf("cached result lost caller URL: %#v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cached result waited for flight capacity")
+	}
+}

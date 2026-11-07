@@ -197,6 +197,16 @@ func (r *Resolver) Resolve(ctx context.Context, viewerID uint64, rawURL string) 
 	r.flightsMu.Lock()
 	flight := r.flights[key]
 	if flight == nil {
+		// A previous flight may have filled the cache and left the map since
+		// our first lookup. Cached results do not need an admission slot.
+		if item := r.cache.Get(key); item != nil {
+			r.flightsMu.Unlock()
+			preview := item.Value()
+			preview.RequestedURL = rawURL
+			preview.URL = rawURL
+			r.log(preview, key, "hit", previewProvider(preview), 0)
+			return preview
+		}
 		if len(r.flights) >= maxPreviewFlights {
 			r.flightsMu.Unlock()
 			base.Status = StatusUnavailable
