@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/registrationservice"
 	"log/slog"
 	"maps"
+	"math"
 	"net/url"
 	"slices"
 	"strconv"
@@ -3486,8 +3487,12 @@ func buildPublishCategories() []PublishCategoryPayload {
 	return res
 }
 
+var searchPageAggregate = searchservice.AggregateSearch
+
 func buildSearchPageProps(query string, scope string, page int) SearchPageProps {
 	const pageSize = 10
+	// Bound the entire offset + limit window before multiplying the requested page.
+	page = max(1, min(page, math.MaxInt/pageSize))
 	normalizedScope := searchservice.NormalizeScope(scope)
 	props := SearchPageProps{
 		Query:      query,
@@ -3504,9 +3509,6 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		return props
 	}
 
-	if page < 1 {
-		page = 1
-	}
 	// topics（含 all 视图中的 topics 部分）按 pageSize 分页；
 	// users/categories/courses 一期单页（上限 MaxAggregateLimit），无分页 UI。
 	limit := pageSize
@@ -3517,7 +3519,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 	if normalizedScope == searchservice.ScopeTopics || normalizedScope == searchservice.ScopeAll {
 		offset = (page - 1) * pageSize
 	}
-	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
+	result, err := searchPageAggregate(searchservice.AggregateSearchRequest{
 		Query:     query,
 		Scope:     normalizedScope,
 		Limit:     limit,
@@ -3583,6 +3585,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		}
 	})
 	props.Total = result.Total
+	props.TotalPages = totalPageCount
 	props.UsersTotal = result.UsersTotal
 	props.CategoriesTotal = result.CategoriesTotal
 	props.CoursesTotal = result.CoursesTotal

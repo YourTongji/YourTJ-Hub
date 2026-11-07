@@ -452,3 +452,17 @@ minutes; subsequent reads enforce the current reference state. Errors, orphan up
 previews, untracked legacy images and ordinary topic images retain their existing no-store policy.
 The market-sticker cache policy is independent. See the
 [cache decision](../decisions/0125-public-avatar-cache.md).
+
+## Aggregate search counts and pagination
+
+`Current`: Web topic search, including the topic section of “all”, paginates in
+10-result pages and preserves the query and scope in navigation. Counts remain search-index
+estimates; when current database visibility filters every topic on a page, previous/next
+navigation remains available so later visible topics can still be reached. Page inputs are
+clamped before offset multiplication to keep the offset plus page size within the server
+integer range. Other scopes use
+their existing single-page limit. Scope tabs show counts only for queried, successful
+indexes; unknown or failed counts are hidden. The “all” tab has no badge, and its
+page description sums topic, member, category and course counts only when every queried
+index succeeds. During partial failure or unavailable search, the description shows the
+query without a count; successful scope badges remain visible during partial failure.
