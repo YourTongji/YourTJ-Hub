@@ -43,7 +43,7 @@ func (directUploadMetadataStore) GetPendingFileMetadataByName(ctx context.Contex
 }
 
 func (directUploadMetadataStore) GetFileMetadataByName(ctx context.Context, name string) (*storageservice.FileMetadata, error) {
-	entity, err := GetFileMetadataByNameContext(ctx, name)
+	entity, err := getCompletedDirectUploadMetadata(ctx, name)
 	if err != nil {
 		return nil, errors.Join(storageservice.ErrDirectUploadMetadataNotFound, err)
 	}
