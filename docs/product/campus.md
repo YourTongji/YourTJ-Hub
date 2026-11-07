@@ -133,5 +133,6 @@ Flutter 离开校园标签或进入后台（paused/hidden）时卸载校园数�
 
 `Current`: when a retained campus binding needs school authorization, unopened
 Web datasets show an unavailable state with the authorization explanation instead
-of a loading indicator. Existing in-memory data and its sync timestamp remain
+of a loading indicator. The authorization explanation follows interface language changes
+without fetching private data again. Existing in-memory data and its sync timestamp remain
 visible; no automatic authorization or extra dataset request is started.

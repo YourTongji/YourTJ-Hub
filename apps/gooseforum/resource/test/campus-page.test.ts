@@ -510,3 +510,26 @@ test('expired authorization preserves cached records while marking every service
   expect(api.start).not.toHaveBeenCalled()
  } finally { wrapper.unmount() }
 })
+
+
+test.each([0, 1, 2])('expired authorization hints follow locale changes on content tab %s without refetching', async index => {
+  const wrapper = setup(null, 42, 'first', 'zh', true)
+  try {
+    await flushPromises()
+    await wrapper.findAll('nav button')[index]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text().split(zh.campus.authorizationHint).length - 1).toBeGreaterThan(1)
+    for (const [locale, messages] of [['en', en], ['ja', ja], ['de', de], ['zh', zh]] as const) {
+      wrapper.vm.$i18n.locale = locale
+      await flushPromises()
+      expect(wrapper.text().split(messages.campus.authorizationHint).length - 1).toBeGreaterThan(1)
+      for (const other of [zh, en, ja, de].filter(other => other !== messages)) {
+        expect(wrapper.text()).not.toContain(other.campus.authorizationHint)
+      }
+      expect(wrapper.findAll('.animate-spin')).toHaveLength(0)
+    }
+    expect(api.status).toHaveBeenCalledOnce()
+    expect(api.dataset).not.toHaveBeenCalled()
+    expect(api.start).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})

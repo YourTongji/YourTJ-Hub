@@ -23,7 +23,11 @@ const status = ref<CampusStatus | null>(null)
 const loading = ref(false), busy = ref(false), error = ref(''), unbindOpen = ref(false)
 const tab = ref('overview'), week = ref(1), filter = ref('')
 const data = ref<Partial<Record<CampusDatasetKey, CampusDataset>>>({})
-const failures = ref<Partial<Record<CampusDatasetKey, string>>>({})
+const failures = ref<Partial<Record<CampusDatasetKey, string | { code: 'authorizationRequired' }>>>({})
+function failureText(key: CampusDatasetKey) {
+  const failure = failures.value[key]
+  return typeof failure === 'string' ? failure : failure ? t('campus.authorizationHint') : ''
+}
 const now = ref(new Date())
 const clock = computed(() => campusClock(now.value, locale.value))
 const wish = ref(randomCampusWish())
@@ -193,7 +197,7 @@ async function loadData(targets = activeKeys(), force = false) {
   if (!status.value?.binding) return
   if (status.value.binding.needsAuthorization) {
     for (const key of targets) {
-      if (!data.value[key]) failures.value[key] = t('campus.authorizationHint')
+      if (!data.value[key]) failures.value[key] = { code: 'authorizationRequired' }
     }
     return
   }
@@ -474,7 +478,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
               </template>
             </SectionHeader>
             <p v-if="todayAdjustment" class="border-b border-line px-4 py-3 text-sm text-base-content/65" role="status">{{ todayAdjustment }}</p>
-            <EmptyState v-if="!todayCourses.length" :icon="BookOpen" :title="todayTitle" :description="failures.today || t('campus.todayHint')" />
+            <EmptyState v-if="!todayCourses.length" :icon="BookOpen" :title="todayTitle" :description="failureText('today') || t('campus.todayHint')" />
             <div v-else class="space-y-2 p-4">
               <article v-for="(course,index) in todayCourses" :key="index" class="flex items-start gap-3 rounded-xl border p-3" :style="courseStyle(course.name)">
                 <span class="w-16 shrink-0 rounded-field bg-base-100/60 py-2 text-center text-xs font-semibold tabular-nums text-[var(--card-title)]">{{ t('campus.periods', { start: course.start, end: course.end }) }}</span>
@@ -508,7 +512,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
           <CampusCalendarRules />
           <p v-if="exportError" role="alert" class="gf-status-message gf-status-message-error m-4">{{ exportError }}</p>
           <p v-else-if="exportMessage" role="status" class="gf-status-message gf-status-message-info m-4">{{ exportMessage }}</p>
-          <p v-if="failures.timetable" class="gf-status-message gf-status-message-error m-4">{{ failures.timetable }}</p>
+          <p v-if="failures.timetable" class="gf-status-message gf-status-message-error m-4">{{ failureText('timetable') }}</p>
           <EmptyState v-if="!data.timetable && !failures.timetable" loading :title="t('campus.timetableLoading')" />
           <EmptyState v-else-if="failures.timetable || data.timetable?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.timetableUnavailable')" :description="t('campus.schoolRetry')" />
           <template v-else>
@@ -554,7 +558,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
             </dl>
             <div v-if="creditProgress !== null" class="border-t border-line px-4 py-3"><div class="mb-2 flex justify-between text-xs text-base-content/55"><span>{{ t('campus.creditProgress') }}</span><span>{{ t('campus.creditsProgress', { completed: completedCredits, total: totalCredits }) }}</span></div><div class="h-2 overflow-hidden rounded-full bg-base-300"><div class="h-full rounded-full bg-primary/75" :style="{ width: `${creditProgress}%` }"></div></div></div>
           </div>
-          <p v-if="tab === 'grades' && failures.summary" class="gf-status-message gf-status-message-error m-4">{{ failures.summary }}</p>
+          <p v-if="tab === 'grades' && failures.summary" class="gf-status-message gf-status-message-error m-4">{{ failureText('summary') }}</p>
           <dl v-if="current?.metrics.length" class="flex flex-wrap gap-x-8 gap-y-4 border-b border-line p-4">
             <div v-for="metric in current.metrics" :key="metric.label">
               <dt class="text-xs text-base-content/55">{{ fieldLabel(metric.label) }}</dt>
@@ -570,7 +574,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
             </div>
             <p class="mt-4 text-xs text-base-content/55">{{ tab === 'grades' ? t('campus.gradeChartHint') : t('campus.examChartHint') }}</p>
           </div>
-          <EmptyState v-if="failures[tab as CampusDatasetKey] || current?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.recordsUnavailable')" :description="failures[tab as CampusDatasetKey] || t('campus.errorUpstream')" />
+          <EmptyState v-if="failures[tab as CampusDatasetKey] || current?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.recordsUnavailable')" :description="failureText(tab as CampusDatasetKey) || t('campus.errorUpstream')" />
           <EmptyState v-else-if="!current" loading :title="t('campus.recordsLoading')" />
           <EmptyState v-else-if="!rows.length" :icon="BookOpen" :title="filter ? t('campus.noMatchingRecords') : t('campus.noRecords')" />
           <div v-else class="overflow-x-auto">
