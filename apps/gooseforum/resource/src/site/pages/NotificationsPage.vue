@@ -66,10 +66,6 @@ const loadedCount = computed(() => activeList.value.items.length)
 const emptyTitle = computed(() => activeFilter.value === 'unread' ? t('notifications.unreadEmptyTitle') : t('notifications.emptyTitle'))
 const emptyDescription = computed(() => activeFilter.value === 'unread' ? t('notifications.unreadEmptyDescription') : t('notifications.emptyDescription'))
 
-if (page.props.unreadCount === 0) {
-  unreadStatus.clearNotifications()
-}
-
 watch(
   () => page.props.notifications,
   () => {
@@ -95,9 +91,6 @@ watch(
       actionError.value = ''
     }
     unreadCount.value = page.props.unreadCount
-    if (page.props.unreadCount === 0) {
-      unreadStatus.clearNotifications()
-    }
     void nextTick(observeLoadMore)
   },
 )
@@ -173,23 +166,24 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
   if (!reset && !list.hasNext) return
 
   const generation = categoryGeneration
+  const request = unreadStatus.captureNotificationRequest()
   list.loading = true
   actionError.value = ''
   try {
     const payload = await fetchNotifications(filter, reset ? 0 : list.nextCursor, pageSize, activeCategory.value)
-    if (generation !== categoryGeneration) return
+    if (generation !== categoryGeneration || !unreadStatus.isCurrentNotificationRequest(request)) return
     const nextItems = payload.items.map((item) => ({ ...item }))
     list.items = reset ? nextItems : mergeNotifications(list.items, nextItems)
     list.nextCursor = payload.nextCursor
     list.hasNext = payload.hasNext
     list.loaded = true
-    unreadCount.value = payload.unreadCount
-    unreadStatus.setNotifications(payload.unreadCount > 0, payload.unreadCount)
+    const applied = unreadStatus.applyNotificationSnapshot(payload.unreadCount, request)
+    unreadCount.value = applied ? payload.unreadCount : (unreadStatus.notificationCount.value ?? payload.unreadCount)
   } catch (error) {
-    if (generation !== categoryGeneration) return
+    if (generation !== categoryGeneration || !unreadStatus.isCurrentNotificationOwner(request)) return
     actionError.value = error instanceof Error ? error.message : t('api.notificationsLoadFailed')
   } finally {
-    if (generation !== categoryGeneration) return
+    if (generation !== categoryGeneration || !unreadStatus.isCurrentNotificationOwner(request)) return
     list.loading = false
     await nextTick()
     observeLoadMore()
@@ -330,21 +324,24 @@ function targetURL(item: NotificationPayload) {
 async function markAllRead() {
   if (!hasUnread.value || markingAllRead.value) return
 
+  const request = unreadStatus.captureNotificationRequest()
   markingAllRead.value = true
   actionError.value = ''
   try {
     await markAllNotificationsRead()
+    if (!unreadStatus.isCurrentNotificationOwner(request)) return
     lists.all.items = lists.all.items.map((item) => ({ ...item, isRead: true }))
     lists.unread.items = []
     lists.unread.nextCursor = 0
     lists.unread.hasNext = false
     lists.unread.loaded = true
     unreadCount.value = 0
-    unreadStatus.clearNotifications()
+    unreadStatus.clearNotifications(request)
   } catch (error) {
+    if (!unreadStatus.isCurrentNotificationOwner(request)) return
     actionError.value = error instanceof Error ? error.message : t('notifications.markAllReadFailed')
   } finally {
-    markingAllRead.value = false
+    if (unreadStatus.isCurrentNotificationOwner(request)) markingAllRead.value = false
   }
 }
 
@@ -352,6 +349,7 @@ function markItemRead(item: NotificationPayload) {
   if (item.isRead) return
 
   const generation = categoryGeneration
+  const request = unreadStatus.captureNotificationRequest()
   const previousAll = copyNotifications(lists.all.items)
   const previousUnread = copyNotifications(lists.unread.items)
   const previousUnreadCount = unreadCount.value
@@ -360,14 +358,15 @@ function markItemRead(item: NotificationPayload) {
   lists.all.items = lists.all.items.map((notification) => notification.id === notificationId ? { ...notification, isRead: true } : notification)
   lists.unread.items = lists.unread.items.filter((notification) => notification.id !== notificationId)
   unreadCount.value = Math.max(unreadCount.value - 1, 0)
-  unreadStatus.setNotifications(unreadCount.value > 0, unreadCount.value)
-
-  void markNotificationRead(notificationId).catch(() => {
-    if (generation === categoryGeneration) {
+  void markNotificationRead(notificationId).then(() => {
+    if (!unreadStatus.isCurrentNotificationOwner(request)) return
+    unreadStatus.confirmNotificationRead(request)
+  }).catch(() => {
+    if (!unreadStatus.isCurrentNotificationOwner(request)) return
+    if (generation === categoryGeneration && unreadStatus.isCurrentNotificationRequest(request)) {
       lists.all.items = previousAll
       lists.unread.items = previousUnread
       unreadCount.value = previousUnreadCount
-      unreadStatus.setNotifications(previousUnreadCount > 0, previousUnreadCount)
     }
     void unreadStatus.refresh(true).catch(() => undefined)
   })

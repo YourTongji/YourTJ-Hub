@@ -99,7 +99,7 @@ test.each(['notifications', 'messages'] as const)('a delayed poll cannot undo cl
  vi.stubGlobal('fetch', vi.fn(() => new Promise(resolve => { finish = resolve })))
  status.startPolling(initial, 1024)
  const poll = status.refresh(true)
- if (domain === 'notifications') status.clearNotifications()
+ if (domain === 'notifications') status.clearNotifications(status.captureNotificationRequest())
  else status.clearMessages()
  finish(response({ ...initial, notificationCount: 5, messageCount: 20 }))
  await poll
