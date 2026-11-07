@@ -118,6 +118,8 @@ function disposeMap() {
     current?.remove()
   } catch {
     // MapLibre remove can throw when its constructor returned before creating a painter.
+  } finally {
+    // Construction can append DOM and then throw before map receives the instance.
     host.value?.replaceChildren()
     host.value?.classList.remove('maplibregl-map')
   }

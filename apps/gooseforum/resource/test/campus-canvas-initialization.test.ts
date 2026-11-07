@@ -11,7 +11,12 @@ vi.mock('maplibre-gl', async (importOriginal) => ({
  AJAXError: (await importOriginal<typeof import('maplibre-gl')>()).AJAXError,
  setWorkerUrl: vi.fn(),
  Map: class {
-  constructor() { state.created(); if (state.fail) throw new Error('GPU initialization failed') }
+  constructor(options: { container: HTMLElement }) {
+   state.created()
+   options.container.classList.add('maplibregl-map')
+   options.container.append(document.createElement('canvas'), document.createElement('div'))
+   if (state.fail) throw new Error('GPU initialization failed')
+  }
   getCanvas() { return document.createElement('canvas') }
   on = state.on
   remove = state.remove
@@ -42,13 +47,34 @@ test('missing WebGL2 fails before creating a map or resize observer', () => {
  expect(observe).not.toHaveBeenCalled()
  wrapper.unmount()
 })
-test('constructor failure reports failure and never starts resize', () => {
+test('constructor failure clears partially inserted DOM and never starts resize', () => {
  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ getExtension: () => null } as unknown as WebGL2RenderingContext)
  state.fail = true
  const wrapper = open()
  expect(wrapper.emitted('failure')).toHaveLength(1)
  expect(observe).not.toHaveBeenCalled()
+ const host = wrapper.get('.campus-canvas__map').element
+ expect(host.childElementCount).toBe(0)
+ expect(host.classList.contains('maplibregl-map')).toBe(false)
+ expect(host.classList.contains('campus-canvas__map')).toBe(true)
+ expect(state.remove).not.toHaveBeenCalled()
  wrapper.unmount()
+})
+
+test('remove failure still clears the map host and does not repeat disposal', () => {
+ vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ getExtension: () => null } as unknown as WebGL2RenderingContext)
+ state.remove.mockImplementationOnce(() => { throw new Error('Painter was not initialized') })
+ const wrapper = open()
+ const error = state.on.mock.calls.find(([name]) => name === 'error')![1]
+ error({ error: new Error('initialization failed') })
+ const host = wrapper.get('.campus-canvas__map').element
+ expect(host.childElementCount).toBe(0)
+ expect(host.classList.contains('maplibregl-map')).toBe(false)
+ expect(host.classList.contains('campus-canvas__map')).toBe(true)
+ expect(wrapper.emitted('failure')).toHaveLength(1)
+ expect(disconnect).toHaveBeenCalledOnce()
+ wrapper.unmount()
+ expect(state.remove).toHaveBeenCalledOnce()
 })
 test('supported map starts normally and removes itself on unmount', () => {
  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ getExtension: () => null } as unknown as WebGL2RenderingContext)
