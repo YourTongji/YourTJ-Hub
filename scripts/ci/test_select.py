@@ -51,6 +51,13 @@ class SelectTests(unittest.TestCase):
         plan = select(["apps/gooseforum/app/service/test.go"])
         self.assertTrue(plan["backend"]["run"] and plan["postgres"]["run"] and plan["deploy"]["run"])
 
+    def test_minio_runner_and_integration_test_select_backend(self):
+        for path in ('apps/gooseforum/scripts/run-minio-upload-e2e.sh',
+                     'apps/gooseforum/app/http/routes/direct_upload_minio_test.go',
+                     '.github/workflows/ci-backend.yml'):
+            with self.subTest(path=path):
+                self.assertTrue(select([path])['backend']['run'])
+
     def test_metadata_does_not_deploy_or_build_native(self):
         plan = select(["releases/requests/mobile-1.0.15-15/ios.zh-Hans.txt"])
         self.assertTrue(plan["release"]["run"])

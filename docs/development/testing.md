@@ -64,6 +64,31 @@ cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run check
 make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 ```
 
+### Real object-storage upload checks
+
+The backend workflow's `ci-backend-minio` job builds the official MinIO
+`RELEASE.2025-10-15T17-29-55Z` source pinned by module version and checksum, then
+starts a disposable server bound to loopback. It uses synthetic credentials and
+temporary storage, requires no repository or production secrets, and stops the
+server and removes its data on exit. The existing backend aggregate includes
+this job's result. Changes to its runner, test or backend workflow select it.
+
+From the repository root, in an environment that supports an unmodified MinIO
+server, run `bash apps/gooseforum/scripts/run-minio-upload-e2e.sh`. This downloads
+and builds the pinned official source. The opt-in `miniointegration` test tag
+keeps ordinary unit tests independent of a running object store; explicitly
+running the integration test without its disposable instance fails, not skips.
+
+The real Gin route chain, metadata adapter and S3 provider exercise both PNG and
+declared-JPEG/actual-PNG uploads. The test sends the returned presigned POST to
+MinIO, checks size-plus-one Range behavior, completes the upload, replays the
+original policy with different same-length bytes, and requires changing its key
+to the final filename to receive `403 AccessDenied`. It verifies the final bytes
+and type, duplicate completion, source-read denial and recovery after cleanup.
+This checks the HTTP/storage protocol, not browser CORS, production credentials,
+or other S3 vendors. A compile-only run or a simulated provider is not evidence
+that the real-store test passed; use the exact commit's job result.
+
 ## Layers
 
 | Layer | Test type | Tool |
