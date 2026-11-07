@@ -137,8 +137,10 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
    类型校验只读取该快照的有界头部。所有成功路径都将同一份已校验字节写入新的 UUID key，
    不再发布客户端可写的临时 key；扩展名跟随真实类型，同类型的 `.jpeg` 等别名保留。
    写副本前预留 `copying` 行，再以现有事务将原 `pending` 行改为 `cleanup`、副本改为 `ready`。
-   原 key 的预签名凭证重放不能改变已发布内容。一个原上传只允许一个 complete 成功；
-   使用返回的最终名字重复 complete 可返回同一结果，原临时名字重复 complete 被拒绝。
+   原 key 的预签名凭证重放不能改变已发布内容。一个原上传只发布一个副本；
+   发布事务在副本记录原临时名，上传者使用原临时名或返回的最终名重复 complete 均可恢复
+   同一结果，包括首次响应丢失或原临时行已清理的情况。此映射仅用于 complete，不作为图片
+   读取别名；最终副本删除后不能再恢复。存量 ready 行不补建原临时名映射。
    原 key 保留清理记录至两小时清理窗口；失败副本同样有清理记录。图片校验的稳定错误码保持
    `upload.image.empty`、`upload.image.unsupported`、`upload.image.invalidContent` 和
    `upload.extension.unsupported`。
@@ -217,7 +219,7 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
   [决策 0113](../decisions/0113-upload-header-authority.md)。
   回滚到不识别 copying/cleanup 状态的旧二进制时，这两类记录暂停自动清理；恢复支持版本后继续回收，
   不应手动把它们改为 ready。已发布图片的读取不受影响。
-- **发布与归属记录非事务**：`complete` 的 `MarkFileReady` 与控制器里的 `AddUploadOwner`
+- **发布与归属记录非事务**：`complete` 的 `PublishRenamedFileMetadata` 与控制器里的 `AddUploadOwner`
   是两次独立写，崩溃窗口可能产生「已 ready 但无 owner 记录」的行（对象可读但归属审计
   缺失）；概率极低，归属记录失败时服务端会同时删除对象与元数据行作为回滚。
 

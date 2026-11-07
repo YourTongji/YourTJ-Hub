@@ -91,13 +91,14 @@ func (p *fakeDirectUploadProvider) VerifyUpload(_ context.Context, request Direc
 
 // fakeMetadataStore is an in-memory DirectUploadMetadataStore.
 type fakeMetadataStore struct {
-	rows   map[string]FileMetadata
-	status map[string]string
-	nextID uint64
+	rows      map[string]FileMetadata
+	status    map[string]string
+	completed map[string]string
+	nextID    uint64
 }
 
 func newFakeMetadataStore() *fakeMetadataStore {
-	return &fakeMetadataStore{rows: map[string]FileMetadata{}, status: map[string]string{}}
+	return &fakeMetadataStore{rows: map[string]FileMetadata{}, status: map[string]string{}, completed: map[string]string{}}
 }
 
 func (s *fakeMetadataStore) CreateFileMetadata(_ context.Context, userId uint64, name, fileType string, size int64) (*FileMetadata, error) {
@@ -128,6 +129,9 @@ func (s *fakeMetadataStore) GetPendingFileMetadataByName(_ context.Context, name
 }
 
 func (s *fakeMetadataStore) GetFileMetadataByName(_ context.Context, name string) (*FileMetadata, error) {
+	if completed, ok := s.completed[name]; ok {
+		name = completed
+	}
 	row, ok := s.rows[name]
 	if !ok || s.status[name] != "ready" {
 		return nil, errors.New("file not found")
@@ -143,6 +147,7 @@ func (s *fakeMetadataStore) PublishRenamedFileMetadata(_ context.Context, oldNam
 	}
 	s.status[oldName] = "cleanup"
 	s.status[newName] = "ready"
+	s.completed[oldName] = newName
 	return &row, nil
 }
 
@@ -259,13 +264,15 @@ func TestCompleteDirectUploadDoubleCompleteIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first CompleteDirectUpload() error = %v", err)
 	}
-	// A duplicate using the returned final name is idempotent.
-	metadata, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{Name: first.Name, UserId: 1})
-	if err != nil {
-		t.Fatalf("duplicate CompleteDirectUpload() error = %v, want idempotent success", err)
-	}
-	if metadata.Name != first.Name {
-		t.Fatal("duplicate complete changed final name")
+	// Both names recover the same result, including after a lost response.
+	for _, name := range []string{session.Metadata.Name, first.Name} {
+		metadata, err := CompleteDirectUpload(ctx, CompleteDirectUploadRequest{Name: name, UserId: 1})
+		if err != nil {
+			t.Fatalf("duplicate CompleteDirectUpload(%q) error = %v", name, err)
+		}
+		if metadata.Name != first.Name {
+			t.Fatal("duplicate complete changed final name")
+		}
 	}
 }
 

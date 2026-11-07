@@ -9541,8 +9541,9 @@ export interface paths {
          *     paths publish those same bytes under a fresh UUID key that the client cannot write with its
          *     original presigned policy. The detected type determines the extension; equivalent aliases
          *     such as `.jpeg` are retained. The response always carries the final `filename`/`url`, distinct
-         *     from the init name. The original key remains tracked for cleanup. Repeating complete with the
-         *     returned final name is idempotent; repeating the consumed temporary name is rejected.
+         *     from the init name. The original key remains tracked for cleanup. Repeating complete with either the
+         *     original init name or returned final name recovers the same ready object for its owner, even
+         *     after temporary-key cleanup. The original name is not an alias for reading the image.
          *     An empty object fails with `upload.image.empty`, an unsupported format with
          *     `upload.image.unsupported`, unusable image bytes with `upload.image.invalidContent`, and a
          *     disallowed detected type with `upload.extension.unsupported` (HTTP 200 business failures).

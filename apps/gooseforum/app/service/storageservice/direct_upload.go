@@ -77,6 +77,7 @@ type DirectUploadMetadataStore interface {
 	CreateFileMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*FileMetadata, error)
 	CreateFileCopyMetadata(ctx context.Context, userId uint64, name, fileType string, size int64) (*FileMetadata, error)
 	GetPendingFileMetadataByName(ctx context.Context, name string) (*FileMetadata, error)
+	// GetFileMetadataByName resolves a ready upload by final key or original init name.
 	GetFileMetadataByName(ctx context.Context, name string) (*FileMetadata, error)
 	// PublishRenamedFileMetadata atomically retires the source pending row to
 	// cleanup and publishes the separately reserved copy. Only one caller wins.
@@ -156,7 +157,8 @@ func BeginDirectUpload(ctx context.Context, request DirectUploadRequest) (*Direc
 }
 
 // CompleteDirectUpload verifies the uploaded object (size, content type and
-// optional content validator) and flips the pending row to ready.
+// optional content validator) and publishes an immutable copy. A duplicate
+// request recovers the existing result without reading the original object.
 func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadRequest) (*FileMetadata, error) {
 	if request.Name == "" || request.UserId == 0 {
 		return nil, errors.New("direct upload name and user are required")
@@ -167,8 +169,8 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 	}
 	metadata, err := metadataRepo.GetPendingFileMetadataByName(ctx, request.Name)
 	if err != nil {
-		// Idempotent duplicate complete: a row already flipped to ready by the
-		// same user is returned as success instead of failing.
+		// Recover by either final key or original init name when the first response
+		// was lost. The resolved ready row must still belong to the caller.
 		ready, readyErr := metadataRepo.GetFileMetadataByName(ctx, request.Name)
 		if readyErr == nil {
 			if ready.UserId != request.UserId {
