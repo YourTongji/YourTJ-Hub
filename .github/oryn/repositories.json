@@ -21,6 +21,17 @@
       "requiredChecks": [
         "ci-required"
       ],
+      "trustedCheckApps": [
+        {
+          "name": "ci-required",
+          "app": "github-actions"
+        }
+      ],
+      "allowLowRiskApprove": false,
+      "lessonPaths": [
+        "docs/decisions",
+        "docs/postmortems"
+      ],
       "selection": "balanced",
       "maxRepairAttempts": 2,
       "validation": [

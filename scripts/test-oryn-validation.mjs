@@ -71,6 +71,32 @@ test('non-publishing manual probes can run without waiting for the publication q
   assert.equal(await orynConcurrency({ release_notes_smoke: true }), 'oryn-release-smoke-101');
 });
 
+const verifiedOrynSha = 'ad2b9847c01cba36f8a0abd5564df7144d47878e';
+
+test('the setup action and operator guide pin the same verified Oryn commit', async () => {
+  const { readFileSync } = await import('node:fs');
+  const action = readFileSync(new URL('../.github/actions/setup-oryn/action.yml', import.meta.url), 'utf8');
+  const guide = readFileSync(new URL('../docs/operations/oryn.md', import.meta.url), 'utf8');
+  const refs = action.match(/^ {8}ref: ([0-9a-f]{40})$/m);
+  assert.deepEqual(refs?.slice(1), [verifiedOrynSha]);
+  assert.equal(guide.includes(verifiedOrynSha), true);
+  assert.equal(guide.includes('32af3fbc705ea34f8e4229d38035513ce165d511'), false);
+});
+
+test('Hub Oryn policy keeps low-risk approval off and records check and lesson trust', async () => {
+  const { readFileSync } = await import('node:fs');
+  const policy = JSON.parse(readFileSync(new URL('../.github/oryn/repositories.json', import.meta.url), 'utf8'));
+  const repository = policy.repositories.find((item) => item.name === 'YourTongji/YourTJ-Hub');
+  assert.ok(repository);
+  assert.equal(repository.allowLowRiskApprove, false);
+  assert.deepEqual(repository.requiredChecks, ['ci-required']);
+  assert.deepEqual(repository.trustedCheckApps, [{ name: 'ci-required', app: 'github-actions' }]);
+  assert.deepEqual(repository.lessonPaths, ['docs/decisions', 'docs/postmortems']);
+  assert.equal(repository.allowMerge, true);
+  assert.deepEqual(repository.protectedMergePaths, ['releases/requests/']);
+  assert.equal(Object.hasOwn(repository, 'sensitivePaths'), false);
+});
+
 test('publishing manual work and automatic events keep their shared receipt-writer queue', async () => {
   assert.equal(await orynConcurrency({ publish: true }), 'oryn-sweep');
   for (const event of ['schedule', 'pull_request_target', 'issues', 'issue_comment']) {
