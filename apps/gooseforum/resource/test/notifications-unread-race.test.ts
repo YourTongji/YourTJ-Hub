@@ -295,3 +295,28 @@ test('a same-account layout refresh does not restore a pending optimistic row', 
   expect(wrapper!.findAll('article button')).toHaveLength(0)
   expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
 })
+
+test.each([
+  [0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0],
+])('concurrent failed reads restore unread row order (%s, %s, %s)', async (...failureOrder) => {
+  const pending = [deferred<boolean>(), deferred<boolean>(), deferred<boolean>()]
+  pending.forEach(operation => api.markNotificationRead.mockReturnValueOnce(operation.promise))
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(4)))
+  const items = [40, 30, 20, 10].map(id => ({ ...item, id, topic: { ...item.topic!, title: `Notice ${id}` } }))
+  await mountPage(4, items, 'unread')
+  for (let index = 0; index < pending.length; index++) {
+    await wrapper!.findAll('article button')[0]!.trigger('click')
+  }
+  const restored = [10]
+  for (const index of failureOrder) {
+    pending[index]!.reject(new Error('offline'))
+    await flushPromises()
+    restored.push(items[index]!.id)
+    restored.sort((left, right) => right - left)
+    const actual = wrapper!.findAll('article').map(row => Number(row.text().match(/Notice (\d+)/)![1]))
+    expect(actual).toEqual(restored)
+    expect(wrapper!.get('[data-unread-summary]').text()).toBe(`${restored.length} unread`)
+  }
+  expectCount(4)
+  expect(api.fetchNotifications).not.toHaveBeenCalled()
+})

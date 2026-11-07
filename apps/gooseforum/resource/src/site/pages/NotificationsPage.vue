@@ -368,8 +368,7 @@ function markItemRead(item: NotificationPayload) {
   const snapshotRevision = listRevision
   const notificationId = item.id
   const previousAll = lists.all.items.find(notification => notification.id === notificationId)
-  const unreadIndex = lists.unread.items.findIndex(notification => notification.id === notificationId)
-  const previousUnread = lists.unread.items[unreadIndex]
+  const previousUnread = lists.unread.items.find(notification => notification.id === notificationId)
 
   lists.all.items = lists.all.items.map((notification) => notification.id === notificationId ? { ...notification, isRead: true } : notification)
   lists.unread.items = lists.unread.items.filter((notification) => notification.id !== notificationId)
@@ -384,7 +383,9 @@ function markItemRead(item: NotificationPayload) {
         // Undo only this operation; restoring whole arrays also undoes other pending reads.
         if (previousAll) lists.all.items = lists.all.items.map(notification => notification.id === notificationId ? previousAll : notification)
         if (previousUnread && !lists.unread.items.some(notification => notification.id === notificationId)) {
-          lists.unread.items.splice(unreadIndex, 0, previousUnread)
+          // Match the API's descending ID order; concurrent removals make captured indexes stale.
+          const nextIndex = lists.unread.items.findIndex(notification => notification.id < notificationId)
+          lists.unread.items.splice(nextIndex < 0 ? lists.unread.items.length : nextIndex, 0, previousUnread)
         }
         unreadCount.value++
       } else {
