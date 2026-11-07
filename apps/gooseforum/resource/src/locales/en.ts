@@ -702,6 +702,7 @@ export default {
     noTodayCourses: "No classes scheduled today",
     loadFailed: "Could not load data",
     connected: "Connected",
+    authorizationRequired: "Reauthorization required",
     empty: "No records",
     unavailable: "School service unavailable",
     notSynced: "Not yet synced",

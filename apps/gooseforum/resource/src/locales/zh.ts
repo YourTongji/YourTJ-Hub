@@ -702,6 +702,7 @@ export default {
     noTodayCourses: "今天没有安排课程",
     loadFailed: "读取失败",
     connected: "已连接",
+    authorizationRequired: "需重新授权",
     empty: "暂无记录",
     unavailable: "学校服务暂不可用",
     notSynced: "尚未同步",
