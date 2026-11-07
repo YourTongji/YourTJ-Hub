@@ -357,9 +357,19 @@ function mergeLikes(current: UserLikePayload[], incoming: UserLikePayload[]) {
   return [...current, ...incoming.filter((like) => !seen.has(like.id))]
 }
 
+// Topic and post bookmarks use independent action-table IDs.
+function bookmarkKey(bookmark: UserBookmarkPayload) {
+  return `${bookmark.type}:${bookmark.id}`
+}
+
 function mergeBookmarks(current: UserBookmarkPayload[], incoming: UserBookmarkPayload[]) {
-  const seen = new Set(current.map((bookmark) => bookmark.id))
-  return [...current, ...incoming.filter((bookmark) => !seen.has(bookmark.id))]
+  const seen = new Set(current.map(bookmarkKey))
+  return [...current, ...incoming.filter((bookmark) => {
+    const key = bookmarkKey(bookmark)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })]
 }
 
 function mergeConnections(current: UserConnectionPayload[], incoming: UserConnectionPayload[]) {
@@ -842,7 +852,7 @@ function safeProfileUrl(value?: string) {
             <div class="space-y-3 p-4">
               <a
                 v-for="bookmark in bookmarks"
-                :key="bookmark.id"
+                :key="bookmarkKey(bookmark)"
                 :href="bookmark.url"
                 class="flex min-w-0 gap-3 rounded-md border border-line p-3 hover:border-primary/20 hover:bg-info/10"
               >
@@ -900,7 +910,7 @@ function safeProfileUrl(value?: string) {
           <div class="space-y-3 p-4">
             <a
               v-for="bookmark in bookmarks"
-              :key="bookmark.id"
+              :key="bookmarkKey(bookmark)"
               :href="bookmark.url"
               class="flex min-w-0 gap-3 rounded-md border border-line p-3 hover:border-primary/20 hover:bg-info/10"
             >
