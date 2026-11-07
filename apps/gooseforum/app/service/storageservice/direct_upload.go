@@ -197,6 +197,9 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 	// Read one bounded snapshot and publish exactly the bytes that were validated.
 	data, err := readUploadSnapshot(ctx, metadata)
 	if err != nil {
+		if errors.Is(err, ErrDirectUploadInvalidObject) {
+			return nil, rollbackDirectUpload(ctx, metadataRepo, request.Name, err)
+		}
 		return nil, err
 	}
 	contentType := metadata.Type
@@ -214,8 +217,8 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 
 // normalizeDirectUploadType publishes a verified snapshot. Every upload uses a
 // unique copy key reserved in metadata before any object write. Failed copies
-// remain pending; a published copy leaves a cleanup row for the old key until
-// its object is deleted. CleanupPending can therefore retry either failure.
+// remain tracked; a published copy retains a cleanup row for the old key until
+// the cleanup window. CleanupPending can therefore retry failures and late writes.
 func normalizeDirectUploadType(ctx context.Context, metadataRepo DirectUploadMetadataStore, metadata *FileMetadata, contentType string, data []byte) (*FileMetadata, error) {
 	ext, ok := imagepolicy.ExtForContentType(contentType)
 	if !ok {

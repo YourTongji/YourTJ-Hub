@@ -78,7 +78,7 @@ completed are subject to the 2-hour rule below.
 
 | 流量路径 | 使用端点 |
 |---|---|
-| 服务端数据面：Save/Get/GetRange/Delete/Exists/VerifyUpload、测试连接的 bucket 检查（即 `/file/img/*` 代理读取、直传 complete 的 `StatObject` 校验与 512KB 头部 Range 读取、abort/超时清理删除、文件迁移任务） | `internalEndpoint` |
+| 服务端数据面：Save/Get/GetRange/Delete/Exists/VerifyUpload、测试连接的 bucket 检查（即 `/file/img/*` 代理读取、直传 complete 的 `StatObject` 校验与声明大小约束的快照 Range 读取、abort/超时清理删除、文件迁移任务） | `internalEndpoint` |
 | 浏览器直传：`init` 返回的预签名 POST URL（PresignUpload） | 始终为公开 `endpoint`（浏览器必须能直达） |
 | `internalEndpoint` 为空，或其规范化主机与 `endpoint` 相同 | 仅公开端点单客户端，行为与现状一致 |
 
@@ -144,6 +144,8 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
    原 key 保留清理记录至两小时清理窗口；失败副本同样有清理记录。图片校验的稳定错误码保持
    `upload.image.empty`、`upload.image.unsupported`、`upload.image.invalidContent` 和
    `upload.extension.unsupported`。
+   快照长度不符与其他无效对象一致，立即尝试先删除对象、再删除待发布行；对象删除失败时
+   保留元数据供清理任务重试。暂时的读取错误不判定对象无效，保留待发布对象供 complete 重试。
 5. 发布成功后返回最终公开 `url`、存储对象名 `filename`（始终与 init 的临时 `name` 不同，不是调用方原始文件名）与字节 `size`；失败或取消时浏览器
    `POST /file/img-upload/abort`（`{ name }`）删除待发布对象。
 
@@ -206,12 +208,12 @@ VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100
 
 ## 残余风险与语义
 
-- **完成时带宽与内存**：每次 complete 完整读取一次受上传大小上限约束的快照，并将它写入
+- **完成时带宽与内存**：complete 处理待发布对象时完整读取一次受上传大小上限约束的快照，并将它写入
   新对象。这会增加服务端带宽和并发内存成本；校验与发布共用这份快照，避免两次读取之间
-  对象变化。后续已发布图片的读取方式保持不变。
-- **每日上传额度按 pending 行计**：`init` 即创建 pending 行，`CountDailyUploads`
-  按 `user_id × created_at` 计数且不区分 storage_status——abort 或 2 小时清理前，该次
-  init 计入当日额度（作为反滥用上界，自限、无跨用户影响）。
+  对象变化。已成功 complete 的恢复请求不重读原对象。后续已发布图片的读取方式保持不变。
+- **每日上传额度包含 pending 行**：`init` 即创建 pending 行，`CountDailyUploads`
+  按 `user_id × created_at` 计数，排除内部 `copying` 和 `cleanup` 行。待发布行在回滚、abort
+  或超时清理删除前计入当日额度；成功副本沿用原创建时间，不重复计入额度。
 - **改名对象有持久清理记录**：写副本前预留 `copying` 行，发布后保留原名的 `cleanup`
   行直到两小时清理窗口，避免仍有效的预签名 POST 迟到写回旧 key 后失去清理记录。元数据发布失败的副本与旧对象删除失败都由现有两小时清理任务重试；
   清理只扫描 pending/copying/cleanup，ready 成功对象不在候选中。内部 copying/cleanup
