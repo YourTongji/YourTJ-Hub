@@ -1,12 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { AJAXError } from 'maplibre-gl'
 import CampusCanvas from '../src/site/campus-map/CampusCanvas.vue'
 import { getCampus } from '../src/site/campus-map/campuses'
 import type { CampusData } from '../src/site/campus-map/catalog'
 
 const state = vi.hoisted(() => ({ fail: false, remove: vi.fn(), resize: vi.fn(), on: vi.fn(), fitBounds: vi.fn(), created: vi.fn() }))
-vi.mock('maplibre-gl', () => ({
+vi.mock('maplibre-gl', async (importOriginal) => ({
+ AJAXError: (await importOriginal<typeof import('maplibre-gl')>()).AJAXError,
  setWorkerUrl: vi.fn(),
  Map: class {
   constructor() { state.created(); if (state.fail) throw new Error('GPU initialization failed') }
@@ -20,10 +22,12 @@ vi.mock('maplibre-gl', () => ({
  },
 }))
 let observe: ReturnType<typeof vi.fn>
+let disconnect: ReturnType<typeof vi.fn>
 beforeEach(() => {
  vi.clearAllMocks(); state.fail = false
  observe = vi.fn()
- vi.stubGlobal('ResizeObserver', class { observe = observe; disconnect = vi.fn() })
+ disconnect = vi.fn()
+ vi.stubGlobal('ResizeObserver', class { observe = observe; disconnect = disconnect })
 })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 function open() {
@@ -56,12 +60,15 @@ test('supported map starts normally and removes itself on unmount', () => {
  expect(state.remove).toHaveBeenCalledOnce()
 })
 
-test('an initialization error disposes the map and suppresses a late load', () => {
+test.each([
+ { error: new Error('initialization failed') },
+ { error: new AJAXError(503, 'Service Unavailable', '/map-data', new Blob()), sourceId: 'buildings' },
+])('an initialization error disposes the map and suppresses a late load: %j', (event) => {
  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ getExtension: () => null } as unknown as WebGL2RenderingContext)
  const wrapper = open()
  const error = state.on.mock.calls.find(([name]) => name === 'error')![1]
  const load = state.on.mock.calls.find(([name]) => name === 'load')![1]
- error(); load()
+ error(event); load()
  expect(wrapper.emitted('failure')).toHaveLength(1)
  expect(wrapper.emitted('ready')).toBeUndefined()
  expect(state.remove).toHaveBeenCalledOnce()
@@ -69,17 +76,45 @@ test('an initialization error disposes the map and suppresses a late load', () =
  expect(state.remove).toHaveBeenCalledOnce()
 })
 
-test('a recoverable resource error after load preserves the working map', () => {
+test.each([
+ { sourceId: 'buildings', tile: { state: 'errored' } },
+ { sourceId: 'buildings' },
+])('a source HTTP error after load preserves the working map: %j', (metadata) => {
  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ getExtension: () => null } as unknown as WebGL2RenderingContext)
  const wrapper = open()
  try {
   const load = state.on.mock.calls.find(([name]) => name === 'load')![1]
   const error = state.on.mock.calls.find(([name]) => name === 'error')![1]
   load()
-  error({ error: new Error('a tile request failed') })
+  error({ error: new AJAXError(503, 'Service Unavailable', '/map-data', new Blob()), ...metadata })
   expect(wrapper.emitted('ready')).toHaveLength(1)
   expect(wrapper.emitted('failure')).toBeUndefined()
   expect(state.remove).not.toHaveBeenCalled()
+ } finally { wrapper.unmount() }
+ expect(state.remove).toHaveBeenCalledOnce()
+})
+
+test.each([
+ { error: new Error('Style update failed') },
+ { error: new Error('Renderer failed') },
+ { error: new Error('Worker failed'), sourceId: 'buildings' },
+ { error: new Error('Worker failed'), sourceId: 'buildings', tile: { state: 'errored' } },
+ { error: new AJAXError(503, 'Service Unavailable', '/style.json', new Blob()) },
+])('an unclassified error after load reports failure and disposes once: %j', (event) => {
+ vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ getExtension: () => null } as unknown as WebGL2RenderingContext)
+ const wrapper = open()
+ try {
+  const load = state.on.mock.calls.find(([name]) => name === 'load')![1]
+  const error = state.on.mock.calls.find(([name]) => name === 'error')![1]
+  load()
+  error(event)
+  expect(wrapper.emitted('failure')).toHaveLength(1)
+  error(event)
+  load()
+  expect(wrapper.emitted('ready')).toHaveLength(1)
+  expect(wrapper.emitted('failure')).toHaveLength(1)
+  expect(state.remove).toHaveBeenCalledOnce()
+  expect(disconnect).toHaveBeenCalledOnce()
  } finally { wrapper.unmount() }
  expect(state.remove).toHaveBeenCalledOnce()
 })

@@ -170,9 +170,19 @@ onMounted(() => {
       updateLocation()
       emit('ready')
     })
-    map.on('error', () => {
-      // Tile/source errors after load can recover without discarding a working map.
-      if (!loaded) failMap()
+    map.on('error', (event) => {
+      if (!alive || !map) return
+      // MapLibre's sourceId also accompanies worker failures. Only known HTTP
+      // resource failures are safe to retain; unknown/style/renderer errors fail closed.
+      // https://github.com/maplibre/maplibre-gl-js/blob/v6.4.1/src/style/style.ts
+      if (
+        loaded &&
+        'sourceId' in event &&
+        typeof event.sourceId === 'string' &&
+        event.sourceId.length > 0 &&
+        event.error instanceof maplibregl.AJAXError
+      ) return
+      failMap()
     })
     map.on('move', queueLabels)
     let narrow = window.innerWidth < 700
