@@ -72,6 +72,9 @@ func TestDirectUploadMinIOReplay(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			conn, router, _ := setupDirectUploadRouteTest(t)
+			// Image reads consult the stored provider mode independently of Current.
+			// Keep that mode aligned without persisting the temporary credentials.
+			persistContractStorageSettings(t, conn, pageConfig.StorageSettings{Provider: storageservice.ProviderS3})
 			// Keep the real route, middleware, metadata adapter and SQLite stores;
 			// replace the helper's fake before making any upload request.
 			storageservice.SetCurrentForTest(provider)
@@ -211,7 +214,7 @@ func TestDirectUploadMinIOReplay(t *testing.T) {
 			}
 			read := serveDirectUploadJSON(router, http.MethodGet, first.URL, "", token)
 			if read.Code != http.StatusOK || !bytes.Equal(read.Body.Bytes(), contractTinyPNG) || read.Header().Get("Content-Type") != "image/png" {
-				t.Fatalf("published route after cleanup: HTTP %d, type=%s", read.Code, read.Header().Get("Content-Type"))
+				t.Fatalf("published route after cleanup: HTTP %d, bytes=%d, type=%s", read.Code, read.Body.Len(), read.Header().Get("Content-Type"))
 			}
 			t.Log("real MinIO: POST and replay succeeded; altered final key rejected; snapshot and retry survived cleanup")
 		})

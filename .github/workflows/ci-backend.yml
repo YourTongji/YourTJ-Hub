@@ -25,6 +25,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: apps/gooseforum/go.mod
+          cache-dependency-path: apps/gooseforum/go.sum
       - name: Real MinIO upload, replay and final-key policy rejection
         run: bash apps/gooseforum/scripts/run-minio-upload-e2e.sh
 
