@@ -5,6 +5,7 @@ import { describe, expect, test } from 'vitest'
 import type { LayoutPayload } from '@gooseforum/client'
 import { i18n } from '../src/runtime/i18n'
 import AppShell from '../src/site/components/AppShell.vue'
+import { useUnreadStatus } from '../src/runtime/unread-status'
 
 function layout(viewer: Partial<LayoutPayload['viewer']> = {}): LayoutPayload {
   return {
@@ -87,4 +88,23 @@ describe('AppShell user menu groups', () => {
     expect(privilegedMenu.find('a[href="/admin"]').exists()).toBe(true)
     privileged.unmount()
   })
+})
+
+
+test('a fresh zero-count navigation payload updates the shell badge without waiting for a poll', async () => {
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }] })
+  const initial = layout()
+  initial.unread = { notifications: true, messages: false, notificationCount: 3 }
+  const wrapper = mount(AppShell, { props: { layout: initial }, global: { plugins: [i18n, router], stubs: { AnonymousProfileLink: true } } })
+  const status = useUnreadStatus()
+  try {
+    expect(status.notificationCount.value).toBe(3)
+    await wrapper.setProps({ layout: { ...initial, unread: { notifications: false, messages: false, notificationCount: 0 } } })
+    expect(status.notificationCount.value).toBe(0)
+    expect(status.notifications.value).toBe(false)
+    expect(JSON.parse(localStorage.getItem('goose:unread-status:42')!).data.notificationCount).toBe(0)
+  } finally {
+    wrapper.unmount()
+    status.stopPolling(true)
+  }
 })

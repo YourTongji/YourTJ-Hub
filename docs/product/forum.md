@@ -213,13 +213,13 @@ Web 通知链接优先 `/p/post/{topicId}/{postNo}`，无楼层号时保留历�
 其他前台客户端通过既有实时失效提示重新读取。该偏好只控制展示，不改变消息、已读状态、推送开关或系统权限。
 账号存储与客户端边界见[决策 0118](../decisions/0118-account-unread-display.md)。
 
-`Current`: local notification/message read updates take precedence over polls started
-earlier, independently for each unread domain. Notification reads advance this revision
-only after the server confirms success; optimistic rows and list/page snapshots do not.
-Notification lists and polls order their counts by request start, and lists started before
-a confirmed read cannot restore the old unread rows. Async notification list/read results
-are scoped to the account generation, including logout followed by login to the same account.
-Later polls can display new unread items, and cached counts use the same merged state.
+`Current`：本地通知与私信的已读结果分别优先于此前发起的轮询，不影响另一未读域更新。
+通知仅在服务端确认单条或全部已读后推进版本，乐观行状态与列表、页面快照不推进该版本。
+通知列表和轮询按请求开始顺序应用计数；已读确认前发起的列表不能恢复旧未读行，失效后自动重新加载。
+单条已读失败只回滚自身；已有更新的已读结果或列表快照时重新加载列表，避免回滚其他操作。
+通知列表和已读异步结果按账号代际隔离，退出后重新登录同一账号也会丢弃旧结果；
+账号切换时复位页面的加载状态。页面导航的未读快照仍由 AppShell 同步到角标，后续轮询可以显示新未读，
+缓存计数与合并后的显示状态一致。
 
 `Current`：账号级 Push 分为私信、提及和回复、赞、关注动态、系统与审核五组，Web/App/Android 通道共用同一措辞。
 提及、回复、私信默认开；赞、关注、订阅及 Wiki 默认静默；系统默认只提醒审核通过/拒绝，

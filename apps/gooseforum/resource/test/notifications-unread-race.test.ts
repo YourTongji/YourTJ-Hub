@@ -20,11 +20,11 @@ function deferred<T>() {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
   return { promise, resolve, reject }
 }
-async function mountPage(count = 3) {
+async function mountPage(count = 3, items = [item], filter: 'all' | 'unread' = 'all') {
   const { i18n, setLocale } = await import('../src/runtime/i18n')
   await setLocale('en')
   const { default: Page } = await import('../src/site/pages/NotificationsPage.vue')
-  wrapper = mount(Page, { props: { layout: {} as any, props: { notifications: [item], total: 1, unreadCount: count, pagination: { page: 1, nextPage: 0, hasNext: false, nextUrl: '' } } as NotificationsPageProps }, global: { plugins: [i18n] } })
+  wrapper = mount(Page, { props: { layout: { viewer: { id: 1024, isAuthenticated: true } } as any, props: { notifications: items, filter, total: items.length, unreadCount: count, pagination: { page: 1, nextPage: 0, hasNext: false, nextUrl: '' } } as NotificationsPageProps }, global: { plugins: [i18n] } })
   return wrapper
 }
 async function click(text: string) {
@@ -180,4 +180,118 @@ test('a failed single read rolls back its row without blocking a newer poll coun
   poll.resolve(response(8))
   await refresh
   expectCount(8)
+})
+
+
+test.each(['list', 'mark-all'] as const)('a mounted page resets pending %s state for the next account', async operation => {
+  const old = deferred<any>()
+  await mountPage()
+  if (operation === 'list') {
+    api.fetchNotifications.mockReturnValueOnce(old.promise)
+    await click('Mentions')
+  } else {
+    api.markAllNotificationsRead.mockReturnValueOnce(old.promise)
+    await click('Mark all read')
+  }
+  status.startPolling({ ...initial, notificationCount: 6 }, 2048)
+  const next = { ...item, id: 20, topic: { ...item.topic!, title: 'Next account' } }
+  await wrapper!.setProps({ layout: { viewer: { id: 2048, isAuthenticated: true } } as any, props: { ...wrapper!.props('props'), notifications: [next], unreadCount: 6 } })
+  expect(wrapper!.text()).toContain('Next account')
+  const button = wrapper!.findAll('button').find(button => button.text() === 'Mark all read')!
+  expect(button).toBeDefined()
+  expect(button.attributes('disabled')).toBeUndefined()
+  old.resolve(operation === 'list' ? payload(3) : true)
+  await flushPromises()
+  expectCount(6, 2048)
+  expect(wrapper!.text()).toContain('Next account')
+})
+
+test('a failed single read reloads its row after another single read succeeds', async () => {
+  const failed = deferred<boolean>()
+  const other = { ...item, id: 2 }
+  api.markNotificationRead.mockReturnValueOnce(failed.promise).mockResolvedValueOnce(true)
+  api.fetchNotifications.mockResolvedValueOnce({ ...payload(2), items: [item, { ...other, isRead: true }] })
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(2)))
+  await mountPage(3, [item, other])
+  await wrapper!.findAll('article button')[0]!.trigger('click')
+  await wrapper!.findAll('article button')[0]!.trigger('click')
+  await flushPromises()
+  failed.reject(new Error('offline'))
+  await flushPromises()
+  expect(api.fetchNotifications).toHaveBeenCalledWith('all', 0, 20, 'all')
+  expect(wrapper!.findAll('article')[0]!.findAll('button')).toHaveLength(1)
+  expect(wrapper!.findAll('article')[1]!.findAll('button')).toHaveLength(0)
+  expectCount(2)
+})
+
+test('a failed single read does not roll back another pending optimistic row', async () => {
+  const failed = deferred<boolean>()
+  const pending = deferred<boolean>()
+  const reload = deferred<any>()
+  api.markNotificationRead.mockReturnValueOnce(failed.promise).mockReturnValueOnce(pending.promise)
+  api.fetchNotifications.mockReturnValueOnce(reload.promise)
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(3)))
+  await mountPage(3, [item, { ...item, id: 2 }])
+  await wrapper!.findAll('article button')[0]!.trigger('click')
+  await wrapper!.findAll('article button')[0]!.trigger('click')
+  failed.reject(new Error('offline'))
+  await flushPromises()
+  expect(wrapper!.findAll('article')[0]!.findAll('button')).toHaveLength(1)
+  expect(wrapper!.findAll('article')[1]!.findAll('button')).toHaveLength(0)
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
+})
+
+test('a list invalidated by a confirmed read automatically reloads its rows', async () => {
+  const stale = deferred<ReturnType<typeof payload>>()
+  api.fetchNotifications.mockReturnValueOnce(stale.promise).mockResolvedValueOnce({ ...payload(0), items: [{ ...item, isRead: true }] })
+  api.markAllNotificationsRead.mockResolvedValueOnce(true)
+  await mountPage()
+  await click('Mentions')
+  await click('Mark all read')
+  await flushPromises()
+  stale.resolve(payload(3))
+  await flushPromises()
+  expect(api.fetchNotifications).toHaveBeenCalledTimes(2)
+  expect(wrapper!.findAll('article')).toHaveLength(1)
+  expect(wrapper!.findAll('article button')).toHaveLength(0)
+  expectCount(0)
+})
+
+
+test('an owner change without a new page payload clears stale rows before accepting the next payload', async () => {
+  await mountPage()
+  status.startPolling({ ...initial, notificationCount: 6 }, 2048)
+  await wrapper!.setProps({ layout: { viewer: { id: 2048, isAuthenticated: true } } as any })
+  expect(wrapper!.findAll('article')).toHaveLength(0)
+  const next = { ...item, id: 20, topic: { ...item.topic!, title: 'Next account' } }
+  await wrapper!.setProps({ props: { ...wrapper!.props('props'), notifications: [next], unreadCount: 6 } })
+  expect(wrapper!.text()).toContain('Next account')
+  expectCount(6, 2048)
+})
+
+test('a concurrent failed single read restores only its row in the unread filter', async () => {
+  const failed = deferred<boolean>()
+  const pending = deferred<boolean>()
+  api.markNotificationRead.mockReturnValueOnce(failed.promise).mockReturnValueOnce(pending.promise)
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(3)))
+  const other = { ...item, id: 2, topic: { ...item.topic!, title: 'Other pending' } }
+  await mountPage(3, [item, other], 'unread')
+  await wrapper!.findAll('article button')[0]!.trigger('click')
+  await wrapper!.findAll('article button')[0]!.trigger('click')
+  failed.reject(new Error('offline'))
+  await flushPromises()
+  expect(wrapper!.findAll('article')).toHaveLength(1)
+  expect(wrapper!.text()).toContain('Campus')
+  expect(wrapper!.text()).not.toContain('Other pending')
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
+})
+
+test('a same-account layout refresh does not restore a pending optimistic row', async () => {
+  const pending = deferred<boolean>()
+  api.markNotificationRead.mockReturnValueOnce(pending.promise)
+  await mountPage()
+  await wrapper!.get('article button').trigger('click')
+  await wrapper!.setProps({ layout: { viewer: { id: 1024, isAuthenticated: true } } as any })
+  expect(wrapper!.findAll('article button')).toHaveLength(0)
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
 })

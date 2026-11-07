@@ -32,6 +32,7 @@ const activeFilter = ref<NotificationFilter>(page.props.filter ?? 'all')
 const activeCategory = ref<NotificationCategory>(page.props.category ?? 'all')
 const categories: NotificationCategory[] = ['all', 'mentions', 'replies', 'likes', 'following', 'system']
 let categoryGeneration = 0
+let listRevision = 0
 // 用户最近一次主动选择的分类；服务端 payload 只在它为空或与 payload 分类相同时接管。
 let userCategory: NotificationCategory | null = null
 const unreadCount = ref(page.props.unreadCount)
@@ -67,8 +68,14 @@ const emptyTitle = computed(() => activeFilter.value === 'unread' ? t('notificat
 const emptyDescription = computed(() => activeFilter.value === 'unread' ? t('notifications.unreadEmptyDescription') : t('notifications.emptyDescription'))
 
 watch(
-  () => page.props.notifications,
-  () => {
+  [() => page.props.notifications, () => page.layout.viewer?.id, () => page.layout.viewer?.isAuthenticated] as const,
+  ([items, owner, authenticated], [previousItems, previousOwner, previousAuthenticated]) => {
+    const ownerChanged = owner !== previousOwner || authenticated !== previousAuthenticated
+    const awaitingOwnerPayload = ownerChanged && items === previousItems
+    if (ownerChanged) {
+      userCategory = null
+      markingAllRead.value = false
+    }
     const incomingCategory = page.props.category ?? 'all'
     const incomingFilter = page.props.filter ?? 'all'
     // 服务端 payload 只在没有更新的用户选择时接管分类：同一次 flush 内既刷新
@@ -81,16 +88,16 @@ watch(
       activeFilter.value = incomingFilter
       for (const filter of ['all', 'unread'] as const) {
         Object.assign(lists[filter], {
-          items: filter === incomingFilter ? copyNotifications(page.props.notifications) : [],
-          nextCursor: filter === incomingFilter ? initialNextCursor() : 0,
-          hasNext: filter === incomingFilter ? page.props.pagination.hasNext : true,
-          loaded: filter === incomingFilter,
+          items: filter === incomingFilter && !awaitingOwnerPayload ? copyNotifications(items) : [],
+          nextCursor: filter === incomingFilter && !awaitingOwnerPayload ? initialNextCursor() : 0,
+          hasNext: filter === incomingFilter && !awaitingOwnerPayload ? page.props.pagination.hasNext : true,
+          loaded: filter === incomingFilter && !awaitingOwnerPayload,
           loading: false,
         })
       }
       actionError.value = ''
     }
-    unreadCount.value = page.props.unreadCount
+    unreadCount.value = awaitingOwnerPayload ? 0 : page.props.unreadCount
     void nextTick(observeLoadMore)
   },
 )
@@ -167,11 +174,17 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
 
   const generation = categoryGeneration
   const request = unreadStatus.captureNotificationRequest()
+  let retry = false
   list.loading = true
   actionError.value = ''
   try {
     const payload = await fetchNotifications(filter, reset ? 0 : list.nextCursor, pageSize, activeCategory.value)
-    if (generation !== categoryGeneration || !unreadStatus.isCurrentNotificationRequest(request)) return
+    if (generation !== categoryGeneration || !unreadStatus.isCurrentNotificationOwner(request)) return
+    if (!unreadStatus.isCurrentNotificationRequest(request)) {
+      retry = true
+      return
+    }
+    listRevision++
     const nextItems = payload.items.map((item) => ({ ...item }))
     list.items = reset ? nextItems : mergeNotifications(list.items, nextItems)
     list.nextCursor = payload.nextCursor
@@ -185,6 +198,8 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
   } finally {
     if (generation !== categoryGeneration || !unreadStatus.isCurrentNotificationOwner(request)) return
     list.loading = false
+    // A confirmed read invalidates stale rows, but must not strand the selected list in an empty state.
+    if (retry) void loadNotifications(filter, reset)
     await nextTick()
     observeLoadMore()
   }
@@ -350,10 +365,11 @@ function markItemRead(item: NotificationPayload) {
 
   const generation = categoryGeneration
   const request = unreadStatus.captureNotificationRequest()
-  const previousAll = copyNotifications(lists.all.items)
-  const previousUnread = copyNotifications(lists.unread.items)
-  const previousUnreadCount = unreadCount.value
+  const snapshotRevision = listRevision
   const notificationId = item.id
+  const previousAll = lists.all.items.find(notification => notification.id === notificationId)
+  const unreadIndex = lists.unread.items.findIndex(notification => notification.id === notificationId)
+  const previousUnread = lists.unread.items[unreadIndex]
 
   lists.all.items = lists.all.items.map((notification) => notification.id === notificationId ? { ...notification, isRead: true } : notification)
   lists.unread.items = lists.unread.items.filter((notification) => notification.id !== notificationId)
@@ -363,10 +379,20 @@ function markItemRead(item: NotificationPayload) {
     unreadStatus.confirmNotificationRead(request)
   }).catch(() => {
     if (!unreadStatus.isCurrentNotificationOwner(request)) return
-    if (generation === categoryGeneration && unreadStatus.isCurrentNotificationRequest(request)) {
-      lists.all.items = previousAll
-      lists.unread.items = previousUnread
-      unreadCount.value = previousUnreadCount
+    if (generation === categoryGeneration) {
+      if (snapshotRevision === listRevision && unreadStatus.isCurrentNotificationRequest(request)) {
+        // Undo only this operation; restoring whole arrays also undoes other pending reads.
+        if (previousAll) lists.all.items = lists.all.items.map(notification => notification.id === notificationId ? previousAll : notification)
+        if (previousUnread && !lists.unread.items.some(notification => notification.id === notificationId)) {
+          lists.unread.items.splice(unreadIndex, 0, previousUnread)
+        }
+        unreadCount.value++
+      } else {
+        // Another confirmed read or list snapshot makes the old row/count unsafe to restore.
+        // Reconcile the visible rows, not just the global badge, and invalidate the inactive list.
+        lists.all.loaded = lists.unread.loaded = false
+        void loadNotifications(activeFilter.value, true)
+      }
     }
     void unreadStatus.refresh(true).catch(() => undefined)
   })
