@@ -258,6 +258,8 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   snapshots/
     main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
 
+应用按 `[db]` 的 `backupSqlite`、`backupDir` 和 `keep` 做 SQLite 日备份。main 与 dev 的渲染配置都是 `backupSqlite = true`、`backupDir = "./storage/databasebackup/"`、`keep = 3`。`keep` 是成功备份的保留份数。这和 `backup-db.sh` 部署前 `pg_dump` 的 7 份保留各自独立。
+
 Dev 同步成功后，`snapshots/dev-prev` 仅保留最近 5 个时间戳组的同步前数据库副本；同组 `sqlite`/`file` 一起保留。同步失败不清理旧快照，未知命名文件和符号链接不参与清理。此策略不改变在线库或其他备份目录，首次成功同步也会清理历史遗留的较旧组。
 
 ## Branch model & CI/CD
