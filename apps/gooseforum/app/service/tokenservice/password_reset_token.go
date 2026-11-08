@@ -34,7 +34,7 @@ func GeneratePasswordResetToken(userId uint64, email string, tokenVersion uint64
 		Email:        email,
 		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Audience:  jwt.ClaimStrings{"password-reset"},
+			Audience:  jwt.ClaimStrings{PasswordResetAudience},
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
@@ -54,7 +54,7 @@ func ParsePasswordResetToken(tokenString string) (*PasswordResetClaims, error) {
 	}
 	token, err := jwt.ParseWithClaims(tokenString, &PasswordResetClaims{}, func(token *jwt.Token) (any, error) {
 		return key, nil
-	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired(), jwt.WithAudience("password-reset"))
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired(), jwt.WithAudience(PasswordResetAudience))
 
 	if err != nil {
 		return nil, err
@@ -70,6 +70,10 @@ func ParsePasswordResetToken(tokenString string) (*PasswordResetClaims, error) {
 // passwordResetPurpose 派生签名密钥的用途标签：与会话/激活/审核操作 JWT 隔离，
 // 任何一方的 token 都不能被另一方接受。
 const passwordResetPurpose = "yourtj-password-reset-token"
+
+// PasswordResetAudience 是重置链接 JWT 必需的 aud 声明，把重置令牌与会话/激活
+// 令牌在用途层面隔离；解析时缺失或不匹配都会失败关闭。
+const PasswordResetAudience = "password-reset"
 
 // DerivePasswordResetKey derives the dedicated password-reset signing key from a
 // base key, so reset links cannot be consumed as session or activation tokens.

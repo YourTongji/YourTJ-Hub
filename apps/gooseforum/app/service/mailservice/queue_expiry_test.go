@@ -27,7 +27,7 @@ func expiredTaskFixture(t *testing.T, kind string, expired bool, signingKey stri
 	key := []byte(signingKey)
 	var payload jwt.Claims = &tokenservice.ActivationClaims{UserId: 12, Email: "owner@example.test", RegisteredClaims: claims}
 	if kind == "reset_password" {
-		claims.Audience = jwt.ClaimStrings{"password-reset"}
+		claims.Audience = jwt.ClaimStrings{tokenservice.PasswordResetAudience}
 		key = tokenservice.DerivePasswordResetKey(key)
 		payload = &tokenservice.PasswordResetClaims{UserId: 12, Email: "owner@example.test", TokenVersion: 3, RegisteredClaims: claims}
 	}

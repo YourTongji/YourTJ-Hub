@@ -53,18 +53,24 @@ func TestPasswordResetRejectsMissingExpiryAndWrongAudience(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		name     string
-		audience string
-		expires  *jwt.NumericDate
-		method   jwt.SigningMethod
+		name         string
+		audience     string
+		expires      *jwt.NumericDate
+		method       jwt.SigningMethod
+		omitAudience bool
 	}{
-		{"missing expiry", "password-reset", nil, jwt.SigningMethodHS256},
-		{"expired", "password-reset", jwt.NewNumericDate(time.Now().Add(-time.Hour)), jwt.SigningMethodHS256},
-		{"wrong audience", "activation", jwt.NewNumericDate(time.Now().Add(time.Hour)), jwt.SigningMethodHS256},
-		{"wrong algorithm", "password-reset", jwt.NewNumericDate(time.Now().Add(time.Hour)), jwt.SigningMethodHS384},
+		{"missing expiry", PasswordResetAudience, nil, jwt.SigningMethodHS256, false},
+		{"expired", PasswordResetAudience, jwt.NewNumericDate(time.Now().Add(-time.Hour)), jwt.SigningMethodHS256, false},
+		{"missing audience", "", jwt.NewNumericDate(time.Now().Add(time.Hour)), jwt.SigningMethodHS256, true},
+		{"wrong audience", "activation", jwt.NewNumericDate(time.Now().Add(time.Hour)), jwt.SigningMethodHS256, false},
+		{"wrong algorithm", PasswordResetAudience, jwt.NewNumericDate(time.Now().Add(time.Hour)), jwt.SigningMethodHS384, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			claims := PasswordResetClaims{UserId: 12, Email: "test@example.com", RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{tc.audience}, ExpiresAt: tc.expires}}
+			registered := jwt.RegisteredClaims{ExpiresAt: tc.expires}
+			if !tc.omitAudience {
+				registered.Audience = jwt.ClaimStrings{tc.audience}
+			}
+			claims := PasswordResetClaims{UserId: 12, Email: "test@example.com", RegisteredClaims: registered}
 			token, err := jwt.NewWithClaims(tc.method, claims).SignedString(key)
 			if err != nil {
 				t.Fatal(err)
