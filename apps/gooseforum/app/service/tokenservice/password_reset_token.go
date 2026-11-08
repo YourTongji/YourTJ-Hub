@@ -64,16 +64,27 @@ func ParsePasswordResetToken(tokenString string) (*PasswordResetClaims, error) {
 		return claims, nil
 	}
 
-	return nil, jwt.ErrInvalidKey
+	return nil, jwt.ErrTokenInvalidClaims
 }
 
-// Derive a dedicated key so reset links cannot be consumed as session or activation tokens.
+// passwordResetPurpose 派生签名密钥的用途标签：与会话/激活/审核操作 JWT 隔离，
+// 任何一方的 token 都不能被另一方接受。
+const passwordResetPurpose = "yourtj-password-reset-token"
+
+// DerivePasswordResetKey derives the dedicated password-reset signing key from a
+// base key, so reset links cannot be consumed as session or activation tokens.
+// Production passes the app signing key; tests pass an explicit base to exercise
+// signature-failure paths without duplicating the derivation.
+func DerivePasswordResetKey(base []byte) []byte {
+	mac := hmac.New(sha256.New, base)
+	mac.Write([]byte(passwordResetPurpose))
+	return mac.Sum(nil)
+}
+
 func passwordResetKey() ([]byte, error) {
 	key, err := signingKey()
 	if err != nil {
 		return nil, err
 	}
-	mac := hmac.New(sha256.New, key)
-	mac.Write([]byte("yourtj-password-reset-token"))
-	return mac.Sum(nil), nil
+	return DerivePasswordResetKey(key), nil
 }

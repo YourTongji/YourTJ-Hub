@@ -1,8 +1,6 @@
 package mailservice
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -30,9 +28,7 @@ func expiredTaskFixture(t *testing.T, kind string, expired bool, signingKey stri
 	var payload jwt.Claims = &tokenservice.ActivationClaims{UserId: 12, Email: "owner@example.test", RegisteredClaims: claims}
 	if kind == "reset_password" {
 		claims.Audience = jwt.ClaimStrings{"password-reset"}
-		mac := hmac.New(sha256.New, key)
-		mac.Write([]byte("yourtj-password-reset-token"))
-		key = mac.Sum(nil)
+		key = tokenservice.DerivePasswordResetKey(key)
 		payload = &tokenservice.PasswordResetClaims{UserId: 12, Email: "owner@example.test", TokenVersion: 3, RegisteredClaims: claims}
 	}
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, payload).SignedString(key)
