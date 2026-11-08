@@ -134,12 +134,13 @@ describe('SearchPage scope counts', () => {
 
 describe('SearchPage filtered topic pages', () => {
   test.each(['topics', 'all'])('keeps next and previous links on an empty %s page', async scope => {
+    const nextUrl = scope === 'all' ? '/search?page=3&q=%E8%AF%BE%E7%A8%8B' : '/search?page=3&q=%E8%AF%BE%E7%A8%8B&scope=topics'
     const wrapper = await mountPage(makeRouter(), emptyProps({
       query: '课程', scope, total: 27, totalPages: 3,
-      pagination: { page: 2, nextPage: 3, hasNext: true, nextUrl: `/search?q=课程&scope=${scope}&page=3` },
+      pagination: { page: 2, nextPage: 3, hasNext: true, nextUrl },
     }))
     const footer = wrapper.get('footer')
-    expect(footer.get('a[rel="next"]').attributes('href')).toBe(`/search?q=课程&scope=${scope}&page=3`)
+    expect(footer.get('a[rel="next"]').attributes('href')).toBe(nextUrl)
     const previous = new URL(footer.findAll('a')[0]!.attributes('href')!, 'https://example.test')
     expect(previous.searchParams.get('q')).toBe('课程')
     expect(previous.searchParams.get('scope')).toBe(scope === 'all' ? null : scope)
@@ -148,16 +149,17 @@ describe('SearchPage filtered topic pages', () => {
   })
 
   test('keeps topic navigation when only another scope has visible results', async () => {
+    const nextUrl = '/search?page=2&q=%E8%AF%BE%E7%A8%8B'
     const wrapper = await mountPage(makeRouter(), emptyProps({
       query: '课程', total: 27, totalPages: 3,
       categories: [{ id: 1, name: '课程分类', slug: 'courses', icon: '', color: '', desc: '' }],
       categoriesTotal: 1,
-      pagination: { page: 1, nextPage: 2, hasNext: true, nextUrl: '/search?q=课程&page=2' },
+      pagination: { page: 1, nextPage: 2, hasNext: true, nextUrl },
     }))
     expect(wrapper.text()).toContain('课程分类')
     expect(wrapper.text()).toContain(i18n.global.t('searchPage.topicPageEmptyTitle'))
     expect(wrapper.text()).not.toContain(i18n.global.t('searchPage.noResultsForQuery', { query: '课程' }))
-    expect(wrapper.get('footer a[rel="next"]').attributes('href')).toBe('/search?q=课程&page=2')
+    expect(wrapper.get('footer a[rel="next"]').attributes('href')).toBe(nextUrl)
     wrapper.unmount()
   })
 
