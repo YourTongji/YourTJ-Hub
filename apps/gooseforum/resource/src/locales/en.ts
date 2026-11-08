@@ -1766,6 +1766,8 @@ export default {
     noResultsTitle: 'No results',
     noResultsForQuery: 'No results for "{query}"',
     noResultsDescription: 'Try another keyword or shorten your query.',
+    topicPageEmptyTitle: 'No visible topics on this page',
+    topicPageEmptyDescription: 'Use the pagination below to view other pages.',
     unavailableTitle: 'Search unavailable',
     unavailableDescription: 'The search service is temporarily unavailable. Please try again later.',
     startTitle: 'Start searching',

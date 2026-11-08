@@ -197,8 +197,8 @@ watch(
             <EmptyState
               v-else
               :icon="Search"
-              :title="t('searchPage.noResultsForQuery', { query: page.props.query })"
-              :description="t('searchPage.noResultsDescription')"
+              :title="t('searchPage.topicPageEmptyTitle')"
+              :description="t('searchPage.topicPageEmptyDescription')"
             />
             <footer v-if="hasTopicPagination" class="flex flex-col gap-3 border-t border-line bg-base-200/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div class="text-sm text-base-content/55">

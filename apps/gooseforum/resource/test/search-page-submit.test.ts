@@ -155,6 +155,8 @@ describe('SearchPage filtered topic pages', () => {
       pagination: { page: 1, nextPage: 2, hasNext: true, nextUrl: '/search?q=课程&page=2' },
     }))
     expect(wrapper.text()).toContain('课程分类')
+    expect(wrapper.text()).toContain(i18n.global.t('searchPage.topicPageEmptyTitle'))
+    expect(wrapper.text()).not.toContain(i18n.global.t('searchPage.noResultsForQuery', { query: '课程' }))
     expect(wrapper.get('footer a[rel="next"]').attributes('href')).toBe('/search?q=课程&page=2')
     wrapper.unmount()
   })

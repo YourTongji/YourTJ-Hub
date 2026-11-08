@@ -1765,6 +1765,8 @@ export default {
     noResultsTitle: 'Keine Ergebnisse',
     noResultsForQuery: 'Keine Ergebnisse für "{query}"',
     noResultsDescription: 'Versuche ein anderes Schlüsselwort oder verkürze die Suche.',
+    topicPageEmptyTitle: 'Auf dieser Seite sind keine Themen sichtbar',
+    topicPageEmptyDescription: 'Über die Seitennavigation unten kannst du weitere Seiten ansehen.',
     unavailableTitle: 'Suche nicht verfügbar',
     unavailableDescription: 'Der Suchdienst ist vorübergehend nicht verfügbar. Versuche es später erneut.',
     startTitle: 'Suche starten',
