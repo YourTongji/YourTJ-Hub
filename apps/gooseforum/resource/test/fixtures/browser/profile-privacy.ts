@@ -82,6 +82,11 @@ const settings: SettingsPageProps = {
 
 const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: { render: () => null } }] })
 const screen = params.get('screen') ?? 'profile'
+if (screen === 'bookmarks') {
+  // The shell only renders its mobile publish button on the home route.
+  // Match the profile entry being exercised rather than the memory default '/'.
+  await router.push(profile.section === 'bookmarks' ? '/u/1024/bookmarks' : '/u/1024/activity?tab=bookmarks')
+}
 const app = createBrowserApp({ render: () => h(AppShell, { layout }, { default: () => screen === 'settings'
   ? h(SettingsPage, { layout, props: settings })
   : h(UserPage, { layout, props: profile }) }) }).use(i18n).use(router)

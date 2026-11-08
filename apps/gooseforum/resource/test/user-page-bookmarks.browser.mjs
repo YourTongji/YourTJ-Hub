@@ -76,6 +76,8 @@ for (const width of [320, 1280]) for (const theme of ['light', 'dark']) {
         assert.ok(nextPayload, 'fixture must provide a valid second page')
         assert.equal(await rows(page).count(), 1, 'first page has one bookmark while the next page is held')
         assert.equal(await page.locator('html').getAttribute('data-theme'), `gf-${theme}`)
+        assert.equal(await page.locator('button.fixed[aria-haspopup="dialog"]').count(), 0,
+          'profile routes must not render the home-only publish button')
         await capture('first-page')
 
         // Use the real scroll/observer path; short pages may already be loading.
