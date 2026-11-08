@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0127](0127-oryn-low-risk-approve-sensitive-prefixes.md)
 Class: process
 
 ## Context and Problem Statement
@@ -68,3 +68,4 @@ postmortem.
 - [Oryn Mini pull request 19](https://github.com/yzxoi/oryn-mini/pull/19)
 - [Verified runtime commit](https://github.com/yzxoi/oryn-mini/commit/ad2b9847c01cba36f8a0abd5564df7144d47878e)
 - [Successful ci-required run on merged pull request 1591](https://github.com/YourTongji/YourTJ-Hub/actions/runs/42234805308/job/127955969932)
+- [Low-risk approval decision](0127-oryn-low-risk-approve-sensitive-prefixes.md)

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-11-07
+> Last verified: 2026-11-08
 
 Implementation status: **Current** for the configured integration. Live run results are recorded in
 Actions; a green preflight proves App access and planning, while an executed review proves model access.
@@ -24,15 +24,25 @@ human approval. Runtime protocol tests and the deterministic Core smoke also run
 [Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/ad2b9847c01cba36f8a0abd5564df7144d47878e)
 (`ad2b9847c01cba36f8a0abd5564df7144d47878e`)
 and applies [this repository's policy](../../.github/oryn/repositories.json). That runtime includes
-multi-review dispatch. Low-risk `APPROVE` exists only as a runtime capability. Repository policy sets
-`allowLowRiskApprove` to false, so the publisher does not use it. Turning the flag on is a separate
-explicit policy change. A bot `APPROVE` does not replace a required human review or a repository
-ruleset, and this repository does not enable auto-merge. Policy directs lesson reuse to the trusted
-default-branch copies of [decisions](../decisions/) and [postmortems](../postmortems/README.md)
+multi-review dispatch. Repository policy sets `allowLowRiskApprove` to true. The publisher can submit
+`APPROVE` on a non-draft pull request when the author is not the bot, changed paths are complete and
+not sensitive, coverage is complete with a low floor, every required check from its trusted app
+succeeded on that exact head, and the report is a clean low-risk `no_action` with high confidence and
+admission `approve`. Medium risk, high risk, unknown risk, findings, incomplete coverage, and sensitive
+paths produce `COMMENT`. See
+[decision 0127](../decisions/0127-oryn-low-risk-approve-sensitive-prefixes.md). Scheduled and event runs
+load this policy from the default branch. A pull request does not change those runs until it merges.
+Manual dispatch loads the selected workflow commit. A bot `APPROVE` does not
+replace the team review required by the active `dev-protect` and `main-protect` rulesets, and this
+repository does not enable auto-merge. Policy directs lesson reuse to the trusted default-branch
+copies of [decisions](../decisions/) and [postmortems](../postmortems/README.md)
 (`lessonPaths`: `docs/decisions`, `docs/postmortems`). There is no separate lessons tree. Policy pairs
 the check name `ci-required` with the GitHub App slug `github-actions` (`trustedCheckApps`), so trust
-in that check is app-bound rather than name-only. See
-[decision 0126](../decisions/0126-pin-verified-oryn-without-approval.md).
+in that check is app-bound rather than name-only. `sensitivePaths` holds Hub prefixes. The runtime
+checks those prefixes and then `protectedMergePaths` with the same `startsWith` rule.
+`releases/requests/` stays only in `protectedMergePaths`. The pinned matcher already treats
+`.github/`, path tokens such as `migration`, `deploy`, and `releases`, and `docs/decisions/` plus
+`docs/postmortems/` as sensitive without a Hub prefix.
 Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
