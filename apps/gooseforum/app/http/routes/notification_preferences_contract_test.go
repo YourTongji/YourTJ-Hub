@@ -1,17 +1,83 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"github.com/gin-gonic/gin"
 )
 
 const notificationPreferencesPath = "/api/forum/notification-preferences"
+
+func TestNotificationBadgeCategoriesHTTP(t *testing.T) {
+	conn, _ := setupNotificationChatContractTest(t)
+	router := gin.New()
+	apiRoute(router)
+	owner := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, owner)
+	like := eventNotification.Entity{UserId: owner.Id, EventType: eventNotification.EventTypeLike}
+	if err := conn.Create(&like).Error; err != nil {
+		t.Fatal(err)
+	}
+	unreadservice.Invalidate(owner.Id)
+	if before := unreadservice.GetStatus(owner.Id); !before.Notifications || *before.NotificationCount != 1 {
+		t.Fatal(before)
+	}
+	response := serveAuthSecurityJSON(router, http.MethodPut, notificationPreferencesPath, `{"badgeCategories":["replies"]}`, token)
+	envelope := decodeContractEnvelope(t, response)
+	if envelope.Code != 0 {
+		t.Fatalf("category save failed: %s", response.Body.String())
+	}
+	var prefs struct {
+		BadgeStyle      string
+		BadgeCategories []string
+	}
+	if err := json.Unmarshal(envelope.Result, &prefs); err != nil {
+		t.Fatal(err)
+	}
+	if prefs.BadgeStyle != "number" || !reflect.DeepEqual(prefs.BadgeCategories, []string{"replies"}) {
+		t.Fatalf("preferences: %+v", prefs)
+	}
+	filtered := unreadservice.GetStatus(owner.Id)
+	if filtered.Notifications || filtered.NotificationCount == nil || *filtered.NotificationCount != 0 || filtered.LatestUnreadId != like.Id {
+		t.Fatalf("filtered badge or delivery signal: %+v", filtered)
+	}
+	// Old clients saving the style cannot reset the category selection.
+	response = serveAuthSecurityJSON(router, http.MethodPut, notificationPreferencesPath, `{"badgeStyle":"dot"}`, token)
+	if decodeContractEnvelope(t, response).Code != 0 {
+		t.Fatal(response.Body.String())
+	}
+	filtered = unreadservice.GetStatus(owner.Id)
+	if filtered.Notifications || filtered.BadgeStyle != "dot" {
+		t.Fatalf("style reset categories: %+v", filtered)
+	}
+	// Selection does not acknowledge or hide events from the notification list.
+	if count, err := eventNotification.GetUnreadCount(owner.Id); err != nil || count != 1 {
+		t.Fatalf("read facts: %d %v", count, err)
+	}
+	reply := eventNotification.Entity{UserId: owner.Id, EventType: eventNotification.EventTypeComment}
+	if err := conn.Create(&reply).Error; err != nil {
+		t.Fatal(err)
+	}
+	unreadservice.Invalidate(owner.Id)
+	if got := unreadservice.GetStatus(owner.Id); !got.Notifications || *got.NotificationCount != 1 {
+		t.Fatalf("reply badge: %+v", got)
+	}
+	response = serveAuthSecurityJSON(router, http.MethodPut, notificationPreferencesPath, `{"badgeCategories":[]}`, token)
+	if decodeContractEnvelope(t, response).Code != 0 {
+		t.Fatal(response.Body.String())
+	}
+	if got := unreadservice.GetStatus(owner.Id); got.Notifications || *got.NotificationCount != 0 {
+		t.Fatalf("empty selection: %+v", got)
+	}
+}
 
 func TestNotificationPreferencesHTTPContract(t *testing.T) {
 	conn, _ := setupNotificationChatContractTest(t)
@@ -45,6 +111,12 @@ func TestNotificationPreferencesRequestBoundaries(t *testing.T) {
 	}{
 		{`{"badgeStyle":"unknown"}`, "notification-preferences-invalid.json", http.StatusOK},
 		{`{}`, "notification-preferences-invalid.json", http.StatusOK},
+		{`{"badgeCategories":["all"]}`, "notification-preferences-invalid.json", http.StatusOK},
+		{`{"badgeCategories":["replies","replies"]}`, "notification-preferences-invalid.json", http.StatusOK},
+		{`{"badgeCategories":null}`, "notification-preferences-invalid.json", http.StatusOK},
+		{`{"badgeStyle":"dot","badgeCategories":["invalid"]}`, "notification-preferences-invalid.json", http.StatusOK},
+		{`{"badgeCategories":"replies"}`, "parse-failed.json", http.StatusBadRequest},
+		{`{"badgeCategories":[1]}`, "parse-failed.json", http.StatusBadRequest},
 		{`{"badgeStyle":false}`, "parse-failed.json", http.StatusBadRequest},
 		{`{"badgeStyle":"dot","userId":999}`, "parse-failed.json", http.StatusBadRequest},
 		{`null`, "parse-failed.json", http.StatusBadRequest},

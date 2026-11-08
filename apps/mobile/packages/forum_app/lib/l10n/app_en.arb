@@ -2422,5 +2422,7 @@
   "unreadStyleNumbers": "Show unread counts",
   "unreadStyleHint": "Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.",
   "unreadStyleSaving": "Saving indicator style…",
-  "previewBuildPending": "A newer dev build is in progress. This is still the latest available build for this platform."
+  "previewBuildPending": "A newer dev build is in progress. This is still the latest available build for this platform.",
+"unreadBadgeCategoriesTitle": "Categories included in badges",
+"unreadBadgeCategoriesHint": "Only selected categories count toward notification badges. Replies containing a direct @ mention count as Mentions. This does not mark notifications read or change push or private message badges."
 }

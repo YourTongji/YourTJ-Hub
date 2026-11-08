@@ -4,6 +4,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -11,9 +15,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
 	"github.com/golang-jwt/jwt/v5"
-	"strings"
-	"testing"
-	"time"
 )
 
 const queueExpiryTestKey = "queue-expiry-test-signing-key"
@@ -34,6 +35,8 @@ func expiredTaskFixture(t *testing.T, kind string, expired bool, signingKey stri
 	}
 	var payload jwt.Claims = &tokenservice.ActivationClaims{UserId: 12, Email: "owner@example.test", RegisteredClaims: claims}
 	if kind == "reset_password" {
+		claims.Audience = jwt.ClaimStrings{tokenservice.PasswordResetAudience}
+		key = tokenservice.DerivePasswordResetKey(key)
 		payload = &tokenservice.PasswordResetClaims{UserId: 12, Email: "owner@example.test", TokenVersion: 3, RegisteredClaims: claims}
 	}
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, payload).SignedString(key)

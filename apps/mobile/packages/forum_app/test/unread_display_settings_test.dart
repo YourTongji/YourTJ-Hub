@@ -31,6 +31,10 @@ void main() {
               }
               return NotificationPreferences(badgeStyle: style);
             },
+            saveCategories: (categories) async => NotificationPreferences(
+              badgeStyle: UnreadBadgeStyle.dot,
+              badgeCategories: categories,
+            ),
             isCurrent: () => true,
           );
           final container = ProviderContainer(
@@ -71,10 +75,19 @@ void main() {
           final row = find.byKey(const Key('unread-style-switch'));
           expect(tester.widget<GfSwitchRow>(row).value, isTrue);
           pending = Completer();
-          await tester.tap(find.byType(Switch));
+          await tester.tap(
+            find.descendant(of: row, matching: find.byType(Switch)),
+          );
           await tester.pumpAndSettle();
           expect(tester.widget<GfSwitchRow>(row).enabled, isFalse);
-          expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
+          expect(
+            tester
+                .widget<Switch>(
+                  find.descendant(of: row, matching: find.byType(Switch)),
+                )
+                .onChanged,
+            isNull,
+          );
           pending.complete(const NotificationPreferences());
           await tester.pumpAndSettle();
           expect(tester.widget<GfSwitchRow>(row).value, isTrue);
@@ -88,11 +101,26 @@ void main() {
           await tester.pumpAndSettle();
           fail = false;
           pending = null;
-          await tester.tap(find.byType(Switch));
+          await tester.tap(
+            find.descendant(of: row, matching: find.byType(Switch)),
+          );
           await tester.pumpAndSettle();
           expect(tester.widget<GfSwitchRow>(row).value, isFalse);
           expect(controller.state.style, UnreadBadgeStyle.dot);
           expect(controller.state.error, isNull);
+          expect(tester.takeException(), isNull);
+          final replies = find.byKey(const Key('unread-category-replies'));
+          await tester.ensureVisible(
+            find.descendant(of: replies, matching: find.byType(Switch)),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.descendant(of: replies, matching: find.byType(Switch)),
+          );
+          await tester.pumpAndSettle();
+          expect(controller.state.categories.contains('replies'), isFalse);
+          expect(controller.state.categories.length, 4);
+          expect(controller.state.style, UnreadBadgeStyle.dot);
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox());
           dispose();
