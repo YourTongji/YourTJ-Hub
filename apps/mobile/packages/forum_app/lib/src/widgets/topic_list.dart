@@ -49,8 +49,8 @@ class GfTopicList extends ConsumerWidget {
   final List<TopicPayload> topics;
   final GfTopicFeedMode feedMode;
 
-  /// Home may group pins (a summary in list mode, a title digest in card
-  /// mode); ordered streams (Following) keep server order.
+  /// Home and category latest feeds may group pins; ordered streams keep
+  /// server order.
   final bool collapsePinned;
   final Future<bool> Function(TopicPayload topic, bool target)? onLikeTopic;
   final Future<bool> Function(TopicPayload topic, bool target)? onBookmarkTopic;
