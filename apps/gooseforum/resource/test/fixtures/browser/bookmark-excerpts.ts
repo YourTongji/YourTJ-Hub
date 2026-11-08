@@ -16,7 +16,9 @@ document.documentElement.dataset.theme = params.get('theme') === 'dark' ? 'gf-da
 await setLocale('zh')
 layout.viewer.avatarUrl = '/assets/test/fixtures/browser/anonymous-admin-avatar-1.svg'
 
-const longExcerpt = '这是用于检查回复收藏摘要截断的合成内容。窄屏与宽屏都应该最多显示两行，同时保留标题、楼层和收藏时间。'.repeat(10)
+// The server's bookmarkExcerpt projects at most 160 characters. Keep the
+// narrow-screen regression inside that production range rather than oversizing it.
+const longExcerpt = '这是用于检查回复收藏摘要截断的合成内容。窄屏与宽屏都应该最多显示两行，同时保留标题、楼层和收藏时间。'.repeat(4).slice(0, 160)
 const bookmarks: UserBookmarkPayload[] = [
   { id: 1, type: 'post', topicId: 200, postId: 201, postNo: 3, url: '/p/200?postNo=3',
     title: '长摘要回复收藏：图书馆窗边的银杏与期末复习计划，窄屏长标题仍应省略', excerpt: longExcerpt, bookmarkedAt: '2026-11-01T09:00:00Z' },

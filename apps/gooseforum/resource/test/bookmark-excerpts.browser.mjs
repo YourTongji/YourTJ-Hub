@@ -66,9 +66,14 @@ for (const section of ['bookmarks', 'activity']) for (const width of [320, 1280]
 
       assert.equal(await page.locator('html').getAttribute('data-theme'), `gf-${theme}`)
       assert.equal(await page.locator('button.fixed[aria-haspopup="true"]').count(), 0, 'profile fixture must not render the home publish FAB')
-      assert.ok(capture.long.scrollHeight > capture.long.lineHeight * 2 + 1, 'fixture must contain more than two natural lines')
-      assert.ok(Math.abs(capture.long.height - capture.long.lineHeight * 2) <= 1,
-        `long reply excerpt must occupy two lines: ${JSON.stringify(capture.long)}`)
+      if (width === 320) {
+        assert.ok(capture.long.scrollHeight > capture.long.lineHeight * 2 + 1, 'narrow fixture must contain more than two natural lines')
+        assert.ok(Math.abs(capture.long.height - capture.long.lineHeight * 2) <= 1,
+          `narrow long reply excerpt must occupy two lines: ${JSON.stringify(capture.long)}`)
+      } else {
+        assert.ok(capture.long.height <= capture.long.lineHeight * 2 + 1,
+          `wide long reply excerpt must not exceed two lines: ${JSON.stringify(capture.long)}`)
+      }
       assert.ok(Math.abs(capture.short.height - capture.short.lineHeight) <= 1, 'short excerpt stays one line without reserved blank space')
       assert.equal(await shortRow.locator('.line-clamp-2').textContent().then(s => s.trim()), '简短摘要。')
       assert.equal(await emptyRow.locator('.line-clamp-2').count(), 0, 'empty excerpts do not render an empty line')
