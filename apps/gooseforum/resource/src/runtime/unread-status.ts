@@ -223,7 +223,7 @@ async function updateBadgeStyle(style: UnreadBadgeStyle): Promise<boolean> {
   }
 }
 function captureNotificationRequest() {
-  return { ownerGeneration, revision: notificationRevision, sequence: ++notificationRequestSequence }
+  return { ownerGeneration, revision: notificationRevision, sequence: ++notificationRequestSequence, applied: appliedNotificationSequence }
 }
 type NotificationRequest = ReturnType<typeof captureNotificationRequest>
 function isCurrentNotificationOwner(request: NotificationRequest) {
@@ -252,8 +252,9 @@ function clearNotifications(request: NotificationRequest) {
 function confirmNotificationRead(request: NotificationRequest) {
   if (!isCurrentNotificationOwner(request)) return
   notificationRevision++
-  if (request.sequence < appliedNotificationSequence) {
-    // A newer snapshot may already include this read. Reconcile instead of decrementing twice.
+  if (appliedNotificationSequence !== request.applied) {
+    // Any snapshot applied while this read was pending may already include it — including a poll
+    // that started earlier but returned after the read committed. Reconcile instead of decrementing twice.
     const pending = inFlight
     void Promise.resolve(pending).catch(() => undefined).then(() => {
       if (isCurrentNotificationOwner(request)) return refresh(true)

@@ -130,6 +130,43 @@ test('a single-read completion reconciles a newer snapshot instead of restoring 
   expectCount(8)
 })
 
+test('a poll response that lands after the read commits is not decremented again on confirm', async () => {
+  const mark = deferred<boolean>()
+  const poll = deferred<ReturnType<typeof response>>()
+  api.markNotificationRead.mockReturnValueOnce(mark.promise)
+  vi.stubGlobal('fetch', vi.fn().mockReturnValueOnce(poll.promise).mockResolvedValue(response(2)))
+  await mountPage(3, [item])
+  const refresh = status.refresh(true) // poll started before the read request
+  await wrapper!.get('article button').trigger('click')
+  poll.resolve(response(2)) // the server already applied the read when this response was produced
+  await refresh
+  expectCount(2)
+  mark.resolve(true)
+  await flushPromises()
+  expectCount(2)
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
+})
+
+test('a confirmed read after an intervening list snapshot reloads the overwritten rows', async () => {
+  const mark = deferred<boolean>()
+  const list = deferred<ReturnType<typeof payload>>()
+  api.markNotificationRead.mockReturnValueOnce(mark.promise)
+  api.fetchNotifications.mockReturnValueOnce(list.promise).mockResolvedValueOnce({ ...payload(2), items: [{ ...item, isRead: true }] })
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(2)))
+  await mountPage(3, [item])
+  await wrapper!.get('article button').trigger('click')
+  await click('Mentions') // the list response still shows the pending row unread with count 3
+  list.resolve(payload(3))
+  await flushPromises()
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('3 unread')
+  mark.resolve(true)
+  await flushPromises()
+  expectCount(2)
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
+  expect(wrapper!.findAll('article button')).toHaveLength(0)
+  expect(api.fetchNotifications).toHaveBeenCalledTimes(2)
+})
+
 test('logging out and back into the same account invalidates an old list request', async () => {
   const list = deferred<ReturnType<typeof payload>>()
   api.fetchNotifications.mockReturnValueOnce(list.promise)

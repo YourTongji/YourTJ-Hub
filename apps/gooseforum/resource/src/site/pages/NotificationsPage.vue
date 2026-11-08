@@ -376,6 +376,11 @@ function markItemRead(item: NotificationPayload) {
   void markNotificationRead(notificationId).then(() => {
     if (!unreadStatus.isCurrentNotificationOwner(request)) return
     unreadStatus.confirmNotificationRead(request)
+    if (snapshotRevision !== listRevision) {
+      // A list snapshot overwrote the optimistic rows while the read was pending; reload post-read rows.
+      lists.all.loaded = lists.unread.loaded = false
+      void loadNotifications(activeFilter.value, true)
+    }
   }).catch(() => {
     if (!unreadStatus.isCurrentNotificationOwner(request)) return
     if (generation === categoryGeneration) {
