@@ -372,7 +372,17 @@ social counts and badges, and moderator access rules beyond today's public profi
 - Password reset (forgot/reset password): `Current`. The reset link is a short-lived
   signed JWT whose claims bind `userId + email + TokenVersion` at issue time; the reset
   endpoint re-checks all three against the live user row, so a link stops working the
-  moment the account is reset, recovered, or revoked (`TokenVersion` bumps). Both
+  moment the account is reset, recovered, or revoked (`TokenVersion` bumps). Reset links
+  are scoped to their purpose: they are signed with a dedicated derived key, carry the
+  `password-reset` audience, use HS256 with a required expiry, and parsing requires a
+  nonzero account ID and a nonempty email, so session, TOTP challenge and activation
+  tokens cannot reset a password and empty-email accounts cannot be recovered through
+  this path (they use the signed-in password setup or the administrator recovery flow
+  instead). Links issued with the previous unscoped format are rejected, including links
+  still queued for delivery: the upgrade neither rewrites nor purges the mail queue, so
+  a queued legacy link may still arrive but the reset endpoint refuses it, and requesting
+  a new recovery email is the path forward (no queue migration or signing-key rotation is
+  required for this change). Both
   `forgot-password` (token issuance) and `reset-password` (token confirmation) are
   IP-rate-limited; `forgot-password` additionally enforces captcha and a 24-hour
   email-change cooldown, and a link minted under a previous signing key cannot validate
