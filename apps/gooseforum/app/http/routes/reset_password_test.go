@@ -2,16 +2,16 @@ package routes
 
 import (
 	"fmt"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
 )
 

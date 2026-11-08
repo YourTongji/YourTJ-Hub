@@ -4,6 +4,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -11,9 +15,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
 	"github.com/golang-jwt/jwt/v5"
-	"strings"
-	"testing"
-	"time"
 )
 
 const queueExpiryTestKey = "queue-expiry-test-signing-key"
