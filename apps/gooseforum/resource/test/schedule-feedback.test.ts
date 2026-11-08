@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import SchedulePage from '../src/site/pages/SchedulePage.vue'
 import { i18n, setLocale } from '../src/runtime/i18n'
@@ -8,10 +8,14 @@ import { scheduleSync } from '../src/site/composables/useScheduleSync'
 import type { LayoutPayload } from '@gooseforum/client'
 vi.mock('../src/runtime/pk-api', () => ({ getPkLatestUpdate: async () => ({}), syncPkCourseInfo: vi.fn() }))
 vi.mock('../src/site/composables/useScheduleSync', async original => ({ ...await original<typeof import('../src/site/composables/useScheduleSync')>(), startScheduleSync: vi.fn(), stopScheduleSync: vi.fn() }))
+beforeEach(async () => {
+ await setLocale('zh')
+ // Hydration is once per document, so clear the test queue explicitly on every case.
+ sessionStorage.removeItem('goose:flash-messages')
+ hydrateFlashMessages()
+})
 afterEach(() => { vi.restoreAllMocks(); const flash = useFlashMessages(); flash.messages.value.forEach(item => flash.dismiss(item.id)); sessionStorage.clear() })
 test.each([false, true])('saving gives immediate feedback on the current document (success=%s)', async success => {
- await setLocale('zh')
- hydrateFlashMessages()
  vi.spyOn(scheduleSync, 'needsOwnerConfirmation').mockReturnValue(false)
  vi.spyOn(scheduleSync, 'saveNow').mockResolvedValue(success)
  vi.spyOn(scheduleSync, 'syncOnPageEnter').mockResolvedValue(undefined)
