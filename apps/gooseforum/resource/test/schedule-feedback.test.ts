@@ -29,6 +29,24 @@ test.each([false, true])('saving gives immediate feedback on the current documen
  } finally { wrapper.unmount() }
 })
 
+test('sync failure reports immediately without queueing for reload', async () => {
+ await setLocale('zh')
+ hydrateFlashMessages()
+ vi.spyOn(scheduleSync, 'syncOnPageEnter').mockResolvedValue('failed')
+ const wrapper = shallowMount(SchedulePage, { props: { layout: { viewer: { id:42, isAuthenticated:true } } as LayoutPayload, props: {} }, global: { plugins:[i18n], stubs: { PageHeader: { template:'<div><slot name="actions" /></div>' } } } })
+ try {
+  await flushPromises()
+  const sync = wrapper.findAll('button.gf-button-outline')[0]
+  expect(sync).toBeDefined()
+  await sync!.trigger('click')
+  await flushPromises()
+  const latest = useFlashMessages().messages.value.at(-1)
+  expect(latest?.message).toBe(String(i18n.global.t('schedule.syncFailed')))
+  expect(latest?.type).toBe('error')
+  expect(sessionStorage.getItem('goose:flash-messages')).toBeNull()
+ } finally { wrapper.unmount() }
+})
+
 test('guest save immediately explains login without attempting a cloud write', async () => {
  const save = vi.spyOn(scheduleSync, 'saveNow')
  const wrapper = shallowMount(SchedulePage, { props: { layout: {} as LayoutPayload, props: {} }, global: { plugins:[i18n], stubs: { PageHeader: { template:'<div><slot name="actions" /></div>' } } } })
