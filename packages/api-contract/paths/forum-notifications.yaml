@@ -8,7 +8,7 @@ getUnreadStatus:
       not extend the caller's online presence). Reports unread notifications,
       unread chat messages, and open moderation reports; latestNotificationType is
       present only when an unread notification exists.
-      The existing read also carries unread counts and account-wide badgeStyle; changing display
+      The existing read also carries unread counts and account-wide badgeStyle/badgeCategories; changing display
       mode does not require another count endpoint. Older/unavailable counts may be absent, in
       which case clients retain the boolean indicator without inventing a numeric count.
     security:

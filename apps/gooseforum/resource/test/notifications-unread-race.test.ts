@@ -38,6 +38,7 @@ beforeEach(async () => {
   vi.resetModules()
   vi.resetAllMocks()
   localStorage.clear()
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('No unread response configured')))
   status = (await import('../src/runtime/unread-status')).useUnreadStatus()
   status.startPolling(initial, 1024)
 })
@@ -189,7 +190,7 @@ test('a zero-count page payload is not a confirmed read that fences a poll', asy
   expectCount(8)
 })
 
-test('a newer list snapshot wins over an older poll without dropping its message count', async () => {
+test('list totals stay separate from poll badge and message counts', async () => {
   const poll = deferred<object>()
   vi.stubGlobal('fetch', vi.fn(() => poll.promise))
   api.fetchNotifications.mockResolvedValueOnce(payload(8))
@@ -199,7 +200,8 @@ test('a newer list snapshot wins over an older poll without dropping its message
   await flushPromises()
   poll.resolve({ ok: true, json: async () => ({ code: 0, result: { ...initial, messageCount: 20 } }) })
   await refresh
-  expectCount(8)
+  expectCount(3)
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('8 unread')
   expect(status.messageCount.value).toBe(20)
 })
 
@@ -356,4 +358,39 @@ test.each([
   }
   expectCount(4)
   expect(api.fetchNotifications).not.toHaveBeenCalled()
+})
+
+test('unfiltered notification lists cannot overwrite a category-filtered badge count', async () => {
+  status.stopPolling(true)
+  status.startPolling({ ...initial, notificationCount: 2, badgeCategories: ['replies'] }, 1024)
+  api.fetchNotifications.mockResolvedValueOnce(payload(8))
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ code: 0, result: { ...initial, notificationCount: 2, badgeCategories: ['replies'] } }) }))
+  await mountPage(8)
+  await click('Likes')
+  await flushPromises()
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('8 unread')
+  expectCount(2)
+})
+
+test('a confirmed single read reconciles filtered badges instead of decrementing an excluded event', async () => {
+  status.stopPolling(true)
+  status.startPolling({ ...initial, notificationCount: 2, badgeCategories: ['replies'] }, 1024)
+  api.markNotificationRead.mockResolvedValueOnce(true)
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ code: 0, result: { ...initial, notificationCount: 2, badgeCategories: ['replies'] } }) }))
+  await mountPage(3, [{ ...item, eventType: 'like' }])
+  await wrapper!.get('article button').trigger('click')
+  await flushPromises()
+  expectCount(2)
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
+})
+
+test('a failed optimistic read restores only the decrement actually applied to a zero total', async () => {
+  api.markNotificationRead.mockRejectedValueOnce(new Error('offline'))
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(0)))
+  await mountPage(0)
+  await wrapper!.get('article button').trigger('click')
+  await flushPromises()
+  expect(wrapper!.findAll('article button')).toHaveLength(1)
+  expect(wrapper!.find('[data-unread-summary]').exists()).toBe(false)
+  expectCount(0)
 })

@@ -190,8 +190,9 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
     list.nextCursor = payload.nextCursor
     list.hasNext = payload.hasNext
     list.loaded = true
-    const applied = unreadStatus.applyNotificationSnapshot(payload.unreadCount, request)
-    unreadCount.value = applied ? payload.unreadCount : (unreadStatus.notificationCount.value ?? payload.unreadCount)
+    unreadCount.value = payload.unreadCount
+    // List totals are unfiltered; the server independently computes category-filtered badges.
+    void unreadStatus.refresh(true).catch(() => undefined)
   } catch (error) {
     if (generation !== categoryGeneration || !unreadStatus.isCurrentNotificationOwner(request)) return
     actionError.value = error instanceof Error ? error.message : t('api.notificationsLoadFailed')
@@ -366,18 +367,19 @@ function markItemRead(item: NotificationPayload) {
   const generation = categoryGeneration
   const request = unreadStatus.captureNotificationRequest()
   const snapshotRevision = listRevision
+  const unreadDecrement = Math.min(unreadCount.value, 1)
   const notificationId = item.id
   const previousAll = lists.all.items.find(notification => notification.id === notificationId)
   const previousUnread = lists.unread.items.find(notification => notification.id === notificationId)
 
   lists.all.items = lists.all.items.map((notification) => notification.id === notificationId ? { ...notification, isRead: true } : notification)
   lists.unread.items = lists.unread.items.filter((notification) => notification.id !== notificationId)
-  unreadCount.value = Math.max(unreadCount.value - 1, 0)
+  unreadCount.value -= unreadDecrement
   void markNotificationRead(notificationId).then(() => {
     if (!unreadStatus.isCurrentNotificationOwner(request)) return
     unreadStatus.confirmNotificationRead(request)
-    if (snapshotRevision !== listRevision) {
-      // A list snapshot overwrote the optimistic rows while the read was pending; reload post-read rows.
+    if (generation !== categoryGeneration || snapshotRevision !== listRevision) {
+      // A newer list can have replaced the optimistic row while this read was pending.
       lists.all.loaded = lists.unread.loaded = false
       void loadNotifications(activeFilter.value, true)
     }
@@ -392,7 +394,7 @@ function markItemRead(item: NotificationPayload) {
           const nextIndex = lists.unread.items.findIndex(notification => notification.id < notificationId)
           lists.unread.items.splice(nextIndex < 0 ? lists.unread.items.length : nextIndex, 0, previousUnread)
         }
-        unreadCount.value++
+        unreadCount.value += unreadDecrement
       } else {
         // Another confirmed read or list snapshot makes the old row/count unsafe to restore.
         // Reconcile the visible rows, not just the global badge, and invalidate the inactive list.

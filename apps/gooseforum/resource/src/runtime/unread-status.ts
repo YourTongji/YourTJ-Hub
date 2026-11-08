@@ -3,7 +3,7 @@ import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
 import { maybeNotifyUnread } from './browser-notification'
 import { setUnreadMessagesDocumentTitle } from './document-title'
-import type { UnreadBadgeStyle, UnreadStatusPayload } from '@gooseforum/client'
+import type { UnreadBadgeCategory, UnreadBadgeStyle, UnreadStatusPayload } from '@gooseforum/client'
 
 const CACHE_TTL = 10_000
 const POLL_INTERVAL = 30_000
@@ -14,6 +14,8 @@ const latestNotificationType = ref('')
 const latestUnreadId = ref(0)
 const notificationCount = ref<number>()
 const messageCount = ref<number>()
+export const unreadBadgeCategories: UnreadBadgeCategory[] = ['replies', 'mentions', 'likes', 'following', 'system']
+const badgeCategories = ref<UnreadBadgeCategory[]>([...unreadBadgeCategories])
 const badgeStyle = ref<UnreadBadgeStyle>('number')
 const badgeStyleSaving = ref(false)
 const badgeStyleError = ref('')
@@ -32,7 +34,7 @@ let requestAbort: AbortController | undefined
 let pollTimer: number | undefined
 
 const notificationMessage = computed(() => {
-  if (latestNotificationType.value === 'comment' || latestNotificationType.value === 'topic_post') return i18n.global.t('notifications.newComment')
+  if (notifications.value && (latestNotificationType.value === 'comment' || latestNotificationType.value === 'topic_post')) return i18n.global.t('notifications.newComment')
   if (notifications.value) return i18n.global.t('notifications.newNotification')
   return i18n.global.t('notifications.noUnread')
 })
@@ -48,6 +50,7 @@ function normalizeStatus(data: Partial<UnreadStatusPayload> | null | undefined):
     latestUnreadId: typeof data?.latestUnreadId === 'number' ? data.latestUnreadId : 0,
     notificationCount: countValue(data?.notificationCount),
     messageCount: countValue(data?.messageCount),
+    badgeCategories: data?.badgeCategories ?? [...unreadBadgeCategories],
     badgeStyle: data?.badgeStyle === 'dot' || data?.badgeStyle === 'number' ? data.badgeStyle : undefined,
   }
 }
@@ -56,7 +59,7 @@ function snapshot(): UnreadStatusPayload {
     notifications: notifications.value, messages: messages.value,
     moderationReports: moderationReports.value, latestNotificationType: latestNotificationType.value,
     latestUnreadId: latestUnreadId.value, notificationCount: notificationCount.value,
-    messageCount: messageCount.value, badgeStyle: badgeStyle.value,
+    messageCount: messageCount.value, badgeCategories: [...badgeCategories.value], badgeStyle: badgeStyle.value,
   }
 }
 function readCache(): UnreadStatusPayload | null {
@@ -77,7 +80,7 @@ function writeCache() {
 }
 function applyUnread(data: Partial<UnreadStatusPayload> | null | undefined, options: { includeStyle?: boolean; styleRevision?: number } = {}) {
   const status = normalizeStatus(data)
-  const hadNotifications = notifications.value
+  const hadNotifications = notifications.value || latestUnreadId.value > 0
   notifications.value = status.notifications
   messages.value = status.messages
   moderationReports.value = status.moderationReports || false
@@ -88,12 +91,13 @@ function applyUnread(data: Partial<UnreadStatusPayload> | null | undefined, opti
   if (options.includeStyle && !badgeStyleSaving.value &&
       (options.styleRevision === undefined || options.styleRevision === preferenceRevision)) {
     badgeStyle.value = status.badgeStyle ?? 'number'
+    badgeCategories.value = status.badgeCategories ?? [...unreadBadgeCategories]
     styleInitialized = true
     preferenceRevision++
   }
   checked.value = true
   setUnreadMessagesDocumentTitle(status.messages)
-  maybeNotifyUnread(hadNotifications, status.notifications, status.latestNotificationType || '', status.latestUnreadId || 0)
+  maybeNotifyUnread(hadNotifications, status.notifications || (status.latestUnreadId ?? 0) > 0, status.latestNotificationType || '', status.latestUnreadId || 0)
   writeCache()
 }
 async function fetchUnreadStatus(signal: AbortSignal) {
@@ -158,6 +162,7 @@ function stopPolling(clearOwner = false) {
     preferenceRevision++
     styleInitialized = false
     badgeStyle.value = 'number'
+    badgeCategories.value = [...unreadBadgeCategories]
     badgeStyleSaving.value = false
     badgeStyleError.value = ''
     notifications.value = messages.value = moderationReports.value = checked.value = false
@@ -182,21 +187,27 @@ function startPolling(initial?: Partial<UnreadStatusPayload>, accountId = ownerI
   }
   pollTimer = window.setInterval(() => { void refresh(true).catch(() => undefined) }, POLL_INTERVAL)
 }
-async function updateBadgeStyle(style: UnreadBadgeStyle): Promise<boolean> {
+function updateBadgeStyle(style: UnreadBadgeStyle): Promise<boolean> {
+  return updatePreferences({ badgeStyle: style })
+}
+function updateBadgeCategories(categories: UnreadBadgeCategory[]): Promise<boolean> {
+  return updatePreferences({ badgeCategories: categories })
+}
+async function updatePreferences(change: { badgeStyle?: UnreadBadgeStyle; badgeCategories?: UnreadBadgeCategory[] }): Promise<boolean> {
   if (!ownerId || !checked.value || badgeStyleSaving.value) return false
-  if (style === badgeStyle.value) return true
   const capturedOwner = ownerGeneration
-  const previous = badgeStyle.value
+  const previous = { style: badgeStyle.value, categories: [...badgeCategories.value] }
   const revision = ++preferenceRevision
   const current = () => capturedOwner === ownerGeneration && revision === preferenceRevision
   badgeStyleSaving.value = true
   badgeStyleError.value = ''
-  badgeStyle.value = style
+  if (change.badgeStyle) badgeStyle.value = change.badgeStyle
+  if (change.badgeCategories) badgeCategories.value = [...change.badgeCategories]
   let failure = ''
   try {
     const response = await fetch('/api/forum/notification-preferences', {
       method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ badgeStyle: style }),
+      body: JSON.stringify(change),
     })
     const body = await response.json()
     if (!response.ok || body.code !== 0) {
@@ -206,11 +217,20 @@ async function updateBadgeStyle(style: UnreadBadgeStyle): Promise<boolean> {
     if (body.result?.badgeStyle !== 'dot' && body.result?.badgeStyle !== 'number') throw new Error('invalid preference response')
     if (!current()) return false
     badgeStyle.value = body.result.badgeStyle
+    if (Array.isArray(body.result.badgeCategories)) badgeCategories.value = body.result.badgeCategories
     writeCache()
+    if (change.badgeCategories) {
+      readGeneration++
+      requestAbort?.abort()
+      requestAbort = undefined
+      inFlight = null
+      void refresh(true).catch(() => undefined)
+    }
     return true
   } catch {
     if (current()) {
-      badgeStyle.value = previous
+      badgeStyle.value = previous.style
+      badgeCategories.value = previous.categories
       badgeStyleError.value = failure || i18n.global.t('api.operationFailed')
       writeCache()
     }
@@ -236,13 +256,6 @@ function applyNotificationCount(hasUnread: boolean, count?: number) {
   applyUnread({ ...snapshot(), notifications: hasUnread, notificationCount: hasUnread ? countValue(count) : 0,
     latestNotificationType: hasUnread ? latestNotificationType.value : '', latestUnreadId: hasUnread ? latestUnreadId.value : 0 })
 }
-// Server snapshots are ordered by request start, but never fence a newer poll as a local read would.
-function applyNotificationSnapshot(count: number, request: NotificationRequest) {
-  if (!isCurrentNotificationRequest(request) || request.sequence < appliedNotificationSequence) return false
-  appliedNotificationSequence = request.sequence
-  applyNotificationCount(count > 0, count)
-  return true
-}
 function clearNotifications(request: NotificationRequest) {
   if (!isCurrentNotificationOwner(request)) return
   notificationRevision++
@@ -252,9 +265,9 @@ function clearNotifications(request: NotificationRequest) {
 function confirmNotificationRead(request: NotificationRequest) {
   if (!isCurrentNotificationOwner(request)) return
   notificationRevision++
-  if (appliedNotificationSequence !== request.applied) {
-    // Any snapshot applied while this read was pending may already include it — including a poll
-    // that started earlier but returned after the read committed. Reconcile instead of decrementing twice.
+  if (appliedNotificationSequence !== request.applied || badgeCategories.value.length !== unreadBadgeCategories.length) {
+    // A poll applied while this read was pending may already include it, even if started earlier.
+    // Only the server classifies filtered badges: reconcile rather than subtract an excluded event.
     const pending = inFlight
     void Promise.resolve(pending).catch(() => undefined).then(() => {
       if (isCurrentNotificationOwner(request)) return refresh(true)
@@ -272,10 +285,11 @@ export function useUnreadStatus() {
   return {
     notifications: readonly(notifications), messages: readonly(messages),
     notificationCount: readonly(notificationCount), messageCount: readonly(messageCount),
+    badgeCategories: readonly(badgeCategories),
     badgeStyle: readonly(badgeStyle), badgeStyleSaving: readonly(badgeStyleSaving), badgeStyleError: readonly(badgeStyleError),
     moderationReports: readonly(moderationReports), latestNotificationType: readonly(latestNotificationType),
     checked: readonly(checked), notificationMessage,
-    startPolling, stopPolling, refresh, applyUnread, updateBadgeStyle, clearNotifications, confirmNotificationRead, clearMessages,
-    captureNotificationRequest, isCurrentNotificationOwner, isCurrentNotificationRequest, applyNotificationSnapshot,
+    startPolling, stopPolling, refresh, applyUnread, updateBadgeStyle, updateBadgeCategories, clearNotifications, confirmNotificationRead, clearMessages,
+    captureNotificationRequest, isCurrentNotificationOwner, isCurrentNotificationRequest,
   }
 }

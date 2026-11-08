@@ -2,9 +2,13 @@
 import type { UserDecoration } from '@gooseforum/client'
 import { userDisplayName } from '@/runtime/private-notes'
 import { showUserCard } from '@/runtime/user-card-events'
+import { authorURL, authorKey } from '@/runtime/anonymous-identity'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 
 interface StackUser {
+  kind?: 'member' | 'persona' | 'anonymous'
+  publicUid?: string
+  profileUrl?: string
   id: number
   username: string
   /** 当前昵称；无昵称时缺省（备注名显示 note(display name) 用）。 */
@@ -28,8 +32,8 @@ withDefaults(defineProps<{
   >
     <a
       v-for="user in users"
-      :key="user.id"
-      :href="`/u/${user.id}`"
+      :key="authorKey(user)"
+      :href="authorURL(user) || undefined"
       :title="userDisplayName(user.id, user.username, user.nickname)"
       class="rounded-full ring-2 ring-base-100 transition hover:z-10 hover:scale-110"
       :class="size === 'sm' ? 'h-6 w-6' : 'h-8 w-8'"

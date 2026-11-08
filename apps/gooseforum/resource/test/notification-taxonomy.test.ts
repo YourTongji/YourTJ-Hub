@@ -12,7 +12,7 @@ const { fetchNotifications, markNotificationRead, markAllNotificationsRead } = v
 vi.mock('../src/runtime/api', () => ({ fetchNotifications, markAllNotificationsRead, markNotificationRead }))
 const { unreadConfirmNotificationRead, unreadRefresh, unreadClearNotifications } = vi.hoisted(() => ({
   unreadConfirmNotificationRead: vi.fn(),
-  unreadRefresh: vi.fn(),
+  unreadRefresh: vi.fn().mockResolvedValue(undefined),
   unreadClearNotifications: vi.fn(),
 }))
 vi.mock('../src/runtime/unread-status', () => ({
@@ -20,11 +20,9 @@ vi.mock('../src/runtime/unread-status', () => ({
     badgeStyle: { value: 'number' }, notificationCount: { value: undefined },
     clearNotifications: unreadClearNotifications, confirmNotificationRead: unreadConfirmNotificationRead, refresh: unreadRefresh,
     captureNotificationRequest: () => ({}), isCurrentNotificationOwner: () => true, isCurrentNotificationRequest: () => true,
-    applyNotificationSnapshot: () => true,
   }),
 }))
 import NotificationsPage from '../src/site/pages/NotificationsPage.vue'
-import { markAllNotificationsRead, markNotificationRead } from '../src/runtime/api'
 afterEach(()=>vi.clearAllMocks())
 function item(eventType='post_reply'): NotificationPayload {
  return {id:1,eventType,isRead:false,createdAt:'',title:'',content:'',actor:{id:1,username:'Alice'},topic:{id:42,title:'Campus',url:'/p/post/42/2'},payload:{actorId:1,topicTitle:'Campus'}}
