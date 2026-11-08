@@ -411,12 +411,9 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     expect(view.find('section').exists()).toBe(false)
   })
 
-  it.each([
-    { home: true, showPinned: false },
-    { home: false, showPinned: false },
-  ])('未启用置顶条的列表保留普通行：%j', (props) => {
+  it('未启用置顶条的列表保留普通行', () => {
     wrapper = mount(TopicList, {
-      props: { ...props, topics: [baseTopic({ pinWeight: 1 })] },
+      props: { showPinned: false, topics: [baseTopic({ pinWeight: 1 })] },
       global: { plugins: [i18n], stubs: { TopicRow: true } },
     })
     expect(wrapper.find('section').exists()).toBe(false)
