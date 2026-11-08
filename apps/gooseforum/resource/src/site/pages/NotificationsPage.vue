@@ -184,7 +184,7 @@ async function loadNotifications(filter: NotificationFilter, reset = false) {
     list.hasNext = payload.hasNext
     list.loaded = true
     unreadCount.value = payload.unreadCount
-    unreadStatus.setNotifications(payload.unreadCount > 0, payload.unreadCount)
+    void unreadStatus.refresh(true).catch(() => undefined)
   } catch (error) {
     if (generation !== categoryGeneration) return
     actionError.value = error instanceof Error ? error.message : t('api.notificationsLoadFailed')
@@ -360,14 +360,14 @@ function markItemRead(item: NotificationPayload) {
   lists.all.items = lists.all.items.map((notification) => notification.id === notificationId ? { ...notification, isRead: true } : notification)
   lists.unread.items = lists.unread.items.filter((notification) => notification.id !== notificationId)
   unreadCount.value = Math.max(unreadCount.value - 1, 0)
-  unreadStatus.setNotifications(unreadCount.value > 0, unreadCount.value)
 
-  void markNotificationRead(notificationId).catch(() => {
+  void markNotificationRead(notificationId).then(() => {
+    void unreadStatus.refresh(true).catch(() => undefined)
+  }).catch(() => {
     if (generation === categoryGeneration) {
       lists.all.items = previousAll
       lists.unread.items = previousUnread
       unreadCount.value = previousUnreadCount
-      unreadStatus.setNotifications(previousUnreadCount > 0, previousUnreadCount)
     }
     void unreadStatus.refresh(true).catch(() => undefined)
   })

@@ -5,6 +5,41 @@ import 'api_client_test.dart' show MockAdapter, ResponseData;
 import 'push_repository_test.dart' show Tokens;
 
 void main() {
+  test('badge categories distinguish missing, empty and invalid values', () {
+    expect(
+      NotificationPreferences.fromJson({'badgeStyle': 'dot'}).badgeCategories,
+      notificationBadgeCategories,
+    );
+    expect(
+      NotificationPreferences.fromJson({
+        'badgeStyle': 'dot',
+        'badgeCategories': [],
+      }).badgeCategories,
+      isEmpty,
+    );
+    expect(
+      NotificationPreferences.fromJson({
+        'badgeStyle': 'number',
+        'badgeCategories': ['replies'],
+      }).badgeCategories,
+      ['replies'],
+    );
+    for (final value in [
+      null,
+      'replies',
+      ['unknown'],
+      [1],
+    ]) {
+      expect(
+        () => NotificationPreferences.fromJson({
+          'badgeStyle': 'number',
+          'badgeCategories': value,
+        }),
+        throwsFormatException,
+      );
+    }
+  });
+
   test(
     'unknown legacy counts stay unknown while preference responses validate their enum',
     () {
