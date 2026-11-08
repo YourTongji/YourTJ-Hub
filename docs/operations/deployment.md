@@ -262,6 +262,8 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 
 `sync-db-from-main.sh` 把 main 的数据库同步到 dev。同步前不复制旧 dev 库，也不写入 `snapshots/dev-prev`。同步范围、校验，以及停止 dev 服务的时机保持不变。
 
+dev 部署工作流从 `main` 检出渲染这份配置，并安装 `sync-db-from-main.sh`。这两处改动进入该检出后，随后的 dev 部署才会用到它们。生产部署同样从 `main` 检出渲染配置。
+
 ## Branch model & CI/CD
 
 - `dev` is the default development branch. Normal CI validates the affected domains independently.
