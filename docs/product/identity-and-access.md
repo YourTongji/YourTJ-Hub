@@ -148,6 +148,12 @@ sign-in requires user verification and issues the ordinary forum session; email/
 remains available. Device acceptance, including Android OEM credential-provider behavior, has not
 been completed.
 
+The mobile login page distinguishes a disabled or unsupported passkey option from a failed
+availability check. A failed server/device probe shows a localized retry hint; retrying checks only
+that option and does not disable password or other sign-in methods. Successful negative probes keep
+the passkey button hidden without an error. Retries are serialized and late results after leaving
+the page are ignored.
+
 On Android, Google, GitHub and Tongji use one RFC 8252 external-system-browser path. The app builds
 the authorization request itself with PKCE S256, independent `state` and `nonce`, and the provider
 hint, then launches the exact HTTPS authorization URI with `url_launcher` in

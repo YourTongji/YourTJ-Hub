@@ -4001,6 +4001,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authPasskeyUnavailable => 'この端末ではパスキーを利用できません。';
 
   @override
+  String get authPasskeyAvailabilityFailed =>
+      'パスキーを利用できるか確認できませんでした。再試行するか、パスワードでログインしてください。';
+
+  @override
   String get authPasskeyFailed => 'パスキーでログインできませんでした。再試行するか、パスワードをお使いください。';
 
   @override
