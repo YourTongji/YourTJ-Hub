@@ -15128,13 +15128,13 @@ export interface components {
         };
         DirectImageUploadInitResponse: components["schemas"]["DirectImageUploadInitSuccess"] | components["schemas"]["ApiFailure"];
         DirectImageUploadCompleteRequest: {
-            /** @description Pending object name returned by `/file/img-upload/init`. */
+            /** @description For initial completion, the pending object name returned by `/file/img-upload/init`. For an idempotent retry by the same owner, either that original init name or the returned final `filename` recovers the same completed result, even after temporary-key cleanup. */
             name: string;
         };
         DirectImageUploadCompleteResult: {
             /** @description Final public URL of the published image. */
             url: string;
-            /** @description Stored object name: normally the pending `name` returned by `/file/img-upload/init`, but when the header-decoded type conflicts with the declared extension it is the renamed key with the detected type's canonical extension (for example `.../x.png` becomes `.../x.jpg`). Never the caller's original file name. */
+            /** @description Final stored name of the immutable published copy, created under a fresh UUID key distinct from the pending `name` returned by `/file/img-upload/init`. The extension reflects the header-decoded type; equivalent aliases such as `.jpeg` are preserved when the original extension already matches that type. Repeated completion returns the same final name. Never the caller's original file name. */
             filename: string;
             /**
              * Format: int64
