@@ -514,7 +514,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
           <p v-else-if="exportMessage" role="status" class="gf-status-message gf-status-message-info m-4">{{ exportMessage }}</p>
           <p v-if="failures.timetable" class="gf-status-message gf-status-message-error m-4">{{ failureText('timetable') }}</p>
           <EmptyState v-if="!data.timetable && !failures.timetable" loading :title="t('campus.timetableLoading')" />
-          <EmptyState v-else-if="failures.timetable || data.timetable?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.timetableUnavailable')" :description="t('campus.schoolRetry')" />
+          <EmptyState v-else-if="failures.timetable || data.timetable?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.timetableUnavailable')" :description="status.binding.needsAuthorization ? t('campus.authorizationHint') : t('campus.schoolRetry')" />
           <template v-else>
             <p v-if="!weekCourses.length" class="px-4 py-3 text-sm text-base-content/55">{{ t('campus.noWeekCourses') }}</p>
             <div class="p-2 sm:p-4"><CampusTimetable :courses="courses" :week="week" :today="today" /></div>

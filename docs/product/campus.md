@@ -131,8 +131,10 @@ Flutter 离开校园标签或进入后台（paused/hidden）时卸载校园数�
 - [受控 API 契约](../../packages/api-contract/paths/campus.yaml)
 - [OneTJ 接口实现](https://github.com/oierxjn/OneTJ/blob/e43099a046e522be16e0a19bc1c2a6288d1532c7/lib/services/tongji.dart)
 
-`Current`: when a retained campus binding needs school authorization, unopened
+`Current`: when a retained campus binding needs school authorization, unloaded
 Web datasets show an unavailable state with the authorization explanation instead
 of a loading indicator. The authorization explanation follows interface language changes
-without fetching private data again. Existing in-memory data and its sync timestamp remain
+without fetching private data again. The timetable empty state explains reauthorization
+rather than suggesting a school outage; ordinary service failures retain their retry guidance.
+Existing in-memory data and its sync timestamp remain
 visible; no automatic authorization or extra dataset request is started.

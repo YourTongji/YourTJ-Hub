@@ -9,6 +9,7 @@ import de from '../src/locales/de'
 import type { CampusDataset, CampusDatasetKey, CampusStatus, LayoutPayload } from '@gooseforum/client'
 import { CampusError } from '../src/runtime/campus-api'
 import CampusPage from '../src/site/pages/CampusPage.vue'
+import EmptyState from '../src/site/components/EmptyState.vue'
 
 const api = vi.hoisted(() => ({ status: vi.fn(), dataset: vi.fn(), message: vi.fn(), confirm: vi.fn(), start: vi.fn(), exportCalendar: vi.fn() }))
 vi.mock('@/runtime/campus-api', async original => ({
@@ -523,6 +524,11 @@ test.each([0, 1, 2])('expired authorization hints follow locale changes on conte
       wrapper.vm.$i18n.locale = locale
       await flushPromises()
       expect(wrapper.text().split(messages.campus.authorizationHint).length - 1).toBeGreaterThan(1)
+      if (index === 1) {
+        const empty = wrapper.findAllComponents(EmptyState).find(item => item.props('title') === messages.campus.timetableUnavailable)!
+        expect(empty.text()).toContain(messages.campus.authorizationHint)
+        expect(wrapper.text()).not.toContain(messages.campus.schoolRetry)
+      }
       for (const other of [zh, en, ja, de].filter(other => other !== messages)) {
         expect(wrapper.text()).not.toContain(other.campus.authorizationHint)
       }
@@ -530,6 +536,36 @@ test.each([0, 1, 2])('expired authorization hints follow locale changes on conte
     }
     expect(api.status).toHaveBeenCalledOnce()
     expect(api.dataset).not.toHaveBeenCalled()
+    expect(api.start).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
+
+test('timetable authorization errors explain reauthorization instead of a school outage', async () => {
+  const wrapper = setup()
+  try {
+    await flushPromises()
+    api.dataset.mockRejectedValue(new CampusError('campus.authorizationRequired', 'School authorization expired'))
+    await clickTab(wrapper, '我的课表')
+    const empty = wrapper.findAllComponents(EmptyState).find(item => item.props('title') === zh.campus.timetableUnavailable)!
+    expect(empty.text()).toContain(zh.campus.authorizationHint)
+    expect(wrapper.text()).not.toContain(zh.campus.schoolRetry)
+    expect(wrapper.text()).toContain('School authorization expired')
+    expect(wrapper.findAll('.animate-spin')).toHaveLength(0)
+    expect(api.start).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
+
+test.each(['error', 'unavailable'])('timetable school retry guidance remains for ordinary %s responses', async result => {
+  const wrapper = setup()
+  try {
+    await flushPromises()
+    if (result === 'error') api.dataset.mockRejectedValue(new Error('School service offline'))
+    else api.dataset.mockResolvedValue({ ...dataset('timetable'), status: 'unavailable' })
+    await clickTab(wrapper, '我的课表')
+    const empty = wrapper.findAllComponents(EmptyState).find(item => item.props('title') === zh.campus.timetableUnavailable)!
+    expect(empty.text()).toContain(zh.campus.schoolRetry)
+    expect(wrapper.text()).not.toContain(zh.campus.authorizationHint)
+    if (result === 'error') expect(wrapper.text()).toContain('School service offline')
     expect(api.start).not.toHaveBeenCalled()
   } finally { wrapper.unmount() }
 })
