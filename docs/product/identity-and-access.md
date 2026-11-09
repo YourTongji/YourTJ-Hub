@@ -148,6 +148,12 @@ sign-in requires user verification and issues the ordinary forum session; email/
 remains available. Device acceptance, including Android OEM credential-provider behavior, has not
 been completed.
 
+The mobile login page distinguishes a disabled or unsupported passkey option from a failed
+availability check. A failed server/device probe shows a localized retry hint; retrying checks only
+that option and does not disable password or other sign-in methods. Successful negative probes keep
+the passkey button hidden without an error. Retries are serialized and late results after leaving
+the page are ignored.
+
 On Android, Google, GitHub and Tongji use one RFC 8252 external-system-browser path. The app builds
 the authorization request itself with PKCE S256, independent `state` and `nonce`, and the provider
 hint, then launches the exact HTTPS authorization URI with `url_launcher` in
@@ -372,7 +378,17 @@ social counts and badges, and moderator access rules beyond today's public profi
 - Password reset (forgot/reset password): `Current`. The reset link is a short-lived
   signed JWT whose claims bind `userId + email + TokenVersion` at issue time; the reset
   endpoint re-checks all three against the live user row, so a link stops working the
-  moment the account is reset, recovered, or revoked (`TokenVersion` bumps). Both
+  moment the account is reset, recovered, or revoked (`TokenVersion` bumps). Reset links
+  are scoped to their purpose: they are signed with a dedicated derived key, carry the
+  `password-reset` audience, use HS256 with a required expiry, and parsing requires a
+  nonzero account ID and a nonempty email, so session, TOTP challenge and activation
+  tokens cannot reset a password and empty-email accounts cannot be recovered through
+  this path (they use the signed-in password setup or the administrator recovery flow
+  instead). Links issued with the previous unscoped format are rejected, including links
+  still queued for delivery: the upgrade neither rewrites nor purges the mail queue, so
+  a queued legacy link may still arrive but the reset endpoint refuses it, and requesting
+  a new recovery email is the path forward (no queue migration or signing-key rotation is
+  required for this change). Both
   `forgot-password` (token issuance) and `reset-password` (token confirmation) are
   IP-rate-limited; `forgot-password` additionally enforces captcha and a 24-hour
   email-change cooldown, and a link minted under a previous signing key cannot validate

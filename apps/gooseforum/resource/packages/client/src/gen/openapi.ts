@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Read the account decoration catalog, entitlements and effective equipment
-         * @description Hub is the sole decoration entitlement/equipment owner. First release grants are administrator-only. Catalog availability does not confer ownership. Disabled or unowned selections are rejected. Public projections omit anonymous owner cosmetics. Business failures use HTTP 200; inspect code. Writes are CSRF protected for cookies and require a writable account. Admin permissions are checked independently. Grant/revoke requestKey is durable and retries cannot resurrect a revoked grant; changing input for a reused key fails.
+         * @description Read the authenticated account's decoration catalog, entitlements and equipment. Frozen and pending accounts may read. This GET has no writable-account or administration guard and is exempt from cookie CSRF checks. Business failures use HTTP 200; inspect code. Catalog availability does not confer ownership.
          */
         get: operations["myDecorations"];
         put?: never;
@@ -542,7 +542,7 @@ export interface paths {
         };
         /**
          * getAnonymousIdentityState
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads share the configurable interaction rate limit with persona writes. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads have no writable-account guard and GET is exempt from cookie CSRF checks. State reads share the configurable interaction rate limit with persona writes. New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         get: operations["getAnonymousIdentityState"];
         put?: never;
@@ -3034,7 +3034,7 @@ export interface paths {
          *     not extend the caller's online presence). Reports unread notifications,
          *     unread chat messages, and open moderation reports; latestNotificationType is
          *     present only when an unread notification exists.
-         *     The existing read also carries unread counts and account-wide badgeStyle; changing display
+         *     The existing read also carries unread counts and account-wide badgeStyle/badgeCategories; changing display
          *     mode does not require another count endpoint. Older/unavailable counts may be absent, in
          *     which case clients retain the boolean indicator without inventing a numeric count.
          */
@@ -3055,17 +3055,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read the caller's account-wide unread indicator style
-         * @description Display preference only; independent of notification delivery and read state.
+         * Read the caller's account-wide unread indicator preferences
+         * @description Display preferences only; independent of notification delivery and read state. Categories filter in-app notification badges, not the notification list or private-message badges.
          */
         get: operations["getNotificationPreferences"];
         /**
-         * Set the caller's account-wide unread indicator style
-         * @description Changes presentation only; counts, messages, read state and push consent remain unchanged.
-         *     Applies only to the caller, with last committed write winning across devices. Pending email
+         * Set the caller's account-wide unread indicator preferences
+         * @description Changes display only: badgeCategories filters notification badge flags/counts, not stored unread facts, notification lists, messages or push consent.
+         *     Category semantics match the notification center: directly mentioned replies are mentions; unknown event types are system.
+         *     Default categories include replies, mentions, likes, following and system. An empty array disables notification badges.
+         *     Applies only to the caller, with last committed write winning per supplied field across devices; omitted/null fields are preserved. Pending email
          *     activation is allowed for this self-service preference; frozen accounts remain blocked.
-         *     A private existing unread-change hint asks other sessions to refresh. Invalid/missing enum
-         *     values return HTTP 200 `common.request.invalidParams` without changing the preference.
+         *     A private existing unread-change hint asks other sessions to refresh. Invalid enums, duplicate categories or an update with no non-null fields return HTTP 200 `common.request.invalidParams` without changing the preference.
          */
         put: operations["updateNotificationPreferences"];
         post?: never;
@@ -10714,9 +10715,10 @@ export interface components {
              * @enum {string}
              */
             badgeStyle?: "number" | "dot";
+            badgeCategories?: components["schemas"]["categories"];
             /**
              * Format: int64
-             * @description Current unread notifications. Omitted when the count is unavailable; clients must not invent a number.
+             * @description Unread notifications in the selected badgeCategories. Omitted when the count is unavailable; clients must not invent a number.
              */
             notificationCount?: number;
             /**
@@ -10724,17 +10726,17 @@ export interface components {
              * @description Sum of unread messages in non-deleted conversations, including muted conversations. Optional for older servers or unavailable counts.
              */
             messageCount?: number;
-            /** @description True when the user has unread notifications. */
+            /** @description True when the user has unread notifications in the selected badgeCategories. */
             notifications: boolean;
             /** @description True when the user has unread chat messages. */
             messages: boolean;
             /** @description True when the user has open moderation reports. */
             moderationReports: boolean;
-            /** @description Event type of the latest unread notification; omitted when there are no unread notifications. */
+            /** @description Event type of the latest unread notification across all categories (independent of badge filtering); omitted when there are no unread notifications. */
             latestNotificationType?: string;
             /**
              * Format: uint64
-             * @description Id of the latest unread notification; monotonic across arrivals, reset to zero (omitted) when all notifications are read. Poll-based in-page notifications use it to detect new arrivals while unread stays true.
+             * @description Id of the latest unread notification across all categories (independent of badge filtering); monotonic across arrivals, reset to zero (omitted) when all notifications are read. Poll-based in-page notifications use it to detect new arrivals while unread stays true.
              */
             latestUnreadId?: number;
         };
@@ -16213,16 +16215,24 @@ export interface components {
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
+        /** @description Account-wide notification badge selection. Default all; empty means none. Replies with a direct mention count as mentions. */
+        categories: ("replies" | "mentions" | "likes" | "following" | "system")[];
         value: {
             /**
              * @description Numeric unread count (capped by the UI), or a dot with no displayed count.
              * @enum {string}
              */
             badgeStyle: "number" | "dot";
+            badgeCategories: components["schemas"]["categories"];
         };
         response: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["value"];
         }) | components["schemas"]["ApiFailure"];
+        update: {
+            /** @enum {string|null} */
+            badgeStyle?: "number" | "dot" | null;
+            badgeCategories?: components["schemas"]["categories"] | null;
+        };
         FeedSeenPatch: {
             proof: string;
             seen: {
@@ -17176,15 +17186,6 @@ export interface operations {
             };
             /** @description Missing or invalid session. */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Frozen/pending account, or missing administration permission. */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -18254,15 +18255,6 @@ export interface operations {
             };
             /** @description Authentication required */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Frozen account, write eligibility or CSRF rejected */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -21483,15 +21475,6 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen or unactivated account for writes, or cookie CSRF rejection. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
         };
     };
     submitContentAppeal: {
@@ -22929,7 +22912,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["value"];
+                "application/json": components["schemas"]["update"];
             };
         };
         responses: {

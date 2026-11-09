@@ -395,12 +395,14 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
   rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
   moment and article labels are localized, and enlarged text allows the title/excerpt to grow.
-  Home's unfiltered stream, in both list and card mode, folds pinned topics into one initially
+  Home's unfiltered stream and latest-reply category filter (in both list and card mode), and the
+  standalone category page (card mode), fold pinned topics into one initially
   collapsed announcement-style line: pin mark, "Pinned" badge, the first pinned title and, with
   several pins, their count. A single pin opens directly; several unfold into one-line titles led by
   a small author avatar (with unread dot and relative time) inside the same strip, each opening its
-  topic. At large text the badge and time yield to the title. Category streams and Following retain
-  the server's ordering.
+  topic. At large text the badge and time yield to the title. Other category sorts and Following
+  retain the server's ordering without a pinned strip. Only topics returned for the selected
+  category are collected; pin weights remain global.
   Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
@@ -668,7 +670,11 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   thresholds, keyboard overlays and lifecycle behavior still require device validation.
 - `Current`: the authenticated Flutter shell keeps one chat/notification/unread event connection only
   while foregrounded. The server sends an immediate resync instruction and owner-scoped change hints;
-  the app reloads actual messages, notification lists and unread badges through REST. Reconnects and
+  the app reloads actual messages, notification lists and unread badges through REST.
+  Notification settings include account-synced badge categories (replies, mentions, likes, following,
+  system), defaulting to all and allowing none, independently of number/dot style and push consent.
+  Directly mentioned replies belong to mentions. Filtering changes navigation notification counts only;
+  notification lists, read state and private-message badges retain their semantics. Reconnects and
   resumed sessions reconcile again, and a failed or unsupported stream uses foreground polling until
   delivery recovers. Account changes cancel the previous connection and discard stale unread responses.
   Background push delivery is not provided by this stream.

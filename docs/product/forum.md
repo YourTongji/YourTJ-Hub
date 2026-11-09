@@ -48,6 +48,7 @@ Web、SSR 与 Flutter 的列表和详情均不展示标题（普通列表与首�
 `Current`：Web 草稿箱显示最近 100 条服务端草稿，每条草稿分别提供「继续编辑」和「删除」操作。
 删除前确认草稿标题及影响；确认后使用现有作者删除流程将草稿移入「最近删除」，可在 30 天内恢复。
 删除成功后更新列表；达到 100 条窗口上限时重新读取服务端列表，补入后续草稿。
+普通删除在当前页立即显示成功提示，不留到之后刷新；需要重载补齐窗口时只排队一次提示，由重载后的页面消费。失败仍在确认框中显示错误并保留草稿供重试。
 Flutter 的本机恢复草稿与云端草稿删除入口和保留行为见[移动端体验](mobile-experience.md)。
 
 ## Private message permissions
@@ -113,12 +114,13 @@ their separate rules.
 包括在其他标签页切换账号后收到的实时刷新。已登录读者返回或实时刷新时，通过现有可见性接口分批
 核验缓存话题，显式保留本人仍公开的话题（推荐流仍沿用排除本人的规则），仅移除服务端确认已失效的条目并保留存活条目的滚动锚点；暂时失败保留同账号缓存并等待重试。
 `Partial`：访客缓存条目的可见性复核尚未覆盖；该接口要求登录。
-仅首页最新排序将置顶话题收纳为紧凑标题区，收起时仅一行：置顶标签、第一条话题的
+Web 首页与分类页的最新回复排序将置顶话题收纳为紧凑标题区，收起时仅一行：置顶标签、第一条话题的
 可点击标题、靠右的「共 x 条」总数；多于一条时点击总数展开其余标题，第一条不重复显示，展开后仍使用
 标题行，不重复完整卡片。列表和卡片共用该区域并保留本次页面内的展开状态，刷新页面恢复默认；
 无置顶时不占位，仅一条时显示总数但不提供展开按钮。收起行的长标题单行省略，展开的其余标题最多两行，
 控件可通过键盘操作并提供可见焦点，展开与收起使用高度和淡入淡出过渡，箭头同步旋转，并尊重减少动态效果设置。
-普通话题紧随其后。卡片支持点赞、收藏和进入回复；乐观更新失败按字段回滚。
+普通话题紧随其后。分类页仅收纳当前分类返回的置顶话题，其他排序保持服务端顺序，不新增置顶条；
+爬虫与无 JavaScript 页面继续按服务端顺序显示完整话题行。卡片支持点赞、收藏和进入回复；乐观更新失败按字段回滚。
 列表与卡片的正文摘要（`topics.excerpt`）保留正文里的 Markdown 转义与实体解码后的最终字符，
 并保留 `[:sticker:name:]` 贴纸 token，长度截断不会切开一个 token。展示按字号分两档：卡片与悬停预览
 把可解析的 token 渲染成图片（App 无标题瞬间的摘要占卡片标题位，同属卡片档）；列表行、置顶条、爬虫/无 JS 的 SSR 列表这类小字视图显示为 `[名字]` 文本，
@@ -211,6 +213,12 @@ Web 通知链接优先 `/p/post/{topicId}/{postNo}`，无楼层号时保留历�
 开启时导航和私信会话显示未读数量，超过 99 显示 `99+`；关闭时使用圆点，辅助功能文案也不播报数量。
 旧服务端未提供准确总数时保留圆点，不猜测数量。保存期间禁用开关，失败恢复原选择并允许重试；
 其他前台客户端通过既有实时失效提示重新读取。该偏好只控制展示，不改变消息、已读状态、推送开关或系统权限。
+
+`Current`：同一设置区可勾选回复、提及、赞、关注、系统五类是否计入通知角标，默认全部，允许全部取消。
+选择按账号保存，Web 与 App 的导航、通知入口共用服务端筛选后的计数与红点；数量／圆点样式独立生效。
+分类与通知中心一致：直接 @ 的回复属于“提及”，未知历史事件属于“系统”。筛选不影响通知列表、
+全局已读操作、私信角标或任何推送通道；最新未读 ID 与类型仍包含全部分类，供浏览器通知独立判断。
+仅发送改动字段，旧客户端保存样式不会重置分类；保存失败保留原值并可重试。
 账号存储与客户端边界见[决策 0118](../decisions/0118-account-unread-display.md)。
 
 `Current`：账号级 Push 分为私信、提及和回复、赞、关注动态、系统与审核五组，Web/App/Android 通道共用同一措辞。
@@ -452,6 +460,13 @@ minutes; subsequent reads enforce the current reference state. Errors, orphan up
 previews, untracked legacy images and ordinary topic images retain their existing no-store policy.
 The market-sticker cache policy is independent. See the
 [cache decision](../decisions/0125-public-avatar-cache.md).
+
+`Current`: reply windows filter other authors’ pending replies before applying their
+page limit, including initial topic windows and forward, reverse and anchored API
+windows. Authors retain their own pending replies; moderators retain their existing
+review visibility. Web and App can page across long hidden runs without receiving
+an empty nonterminal window or pending content. Deleted/removed placeholders keep
+their existing behavior; total/max floor numbers retain their existing semantics.
 
 ## Aggregate search counts and pagination
 

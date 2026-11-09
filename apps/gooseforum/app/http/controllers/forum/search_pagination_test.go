@@ -2,9 +2,10 @@ package forum
 
 import (
 	"fmt"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"math"
 	"testing"
+
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 )
 
 func TestSearchPagePagination(t *testing.T) {

@@ -1572,6 +1572,8 @@ export default {
     summaryWithoutCounts: "Replies, likes, follows, and system messages.",
     unreadIndicator: "Unread",
     unreadStyleNumbers: "Show unread counts",
+    unreadCategories: "Notifications counted in badges",
+    unreadCategoriesHint: "Syncs for this account and only changes notification badges, without marking anything read or changing push or private messages. Replies that directly {'@'}mention you count as Mentions. Clear all to hide the notification badge.",
     unreadStyleHint: "Turn off to show dots. This setting syncs between Web and App for this account without marking anything read or changing push delivery.",
     unreadStyleSaving: "Saving indicator style…",
     systemPushDefaultDescription: "By default, only moderation results alert you. Turning this back on also enables ordinary system notices and badges.",

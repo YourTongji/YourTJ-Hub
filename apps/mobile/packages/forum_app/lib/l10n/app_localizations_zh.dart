@@ -3953,6 +3953,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authPasskeyUnavailable => '此设备暂不支持通行密钥。';
 
   @override
+  String get authPasskeyAvailabilityFailed => '暂时无法检查通行密钥是否可用，请重试或使用密码登录。';
+
+  @override
   String get authPasskeyFailed => '通行密钥登录失败，请重试或使用密码登录。';
 
   @override
@@ -4572,4 +4575,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get previewBuildPending => '新的 dev 构建正在生成，当前仍是此平台最新可用的开发包。';
+
+  @override
+  String get unreadBadgeCategoriesTitle => '计入角标的通知分类';
+
+  @override
+  String get unreadBadgeCategoriesHint =>
+      '仅选中的分类计入通知角标。包含直接 @ 的回复归入“提及”。不会标记已读，也不改变推送或私信角标。';
 }

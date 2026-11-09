@@ -4196,6 +4196,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Passkeys sind auf diesem Gerät nicht verfügbar.';
 
   @override
+  String get authPasskeyAvailabilityFailed =>
+      'Die Verfügbarkeit von Passkeys konnte nicht geprüft werden. Versuche es erneut oder melde dich mit deinem Passwort an.';
+
+  @override
   String get authPasskeyFailed =>
       'Passkey-Anmeldung fehlgeschlagen. Versuche es erneut oder melde dich mit deinem Passwort an.';
 
@@ -4870,4 +4874,12 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get previewBuildPending =>
       'Ein neuer Dev-Build wird erstellt. Dies ist noch der neueste verfügbare Build für diese Plattform.';
+
+  @override
+  String get unreadBadgeCategoriesTitle =>
+      'Kategorien für Benachrichtigungsabzeichen';
+
+  @override
+  String get unreadBadgeCategoriesHint =>
+      'Nur ausgewählte Kategorien zählen zum Abzeichen. Antworten mit direkter @-Erwähnung zählen als Erwähnungen. Lesestatus, Push-Mitteilungen und Abzeichen privater Nachrichten bleiben unverändert.';
 }

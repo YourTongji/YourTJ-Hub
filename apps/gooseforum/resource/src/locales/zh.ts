@@ -1572,6 +1572,8 @@ export default {
     summaryWithoutCounts: "回复、赞、关注和系统消息。",
     unreadIndicator: "未读",
     unreadStyleNumbers: "显示未读数量",
+    unreadCategories: "计入未读角标的通知",
+    unreadCategoriesHint: "仅影响通知角标，按账号同步，不会标记已读或改变推送、私信。直接 {'@'} 你的回复归入“{'@'}我”；全部取消则隐藏通知角标。",
     unreadStyleHint: "关闭后仅显示红点。此设置在该账号的 Web 和 App 间同步，不会标记已读或改变推送。",
     unreadStyleSaving: "正在保存提醒样式…",
     systemPushDefaultDescription: "默认仅提醒审核结果；重新开启此项后，也会提醒普通系统消息和徽章。",

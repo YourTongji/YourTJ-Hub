@@ -1571,6 +1571,8 @@ export default {
     summaryWithoutCounts: "Antworten, Likes, neue Follower und Systemnachrichten.",
     unreadIndicator: "Ungelesen",
     unreadStyleNumbers: "Ungelesene Anzahl anzeigen",
+    unreadCategories: "Im Badge gezählte Benachrichtigungen",
+    unreadCategoriesHint: "Gilt für dieses Konto und nur für Benachrichtigungs-Badges. Lesestatus, Push und Privatnachrichten bleiben unverändert. Antworten mit direkter {'@'}Erwähnung zählen als Erwähnungen. Ohne Auswahl wird das Benachrichtigungs-Badge ausgeblendet.",
     unreadStyleHint: "Ausgeschaltet erscheinen nur Punkte. Die Einstellung gilt für dieses Konto im Web und in der App. Lesestatus und Push-Mitteilungen bleiben gleich.",
     unreadStyleSaving: "Anzeige wird gespeichert…",
     systemPushDefaultDescription: "Standardmäßig werden nur Prüfergebnisse gemeldet. Erneutes Einschalten aktiviert auch gewöhnliche Systemhinweise und Abzeichen.",

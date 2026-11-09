@@ -7464,6 +7464,12 @@ abstract class AppLocalizations {
   /// **'Passkeys are not available on this device.'**
   String get authPasskeyUnavailable;
 
+  /// No description provided for @authPasskeyAvailabilityFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check passkey availability. Retry or use your password.'**
+  String get authPasskeyAvailabilityFailed;
+
   /// No description provided for @authPasskeyFailed.
   ///
   /// In en, this message translates to:
@@ -8599,6 +8605,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'A newer dev build is in progress. This is still the latest available build for this platform.'**
   String get previewBuildPending;
+
+  /// No description provided for @unreadBadgeCategoriesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Categories included in badges'**
+  String get unreadBadgeCategoriesTitle;
+
+  /// No description provided for @unreadBadgeCategoriesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only selected categories count toward notification badges. Replies containing a direct @ mention count as Mentions. This does not mark notifications read or change push or private message badges.'**
+  String get unreadBadgeCategoriesHint;
 }
 
 class _AppLocalizationsDelegate
