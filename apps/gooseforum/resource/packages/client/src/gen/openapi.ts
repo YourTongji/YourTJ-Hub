@@ -9538,16 +9538,18 @@ export interface paths {
          * Publish a direct-uploaded post image after the browser uploaded it to the bucket
          * @description Called after the browser uploaded the file to the bucket using the presigned POST policy from
          *     `/file/img-upload/init`. The server verifies the pending object belongs to the caller and
-         *     re-checks ownership and object size, then reads a bounded header and decides the real image
-         *     type from those bytes. An empty object fails with `upload.image.empty`, a known-but-unsupported
-         *     format with `upload.image.unsupported`, and bytes that are not a usable image with
-         *     `upload.image.invalidContent` (HTTP 200; this code no longer reports an extension mismatch).
-         *     A detected type outside the posting-settings allowlist fails with
-         *     `upload.extension.unsupported`. When the detected type conflicts with the declared extension
-         *     but both are allowed, the upload is accepted: the object is renamed to the detected type's
-         *     canonical extension under a fresh UUID key in the same directory (`.png` → `.jpg`; `.jpeg`
-         *     and `.jpg` are the same type, so their original name is kept) and the response carries the renamed `filename`/`url`. On success the file becomes visible and the response carries the final public
-         *     `url`, the stored object name and the stored byte `size`. An unknown or foreign `name` fails
+         *     reads one size-bounded snapshot, checks its byte count, and validates its header. All successful
+         *     paths publish those same bytes under a fresh UUID key that the client cannot write with its
+         *     original presigned policy. The detected type determines the extension; equivalent aliases
+         *     such as `.jpeg` are retained. The response always carries the final `filename`/`url`, distinct
+         *     from the init name. The original key remains tracked for cleanup. Repeating complete with either the
+         *     original init name or returned final name recovers the same ready object for its owner, even
+         *     after temporary-key cleanup. The original name is not an alias for reading the image.
+         *     An empty object fails with `upload.image.empty`, an unsupported format with
+         *     `upload.image.unsupported`, unusable image bytes with `upload.image.invalidContent`, and a
+         *     disallowed detected type with `upload.extension.unsupported` (HTTP 200 business failures).
+         *     On success the file becomes ready; unreferenced uploads retain uploader-only access.
+         *     An unknown or foreign `name` fails
          *     with `page.notFound`; storage failures fail with `upload.saveFailed` (params error). Frozen accounts
          *     are rejected by the route-level CheckWritableAccount middleware.
          */
@@ -15128,13 +15130,13 @@ export interface components {
         };
         DirectImageUploadInitResponse: components["schemas"]["DirectImageUploadInitSuccess"] | components["schemas"]["ApiFailure"];
         DirectImageUploadCompleteRequest: {
-            /** @description Pending object name returned by `/file/img-upload/init`. */
+            /** @description For initial completion, the pending object name returned by `/file/img-upload/init`. For an idempotent retry by the same owner, either that original init name or the returned final `filename` recovers the same completed result, even after temporary-key cleanup. */
             name: string;
         };
         DirectImageUploadCompleteResult: {
             /** @description Final public URL of the published image. */
             url: string;
-            /** @description Stored object name: normally the pending `name` returned by `/file/img-upload/init`, but when the header-decoded type conflicts with the declared extension it is the renamed key with the detected type's canonical extension (for example `.../x.png` becomes `.../x.jpg`). Never the caller's original file name. */
+            /** @description Final stored name of the immutable published copy, created under a fresh UUID key distinct from the pending `name` returned by `/file/img-upload/init`. The extension reflects the header-decoded type; equivalent aliases such as `.jpeg` are preserved when the original extension already matches that type. Repeated completion returns the same final name. Never the caller's original file name. */
             filename: string;
             /**
              * Format: int64
