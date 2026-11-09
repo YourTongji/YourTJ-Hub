@@ -117,11 +117,13 @@ type CourseDetailReq struct {
 }
 
 func CourseDetailJSON(req component.BetterRequest[CourseDetailReq]) component.Response {
+	// The public catalog cache is shared, but this response contains per-user state.
+	req.GinContext.Header("Cache-Control", "private, no-store")
 	if req.Params.CourseId == 0 {
 		return component.BuildResponse(http.StatusBadRequest,
 			component.FailDataCode(component.MessageRequestInvalidParams, nil))
 	}
-	detail, err := courseservice.GetCourseDetail(req.Params.CourseId)
+	detail, err := courseservice.GetCourseDetailForUser(req.GinContext.Request.Context(), req.Params.CourseId, component.LoginUserId(req.GinContext))
 	if err != nil {
 		if errors.Is(err, courseservice.ErrCourseNotFound) {
 			return component.BuildResponse(http.StatusNotFound,

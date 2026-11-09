@@ -4452,7 +4452,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get one canonical course with offerings, terms, and instructors */
+        /**
+         * Get one canonical course with offerings, terms, and instructors
+         * @description Optional authentication supplies current-user bookmark state. Responses are private and must not be cached.
+         */
         get: operations["getCourse"];
         put?: never;
         post?: never;
@@ -11231,6 +11234,8 @@ export interface components {
             reviewCount?: number;
         };
         CourseDetail: {
+            /** @description Current authenticated user bookmark state; false for visitors. Read on every request, never shared between users. */
+            bookmarked: boolean;
             /** Format: uint64 */
             id: number;
             primaryCode: string;
@@ -25584,9 +25589,10 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Course detail with offerings grouped by term. */
+            /** @description Course detail with offerings grouped by term and current-user bookmark state. */
             200: {
                 headers: {
+                    "Cache-Control"?: "private, no-store";
                     [name: string]: unknown;
                 };
                 content: {
@@ -25611,7 +25617,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Course detail query failed (aliases, offerings, instructors, or terms). */
+            /** @description Course detail or current-user bookmark query failed. */
             500: {
                 headers: {
                     [name: string]: unknown;

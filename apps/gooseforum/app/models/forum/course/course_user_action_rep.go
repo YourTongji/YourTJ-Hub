@@ -21,6 +21,23 @@ func GetCourseUserAction(userId, courseId uint64) (entity CourseUserActionEntity
 	return
 }
 
+// IsCourseBookmarkedContext reads authoritative user state without swallowing database errors.
+// Visitors need no lookup; a missing action row is an ordinary unbookmarked state.
+func IsCourseBookmarkedContext(ctx context.Context, userId, courseId uint64) (bool, error) {
+	if userId == 0 {
+		return false, nil
+	}
+	var actions []CourseUserActionEntity
+	err := dbconnect.Connect().WithContext(ctx).Table(courseUserActionTableName).
+		Select("bookmarked_at").
+		Where("user_id = ? AND course_id = ?", userId, courseId).
+		Limit(1).Find(&actions).Error
+	if err != nil {
+		return false, err
+	}
+	return len(actions) > 0 && actions[0].BookmarkedAt != nil, nil
+}
+
 // SetCourseBookmarked 设置课程收藏状态，返回是否发生了状态迁移。
 // 语义与 topicUserAction.SetBookmarked 一致：
 //   - 取消：UPDATE 命中已收藏行才算迁移；
