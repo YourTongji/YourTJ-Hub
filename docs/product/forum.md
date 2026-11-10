@@ -467,3 +467,18 @@ windows. Authors retain their own pending replies; moderators retain their exist
 review visibility. Web and App can page across long hidden runs without receiving
 an empty nonterminal window or pending content. Deleted/removed placeholders keep
 their existing behavior; total/max floor numbers retain their existing semantics.
+
+## Aggregate search counts and pagination
+
+`Current`: Web topic search, including the topic section of “all”, paginates in
+10-result pages and preserves the query and scope in navigation. Counts remain search-index
+estimates; when current database visibility filters every topic on a page, previous/next
+navigation remains available so later visible topics can still be reached. The topic empty
+state describes only the current page and does not imply that other scopes have no results.
+Page inputs are clamped before offset multiplication to keep the offset plus page size within the server
+integer range. Other scopes use
+their existing single-page limit. Scope tabs show counts only for queried, successful
+indexes; unknown or failed counts are hidden. The “all” tab has no badge, and its
+page description sums topic, member, category and course counts only when every queried
+index succeeds. During partial failure or unavailable search, the description shows the
+query without a count; successful scope badges remain visible during partial failure.

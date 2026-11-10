@@ -1768,6 +1768,8 @@ export default {
     noResultsTitle: '没有找到结果',
     noResultsForQuery: '没有找到与「{query}」相关的结果',
     noResultsDescription: '换个关键词，或者缩短搜索词再试试。',
+    topicPageEmptyTitle: '本页没有可显示的帖子',
+    topicPageEmptyDescription: '可以通过下方分页查看其他页面。',
     unavailableTitle: '搜索服务暂不可用',
     unavailableDescription: '搜索服务暂时不可用，请稍后重试。',
     startTitle: '开始搜索',
