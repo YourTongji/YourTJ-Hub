@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-23
+> Last verified: 2026-11-08
 
 Implementation status: **Current** for the configured integration. Live run results are recorded in
 Actions; a green preflight proves App access and planning, while an executed review proves model access.
@@ -21,8 +21,37 @@ human approval. Runtime protocol tests and the deterministic Core smoke also run
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/32af3fbc705ea34f8e4229d38035513ce165d511)
-and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/ad2b9847c01cba36f8a0abd5564df7144d47878e)
+(`ad2b9847c01cba36f8a0abd5564df7144d47878e`)
+and applies [this repository's policy](../../.github/oryn/repositories.json). That runtime includes
+multi-review dispatch. Repository policy sets `allowLowRiskApprove` to true. The publisher can submit
+`APPROVE` on a non-draft pull request when the author is not the bot, changed paths are complete and
+not sensitive, coverage is complete with a low floor, every required check from its trusted app
+succeeded on that exact head, and the report is a clean low-risk `no_action` with high confidence and
+admission `approve`. Medium risk, high risk, unknown risk, findings, incomplete coverage, and sensitive
+paths produce `COMMENT`. See
+[decision 0127](../decisions/0127-oryn-low-risk-approve-sensitive-prefixes.md). Scheduled and event runs
+load this policy from the default branch. A pull request does not change those runs until it merges.
+Manual dispatch loads the selected workflow commit. A bot `APPROVE` does not
+replace the team review required by the active `dev-protect` and `main-protect` rulesets, and this
+repository does not enable auto-merge. Policy directs lesson reuse to the trusted default-branch
+copies of [decisions](../decisions/) and [postmortems](../postmortems/README.md)
+(`lessonPaths`: `docs/decisions`, `docs/postmortems`). There is no separate lessons tree. Policy pairs
+the check name `ci-required` with the GitHub App slug `github-actions` (`trustedCheckApps`), so trust
+in that check is app-bound rather than name-only. `sensitivePaths` holds Hub prefixes. The runtime
+checks those prefixes and then `protectedMergePaths` with the same `startsWith` rule.
+`releases/requests/` stays only in `protectedMergePaths`. The list covers policy, workflows and the
+repo-seed gate manifest (`.repo-seed/manifest.json`), repository tooling under `scripts/`, the
+password, admin and account API controllers, the whole route table, the session, JWT, permission and
+token services, password hashing and the encrypted credential store, the identity, role and OIDC token
+models, the login captcha guard and rate limiting, and the authentication and account contract paths.
+The pinned matcher
+also treats `.github/`, path tokens such as `migration`, `deploy`, and `releases`, and
+`docs/decisions/` plus `docs/postmortems/` as sensitive without a Hub prefix. Prefixes stay narrow
+enough that ordinary code, documentation and logging remain reviewable; `node --test
+scripts/test-oryn-validation.mjs` enforces that split against real repository paths, so a missing or
+dead prefix fails CI instead of surfacing in a live review.
+Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
 reservations carry a unique lease ID. Execution and publication check receipt ownership before model
@@ -63,7 +92,7 @@ requires the next enabled scan/event. Existing issue reports are preserved durin
 edited-issue event or explicit review replaces them with a text-versioned report. See
 [the selection decision](../decisions/0063-oryn-review-once-per-version.md).
 
-All Oryn policy capabilities are enabled: reviews, triage, source-backed Mermaid diagrams, emoji labels,
+Enabled policy capabilities are reviews, triage, source-backed Mermaid diagrams, emoji labels,
 questions, stop/resume, repair, adoption, rebase, clusters, automatic small-bug implementation, close and
 merge. A scan selects at most 20 eligible items; later scans pick up the remaining items while published
 reviews of the current version are excluded. Two item workflows run concurrently. Each item publishes immediately after its own execution,
