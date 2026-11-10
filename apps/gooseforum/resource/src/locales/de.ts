@@ -702,6 +702,7 @@ export default {
     noTodayCourses: "Heute sind keine Veranstaltungen geplant",
     loadFailed: "Daten konnten nicht geladen werden",
     connected: "Verbunden",
+    authorizationRequired: "Erneute Autorisierung erforderlich",
     empty: "Keine Einträge",
     unavailable: "Hochschuldienst nicht verfügbar",
     notSynced: "Noch nicht synchronisiert",
