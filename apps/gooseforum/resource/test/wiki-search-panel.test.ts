@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { DOMWrapper, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { i18n } from '../src/runtime/i18n'
-import { closePanel, openPanel } from '../src/runtime/use-wiki-search'
+import { closePanel, consumeWikiJumpState, openPanel, type WikiSearchItem } from '../src/runtime/use-wiki-search'
 import WikiSearchPanel from '../src/site/components/WikiSearchPanel.vue'
 
 let wrapper: VueWrapper | null = null
@@ -17,6 +17,138 @@ afterEach(async () => {
   closePanel()
   await flushPromises()
   document.body.innerHTML = ''
+  sessionStorage.clear()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
+
+function searchItem(namespace: string, page: string, anchors: string[]): WikiSearchItem {
+  return {
+    namespace, path: `${namespace}/${page}`, title: page, anchors,
+    titleHit: true, snippet: page, score: 1, hitType: 'title',
+  }
+}
+
+const interleavedResults = [
+  searchItem('A', 'first', ['s-1']),
+  searchItem('B', 'first', ['s-2']),
+  searchItem('A', '选课 指南', ['s-3', 's-4']),
+]
+
+describe('WikiSearchPanel grouped result navigation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    vi.spyOn(window.location, 'assign').mockImplementation(() => {})
+  })
+
+  async function search(items = interleavedResults) {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: async () => ({ result: { query: '选课', total: items.length, items } }),
+    }))
+    mountPanel()
+    await flushPromises()
+    const input = new DOMWrapper(document.querySelector<HTMLInputElement>('[role="combobox"]')!)
+    await input.setValue('选课')
+    await vi.advanceTimersByTimeAsync(120)
+    await flushPromises()
+    return input
+  }
+
+  function options() {
+    return Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]'))
+  }
+
+  function expectActive(input: DOMWrapper<HTMLInputElement>, index: number) {
+    const selected = options().filter((option) => option.getAttribute('aria-selected') === 'true')
+    expect(selected).toEqual([options()[index]])
+    expect(input.attributes('aria-activedescendant')).toBe(selected[0]!.id)
+  }
+
+  test('Enter opens the highlighted grouped result and preserves its matching anchors', async () => {
+    const input = await search()
+    expect(options().map((option) => option.textContent)).toEqual([
+      expect.stringContaining('A/first'),
+      expect.stringContaining('A/选课 指南'),
+      expect.stringContaining('B/first'),
+    ])
+    await input.trigger('keydown', { key: 'ArrowDown' })
+    expectActive(input, 1)
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(window.location.assign).toHaveBeenCalledWith('/wiki/A/%E9%80%89%E8%AF%BE%20%E6%8C%87%E5%8D%97#s-3')
+    expect(consumeWikiJumpState()).toEqual({ query: '选课', anchors: ['s-3', 's-4'] })
+  })
+
+  test('up and down wrap in visible order across namespace boundaries', async () => {
+    const input = await search()
+    expectActive(input, 0)
+    await input.trigger('keydown', { key: 'ArrowUp' })
+    expectActive(input, 2)
+    await input.trigger('keydown', { key: 'ArrowDown' })
+    expectActive(input, 0)
+    await input.trigger('keydown', { key: 'ArrowDown' })
+    expectActive(input, 1)
+    await input.trigger('keydown', { key: 'ArrowDown' })
+    expectActive(input, 2)
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(window.location.assign).toHaveBeenCalledWith('/wiki/B/first#s-2')
+  })
+
+  test.each(['mouseenter then Enter', 'click'])('%s opens the displayed item', async (action) => {
+    const input = await search()
+    const second = new DOMWrapper(options()[1]!)
+    if (action === 'click') {
+      await second.trigger('click')
+    } else {
+      await second.trigger('mouseenter')
+      expectActive(input, 1)
+      await input.trigger('keydown', { key: 'Enter' })
+    }
+    expect(window.location.assign).toHaveBeenCalledWith('/wiki/A/%E9%80%89%E8%AF%BE%20%E6%8C%87%E5%8D%97#s-3')
+    expect(consumeWikiJumpState()).toEqual({ query: '选课', anchors: ['s-3', 's-4'] })
+  })
+
+  test('single-namespace results without anchors retain their navigation behavior', async () => {
+    const input = await search([searchItem('A', 'first', []), searchItem('A', 'second', [])])
+    await input.trigger('keydown', { key: 'ArrowDown' })
+    expectActive(input, 1)
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(window.location.assign).toHaveBeenCalledWith('/wiki/A/second')
+    expect(consumeWikiJumpState()).toBeNull()
+  })
+
+  test('empty results ignore navigation keys', async () => {
+    const input = await search([])
+    for (const key of ['ArrowDown', 'ArrowUp', 'Enter']) await input.trigger('keydown', { key })
+    expect(options()).toHaveLength(0)
+    expect(input.attributes('aria-activedescendant')).toBeUndefined()
+    expect(window.location.assign).not.toHaveBeenCalled()
+  })
+
+  test('clearing the query removes the previous selection', async () => {
+    const input = await search()
+    await input.trigger('keydown', { key: 'ArrowDown' })
+    await input.setValue('')
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(options()).toHaveLength(0)
+    expect(input.attributes('aria-activedescendant')).toBeUndefined()
+    expect(window.location.assign).not.toHaveBeenCalled()
+  })
+
+  test('closing and reopening the panel removes the previous selection', async () => {
+    const input = await search()
+    await input.trigger('keydown', { key: 'ArrowDown' })
+    expectActive(input, 1)
+    closePanel()
+    await flushPromises()
+    openPanel()
+    await flushPromises()
+    const reopened = new DOMWrapper(document.querySelector<HTMLInputElement>('[role="combobox"]')!)
+    expect(reopened.element.value).toBe('')
+    expect(reopened.attributes('aria-activedescendant')).toBeUndefined()
+    await reopened.trigger('keydown', { key: 'Enter' })
+    expect(window.location.assign).not.toHaveBeenCalled()
+  })
 })
 
 function mountPanel() {

@@ -4151,6 +4151,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Passkeys are not available on this device.';
 
   @override
+  String get authPasskeyAvailabilityFailed =>
+      'Could not check passkey availability. Retry or use your password.';
+
+  @override
   String get authPasskeyFailed =>
       'Passkey sign-in failed. Try again or use your password.';
 
@@ -4820,4 +4824,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get previewBuildPending =>
       'A newer dev build is in progress. This is still the latest available build for this platform.';
+
+  @override
+  String get unreadBadgeCategoriesTitle => 'Categories included in badges';
+
+  @override
+  String get unreadBadgeCategoriesHint =>
+      'Only selected categories count toward notification badges. Replies containing a direct @ mention count as Mentions. This does not mark notifications read or change push or private message badges.';
 }

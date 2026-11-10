@@ -1135,7 +1135,9 @@ class _HomePageState extends ConsumerState<HomePage>
           onCategorySelected: _filterCategory,
           stickerLibrary: ref.watch(stickerLibraryProvider),
           feedMode: _feedMode,
-          collapsePinned: feed.category == null && feed.sort != 'following',
+          collapsePinned: feed.category == null
+              ? feed.sort != 'following'
+              : props.sort == 'latest',
           onFirstMediaFrame: recordFirstHomeMediaFrame,
           onLikeTopic: feed.cached ? null : _toggleTopicInteraction,
           onBookmarkTopic: feed.cached

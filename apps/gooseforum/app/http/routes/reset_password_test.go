@@ -1,13 +1,17 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
 )
 
@@ -93,5 +97,40 @@ func TestResetPasswordRejectsTokenWithWrongVersion(t *testing.T) {
 	}
 	if err := algorithm.VerifyEncryptPassword(user.Password, "should-not-apply-789"); err == nil {
 		t.Fatal("password must NOT be changed when token_version binding mismatches")
+	}
+}
+
+func TestResetPasswordRejectsRevokedSessionForEmptyEmail(t *testing.T) {
+	conn, router := setupAccountRecoveryContractTest(t)
+	cleanAccountRecoveryTables(t, conn)
+	const key = "reset-revoked-session-test-key"
+	withRouteTestSigningKey(t, key)
+	user := users.MakeUser("reset-empty-email", "original-password-123", "")
+	user.Id = 9199
+	if err := users.Create(user); err != nil {
+		t.Fatal(err)
+	}
+	claims := jwtopt.CustomClaims{UserId: user.Id, TokenVersion: user.TokenVersion, Jti: "revoked-reset-test", RegisteredClaims: jwtopt.GetBaseRegisteredClaims(time.Hour)}
+	token, err := jwtopt.NewJWT([]byte(key)).CreateToken(claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sessionservice.Create(user.Id, claims.Jti, "test", "127.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := sessionservice.RevokeByJti(user.Id, claims.Jti); err != nil {
+		t.Fatal(err)
+	}
+	if sessionservice.GetValidByJti(claims.Jti) != nil {
+		t.Fatal("session was not revoked")
+	}
+	recorder := serveAccountRecoveryJSON(router, "/api/reset-password", fmt.Sprintf(`{"token":%q,"newPassword":"replacement-password-123"}`, token))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "reset-password-token-invalid.json"))
+	after, err := users.Get(user.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Password != user.Password || after.TokenVersion != user.TokenVersion {
+		t.Fatal("rejected reset changed account")
 	}
 }

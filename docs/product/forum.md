@@ -39,6 +39,8 @@ Web、SSR 与 Flutter 的列表和详情均不展示标题（普通列表与首�
 
 `Current`：Web 快捷发布在离页、路由跳转和关闭确认前直接读取编辑器当前正文，再判断未保存状态和写入本机恢复稿，不等待编辑器的防抖回调。刚输入的尾字会纳入恢复稿；完整清空也会清除对应恢复稿，不让旧正文在下次打开时复活。保存服务端草稿与发布仍由用户明确触发。
 
+`Current`：Web 回复在页面离开、组件卸载和切换到楼层编辑前读取编辑器当前正文，保存按账号和主题隔离的本机恢复稿；取消楼层编辑会恢复切换前的完整回复。楼层编辑内容不会覆盖新回复恢复稿，切换账号或主题不会读取上一上下文的编辑器。
+
 移动端写作恢复与草稿规则见[移动端体验](mobile-experience.md)。
 
 `Current`：Web 发布、快捷发布、回复及回复编辑遇到邮箱写门禁时，保留当前输入并提供账户设置入口；
@@ -48,6 +50,7 @@ Web、SSR 与 Flutter 的列表和详情均不展示标题（普通列表与首�
 `Current`：Web 草稿箱显示最近 100 条服务端草稿，每条草稿分别提供「继续编辑」和「删除」操作。
 删除前确认草稿标题及影响；确认后使用现有作者删除流程将草稿移入「最近删除」，可在 30 天内恢复。
 删除成功后更新列表；达到 100 条窗口上限时重新读取服务端列表，补入后续草稿。
+普通删除在当前页立即显示成功提示，不留到之后刷新；需要重载补齐窗口时只排队一次提示，由重载后的页面消费。失败仍在确认框中显示错误并保留草稿供重试。
 Flutter 的本机恢复草稿与云端草稿删除入口和保留行为见[移动端体验](mobile-experience.md)。
 
 ## Private message permissions
@@ -83,6 +86,10 @@ their separate rules.
 
 ## Feed and reading
 
+`Current`：本人收藏列表混合展示主题和回复收藏。Web 与 Flutter 分页以收藏的 `(type, id)`
+组合识别条目：不同类型即使数字 ID 相同也同时保留，同一类型同号的重复条目不重复展示。
+Web 收藏列表的渲染 key 使用同一组合身份；保持服务端返回顺序和分页游标，不改动收藏记录。
+
 排序、推荐兼容、分页、质量统计和隐私的当前行为见[信息流排序](feed-ranking.md)。
 
 `Current`：Web 桌面（lg 及以上）通过导航栏开关折叠侧栏，内容列填满可用空间；带右侧 rail 的布局
@@ -113,12 +120,13 @@ their separate rules.
 包括在其他标签页切换账号后收到的实时刷新。已登录读者返回或实时刷新时，通过现有可见性接口分批
 核验缓存话题，显式保留本人仍公开的话题（推荐流仍沿用排除本人的规则），仅移除服务端确认已失效的条目并保留存活条目的滚动锚点；暂时失败保留同账号缓存并等待重试。
 `Partial`：访客缓存条目的可见性复核尚未覆盖；该接口要求登录。
-仅首页最新排序将置顶话题收纳为紧凑标题区，收起时仅一行：置顶标签、第一条话题的
+Web 首页与分类页的最新回复排序将置顶话题收纳为紧凑标题区，收起时仅一行：置顶标签、第一条话题的
 可点击标题、靠右的「共 x 条」总数；多于一条时点击总数展开其余标题，第一条不重复显示，展开后仍使用
 标题行，不重复完整卡片。列表和卡片共用该区域并保留本次页面内的展开状态，刷新页面恢复默认；
 无置顶时不占位，仅一条时显示总数但不提供展开按钮。收起行的长标题单行省略，展开的其余标题最多两行，
 控件可通过键盘操作并提供可见焦点，展开与收起使用高度和淡入淡出过渡，箭头同步旋转，并尊重减少动态效果设置。
-普通话题紧随其后。卡片支持点赞、收藏和进入回复；乐观更新失败按字段回滚。
+普通话题紧随其后。分类页仅收纳当前分类返回的置顶话题，其他排序保持服务端顺序，不新增置顶条；
+爬虫与无 JavaScript 页面继续按服务端顺序显示完整话题行。卡片支持点赞、收藏和进入回复；乐观更新失败按字段回滚。
 列表与卡片的正文摘要（`topics.excerpt`）保留正文里的 Markdown 转义与实体解码后的最终字符，
 并保留 `[:sticker:name:]` 贴纸 token，长度截断不会切开一个 token。展示按字号分两档：卡片与悬停预览
 把可解析的 token 渲染成图片（App 无标题瞬间的摘要占卡片标题位，同属卡片档）；列表行、置顶条、爬虫/无 JS 的 SSR 列表这类小字视图显示为 `[名字]` 文本，
@@ -211,7 +219,25 @@ Web 通知链接优先 `/p/post/{topicId}/{postNo}`，无楼层号时保留历�
 开启时导航和私信会话显示未读数量，超过 99 显示 `99+`；关闭时使用圆点，辅助功能文案也不播报数量。
 旧服务端未提供准确总数时保留圆点，不猜测数量。保存期间禁用开关，失败恢复原选择并允许重试；
 其他前台客户端通过既有实时失效提示重新读取。该偏好只控制展示，不改变消息、已读状态、推送开关或系统权限。
+
+`Current`：同一设置区可勾选回复、提及、赞、关注、系统五类是否计入通知角标，默认全部，允许全部取消。
+选择按账号保存，Web 与 App 的导航、通知入口共用服务端筛选后的计数与红点；数量／圆点样式独立生效。
+分类与通知中心一致：直接 @ 的回复属于“提及”，未知历史事件属于“系统”。筛选不影响通知列表、
+全局已读操作、私信角标或任何推送通道；最新未读 ID 与类型仍包含全部分类，供浏览器通知独立判断。
+仅发送改动字段，旧客户端保存样式不会重置分类；保存失败保留原值并可重试。
 账号存储与客户端边界见[决策 0118](../decisions/0118-account-unread-display.md)。
+
+`Current`：本地通知与私信的已读结果分别优先于此前发起的轮询，不影响另一未读域更新。
+通知仅在服务端确认单条或全部已读后推进版本，乐观行状态与列表、页面快照不推进该版本。
+通知列表保留未筛选总数，导航角标独立刷新服务端的分类筛选计数，不用列表总数覆盖角标。
+已读确认前发起的列表不能恢复旧未读行，失效后自动重新加载；单条已读确认或失败时，若页面已换用更新的列表或同账号新 payload（含被用户钉住的分类跳过列表替换的情形），也重新加载行状态与总数。
+单条已读失败只回滚自身实际扣减的数量，并按服务端的 ID 倒序恢复未读行位置；
+已有更新的已读结果或列表快照时重新加载列表，避免回滚其他操作。
+已读等待期间落地的轮询快照（含更早发起、在已读提交后才返回的轮询）可能已包含该次已读，
+确认后按服务端结果重新对账，不重复递减计数。
+通知列表和已读异步结果按账号代际隔离，退出后重新登录同一账号也会丢弃旧结果；
+账号切换时复位页面的加载状态。页面导航的未读快照仍由 AppShell 同步到角标，后续轮询可以显示新未读，
+缓存计数与合并后的显示状态一致。
 
 `Current`：账号级 Push 分为私信、提及和回复、赞、关注动态、系统与审核五组，Web/App/Android 通道共用同一措辞。
 提及、回复、私信默认开；赞、关注、订阅及 Wiki 默认静默；系统默认只提醒审核通过/拒绝，
@@ -239,7 +265,9 @@ Flutter 的课评与 Wiki 正文走服务端 HTML 渲染，该路径同样无下
 
 `Current`：Web／Flutter 将独占段落的 HTTP(S) URL 渲染为最多五张预览卡片，普通链接、代码、表格和
 图片地址不转换。站内元数据本地读取；第三方请求经过有界 SSRF 防护。校园网域名仅从配置生成卡片，
-不访问私网；失败保留原链接。外链确认显示域名与完整 URL，已识别的风险不继承会话信任，
+不访问私网；失败保留原链接。第三方预览每个解析器最多保留 32 个不同 URL 的共享工作，
+过载立即降级；每项工作共享覆盖排队、抓取及解析的 6 秒预算，最后一个等待者取消时终止，
+单个等待者取消不影响仍在等待的其他请求。调用方取消或整体预算耗尽的结果不写入缓存。外链确认显示域名与完整 URL，已识别的风险不继承会话信任，
 Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课评正文。
 
 `Current`：独占段落的 B 站公开视频与 Apple Music 歌曲／专辑链接显示平台卡片，标出资源类型、
@@ -452,3 +480,25 @@ minutes; subsequent reads enforce the current reference state. Errors, orphan up
 previews, untracked legacy images and ordinary topic images retain their existing no-store policy.
 The market-sticker cache policy is independent. See the
 [cache decision](../decisions/0125-public-avatar-cache.md).
+
+`Current`: reply windows filter other authors’ pending replies before applying their
+page limit, including initial topic windows and forward, reverse and anchored API
+windows. Authors retain their own pending replies; moderators retain their existing
+review visibility. Web and App can page across long hidden runs without receiving
+an empty nonterminal window or pending content. Deleted/removed placeholders keep
+their existing behavior; total/max floor numbers retain their existing semantics.
+
+## Aggregate search counts and pagination
+
+`Current`: Web topic search, including the topic section of “all”, paginates in
+10-result pages and preserves the query and scope in navigation. Counts remain search-index
+estimates; when current database visibility filters every topic on a page, previous/next
+navigation remains available so later visible topics can still be reached. The topic empty
+state describes only the current page and does not imply that other scopes have no results.
+Page inputs are clamped before offset multiplication to keep the offset plus page size within the server
+integer range. Other scopes use
+their existing single-page limit. Scope tabs show counts only for queried, successful
+indexes; unknown or failed counts are hidden. The “all” tab has no badge, and its
+page description sums topic, member, category and course counts only when every queried
+index succeeds. During partial failure or unavailable search, the description shows the
+query without a count; successful scope badges remain visible during partial failure.

@@ -6,6 +6,7 @@ import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,6 +74,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   bool _activeInTree = true;
   Future<void>? _unreadInFlight;
   bool _unreadDirty = false;
+  bool _categorySavePending = false;
   CancelToken? _unreadCancel;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
@@ -309,8 +311,14 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
+      final savingPreferences = ref.read(unreadDisplayProvider).saving;
+      if (displayRevision != display.revision || savingPreferences) {
+        if (!savingPreferences) _unreadDirty = true;
+        return;
+      }
       display.acceptRemote(
         UnreadBadgeStyle.parse(status.badgeStyle),
+        categories: status.badgeCategories ?? notificationBadgeCategories,
         expectedRevision: displayRevision,
       );
       if (_unreadNotifications == status.notifications &&
@@ -426,6 +434,20 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
         _realtimeSessionStarted = false;
         _unreadCancel?.cancel('session changed');
         _unreadDirty = false;
+        _categorySavePending = false;
+      }
+    });
+
+    ref.listen(unreadDisplayProvider, (previous, next) {
+      if (next.saving && previous != null && !previous.saving) {
+        _categorySavePending = !listEquals(
+          previous.categories,
+          next.categories,
+        );
+      }
+      if (_categorySavePending && !next.saving) {
+        _categorySavePending = false;
+        if (next.error == null) unawaited(_pollUnread());
       }
     });
 

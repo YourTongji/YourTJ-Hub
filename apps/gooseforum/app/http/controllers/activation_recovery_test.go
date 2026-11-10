@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -28,11 +30,11 @@ func TestActivationFailureHasPrivateOwnerRecovery(t *testing.T) {
 	old := preferences.GetString("app.signingKey")
 	preferences.Set("app.signingKey", key)
 	t.Cleanup(func() { preferences.Set("app.signingKey", old) })
-	expired, err := jwt.NewWithClaims(jwt.SigningMethodHS256, tokenservice.ActivationClaims{UserId: 42, Email: "owner-private@example.test", RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour))}}).SignedString([]byte(key))
+	expired, err := expiredActivationFixture(key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	forged, err := jwt.NewWithClaims(jwt.SigningMethodHS256, tokenservice.ActivationClaims{UserId: 42, Email: "owner-private@example.test", RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour))}}).SignedString([]byte("different-untrusted-test-key"))
+	forged, err := expiredActivationFixture("different-untrusted-test-key")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +132,7 @@ func TestActivationRecoveryBrowserFixtures(t *testing.T) {
 	old := preferences.GetString("app.signingKey")
 	preferences.Set("app.signingKey", key)
 	t.Cleanup(func() { preferences.Set("app.signingKey", old) })
-	expired, err := jwt.NewWithClaims(jwt.SigningMethodHS256, tokenservice.ActivationClaims{UserId: 42, Email: "owner-private@example.test", RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour))}}).SignedString([]byte(key))
+	expired, err := expiredActivationFixture(key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,4 +183,16 @@ func TestInvalidActivationDoesNotDistinguishAccountState(t *testing.T) {
 			t.Fatal("invalid links distinguish unavailable and stale account targets")
 		}
 	}
+}
+
+func expiredActivationFixture(key string) (string, error) {
+	mac := hmac.New(sha256.New, []byte(key))
+	_, _ = mac.Write([]byte("yourtj-email-activation-token"))
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, tokenservice.ActivationClaims{
+		UserId: 42, Email: "owner-private@example.test",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Audience:  jwt.ClaimStrings{"email-activation"},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour)),
+		},
+	}).SignedString(mac.Sum(nil))
 }

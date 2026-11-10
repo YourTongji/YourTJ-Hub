@@ -4001,6 +4001,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authPasskeyUnavailable => 'この端末ではパスキーを利用できません。';
 
   @override
+  String get authPasskeyAvailabilityFailed =>
+      'パスキーを利用できるか確認できませんでした。再試行するか、パスワードでログインしてください。';
+
+  @override
   String get authPasskeyFailed => 'パスキーでログインできませんでした。再試行するか、パスワードをお使いください。';
 
   @override
@@ -4631,4 +4635,11 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get previewBuildPending =>
       '新しい dev ビルドを作成中です。この端末では現在のビルドが最新の利用可能な開発版です。';
+
+  @override
+  String get unreadBadgeCategoriesTitle => 'バッジに含める通知';
+
+  @override
+  String get unreadBadgeCategoriesHint =>
+      '選択した種類のみ通知バッジに含めます。直接 @ を含む返信は「メンション」に分類されます。既読状態、プッシュ通知、個別メッセージのバッジは変わりません。';
 }
