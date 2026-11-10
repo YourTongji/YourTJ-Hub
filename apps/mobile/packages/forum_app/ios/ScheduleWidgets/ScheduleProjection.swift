@@ -235,7 +235,7 @@ struct Projection: Decodable {
         let courseDates = days.flatMap(\.courses).flatMap { [$0.startAt, $0.endAt] }
             .filter { !isStale(at: $0) }
         let midnights = days.compactMap { Self.schoolDate.date(from: $0.date) }
-        return Set(courseDates + midnights + [generatedAt.addingTimeInterval(Self.staleAfter)])
+        return Set(courseDates + midnights + [generatedAt.addingTimeInterval(Self.staleAfter + 0.001)])
             .filter { $0 > now }.sorted()
     }
 

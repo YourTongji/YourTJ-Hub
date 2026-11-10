@@ -105,7 +105,7 @@ internal data class ScheduleProjection(
             .filter { it.after(now) && !isStale(it) }
             .minByOrNull { it.time }
         val midnight = nextShanghaiMidnight(now)
-        val staleAt = Date(generatedAt.time + STALE_AFTER_MS)
+        val staleAt = Date(generatedAt.time + STALE_AFTER_MS + 1)
         return listOfNotNull(nextCountdownChange, nextCourseChange, midnight, staleAt)
             .filter { it.after(now) }
             .minByOrNull { it.time }

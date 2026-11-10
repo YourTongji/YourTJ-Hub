@@ -305,7 +305,7 @@ class ScheduleWidgetProjection {
         for (final course in day.courses)
           if (!isStaleAt(course.endAt)) course.endAt.toUtc(),
       for (final day in days) _schoolInstant(day.date, '00:00').toUtc(),
-      generatedAt.toUtc().add(staleAfter),
+      generatedAt.toUtc().add(staleAfter).add(const Duration(milliseconds: 1)),
     }.where((time) => time.isAfter(now)).toList()..sort();
   }
 }

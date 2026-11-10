@@ -90,6 +90,8 @@ final class ScheduleProjectionTests: XCTestCase {
         let justAfterStale = staleAt.addingTimeInterval(0.001)
         let dates = projection.timelineDates(after: beforeStale)
 
+        XCTAssertTrue(dates.contains(justAfterStale))
+        XCTAssertEqual(projection.nextClass(at: dates.first { $0 >= justAfterStale }!).0, "stale")
         XCTAssertEqual(projection.nextClass(at: staleAt).0, "upcoming")
         XCTAssertNotNil(projection.day(at: staleAt))
         XCTAssertEqual(projection.nextClass(at: justAfterStale).0, "stale")

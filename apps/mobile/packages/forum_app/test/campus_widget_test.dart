@@ -132,7 +132,17 @@ void main() {
     },
   );
 
-  test('projection update times never trust courses beyond the stale boundary', () {
+  test('projection schedules a course-free stale entry after the exact boundary', () {
+    const dates = [
+      '2026-09-22',
+      '2026-09-23',
+      '2026-09-24',
+      '2026-09-25',
+      '2026-09-26',
+      '2026-09-27',
+      '2026-09-28',
+      '2026-09-29',
+    ];
     final projection = ScheduleWidgetProjection.fromJson({
       'schemaVersion': 2,
       'identity': {
@@ -141,39 +151,42 @@ void main() {
         'bindingRevision': 'binding',
       },
       'generatedAt': '2026-09-22T08:00:00+08:00',
-      'schoolDate': '2026-09-29',
+      'schoolDate': '2026-09-22',
       'timezone': 'Asia/Shanghai',
       'semester': {'id': 'term', 'week': 2},
       'sectionTimes': const [],
       'days': [
-        {
-          'date': '2026-09-29',
-          'week': 2,
-          'source': 'local-resolved',
-          'kind': 'normal',
-          'courses': [
-            {
-              'stableId': 'future-course',
-              'name': 'Future course',
-              'teacher': '',
-              'room': '',
-              'campus': '',
-              'startSection': 1,
-              'endSection': 2,
-              'startAt': '2026-09-29T09:00:00+08:00',
-              'endAt': '2026-09-29T10:00:00+08:00',
-              'colorSlot': 1,
-            },
-          ],
-        },
+        for (final date in dates)
+          {
+            'date': date,
+            'week': 2,
+            'source': 'local-resolved',
+            'kind': 'normal',
+            'courses': [
+              if (date == dates.last)
+                {
+                  'stableId': 'future-course',
+                  'name': 'Future course',
+                  'teacher': '',
+                  'room': '',
+                  'campus': '',
+                  'startSection': 1,
+                  'endSection': 2,
+                  'startAt': '2026-09-29T09:00:00+08:00',
+                  'endAt': '2026-09-29T10:00:00+08:00',
+                  'colorSlot': 1,
+                },
+            ],
+          },
       ],
     });
     final staleAt = DateTime.parse('2026-09-29T08:00:00+08:00');
+    final staleTransitionAt = staleAt.add(const Duration(milliseconds: 1));
     final times = projection.updateTimesAfter(
       staleAt.subtract(const Duration(minutes: 30)),
     );
 
-    expect(times, contains(staleAt.toUtc()));
+    expect(times, contains(staleTransitionAt.toUtc()));
     expect(
       times,
       isNot(contains(DateTime.parse('2026-09-29T09:00:00+08:00').toUtc())),
@@ -182,6 +195,11 @@ void main() {
       times,
       isNot(contains(DateTime.parse('2026-09-29T10:00:00+08:00').toUtc())),
     );
+    expect(projection.nextClassAt(staleAt).kind, 'upcoming');
+    expect(projection.nextClassAt(staleAt).course, isNotNull);
+    expect(projection.nextClassAt(staleTransitionAt).kind, 'stale');
+    expect(projection.nextClassAt(staleTransitionAt).course, isNull);
+    expect(projection.updateTimesAfter(staleAt), [staleTransitionAt.toUtc()]);
   });
 
   test(
