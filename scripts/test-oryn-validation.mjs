@@ -116,6 +116,7 @@ async function policyRepository() {
 const protectedPaths = [
   '.github/oryn/repositories.json',
   '.github/oryn/validate.mjs',
+  '.repo-seed/manifest.json',
   'apps/gooseforum/app/bundles/algorithm/password.go',
   'apps/gooseforum/app/bundles/algorithm/signingkey.go',
   'apps/gooseforum/app/bundles/captchaOpt/captcha.go',
@@ -156,6 +157,7 @@ const requiredPrefixes = [
   '.github/actions/',
   '.github/oryn/',
   '.github/workflows/',
+  '.repo-seed/manifest.json',
   'apps/gooseforum/app/bundles/algorithm/',
   'apps/gooseforum/app/bundles/captchaOpt/',
   'apps/gooseforum/app/bundles/jwtopt/',

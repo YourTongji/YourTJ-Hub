@@ -37,7 +37,8 @@ Choose option 1. This supersedes the closed-approval outcome in
 and `protectedMergePaths` from that record stay.
 
 `allowLowRiskApprove` is true. `sensitivePaths` lists Hub prefixes for Oryn policy and repository
-tooling (`.github/oryn/`, `.github/workflows/`, `.github/actions/`, `scripts/`) and for the
+tooling (`.github/oryn/`, `.github/workflows/`, `.github/actions/`, `.repo-seed/manifest.json`,
+`scripts/`) and for the
 authentication, authorization, session and account surface whose names do not split into the matcher's
 control tokens: the password, admin and account API controllers, the whole route table, password
 hashing and the encrypted credential store, the session, JWT, permission and token services, the

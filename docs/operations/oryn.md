@@ -40,11 +40,12 @@ copies of [decisions](../decisions/) and [postmortems](../postmortems/README.md)
 the check name `ci-required` with the GitHub App slug `github-actions` (`trustedCheckApps`), so trust
 in that check is app-bound rather than name-only. `sensitivePaths` holds Hub prefixes. The runtime
 checks those prefixes and then `protectedMergePaths` with the same `startsWith` rule.
-`releases/requests/` stays only in `protectedMergePaths`. The list covers policy and workflows,
-repository tooling under `scripts/`, the password, admin and account API controllers, the whole route
-table, the session, JWT, permission and token services, password hashing and the encrypted credential
-store, the identity, role and OIDC token models, the login captcha guard and rate limiting, and the
-authentication and account contract paths. The pinned matcher
+`releases/requests/` stays only in `protectedMergePaths`. The list covers policy, workflows and the
+repo-seed gate manifest (`.repo-seed/manifest.json`), repository tooling under `scripts/`, the
+password, admin and account API controllers, the whole route table, the session, JWT, permission and
+token services, password hashing and the encrypted credential store, the identity, role and OIDC token
+models, the login captcha guard and rate limiting, and the authentication and account contract paths.
+The pinned matcher
 also treats `.github/`, path tokens such as `migration`, `deploy`, and `releases`, and
 `docs/decisions/` plus `docs/postmortems/` as sensitive without a Hub prefix. Prefixes stay narrow
 enough that ordinary code, documentation and logging remain reviewable; `node --test

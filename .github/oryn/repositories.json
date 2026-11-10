@@ -32,6 +32,7 @@
         ".github/actions/",
         ".github/oryn/",
         ".github/workflows/",
+        ".repo-seed/manifest.json",
         "apps/gooseforum/app/bundles/algorithm/",
         "apps/gooseforum/app/bundles/captchaOpt/",
         "apps/gooseforum/app/bundles/jwtopt/",
