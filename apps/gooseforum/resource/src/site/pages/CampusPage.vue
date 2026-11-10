@@ -193,12 +193,17 @@ function activeKeys(): CampusDatasetKey[] {
   if (tab.value === 'services') return keys
   return [tab.value as CampusDatasetKey]
 }
+function markAuthorizationRequired(targets: CampusDatasetKey[]) {
+  if (status.value?.binding) status.value.binding.needsAuthorization = true
+  for (const key of targets) {
+    if (data.value[key]) delete failures.value[key]
+    else failures.value[key] = { code: 'authorizationRequired' }
+  }
+}
 async function loadData(targets = activeKeys(), force = false) {
   if (!status.value?.binding) return
   if (status.value.binding.needsAuthorization) {
-    for (const key of targets) {
-      if (!data.value[key]) failures.value[key] = { code: 'authorizationRequired' }
-    }
+    markAuthorizationRequired(targets)
     return
   }
   const requested = targets.filter(key => !pendingKeys.has(key) && (force || !data.value[key] || (key === 'today' && !todayIsCurrent.value)))
@@ -218,8 +223,11 @@ async function loadData(targets = activeKeys(), force = false) {
       if (key === 'calendar' && currentWeek.value !== null) week.value = currentWeek.value
     } catch (e) {
       if (!isCurrent()) return
+      if (e instanceof CampusError && e.code === 'campus.authorizationRequired') {
+        markAuthorizationRequired([key])
+        return
+      }
       failures.value[key] = e instanceof Error ? e.message : t('campus.loadFailed')
-      if (e instanceof CampusError && e.code === 'campus.authorizationRequired' && status.value?.binding) status.value.binding.needsAuthorization = true
     } finally {
       if (isCurrent()) { pendingKeys.delete(key); loading.value = pendingKeys.size > 0 }
     }

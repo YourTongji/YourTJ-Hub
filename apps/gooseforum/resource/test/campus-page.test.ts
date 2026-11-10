@@ -549,7 +549,7 @@ test('timetable authorization errors explain reauthorization instead of a school
     const empty = wrapper.findAllComponents(EmptyState).find(item => item.props('title') === zh.campus.timetableUnavailable)!
     expect(empty.text()).toContain(zh.campus.authorizationHint)
     expect(wrapper.text()).not.toContain(zh.campus.schoolRetry)
-    expect(wrapper.text()).toContain('School authorization expired')
+    expect(wrapper.text()).not.toContain('School authorization expired')
     expect(wrapper.findAll('.animate-spin')).toHaveLength(0)
     expect(api.start).not.toHaveBeenCalled()
   } finally { wrapper.unmount() }
@@ -567,5 +567,46 @@ test.each(['error', 'unavailable'])('timetable school retry guidance remains for
     expect(wrapper.text()).not.toContain(zh.campus.authorizationHint)
     if (result === 'error') expect(wrapper.text()).toContain('School service offline')
     expect(api.start).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
+
+test('authorization errors discovered by a refresh preserve cached records', async () => {
+  const wrapper = setup()
+  const original = api.dataset.getMockImplementation()!
+  api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({
+    ...await original(key),
+    rows: key === 'grades' ? [['数学', '90']] : [],
+  }))
+  try {
+    await flushPromises()
+    await clickTab(wrapper, '学业记录')
+    expect(wrapper.text()).toContain('数学')
+    api.dataset.mockImplementation(async (key: CampusDatasetKey) => {
+      if (key === 'grades') throw new CampusError('campus.authorizationRequired', zh.campus.errorAuthorization)
+      return original(key)
+    })
+    await wrapper.get('button[aria-label="刷新校园数据"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain(zh.campus.authorizationHint)
+    expect(wrapper.text()).toContain('数学')
+    expect(wrapper.text()).not.toContain(zh.campus.errorAuthorization)
+  } finally { wrapper.unmount() }
+})
+
+test('authorization errors discovered by dataset requests follow locale changes', async () => {
+  const wrapper = setup()
+  try {
+    await flushPromises()
+    api.dataset.mockImplementation(async (key: CampusDatasetKey) => {
+      if (key === 'grades' || key === 'summary') throw new CampusError('campus.authorizationRequired', zh.campus.errorAuthorization)
+      return dataset(key)
+    })
+    await clickTab(wrapper, '学业记录')
+    expect(wrapper.text().split(zh.campus.authorizationHint).length - 1).toBeGreaterThan(1)
+    wrapper.vm.$i18n.locale = 'en'
+    await flushPromises()
+    expect(wrapper.text().split(en.campus.authorizationHint).length - 1).toBeGreaterThan(1)
+    expect(wrapper.text()).not.toContain(zh.campus.errorAuthorization)
+    expect(wrapper.text()).not.toContain(en.campus.errorAuthorization)
   } finally { wrapper.unmount() }
 })
