@@ -85,8 +85,12 @@ test('the setup action and operator guide pin the same verified Oryn commit', as
   assert.equal(guide.includes('32af3fbc705ea34f8e4229d38035513ce165d511'), false);
 });
 
+function validPrefix(prefix) {
+  return prefix.length > 0 && prefix.length <= 200 && !prefix.startsWith('/') && !prefix.includes('..') && !prefix.includes('\\');
+}
+
 function prefixCovers(file, prefixes) {
-  return prefixes.some((prefix) => prefix.length > 0 && prefix.length <= 200 && !prefix.startsWith('/') && !prefix.includes('..') && !prefix.includes('\\') && file.startsWith(prefix));
+  return prefixes.some((prefix) => validPrefix(prefix) && file.startsWith(prefix));
 }
 
 function trackedPaths() {
@@ -112,16 +116,22 @@ async function policyRepository() {
 const protectedPaths = [
   '.github/oryn/repositories.json',
   '.github/oryn/validate.mjs',
+  'apps/gooseforum/app/bundles/algorithm/password.go',
+  'apps/gooseforum/app/bundles/algorithm/signingkey.go',
   'apps/gooseforum/app/bundles/captchaOpt/captcha.go',
   'apps/gooseforum/app/bundles/jwtopt/jwt.go',
   'apps/gooseforum/app/bundles/ratelimit/ratelimit.go',
+  'apps/gooseforum/app/bundles/securestore/securestore.go',
   'apps/gooseforum/app/http/controllers/api/adminController.go',
   'apps/gooseforum/app/http/controllers/api/authController.go',
+  'apps/gooseforum/app/http/controllers/api/captchaGuard.go',
   'apps/gooseforum/app/http/controllers/api/userController.go',
   'apps/gooseforum/app/http/middleware/campusCallback.go',
   'apps/gooseforum/app/http/middleware/csrfProtection.go',
   'apps/gooseforum/app/http/middleware/jwtAuth.go',
   'apps/gooseforum/app/http/middleware/rateLimit.go',
+  'apps/gooseforum/app/http/routes/bridge.go',
+  'apps/gooseforum/app/http/routes/mcpRoute.go',
   'apps/gooseforum/app/http/routes/route4api.go',
   'apps/gooseforum/app/http/routes/upHandle.go',
   'apps/gooseforum/app/models/forum/oidcAccessTokens/oidcAccessTokens.go',
@@ -132,11 +142,74 @@ const protectedPaths = [
   'apps/gooseforum/app/service/tokenservice/signing_key.go',
   'apps/gooseforum/app/service/userservice/session_version.go',
   'packages/api-contract/paths/auth.yaml',
+  'packages/api-contract/paths/user-account.yaml',
   'scripts/ci/select_inputs.py',
   'scripts/run-gates.mjs',
   'scripts/test-oryn-validation.mjs',
   'scripts/verify-action-pins.mjs',
   'scripts/verify-decisions.mjs',
+];
+
+// The policy must not lose a prefix: the path specification above proves a needed area is covered,
+// it cannot notice a coverage line that silently disappears. Both lists change together.
+const requiredPrefixes = [
+  '.github/actions/',
+  '.github/oryn/',
+  '.github/workflows/',
+  'apps/gooseforum/app/bundles/algorithm/',
+  'apps/gooseforum/app/bundles/captchaOpt/',
+  'apps/gooseforum/app/bundles/jwtopt/',
+  'apps/gooseforum/app/bundles/logincrypto/',
+  'apps/gooseforum/app/bundles/oidcprovider/',
+  'apps/gooseforum/app/bundles/ratelimit/',
+  'apps/gooseforum/app/bundles/securestore/',
+  'apps/gooseforum/app/bundles/sessionstore/',
+  'apps/gooseforum/app/http/controllers/api/admin',
+  'apps/gooseforum/app/http/controllers/api/auth',
+  'apps/gooseforum/app/http/controllers/api/captcha',
+  'apps/gooseforum/app/http/controllers/api/mobileWebSession',
+  'apps/gooseforum/app/http/controllers/api/oauth',
+  'apps/gooseforum/app/http/controllers/api/oidc',
+  'apps/gooseforum/app/http/controllers/api/passkey',
+  'apps/gooseforum/app/http/controllers/api/session',
+  'apps/gooseforum/app/http/controllers/api/tongjiLogin',
+  'apps/gooseforum/app/http/controllers/api/tongji_login',
+  'apps/gooseforum/app/http/controllers/api/totp',
+  'apps/gooseforum/app/http/controllers/api/user',
+  'apps/gooseforum/app/http/middleware/agentAuth',
+  'apps/gooseforum/app/http/middleware/campusCallback',
+  'apps/gooseforum/app/http/middleware/checkPermission',
+  'apps/gooseforum/app/http/middleware/csrfProtection',
+  'apps/gooseforum/app/http/middleware/jwtAuth',
+  'apps/gooseforum/app/http/middleware/rateLimit',
+  'apps/gooseforum/app/http/middleware/securityHeaders',
+  'apps/gooseforum/app/http/middleware/totpChallenge',
+  'apps/gooseforum/app/http/routes/',
+  'apps/gooseforum/app/models/forum/oidcAccessTokens/',
+  'apps/gooseforum/app/models/forum/oidcAuthRequests/',
+  'apps/gooseforum/app/models/forum/role/',
+  'apps/gooseforum/app/models/forum/rolePermissionRs/',
+  'apps/gooseforum/app/models/forum/userOAuth/',
+  'apps/gooseforum/app/models/forum/userPasskeys/',
+  'apps/gooseforum/app/models/forum/userSessions/',
+  'apps/gooseforum/app/models/forum/userTotp/',
+  'apps/gooseforum/app/models/forum/userTotpChallenges/',
+  'apps/gooseforum/app/models/forum/userTotpRecoveryCodes/',
+  'apps/gooseforum/app/models/forum/users/',
+  'apps/gooseforum/app/service/appleauthservice/',
+  'apps/gooseforum/app/service/authsessionservice/',
+  'apps/gooseforum/app/service/campusservice/login',
+  'apps/gooseforum/app/service/oauthservice/',
+  'apps/gooseforum/app/service/oidcservice/',
+  'apps/gooseforum/app/service/passkeyservice/',
+  'apps/gooseforum/app/service/permission/',
+  'apps/gooseforum/app/service/sessionservice/',
+  'apps/gooseforum/app/service/tokenservice/',
+  'apps/gooseforum/app/service/totpservice/',
+  'apps/gooseforum/app/service/userservice/',
+  'packages/api-contract/paths/auth',
+  'packages/api-contract/paths/user-account',
+  'scripts/',
 ];
 
 // Ordinary paths stay reviewable. An over-broad prefix cannot cause an unsafe approval, but it does
@@ -157,6 +230,7 @@ test('Hub Oryn policy enables low-risk approval and keeps check, lesson, and mer
   assert.deepEqual(repository.lessonPaths, ['docs/decisions', 'docs/postmortems']);
   assert.equal(repository.allowMerge, true);
   assert.deepEqual(repository.protectedMergePaths, ['releases/requests/']);
+  assert.deepEqual(repository.sensitivePaths, requiredPrefixes);
   assert.equal(repository.sensitivePaths.includes('releases/requests/'), false);
   assert.equal(prefixCovers('releases/requests/example/request.json', repository.sensitivePaths), false);
   assert.equal(prefixCovers('releases/requests/example/request.json', repository.protectedMergePaths), true);
@@ -164,7 +238,9 @@ test('Hub Oryn policy enables low-risk approval and keeps check, lesson, and mer
 
 test('every protection-critical path is sensitive and ordinary paths stay reviewable', async () => {
   const repository = await policyRepository();
+  const tracked = trackedPaths();
   for (const path of protectedPaths) {
+    assert.ok(tracked.includes(path), `${path} is not a tracked file`);
     assert.equal(prefixCovers(path, repository.sensitivePaths), true, path);
   }
   for (const path of ordinaryPaths) {
@@ -172,10 +248,11 @@ test('every protection-critical path is sensitive and ordinary paths stay review
   }
 });
 
-test('every sensitive prefix protects at least one tracked path', async () => {
+test('every sensitive prefix is a valid rule that protects at least one tracked path', async () => {
   const repository = await policyRepository();
   const tracked = trackedPaths();
   for (const prefix of repository.sensitivePaths) {
+    assert.ok(validPrefix(prefix), `${prefix} is not a usable prefix`);
     assert.ok(tracked.some((path) => path.startsWith(prefix)), `${prefix} matches no tracked file`);
   }
 });

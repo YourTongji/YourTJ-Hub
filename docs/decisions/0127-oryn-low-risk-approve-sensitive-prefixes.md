@@ -39,19 +39,27 @@ and `protectedMergePaths` from that record stay.
 `allowLowRiskApprove` is true. `sensitivePaths` lists Hub prefixes for Oryn policy and repository
 tooling (`.github/oryn/`, `.github/workflows/`, `.github/actions/`, `scripts/`) and for the
 authentication, authorization, session and account surface whose names do not split into the matcher's
-control tokens: the password, admin and account API controllers, route registration, the session, JWT,
-permission and token services, the identity, role and OIDC access-token models, login captcha and rate
-limiting, and `packages/api-contract/paths/auth`.
+control tokens: the password, admin and account API controllers, the whole route table, password
+hashing and the encrypted credential store, the session, JWT, permission and token services, the
+identity, role and OIDC access-token models, the login captcha guard and rate limiting, and the `auth`
+and `user-account` contract paths.
 `releases/requests/` stays only in `protectedMergePaths`. The runtime checks `sensitivePaths` and then
 `protectedMergePaths` with the same prefix rule. Schema migrations under
 `apps/gooseforum/app/migration/` and the `deploy/` tree are already sensitive because their path
 tokens match the pinned matcher, so this policy does not repeat them.
 
+Coverage is wider than the matcher's own tokens, so more pull requests receive `COMMENT` instead of a
+bot `APPROVE`. Tooling under `scripts/` and the identity models are the largest additions; both are
+accepted because the bot gains approval authority over them. Policy cannot express "do not approve a
+head the publisher itself pushed", and `allowRepair`/`autoImplement` stay on, so whether the publisher
+refuses its own head remains a runtime behaviour this record does not verify.
+
 Coverage is a repository-side guarantee, so it is asserted where a maintainer can fail on it.
 `scripts/test-oryn-validation.mjs` names real protected paths, requires each to match a prefix,
-requires ordinary code and documentation to stay reviewable, and rejects a prefix that matches no
-tracked file. The round trip through the private pinned matcher still runs only where that source is
-available, so pinned behaviour remains a manual check.
+requires ordinary code and documentation to stay reviewable, and rejects a prefix that is unusable or
+matches no tracked file. It also pins the prefix list, so a coverage line cannot silently disappear
+once a path is no longer sampled. The round trip through the private pinned matcher still runs only
+where that source is available, so pinned behaviour remains a manual check.
 
 A bot `APPROVE` still does not replace the team review required by `dev-protect` and `main-protect`,
 and it does not merge. Auto-merge stays off.
