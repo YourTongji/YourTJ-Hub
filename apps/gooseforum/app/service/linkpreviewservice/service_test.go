@@ -658,6 +658,33 @@ func TestResolveSharedBudgetExpires(t *testing.T) {
 	<-f.stopped
 }
 
+func TestResolveRetriesAfterSharedBudgetExpiry(t *testing.T) {
+	release := make(chan struct{})
+	finalURL, _ := url.Parse("https://example.com/budget-retry")
+	f := &fakeFetcher{
+		result: safefetch.Result{
+			FinalURL:    finalURL,
+			StatusCode:  200,
+			ContentType: "text/html",
+			Body:        []byte(`<title>Recovered</title>`),
+		},
+		wait: release,
+	}
+	r := New(f, nil)
+	r.workTimeout = 20 * time.Millisecond
+	const rawURL = "https://example.com/budget-retry"
+	if got := r.Resolve(t.Context(), 0, rawURL); got.Status != StatusTimeout {
+		t.Fatalf("budget result=%s", got.Status)
+	}
+	close(release)
+	if got := r.Resolve(t.Context(), 0, rawURL); got.Status != StatusReady || got.Title != "Recovered" {
+		t.Fatalf("retry after budget expiry = %#v, want refreshed ready preview", got)
+	}
+	if calls := f.calls.Load(); calls != 2 {
+		t.Fatalf("fetch calls after budget expiry = %d, want 2", calls)
+	}
+}
+
 func TestResolveBoundsDistinctBackgroundWork(t *testing.T) {
 	f := &contextProbeFetcher{make(chan context.Context, maxPreviewFlights), make(chan struct{}, maxPreviewFlights)}
 	r := New(f, nil)
