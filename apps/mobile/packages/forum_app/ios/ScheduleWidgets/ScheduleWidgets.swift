@@ -349,7 +349,8 @@ private struct TodayScheduleView: View {
                     LargeDayColumn(title: "明天", day: next,
                                    fallbackDate: nextDay(after: entry.date),
                                    currentId: nil, hasProjection: projection != nil,
-                                   showsBrandMark: true)
+                                   showsBrandMark: true,
+                                   currentState: state.0 == "stale" ? "stale" : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             } else {
@@ -374,7 +375,7 @@ private struct TodayScheduleView: View {
     private func tomorrow(in projection: Projection?) -> Projection.Day? {
         guard let projection else { return nil }
         let date = Projection.schoolDate.string(from: nextDay(after: entry.date))
-        return projection.days.first { $0.date == date }
+        return projection.day(on: date, at: entry.date)
     }
 }
 
@@ -571,7 +572,7 @@ private struct LargeDayColumn: View {
         let zh = Locale.current.languageCode == "zh"
         let heading = zh ? "\(title)课表" : (title == "今天" ? "Today schedule" : "Tomorrow schedule")
         guard let day else {
-            return "\(heading)，\(zh ? "需要更新课表" : "Schedule needs an update")"
+            return "\(heading)，\(title(emptyState))"
         }
         return dayAccessibilityText(heading, day: day, emptyState: emptyState, isTomorrow: title == "明天")
     }

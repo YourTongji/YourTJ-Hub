@@ -124,6 +124,58 @@ void main() {
     },
   );
 
+  test('projection update times never trust courses beyond the stale boundary', () {
+    final projection = ScheduleWidgetProjection.fromJson({
+      'schemaVersion': 2,
+      'identity': {
+        'siteKey': 'site',
+        'accountScope': 'account',
+        'bindingRevision': 'binding',
+      },
+      'generatedAt': '2026-09-22T08:00:00+08:00',
+      'schoolDate': '2026-09-29',
+      'timezone': 'Asia/Shanghai',
+      'semester': {'id': 'term', 'week': 2},
+      'sectionTimes': const [],
+      'days': [
+        {
+          'date': '2026-09-29',
+          'week': 2,
+          'source': 'local-resolved',
+          'kind': 'normal',
+          'courses': [
+            {
+              'stableId': 'future-course',
+              'name': 'Future course',
+              'teacher': '',
+              'room': '',
+              'campus': '',
+              'startSection': 1,
+              'endSection': 2,
+              'startAt': '2026-09-29T09:00:00+08:00',
+              'endAt': '2026-09-29T10:00:00+08:00',
+              'colorSlot': 1,
+            },
+          ],
+        },
+      ],
+    });
+    final staleAt = DateTime.parse('2026-09-29T08:00:00+08:00');
+    final times = projection.updateTimesAfter(
+      staleAt.subtract(const Duration(minutes: 30)),
+    );
+
+    expect(times, contains(staleAt.toUtc()));
+    expect(
+      times,
+      isNot(contains(DateTime.parse('2026-09-29T09:00:00+08:00').toUtc())),
+    );
+    expect(
+      times,
+      isNot(contains(DateTime.parse('2026-09-29T10:00:00+08:00').toUtc())),
+    );
+  });
+
   test(
     'v2 keeps server today authoritative and resolves an eight-day window',
     () async {

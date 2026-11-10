@@ -473,7 +473,8 @@ void main() {
     expect(source, contains('Asia/Shanghai'));
     expect(source, contains('emptyStateKey'));
     expect(source, contains('safeText'));
-    expect(source, contains('projection.days'));
+    expect(source, contains('projection.day(on: date, at: entry.date)'));
+    expect(source, isNot(contains('projection.days')));
     expect(source, contains('LargeDayColumn'));
     expect(source, contains('今天'));
     expect(source, contains('明天'));

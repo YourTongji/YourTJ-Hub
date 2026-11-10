@@ -128,7 +128,7 @@ struct Projection: Decodable {
     let schoolDate: String
     let timezone: String
     let semester: Semester
-    let days: [Day]
+    private let days: [Day]
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -172,17 +172,31 @@ struct Projection: Decodable {
         return value
     }
 
+    private static let staleAfter: TimeInterval = 7 * 86_400
+
+    func isStale(at date: Date) -> Bool {
+        date >= generatedAt.addingTimeInterval(Self.staleAfter)
+    }
+
+    func day(on dateKey: String, at now: Date) -> Day? {
+        guard !isStale(at: now) else { return nil }
+        return storedDay(on: dateKey)
+    }
+
     func day(at date: Date) -> Day? {
-        storedDay(at: date)?.remaining(at: date)
+        day(on: Self.schoolDate.string(from: date), at: date)?.remaining(at: date)
     }
 
     private func storedDay(at date: Date) -> Day? {
-        let key = Self.schoolDate.string(from: date)
-        return days.first { $0.date == key }
+        storedDay(on: Self.schoolDate.string(from: date))
+    }
+
+    private func storedDay(on dateKey: String) -> Day? {
+        days.first { $0.date == dateKey }
     }
 
     func state(at date: Date) -> (String, Course?) {
-        if date.timeIntervalSince(generatedAt) > 7 * 86_400 { return ("stale", nil) }
+        if isStale(at: date) { return ("stale", nil) }
         // Keep the full day for status so finishing the last course is distinct
         // from having no scheduled classes at all.
         guard let day = storedDay(at: date) else { return ("needsRefresh", nil) }
@@ -197,7 +211,7 @@ struct Projection: Decodable {
     }
 
     func nextClass(at date: Date) -> (String, Course?, Day?) {
-        if date.timeIntervalSince(generatedAt) > 7 * 86_400 { return ("stale", nil, nil) }
+        if isStale(at: date) { return ("stale", nil, nil) }
         guard let today = day(at: date), today.kind != "unknown" else {
             return ("needsRefresh", nil, nil)
         }
@@ -219,8 +233,9 @@ struct Projection: Decodable {
 
     func timelineDates(after now: Date) -> [Date] {
         let courseDates = days.flatMap(\.courses).flatMap { [$0.startAt, $0.endAt] }
+            .filter { !isStale(at: $0) }
         let midnights = days.compactMap { Self.schoolDate.date(from: $0.date) }
-        return Set(courseDates + midnights + [generatedAt.addingTimeInterval(7 * 86_400)])
+        return Set(courseDates + midnights + [generatedAt.addingTimeInterval(Self.staleAfter)])
             .filter { $0 > now }.sorted()
     }
 

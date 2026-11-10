@@ -25,6 +25,10 @@ final class ScheduleProjectionTests: XCTestCase {
                  "courses": [course("Tomorrow", "08:00", "09:00", day: "2026-10-01")]],
                 ["date": "2026-10-02", "week": 5, "source": "derived", "kind": "holiday", "courses": []],
                 ["date": "2026-10-03", "week": 5, "source": "derived", "kind": "normal", "courses": []],
+                ["date": "2026-10-07", "week": 6, "source": "derived", "kind": "normal",
+                 "courses": [course("Last trusted", "08:00", "09:00", day: "2026-10-07")]],
+                ["date": "2026-10-08", "week": 6, "source": "derived", "kind": "normal",
+                 "courses": [course("Expired", "08:00", "09:00", day: "2026-10-08")]],
             ],
         ])
         let decoder = JSONDecoder()
@@ -39,7 +43,7 @@ final class ScheduleProjectionTests: XCTestCase {
         XCTAssertEqual(projection.day(at: time("11:00"))?.courses.map(\.name), ["C", "D"])
         XCTAssertEqual(projection.day(at: time("17:00"))?.courses.map(\.name), [])
         // Filtering the view must not mutate the stored timetable or turn a completed day into a free day.
-        XCTAssertEqual(projection.days[0].courses.count, 4)
+        XCTAssertEqual(projection.day(on: "2026-09-30", at: time("17:00"))?.courses.count, 4)
         XCTAssertEqual(projection.state(at: time("17:00")).0, "finished")
     }
 
@@ -77,6 +81,22 @@ final class ScheduleProjectionTests: XCTestCase {
         XCTAssertEqual(projection.day(at: midnight)?.date, "2026-10-01")
         XCTAssertEqual(projection.day(at: midnight)?.courses.map(\.name), ["Tomorrow"])
         XCTAssertEqual(projection.day(at: time("23:59"))?.courses.count, 0)
+    }
+
+    func testStaleProjectionWithholdsCoursesAndFutureCourseTimelineDates() throws {
+        let projection = try fixture()
+        let staleAt = time("07:00", day: "2026-10-07")
+        let beforeStale = staleAt.addingTimeInterval(-30 * 60)
+        let dates = projection.timelineDates(after: beforeStale)
+
+        XCTAssertEqual(projection.nextClass(at: staleAt).0, "stale")
+        XCTAssertNil(projection.nextClass(at: staleAt).1)
+        XCTAssertNil(projection.day(at: staleAt))
+        XCTAssertNotNil(projection.day(on: "2026-10-08", at: beforeStale))
+        XCTAssertNil(projection.day(on: "2026-10-08", at: staleAt))
+        XCTAssertNil(projection.day(at: staleAt.addingTimeInterval(1)))
+        XCTAssertFalse(dates.contains(time("08:00", day: "2026-10-08")))
+        XCTAssertFalse(dates.contains(time("09:00", day: "2026-10-08")))
     }
 
     func testEmptyHolidayAndUnknownDaysKeepDistinctStates() throws {

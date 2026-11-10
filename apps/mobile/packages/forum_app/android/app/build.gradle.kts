@@ -131,6 +131,7 @@ tasks.configureEach {
 // Pin both SDK and OEM adapters, including jcore's otherwise dynamic transitive dependency.
 configurations.all { resolutionStrategy.force("cn.jiguang.sdk:jcore:5.5.2") }
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.glance:glance-appwidget:1.2.0")
     implementation("cn.jiguang.sdk:jpush:6.2.1")

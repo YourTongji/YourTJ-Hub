@@ -223,9 +223,12 @@ class ScheduleWidgetProjection {
     );
   }
 
+  bool isStaleAt(DateTime value) =>
+      !value.toUtc().isBefore(generatedAt.toUtc().add(staleAfter));
+
   ScheduleWidgetStatus statusAt(DateTime value) {
     final now = value.toUtc();
-    if (now.difference(generatedAt.toUtc()) > staleAfter) {
+    if (isStaleAt(now)) {
       return const ScheduleWidgetStatus('stale');
     }
     final date = _schoolDate(now);
@@ -255,7 +258,7 @@ class ScheduleWidgetProjection {
 
   ScheduleWidgetStatus nextClassAt(DateTime value) {
     final now = value.toUtc();
-    if (now.difference(generatedAt.toUtc()) > staleAfter) {
+    if (isStaleAt(now)) {
       return const ScheduleWidgetStatus('stale');
     }
     final date = _schoolDate(now);
@@ -296,9 +299,11 @@ class ScheduleWidgetProjection {
     final now = value.toUtc();
     return <DateTime>{
       for (final day in days)
-        for (final course in day.courses) course.startAt.toUtc(),
+        for (final course in day.courses)
+          if (!isStaleAt(course.startAt)) course.startAt.toUtc(),
       for (final day in days)
-        for (final course in day.courses) course.endAt.toUtc(),
+        for (final course in day.courses)
+          if (!isStaleAt(course.endAt)) course.endAt.toUtc(),
       for (final day in days) _schoolInstant(day.date, '00:00').toUtc(),
       generatedAt.toUtc().add(staleAfter),
     }.where((time) => time.isAfter(now)).toList()..sort();

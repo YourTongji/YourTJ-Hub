@@ -93,6 +93,10 @@ jobs:
           PYTHON
           flutter build apk --no-pub --release --target-platform android-arm64 --split-per-abi --analyze-size --code-size-directory "$RUNNER_TEMP/mobile-code-size"
           python3 ../../../../scripts/ci/check_android_entrypoint.py build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+      - name: Test Android widget projection
+        if: matrix.platform == 'android'
+        working-directory: apps/mobile/packages/forum_app/android
+        run: ./gradlew testDebugUnitTest
       - name: Collect Android release size analysis
         if: matrix.platform == 'android'
         working-directory: apps/mobile/packages/forum_app
