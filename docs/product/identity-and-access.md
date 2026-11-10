@@ -450,6 +450,24 @@ social counts and badges, and moderator access rules beyond today's public profi
   recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
   services and operations documentation.
 
+### Activation-token purpose boundary
+
+`Current`: email activation uses its own HMAC-SHA256-derived signing key and the
+`email-activation` audience. The parser requires HS256, an expiration time, a
+nonzero account ID and a nonblank target email. Session, TOTP challenge,
+password-reset and moderation credentials cannot serve as email proof. The
+handler still matches the current or fresh nonempty staged address and applies
+the existing conditional update; verifying the current address cancels a staged
+switch. Activation does not issue a session, change passwords or remove freezes.
+
+Legacy shared-key activation links are rejected without a compatibility fallback,
+including links already delivered or queued before this token format was enabled.
+Owners must sign in through their known site address and explicitly request a new
+link from email settings. No signing-key rotation, configuration change or database
+migration is needed. The queue checks only signature-validated expiry: legacy
+links fail signature validation, retain the ordinary delivery/retry path and can
+still arrive as unusable links. There is no automatic queue purge or renewal.
+
 ### Account email content and recovery
 
 `Current`: the existing activation, password-reset, completed-email-change and pending-email-change
