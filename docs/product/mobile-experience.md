@@ -1546,6 +1546,7 @@ and forwarding on Web, App and old clients; see [forum permissions](forum.md#pri
   Anonymous replies and older servers without author enrichment use an unlinked neutral avatar.
   Bookmark replies and activity URLs with a post number open that floor. Each profile stream keeps
   its own scroll position when switching between different row heights.
+  Mixed bookmark identity and pagination follow the [forum collection rules](forum.md#feed-and-reading).
 
 - `Current`: avatar and cover uploads open a native drag/pinch crop preview with an accessible
   zoom slider and reset action. Avatars export at 300×300; covers at 1600×320 with the central

@@ -283,7 +283,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           bookmarks: _merge(
             previous.bookmarks,
             props.bookmarks,
-            (item) => item.id,
+            // Topic/post action tables have independent numeric IDs.
+            (item) => (item.type, item.id),
           ),
           following: _merge(
             previous.following,
@@ -326,9 +327,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
-  List<T> _merge<T>(List<T> previous, List<T> next, int Function(T) id) => {
-    for (final item in previous) id(item): item,
-    for (final item in next) id(item): item,
+  List<T> _merge<T>(List<T> previous, List<T> next, Object Function(T) key) => {
+    for (final item in previous) key(item): item,
+    for (final item in next) key(item): item,
   }.values.toList();
 
   void _selectStream(String key) {

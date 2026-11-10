@@ -160,3 +160,79 @@ jobs:
             --dart-define=YOURTJ_PREVIEW=true \
             --dart-define=YOURTJ_API_BASE_URL=https://dev.yourtj.de \
             --dart-define=YOURTJ_OIDC_ISSUER=https://dev.yourtj.de/api/oauth
+      - name: Capture native profile bookmark pagination
+        id: bookmark_acceptance
+        # Acceptance artifacts belong to PR/source CI, not release candidates.
+        if: matrix.platform == 'ios' && inputs.source == ''
+        working-directory: apps/mobile/packages/forum_app
+        env:
+          YOURTJ_TEST_ARTIFACTS: ${{ runner.temp }}/profile-bookmarks-native
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; runtimes=json.load(sys.stdin)["devices"]; print(next(d["udid"] for runtime,devices in sorted(runtimes.items(), reverse=True) if ".iOS-" in runtime for d in devices if d["isAvailable"] and d["name"].startswith("iPhone")))')
+          export YOURTJ_TEST_DEVICE="$simulator_id"
+          mkdir -p "$YOURTJ_TEST_ARTIFACTS"
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+
+          devices = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '--json']))['devices']
+          device = next(dict(item, runtime=runtime) for runtime, items in devices.items() for item in items if item['udid'] == os.environ['YOURTJ_TEST_DEVICE'])
+          metadata = {
+              'checkoutSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+              'prHeadSha': os.environ.get('PR_HEAD_SHA', ''),
+              'flutter': json.loads(subprocess.check_output(['flutter', '--version', '--machine'])),
+              'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
+              'device': device,
+              'target': 'integration_test/profile_bookmarks_native_test.dart',
+              'buildMode': 'debug',
+              'locale': 'zh',
+              'themes': ['light', 'dark'],
+              'orders': ['topic-first', 'post-first'],
+              'states': ['pending', 'merged'],
+              'automatedAssertions': 'not_completed',
+              'visualReview': 'not_performed',
+              'evidence': 'Synthetic repository data targeting the real iOS Simulator Flutter surface. No live backend or physical-device acceptance. Screenshots require visual review, not golden comparison.',
+          }
+          (Path(os.environ['YOURTJ_TEST_ARTIFACTS']) / 'source.json').write_text(json.dumps(metadata, indent=2) + '\n')
+          PYTHON
+          xcrun simctl bootstatus "$simulator_id" -b
+          flutter drive --no-pub --debug \
+            --driver=test_driver/integration_driver.dart \
+            --target=integration_test/profile_bookmarks_native_test.dart -d "$simulator_id" \
+            --dart-define=YOURTJ_ENVIRONMENT=dev \
+            --dart-define=YOURTJ_PREVIEW=true \
+            --dart-define=YOURTJ_API_BASE_URL=https://dev.yourtj.de \
+            --dart-define=YOURTJ_OIDC_ISSUER=https://dev.yourtj.de/api/oauth \
+            --dart-define=YOURTJ_TEST_SCREENSHOTS=true \
+            2>&1 | tee "$YOURTJ_TEST_ARTIFACTS/flutter-drive.log"
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ['YOURTJ_TEST_ARTIFACTS'])
+          screenshots = []
+          for theme in ('light', 'dark'):
+              for first in ('topic', 'post'):
+                  for state in ('pending', 'merged'):
+                      path = output / f'profile-bookmarks-{theme}-{first}-first-{state}.png'
+                      if not path.is_file() or path.read_bytes()[:8] != b'\x89PNG\r\n\x1a\n':
+                          raise SystemExit(f'Missing or invalid native screenshot: {path.name}')
+                      screenshots.append(path.name)
+          receipt = output / 'source.json'
+          metadata = json.loads(receipt.read_text())
+          metadata.update(automatedAssertions='passed', screenshots=screenshots)
+          receipt.write_text(json.dumps(metadata, indent=2) + '\n')
+          PYTHON
+      - name: Upload native bookmark acceptance captures
+        if: always() && matrix.platform == 'ios' && inputs.source == '' && steps.bookmark_acceptance.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: profile-bookmarks-ios-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/profile-bookmarks-native/
+          if-no-files-found: error
+          retention-days: 14

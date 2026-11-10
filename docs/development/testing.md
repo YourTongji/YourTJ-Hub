@@ -215,6 +215,13 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   to `CAMPUS_MAP_BROWSER_EVIDENCE_DIR` (a temporary directory by default). CI uploads
   `campus-map-browser-evidence-<workflow SHA>` for 30 days; link the current run's artifact in a PR
   when reviewing those flows. Captures remain outside Git and are browser evidence, not dev acceptance.
+  The mixed-bookmark suite reuses the profile privacy fixture to mount the real profile shell, then
+  exercises intercepted cursor responses through browser scrolling. Both bookmark entry points,
+  both loading orders for equal IDs, 320/1280px widths and both themes produce first-page and
+  after-pagination captures in `YOURTJ_BOOKMARK_SCREENSHOT_DIR`. CI preserves the PNGs, HTML
+  contact sheet and source receipt as `profile-bookmark-browser-evidence-<workflow SHA>` for
+  30 days. These are synthetic-data browser captures for visual review, not screenshot goldens
+  or production-account/backend acceptance.
 - ci-contract.yml: changed contract inputs install the locked `packages/api-contract` pnpm tooling, run OpenAPI
   lint + bundle + TypeScript generation, then rejects an uncommitted diff below
   `apps/gooseforum/resource/packages/client/src/gen`. Its inputs are the contract package, generated
@@ -232,7 +239,8 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   skipping parity. Run `node --test apps/mobile/packages/ui_kit/tool/*.test.mjs` from the repository
   root, or `node apps/mobile/packages/ui_kit/tool/check_token_mirror.mjs` for just token parity.
   Dart paths include `integration_test`, `test_driver` and package-local `tool`
-  so these sources still receive analysis; device integration tests remain a separate manual run.
+  so these sources still receive analysis. Device integration tests are separate from these widget
+  shards; most remain manual, with the native CI cases described below running on a simulator.
   Each package tests on its own runner; `forum_app` has two disjoint Flutter
   shards. All package suites run for a shared-code change, including dependent packages. The local
   `melos run test` remains serial to avoid sharing one SDK's startup lock across Flutter processes.
@@ -263,6 +271,10 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   regressions run with `python3 -m unittest discover -s scripts/ci -p 'test_*.py'`.
   iOS runs the simulator
   build, native `RunnerTests` storage-policy and widget schedule regressions, and effective distribution-signing checks.
+  Ordinary iOS native CI also runs the [mixed-bookmark acceptance fixture](../../apps/mobile/packages/forum_app/README.md#收藏分页原生验收)
+  in both themes and preserves eight captures, execution logs and source/device metadata for 14 days.
+  This synthetic-data fixture is excluded when a release candidate supplies `source`; its captures
+  still require visual review and do not establish live-backend or physical-device acceptance.
   Clean checkouts use `flutter pub get` before native compilation. Signed releases separately verify the fixed application source
   and build only the selected native platforms.
 - Mobile tests assert behavior, layout constraints, accessibility and design tokens without screenshot
