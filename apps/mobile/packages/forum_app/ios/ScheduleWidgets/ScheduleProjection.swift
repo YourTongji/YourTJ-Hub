@@ -175,7 +175,7 @@ struct Projection: Decodable {
     private static let staleAfter: TimeInterval = 7 * 86_400
 
     func isStale(at date: Date) -> Bool {
-        date >= generatedAt.addingTimeInterval(Self.staleAfter)
+        date > generatedAt.addingTimeInterval(Self.staleAfter)
     }
 
     func day(on dateKey: String, at now: Date) -> Day? {

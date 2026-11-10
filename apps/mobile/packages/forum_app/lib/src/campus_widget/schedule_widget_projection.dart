@@ -224,7 +224,7 @@ class ScheduleWidgetProjection {
   }
 
   bool isStaleAt(DateTime value) =>
-      !value.toUtc().isBefore(generatedAt.toUtc().add(staleAfter));
+      value.toUtc().isAfter(generatedAt.toUtc().add(staleAfter));
 
   ScheduleWidgetStatus statusAt(DateTime value) {
     final now = value.toUtc();

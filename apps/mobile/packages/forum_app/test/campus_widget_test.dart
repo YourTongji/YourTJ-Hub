@@ -109,6 +109,14 @@ void main() {
         'stale',
       );
       expect(
+        projection.statusAt(DateTime.parse('2026-09-29T00:00:00Z')).kind,
+        'needsRefresh',
+      );
+      expect(
+        projection.statusAt(DateTime.parse('2026-09-29T00:00:00.001Z')).kind,
+        'stale',
+      );
+      expect(
         projection.updateTimesAfter(DateTime.parse('2026-09-21T23:00:00Z')),
         isNotEmpty,
       );

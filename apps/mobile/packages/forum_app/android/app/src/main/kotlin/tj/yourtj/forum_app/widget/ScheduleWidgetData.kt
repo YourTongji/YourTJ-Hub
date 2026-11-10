@@ -47,7 +47,7 @@ internal data class ScheduleProjection(
     private val days: List<ScheduleDay>,
 ) {
     fun isStale(now: Date = Date()): Boolean =
-        now.time >= generatedAt.time + STALE_AFTER_MS
+        now.time > generatedAt.time + STALE_AFTER_MS
 
     fun dayFor(value: Date = Date()): ScheduleDay? = dayOn(schoolDate(value), value)
 

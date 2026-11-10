@@ -46,9 +46,10 @@ class ScheduleWidgetDataTest {
     }
 
     @Test
-    fun projectionBecomesStaleAtTheExactBoundary() {
-        assertEquals("stale", projection.status(staleAt).first)
-        assertEquals("stale", projection.nextClass(staleAt).status)
+    fun projectionRemainsFreshAtTheExactBoundary() {
+        assertEquals("upcoming", projection.status(staleAt).first)
+        assertEquals("upcoming", projection.nextClass(staleAt).status)
+        assertEquals("stale", projection.status(Date(staleAt.time + 1)).first)
     }
 
     @Test
