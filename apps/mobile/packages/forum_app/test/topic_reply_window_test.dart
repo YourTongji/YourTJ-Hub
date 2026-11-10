@@ -164,7 +164,7 @@ class TopicWindowServer extends TopicRepository {
     required bool hasAfter,
     int? anchorPostId,
   }) {
-    // 与服务端一致:先过滤不可见楼层,再由剩余楼层推导前后游标。
+    // 查询窗口已按可见性过滤,游标只来自公开或本人可见的楼层。
     final List<PostPayload> visible = window
         .where((PostPayload post) => !hiddenPostIds.contains(post.id))
         .toList(growable: false);
@@ -195,6 +195,9 @@ class TopicWindowServer extends TopicRepository {
       'before=${beforePostNo ?? 0} '
       'after=${afterPostNo ?? 0} limit=${limit ?? 0}',
     );
+    final List<PostPayload> visiblePosts = posts
+        .where((post) => !hiddenPostIds.contains(post.id))
+        .toList(growable: false);
     final int size = limit ?? 20;
     if (beforePostNo != null && beforePostNo >= 0x7fffffffffffffff) {
       if (failTailRequests > 0) {
@@ -208,7 +211,9 @@ class TopicWindowServer extends TopicRepository {
       }
     }
     if (anchorPostId != null) {
-      final int index = posts.indexWhere((post) => post.id == anchorPostId);
+      final int index = visiblePosts.indexWhere(
+        (post) => post.id == anchorPostId,
+      );
       if (index < 0) {
         return _payload(
           const <PostPayload>[],
@@ -219,20 +224,20 @@ class TopicWindowServer extends TopicRepository {
       }
       final int beforeLimit = math.min(5, size ~/ 2);
       final int afterLimit = size - beforeLimit - 1;
-      final List<PostPayload> before = posts.sublist(
+      final List<PostPayload> before = visiblePosts.sublist(
         math.max(0, index - beforeLimit - 1),
         index,
       );
-      final List<PostPayload> after = posts.sublist(
+      final List<PostPayload> after = visiblePosts.sublist(
         index + 1,
-        math.min(posts.length, index + afterLimit + 2),
+        math.min(visiblePosts.length, index + afterLimit + 2),
       );
       final bool hasBefore = before.length > beforeLimit;
       final bool hasAfter = after.length > afterLimit;
       return _payload(
         <PostPayload>[
           ...(hasBefore ? before.sublist(1) : before),
-          posts[index],
+          visiblePosts[index],
           ...(hasAfter ? after.sublist(0, afterLimit) : after),
         ],
         hasBefore: hasBefore,
@@ -241,27 +246,29 @@ class TopicWindowServer extends TopicRepository {
       );
     }
     if (beforePostNo != null) {
-      final int found = posts.indexWhere((post) => post.postNo >= beforePostNo);
-      final int cursor = found < 0 ? posts.length : found;
+      final int found = visiblePosts.indexWhere(
+        (post) => post.postNo >= beforePostNo,
+      );
+      final int cursor = found < 0 ? visiblePosts.length : found;
       final int stop = overlapBeforeCursor
-          ? math.min(posts.length, cursor + 1)
+          ? math.min(visiblePosts.length, cursor + 1)
           : cursor;
       final int begin = math.max(0, stop - size - 1);
       final bool hasBefore = stop - begin > size;
       return _payload(
-        posts.sublist(hasBefore ? begin + 1 : begin, stop),
+        visiblePosts.sublist(hasBefore ? begin + 1 : begin, stop),
         hasBefore: hasBefore,
         hasAfter: true,
       );
     }
     final int found = afterPostNo == null
         ? 0
-        : posts.indexWhere((post) => post.postNo > afterPostNo);
-    final int from = found < 0 ? posts.length : found;
-    final int end = math.min(posts.length, from + size + 1);
+        : visiblePosts.indexWhere((post) => post.postNo > afterPostNo);
+    final int from = found < 0 ? visiblePosts.length : found;
+    final int end = math.min(visiblePosts.length, from + size + 1);
     final bool hasAfter = end - from > size;
     return _payload(
-      posts.sublist(from, hasAfter ? from + size : end),
+      visiblePosts.sublist(from, hasAfter ? from + size : end),
       hasBefore: afterPostNo != null,
       hasAfter: hasAfter,
     );
@@ -346,6 +353,7 @@ void main() {
     Map<String, Map<String, dynamic>> pageByPath =
         const <String, Map<String, dynamic>>{},
     int floors = 15,
+    Set<int> hiddenFloors = const <int>{},
     int? postNo,
     bool pendingReply = false,
     bool requireReplyCaptcha = false,
@@ -363,7 +371,8 @@ void main() {
     server = TopicWindowServer(client)
       ..posts.addAll(<PostPayload>[
         for (int floor = 1; floor <= floors; floor++) floorPost(floor),
-      ]);
+      ])
+      ..hiddenPostIds.addAll(hiddenFloors.map((floor) => 9000 + floor));
     container = ProviderContainer(
       overrides: <Override>[
         windowReservedRegionsProvider.overrideWith(
@@ -684,6 +693,27 @@ void main() {
       await disposePage(tester);
     });
   }
+
+  testWidgets('跨多页不可见待审回复后仍可加载公开楼层', (tester) async {
+    final page = anchoredPageJson(
+      posts: [floorPost(1)],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    (page['props'] as Map<String, dynamic>)['postStream']['maxPostNo'] = 62;
+    await pumpTopic(
+      tester,
+      page: page,
+      floors: 62,
+      hiddenFloors: {for (int floor = 2; floor < 62; floor++) floor},
+    );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -2000));
+    await tester.pumpAndSettle();
+    expect(server.calls.any((call) => call.contains('after=1 ')), isTrue);
+    expect(find.text('62楼内容'), findsOneWidget);
+    expect(find.text('2楼内容'), findsNothing);
+    await disposePage(tester);
+  });
 
   testWidgets('通知锚定进入后前后楼层仍可通过分页入口续载', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);

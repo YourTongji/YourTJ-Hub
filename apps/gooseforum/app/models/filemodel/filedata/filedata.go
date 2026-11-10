@@ -26,6 +26,9 @@ const (
 )
 
 type Entity struct {
+	// DirectUploadSourceName preserves completion recovery after temporary-key cleanup.
+	DirectUploadSourceName string `gorm:"column:direct_upload_source_name;type:varchar(256);not null;default:'';index:idx_file_data_direct_upload_source" json:"-"`
+
 	Id            uint64               `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`          // 主键
 	Name          string               `gorm:"column:name;uniqueIndex;type:varchar(256);not null;" json:"name"` // 添加唯一索引
 	Type          string               `gorm:"column:assert_type;index;type:varchar(64);not null;" json:"type"` //

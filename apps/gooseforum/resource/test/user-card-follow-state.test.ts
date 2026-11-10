@@ -100,6 +100,76 @@ describe('UserCard 关注状态（issue #593）', () => {
     vi.useRealTimers()
   })
 
+  test.each(['success', 'failure'] as const)('重新打开新鲜缓存后忽略旧请求的 %s，不覆盖当前资料或错误态', async (outcome) => {
+    getUserCardMock.mockResolvedValueOnce(makeCard())
+    let resolveSlow!: (card: UserCardPayload) => void
+    let rejectSlow!: (error: Error) => void
+    getUserCardMock.mockImplementationOnce(() => new Promise<UserCardPayload>((resolve, reject) => {
+      resolveSlow = resolve
+      rejectSlow = reject
+    }))
+    await mountCard()
+    showCard(42)
+    await flushAll()
+
+    showCard(43)
+    await flushAll()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    showCard(42)
+    await flushAll()
+    expect(getUserCardMock).toHaveBeenCalledTimes(2)
+    expect(document.body.textContent).toContain('@alice')
+
+    if (outcome === 'success') {
+      resolveSlow(makeCard({ userId: 43, username: 'bob', nickname: 'Bob', isFollowing: true, isMutualFollowing: true }))
+    } else {
+      rejectSlow(new Error('old request failed'))
+    }
+    await flushAll()
+
+    expect(document.body.textContent).toContain('@alice')
+    expect(document.body.textContent).not.toContain('@bob')
+    expect(document.body.textContent).not.toContain(t('userCard.unavailable'))
+    expect(document.body.querySelector('a[href="/u/42"]')).not.toBeNull()
+    expect(document.body.querySelector('a[href="/u/43"]')).toBeNull()
+    expect(followButton()?.textContent?.trim()).toBe(t('userCard.follow'))
+
+    if (outcome === 'success') {
+      // 已过期的响应仍可填入它自己的缓存，下一次打开该用户无需重复请求。
+      showCard(43)
+      await flushAll()
+      expect(document.body.textContent).toContain('@bob')
+      expect(followButton()?.textContent?.trim()).toBe(t('userCard.mutualFollowing'))
+      expect(getUserCardMock).toHaveBeenCalledTimes(2)
+    }
+  })
+
+  test('慢请求结束后对重新打开的缓存用户关注，目标仍是最后打开的用户', async () => {
+    getUserCardMock.mockResolvedValueOnce(makeCard())
+    let resolveSlow!: (card: UserCardPayload) => void
+    getUserCardMock.mockImplementationOnce(() => new Promise<UserCardPayload>((resolve) => { resolveSlow = resolve }))
+    await mountCard()
+    showCard(42)
+    await flushAll()
+    showCard(43)
+    await flushAll()
+    showCard(42)
+    await flushAll()
+
+    resolveSlow(makeCard({ userId: 43, username: 'bob', nickname: 'Bob' }))
+    await flushAll()
+    // API 全部 mock，不向生产服务发送关注请求。
+    followUserMock.mockResolvedValueOnce({ isFollowing: true, isMutualFollowing: false })
+    getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: true }))
+    followButton()!.click()
+    await flushAll()
+
+    expect(followUserMock).toHaveBeenCalledExactlyOnceWith(42, false)
+    expect(getUserCardMock).toHaveBeenLastCalledWith(42)
+    expect(document.body.textContent).toContain('@alice')
+    expect(followButton()?.textContent?.trim()).toBe(t('userCard.following'))
+  })
+
   test('toggle 成功后回源刷新：按钮态以服务端为准，粉丝数更新并写回缓存', async () => {
     getUserCardMock.mockResolvedValueOnce(makeCard())
     getUserCardMock.mockResolvedValueOnce(makeCard({ isFollowing: true, followerCount: 11 }))

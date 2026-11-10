@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from 'reka-ui'
 import logoUrl from '@/site/assets/logo.svg?url'
-import { queueFlashMessage } from '@/runtime/flash-message'
+import { useFlashMessages } from '@/runtime/flash-message'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { courseColorSlotFor, courseSlotVar } from '@/site/utils/courseColors'
 import { conflictBaseOf, CUSTOM_EVENT_CODE_PREFIX } from '@/site/utils/pkConflict'
@@ -41,6 +41,7 @@ const CANVAS_WIDTH = 1140
 const CANVAS_ESTIMATED_HEIGHT = 880
 
 const { t } = useI18n()
+const { push: flash } = useFlashMessages()
 const store = useScheduleStore()
 
 const props = defineProps<{
@@ -310,7 +311,7 @@ async function handleDownload() {
     link.href = dataUrl
     link.click()
   } catch {
-    queueFlashMessage(t('schedule.exportImageFailed'), 'error')
+    flash(t('schedule.exportImageFailed'), 'error')
   } finally {
     generating.value = false
   }
@@ -328,12 +329,12 @@ async function handleCopy() {
       new ClipboardItem({ 'image/png': blob }),
     ])
     copied.value = true
-    queueFlashMessage(t('schedule.exportCopySuccess'), 'success')
+    flash(t('schedule.exportCopySuccess'), 'success')
     setTimeout(() => {
       copied.value = false
     }, 2500)
   } catch {
-    queueFlashMessage(t('schedule.exportCopyFailed'), 'error')
+    flash(t('schedule.exportCopyFailed'), 'error')
   } finally {
     generating.value = false
   }

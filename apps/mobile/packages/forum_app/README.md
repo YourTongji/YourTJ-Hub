@@ -122,6 +122,33 @@ YOURTJ_TEST_ARTIFACTS=/absolute/path/to/screenshots flutter drive \
 测试验证 Web 表单收到该文件,不会提交导入。`YOURTJ_TEST_FILES_ONLY=true` 可跳过已覆盖的
 后台模块遍历,缩短这项单独检查;文件选择等待上限为五分钟。
 
+## 收藏分页原生验收
+
+`integration_test/profile_bookmarks_native_test.dart` 在真实 iOS 模拟器窗口和安全区中渲染
+`ProfilePage`，使用 `ui_kit` 深浅主题。数据全部来自内存 fixture，页面明确标识“合成数据”，
+不登录、不连接后端，也不读取真实收藏。滚动到分页边界后，验证 `topic:7` / `post:7` 两种
+先后顺序均保留两条不同收藏，并合并跨页和页内的同类型重复项；等待分页时再次滚动不会重复请求。
+
+在 `forum_app` 目录运行，设备 ID 从 `flutter devices` 获取：
+
+```bash
+YOURTJ_TEST_ARTIFACTS=/absolute/path/to/screenshots flutter drive --no-pub --debug \
+  --driver=test_driver/integration_driver.dart \
+  --target=integration_test/profile_bookmarks_native_test.dart -d "$YOURTJ_TEST_DEVICE" \
+  --dart-define=YOURTJ_ENVIRONMENT=dev \
+  --dart-define=YOURTJ_PREVIEW=true \
+  --dart-define=YOURTJ_API_BASE_URL=https://dev.yourtj.de \
+  --dart-define=YOURTJ_OIDC_ISSUER=https://dev.yourtj.de/api/oauth \
+  --dart-define=YOURTJ_TEST_SCREENSHOTS=true
+```
+
+运行会输出四组案例的分页等待态和合并结果，共八张 PNG。实际执行 iOS native job 的普通 CI
+（不含传入 `source` 的 release candidate）也运行此目标，并将截图、日志和实际 checkout SHA、
+PR head、工具链、模拟器信息上传为 `profile-bookmarks-ios-<workflow SHA>-<attempt>` artifact，
+保留 14 天。只有 Dart 改动时现有选择器不会自动运行 native job，可使用 `CI / Verify` 的手动完整运行。
+截图留在 Git 外供人工查看，不作为 golden 基线；自动断言通过不等于截图已经审阅，也不代表
+真实后端、Android 或物理真机验收完成。
+
 ## 服务端错误文案
 
 `lib/src/server_message_catalog.dart` 从 Web 的 `server` / `serverMessages` 目录生成,保留

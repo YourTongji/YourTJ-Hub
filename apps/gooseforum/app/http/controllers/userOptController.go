@@ -62,7 +62,7 @@ func ActivateAccount(c *gin.Context) {
 	}
 
 	// 换绑确认：令牌目标命中新鲜暂存 → 原子切换。
-	if user.FreshPendingEmail(time.Now()) == claims.Email {
+	if pending := user.FreshPendingEmail(time.Now()); pending != "" && pending == claims.Email {
 		switched, err := users.CompletePendingEmailSwitch(user.Id, claims.Email, time.Now())
 		if err != nil {
 			renderActivationPage(c, false, "activationInvalidLink")

@@ -54,6 +54,8 @@ jobs:
           CAMPUS_MAP_BROWSER_EVIDENCE_DIR: ${{ runner.temp }}/campus-map-browser-evidence
           YOURTJ_BOOKMARK_EXCERPT_EVIDENCE_DIR: ${{ runner.temp }}/bookmark-excerpt-evidence
           BOOKMARK_EXCERPT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          YOURTJ_BOOKMARK_SCREENSHOT_DIR: ${{ runner.temp }}/profile-bookmark-browser-evidence
+          BOOKMARK_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: pnpm test:browser
       - name: Preserve campus map browser evidence
         if: always() && steps.browser.outcome != 'skipped'
@@ -69,6 +71,14 @@ jobs:
         with:
           name: bookmark-excerpt-evidence-${{ github.sha }}
           path: ${{ runner.temp }}/bookmark-excerpt-evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve mixed bookmark browser evidence
+        if: always() && steps.browser.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: profile-bookmark-browser-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/profile-bookmark-browser-evidence/
           if-no-files-found: error
           retention-days: 30
       - name: Check i18n keys

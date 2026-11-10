@@ -14,6 +14,21 @@ permissions:
   contents: read
 
 jobs:
+  ci-backend-minio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: apps/gooseforum/go.mod
+          cache-dependency-path: apps/gooseforum/go.sum
+      - name: Real MinIO upload, replay and final-key policy rejection
+        run: bash apps/gooseforum/scripts/run-minio-upload-e2e.sh
+
   ci-backend:
     runs-on: ubuntu-latest
     steps:

@@ -35,6 +35,11 @@ const hasCourseResults = computed(() => courses.value.length > 0)
 const searchUnavailable = computed(() => page.props.searchUnavailable === true)
 const failedScopes = computed(() => page.props.failedScopes || [])
 const hasPartialFailure = computed(() => failedScopes.value.length > 0 && !searchUnavailable.value)
+// Index totals can include topics filtered out by current DB visibility on this page.
+const hasTopicPagination = computed(() =>
+  hasQuery.value && !searchUnavailable.value && !failedScopes.value.includes('topics') &&
+  (scope.value === 'all' || scope.value === 'topics') && page.props.totalPages > 1,
+)
 const scopeLabelMap: Record<string, string> = {
   topics: 'scopeTopics',
   users: 'scopeUsers',
@@ -44,19 +49,24 @@ const scopeLabelMap: Record<string, string> = {
 const scopeLabels = computed(() => failedScopes.value.map((s) => (scopeLabelMap[s] ? t(`searchPage.${scopeLabelMap[s]}`) : s)).join(', '))
 const searchDescription = computed(() => {
   if (!hasQuery.value) return t('searchPage.emptyPrompt')
-  const count = scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : scope.value === 'courses' ? page.props.coursesTotal : page.props.total
+  if (searchUnavailable.value || hasPartialFailure.value) return page.props.query
+  const count = scope.value === 'all' ? page.props.total + page.props.usersTotal + page.props.categoriesTotal + page.props.coursesTotal : scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : scope.value === 'courses' ? page.props.coursesTotal : page.props.total
   return `${page.props.query} · ${t('searchPage.resultCount', { count: formatNumber(count) })}`
 })
+
+function scopeCount(key: string, count: number) {
+  return (scope.value === 'all' || scope.value === key) && !failedScopes.value.includes(key) ? count : undefined
+}
 
 const scopeTabs = computed(() => {
   const base = '/search'
   const scopeParam = (value: string) => (value === 'all' || !value ? '' : `&scope=${value}`)
   return [
-    { key: 'all', label: t('searchPage.scopeAll'), url: `${base}?q=${encodeURIComponent(page.props.query)}`, active: scope.value === 'all', count: page.props.total },
-    { key: 'topics', label: t('searchPage.scopeTopics'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('topics')}`, active: scope.value === 'topics', count: page.props.total },
-    { key: 'users', label: t('searchPage.scopeUsers'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('users')}`, active: scope.value === 'users', count: page.props.usersTotal },
-    { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories', count: page.props.categoriesTotal },
-    { key: 'courses', label: t('searchPage.scopeCourses'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('courses')}`, active: scope.value === 'courses', count: page.props.coursesTotal },
+    { key: 'all', label: t('searchPage.scopeAll'), url: `${base}?q=${encodeURIComponent(page.props.query)}`, active: scope.value === 'all', count: undefined },
+    { key: 'topics', label: t('searchPage.scopeTopics'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('topics')}`, active: scope.value === 'topics', count: scopeCount('topics', page.props.total) },
+    { key: 'users', label: t('searchPage.scopeUsers'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('users')}`, active: scope.value === 'users', count: scopeCount('users', page.props.usersTotal) },
+    { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories', count: scopeCount('categories', page.props.categoriesTotal) },
+    { key: 'courses', label: t('searchPage.scopeCourses'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('courses')}`, active: scope.value === 'courses', count: scopeCount('courses', page.props.coursesTotal) },
   ]
 })
 
@@ -144,6 +154,7 @@ watch(
         >
           {{ tab.label }}
           <span
+            v-if="tab.count !== undefined"
             class="ml-1 text-[11px] font-semibold tabular-nums"
             :class="tab.active ? 'text-neutral-content/70' : 'text-base-content/40'"
           >{{ formatNumber(tab.count) }}</span>
@@ -156,7 +167,7 @@ watch(
       </div>
 
       <section class="gf-card overflow-hidden">
-        <template v-if="hasResults">
+        <template v-if="hasResults || hasTopicPagination">
           <div v-if="hasUserResults && (scope === 'all' || scope === 'users')" class="border-b border-line">
             <h2 class="flex items-center gap-2 px-4 pt-3 text-sm font-semibold text-base-content/70">
               <UsersRound class="h-4 w-4" />
@@ -177,13 +188,19 @@ watch(
             </ul>
           </div>
 
-          <div v-if="hasTopicResults && (scope === 'all' || scope === 'topics')" class="border-b border-line">
+          <div v-if="(hasTopicResults || hasTopicPagination) && (scope === 'all' || scope === 'topics')" class="border-b border-line">
             <h2 v-if="scope === 'all'" class="flex items-center gap-2 px-4 pt-3 text-sm font-semibold text-base-content/70">
               {{ t('searchPage.topicsSection') }}
               <span class="text-xs font-normal text-base-content/45">{{ t('searchPage.topicsCount', { count: formatNumber(page.props.total) }) }}</span>
             </h2>
-            <TopicList :topics="topics" />
-            <footer v-if="(scope === 'topics' || scope === 'all') && page.props.totalPages > 1" class="flex flex-col gap-3 border-t border-line bg-base-200/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <TopicList v-if="hasTopicResults" :topics="topics" />
+            <EmptyState
+              v-else
+              :icon="Search"
+              :title="t('searchPage.topicPageEmptyTitle')"
+              :description="t('searchPage.topicPageEmptyDescription')"
+            />
+            <footer v-if="hasTopicPagination" class="flex flex-col gap-3 border-t border-line bg-base-200/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div class="text-sm text-base-content/55">
                 {{ t('common.page', { page: page.props.pagination.page, total: page.props.totalPages }) }}
               </div>

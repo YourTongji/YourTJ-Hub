@@ -81,6 +81,7 @@ DTO 的作者标签，分享卡是一张浮在更深底色上的白卡（20 圆�
 
 `Current`：Web 与 Flutter 的排课器按学期、年级、专业选课，支持必修、选修、搜索与时间段入口；
 可筛选周次、查看教学班评价、收藏课程并导出课表。冲突课程仍可加入，选择教学班前及课表中给出冲突提示。
+Web 排课器的本地保存、复制检索链接与图片导出结果使用当前页即时提示；提示可见于导出弹窗之上，不写入下次刷新队列。
 同一时间的单双周课程在周次不重叠时不算冲突；同班同天多段安排合并展示，自定义占位参与冲突计算。
 
 `Current`：用户可新增、切换、删除、清空、重命名和复制方案；Web 支持同一选课上下文内的方案对比。
@@ -135,3 +136,7 @@ Web、API 与 Flutter 课程／排课页面为 `Current`；移动端已通过 Ap
 接口结构以 [OpenAPI](../../packages/api-contract/openapi.yaml)、生成类型与路由契约测试为准；
 课程与排课规则分别由 `courseservice`、`pkservice` 和各端页面测试维护。
 [测试指南](../development/testing.md)说明各检查的覆盖范围，本地子集通过不代表生产数据或全平台验收通过。
+
+`Current`: Web scheduler save/sync feedback is shown immediately on the current
+page. Guests saving to the cloud receive a sign-in explanation while their local
+plan remains available. Navigation-only queued notices retain their existing flow.

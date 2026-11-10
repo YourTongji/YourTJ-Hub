@@ -97,9 +97,15 @@ and bounded fallback behavior. Credentials must not be placed in query strings o
 Revoked sessions lose access to the stream, including already-open connections.
 
 `Current`: `users.unread_badge_style` stores the account's `number` (default) or `dot` display preference,
-independently of push delivery. The owner-only notification-preferences API validates the complete body;
+independently of push delivery. A separate nullable text column `users.unread_badge_categories` holds
+an explicit JSON category array; NULL means all categories and `[]` means none. The owner-only
+notification-preferences API validates partial updates and writes only supplied, non-null columns;
+style and category writes cannot overwrite each other. Unknown/duplicate categories are rejected;
 updates invalidate the unread projection and publish the existing private notification/unread hints.
-Unread status carries optional exact notification/message totals plus this style; message totals include
+Unread status carries optional exact notification/message totals plus style and categories. Notification
+flags/totals use the notification center's category predicates; latest unread ID/type remain unfiltered
+so browser delivery does not inherit badge filtering. Category selection leaves list/read semantics,
+private-message counts and push consent unchanged; message totals include
 muted conversations because muting controls delivery. Missing totals retain a dot rather than invent a
 count. The App provider binds requests to the active session/cache epoch and fences older reads after a
 save; Web uses owner-scoped cache keys and equivalent request generations. A failed save restores the

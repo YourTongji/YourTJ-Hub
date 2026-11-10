@@ -164,6 +164,23 @@ func GetFileMetadataByNameContext(ctx context.Context, name string) (*Entity, er
 	return getFileMetadataByNameAndStatus(ctx, name, StorageStatusReady)
 }
 
+// getCompletedDirectUploadMetadata resolves the final key or original init name.
+// Only completion uses this alias; normal reads cannot serve the mutable source.
+func getCompletedDirectUploadMetadata(ctx context.Context, name string) (*Entity, error) {
+	if name == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var entity Entity
+	err := builder().WithContext(ctx).
+		Select("id, name, assert_type, file_size, storage_status, user_id, created_at, updated_at").
+		Where("storage_status = ? AND (name = ? OR direct_upload_source_name = ?)", StorageStatusReady, name, name).
+		First(&entity).Error
+	if err != nil {
+		return nil, err
+	}
+	return &entity, nil
+}
+
 // GetPendingFileMetadataByNameContext returns the pending metadata row for name.
 func GetPendingFileMetadataByNameContext(ctx context.Context, name string) (*Entity, error) {
 	return getFileMetadataByNameAndStatus(ctx, name, StorageStatusPending)
@@ -199,7 +216,10 @@ func PublishRenamedFileMetadata(ctx context.Context, oldName, newName string) (*
 			return errors.New("pending source already consumed")
 		}
 		result = tx.Where("name = ? AND storage_status = ? AND user_id = ?", newName, StorageStatusCopying, source.UserId).
-			UpdateColumns(map[string]any{"storage_status": StorageStatusReady, "created_at": source.CreatedAt})
+			UpdateColumns(map[string]any{
+				"storage_status": StorageStatusReady, "created_at": source.CreatedAt,
+				"direct_upload_source_name": oldName,
+			})
 		if result.Error != nil {
 			return result.Error
 		}
