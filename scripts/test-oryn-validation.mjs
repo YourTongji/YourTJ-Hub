@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { selectedScopes } from '../.github/oryn/validate.mjs';
 
 test('docs need governance, without application suites', () => {
@@ -83,76 +85,98 @@ test('the setup action and operator guide pin the same verified Oryn commit', as
   assert.equal(guide.includes('32af3fbc705ea34f8e4229d38035513ce165d511'), false);
 });
 
-const hubSensitivePaths = [
-  '.github/actions/',
-  '.github/oryn/',
-  '.github/workflows/',
-  'apps/gooseforum/app/bundles/jwtopt/',
-  'apps/gooseforum/app/bundles/logincrypto/',
-  'apps/gooseforum/app/bundles/oidcprovider/',
-  'apps/gooseforum/app/bundles/sessionstore/',
-  'apps/gooseforum/app/http/controllers/api/mobileWebSession',
-  'apps/gooseforum/app/http/controllers/api/oauth',
-  'apps/gooseforum/app/http/controllers/api/oidc',
-  'apps/gooseforum/app/http/controllers/api/passkey',
-  'apps/gooseforum/app/http/controllers/api/session',
-  'apps/gooseforum/app/http/controllers/api/tongjiLogin',
-  'apps/gooseforum/app/http/controllers/api/tongji_login',
-  'apps/gooseforum/app/http/controllers/api/totp',
-  'apps/gooseforum/app/http/middleware/agentAuth',
-  'apps/gooseforum/app/http/middleware/checkPermission',
-  'apps/gooseforum/app/http/middleware/csrfProtection',
-  'apps/gooseforum/app/http/middleware/jwtAuth',
-  'apps/gooseforum/app/http/middleware/securityHeaders',
-  'apps/gooseforum/app/http/middleware/totpChallenge',
-  'apps/gooseforum/app/http/routes/contract_passkeys',
-  'apps/gooseforum/app/http/routes/contract_totp',
-  'apps/gooseforum/app/http/routes/csrf_',
-  'apps/gooseforum/app/http/routes/oidc_routes',
-  'apps/gooseforum/app/http/routes/totp_',
-  'apps/gooseforum/app/models/forum/oidcAuthRequests/',
-  'apps/gooseforum/app/models/forum/rolePermissionRs/',
-  'apps/gooseforum/app/models/forum/userOAuth/',
-  'apps/gooseforum/app/models/forum/userPasskeys/',
-  'apps/gooseforum/app/models/forum/userSessions/',
-  'apps/gooseforum/app/models/forum/userTotp/',
-  'apps/gooseforum/app/models/forum/userTotpChallenges/',
-  'apps/gooseforum/app/models/forum/userTotpRecoveryCodes/',
-  'apps/gooseforum/app/service/appleauthservice/',
-  'apps/gooseforum/app/service/campusservice/login',
-  'apps/gooseforum/app/service/oauthservice/',
-  'apps/gooseforum/app/service/oidcservice/',
-  'apps/gooseforum/app/service/passkeyservice/',
-  'apps/gooseforum/app/service/sessionservice/',
-  'apps/gooseforum/app/service/totpservice/',
-  'scripts/ci/',
-];
-
 function prefixCovers(file, prefixes) {
   return prefixes.some((prefix) => prefix.length > 0 && prefix.length <= 200 && !prefix.startsWith('/') && !prefix.includes('..') && !prefix.includes('\\') && file.startsWith(prefix));
 }
 
-test('Hub Oryn policy enables low-risk approval and keeps check, lesson, and merge gates', async () => {
+function trackedPaths() {
+  const output = execFileSync('git', ['ls-files', '-z'], {
+    cwd: fileURLToPath(new URL('../', import.meta.url)),
+    encoding: 'utf8',
+  });
+  return output.split('\0').filter(Boolean);
+}
+
+async function policyRepository() {
   const { readFileSync } = await import('node:fs');
   const policy = JSON.parse(readFileSync(new URL('../.github/oryn/repositories.json', import.meta.url), 'utf8'));
   const repository = policy.repositories.find((item) => item.name === 'YourTongji/YourTJ-Hub');
   assert.ok(repository);
+  return repository;
+}
+
+// Paths whose change can weaken authentication, authorization, session integrity, or the review and
+// CI gates that protect them. Each must be sensitive, so a low-risk approval never lands on one.
+// This is a specification over real repository paths, not a copy of the policy list: a missing
+// prefix fails here instead of surfacing in a live review.
+const protectedPaths = [
+  '.github/oryn/repositories.json',
+  '.github/oryn/validate.mjs',
+  'apps/gooseforum/app/bundles/captchaOpt/captcha.go',
+  'apps/gooseforum/app/bundles/jwtopt/jwt.go',
+  'apps/gooseforum/app/bundles/ratelimit/ratelimit.go',
+  'apps/gooseforum/app/http/controllers/api/adminController.go',
+  'apps/gooseforum/app/http/controllers/api/authController.go',
+  'apps/gooseforum/app/http/controllers/api/userController.go',
+  'apps/gooseforum/app/http/middleware/campusCallback.go',
+  'apps/gooseforum/app/http/middleware/csrfProtection.go',
+  'apps/gooseforum/app/http/middleware/jwtAuth.go',
+  'apps/gooseforum/app/http/middleware/rateLimit.go',
+  'apps/gooseforum/app/http/routes/route4api.go',
+  'apps/gooseforum/app/http/routes/upHandle.go',
+  'apps/gooseforum/app/models/forum/oidcAccessTokens/oidcAccessTokens.go',
+  'apps/gooseforum/app/models/forum/role/role.go',
+  'apps/gooseforum/app/models/forum/users/users.go',
+  'apps/gooseforum/app/service/authsessionservice/authsessionservice.go',
+  'apps/gooseforum/app/service/permission/permission.go',
+  'apps/gooseforum/app/service/tokenservice/signing_key.go',
+  'apps/gooseforum/app/service/userservice/session_version.go',
+  'packages/api-contract/paths/auth.yaml',
+  'scripts/ci/select_inputs.py',
+  'scripts/run-gates.mjs',
+  'scripts/test-oryn-validation.mjs',
+  'scripts/verify-action-pins.mjs',
+  'scripts/verify-decisions.mjs',
+];
+
+// Ordinary paths stay reviewable. An over-broad prefix cannot cause an unsafe approval, but it does
+// make the bot useless, so it fails here too.
+const ordinaryPaths = [
+  'apps/gooseforum/app/http/controllers/api/wikiController.go',
+  'apps/gooseforum/app/http/middleware/logger.go',
+  'apps/gooseforum/app/service/datamigration/topic_excerpt.go',
+  'docs/development/testing.md',
+  'docs/operations/oryn.md',
+];
+
+test('Hub Oryn policy enables low-risk approval and keeps check, lesson, and merge gates', async () => {
+  const repository = await policyRepository();
   assert.equal(repository.allowLowRiskApprove, true);
   assert.deepEqual(repository.requiredChecks, ['ci-required']);
   assert.deepEqual(repository.trustedCheckApps, [{ name: 'ci-required', app: 'github-actions' }]);
   assert.deepEqual(repository.lessonPaths, ['docs/decisions', 'docs/postmortems']);
   assert.equal(repository.allowMerge, true);
   assert.deepEqual(repository.protectedMergePaths, ['releases/requests/']);
-  assert.deepEqual(repository.sensitivePaths, hubSensitivePaths);
   assert.equal(repository.sensitivePaths.includes('releases/requests/'), false);
-  assert.equal(prefixCovers('.github/oryn/repositories.json', repository.sensitivePaths), true);
-  assert.equal(prefixCovers('scripts/ci/select_inputs.py', repository.sensitivePaths), true);
-  assert.equal(prefixCovers('apps/gooseforum/app/bundles/oidcprovider/oidcprovider.go', repository.sensitivePaths), true);
-  assert.equal(prefixCovers('apps/gooseforum/app/http/middleware/jwtAuth.go', repository.sensitivePaths), true);
   assert.equal(prefixCovers('releases/requests/example/request.json', repository.sensitivePaths), false);
   assert.equal(prefixCovers('releases/requests/example/request.json', repository.protectedMergePaths), true);
-  for (const ordinary of ['docs/operations/oryn.md', 'apps/gooseforum/app/http/middleware/logger.go', 'apps/gooseforum/app/http/controllers/api/wikiController.go', 'apps/gooseforum/app/service/datamigration/topic_excerpt.go']) {
-    assert.equal(prefixCovers(ordinary, repository.sensitivePaths), false, ordinary);
+});
+
+test('every protection-critical path is sensitive and ordinary paths stay reviewable', async () => {
+  const repository = await policyRepository();
+  for (const path of protectedPaths) {
+    assert.equal(prefixCovers(path, repository.sensitivePaths), true, path);
+  }
+  for (const path of ordinaryPaths) {
+    assert.equal(prefixCovers(path, repository.sensitivePaths), false, path);
+  }
+});
+
+test('every sensitive prefix protects at least one tracked path', async () => {
+  const repository = await policyRepository();
+  const tracked = trackedPaths();
+  for (const prefix of repository.sensitivePaths) {
+    assert.ok(tracked.some((path) => path.startsWith(prefix)), `${prefix} matches no tracked file`);
   }
 });
 
@@ -216,7 +240,7 @@ test('the pinned Oryn modules parse this policy and classify the same paths', as
   assert.deepEqual(report.requiredChecks, ['ci-required']);
   assert.deepEqual(report.trustedCheckApps, [{ name: 'ci-required', app: 'github-actions' }]);
   assert.deepEqual(report.lessonPaths, ['docs/decisions', 'docs/postmortems']);
-  assert.equal(report.sensitiveCount, hubSensitivePaths.length);
+  assert.equal(report.sensitiveCount, (await policyRepository()).sensitivePaths.length);
   assert.equal(report.unsafePrefixIgnored, false);
   assert.equal(report.classified.policy, true);
   assert.equal(report.classified.ci, true);

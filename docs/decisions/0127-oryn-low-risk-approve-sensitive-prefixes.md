@@ -36,13 +36,22 @@ Choose option 1. This supersedes the closed-approval outcome in
 [0126](0126-pin-verified-oryn-without-approval.md). The pin, check binding, lesson paths, `allowMerge`,
 and `protectedMergePaths` from that record stay.
 
-`allowLowRiskApprove` is true. `sensitivePaths` lists Hub prefixes for Oryn policy and CI
-(`.github/oryn/`, `.github/workflows/`, `.github/actions/`, `scripts/ci/`) and for auth, session, OIDC,
-JWT, passkey, TOTP, and permission paths whose names do not split into the matcher's control tokens.
+`allowLowRiskApprove` is true. `sensitivePaths` lists Hub prefixes for Oryn policy and repository
+tooling (`.github/oryn/`, `.github/workflows/`, `.github/actions/`, `scripts/`) and for the
+authentication, authorization, session and account surface whose names do not split into the matcher's
+control tokens: the password, admin and account API controllers, route registration, the session, JWT,
+permission and token services, the identity, role and OIDC access-token models, login captcha and rate
+limiting, and `packages/api-contract/paths/auth`.
 `releases/requests/` stays only in `protectedMergePaths`. The runtime checks `sensitivePaths` and then
 `protectedMergePaths` with the same prefix rule. Schema migrations under
 `apps/gooseforum/app/migration/` and the `deploy/` tree are already sensitive because their path
 tokens match the pinned matcher, so this policy does not repeat them.
+
+Coverage is a repository-side guarantee, so it is asserted where a maintainer can fail on it.
+`scripts/test-oryn-validation.mjs` names real protected paths, requires each to match a prefix,
+requires ordinary code and documentation to stay reviewable, and rejects a prefix that matches no
+tracked file. The round trip through the private pinned matcher still runs only where that source is
+available, so pinned behaviour remains a manual check.
 
 A bot `APPROVE` still does not replace the team review required by `dev-protect` and `main-protect`,
 and it does not merge. Auto-merge stays off.

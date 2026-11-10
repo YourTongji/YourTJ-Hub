@@ -40,9 +40,15 @@ copies of [decisions](../decisions/) and [postmortems](../postmortems/README.md)
 the check name `ci-required` with the GitHub App slug `github-actions` (`trustedCheckApps`), so trust
 in that check is app-bound rather than name-only. `sensitivePaths` holds Hub prefixes. The runtime
 checks those prefixes and then `protectedMergePaths` with the same `startsWith` rule.
-`releases/requests/` stays only in `protectedMergePaths`. The pinned matcher already treats
-`.github/`, path tokens such as `migration`, `deploy`, and `releases`, and `docs/decisions/` plus
-`docs/postmortems/` as sensitive without a Hub prefix.
+`releases/requests/` stays only in `protectedMergePaths`. The list covers policy and workflows,
+repository tooling under `scripts/`, the password, admin and account API controllers, route
+registration, the session, JWT, permission and token services, the identity, role and OIDC token
+models, login captcha and rate limiting, and the authentication contract paths. The pinned matcher
+also treats `.github/`, path tokens such as `migration`, `deploy`, and `releases`, and
+`docs/decisions/` plus `docs/postmortems/` as sensitive without a Hub prefix. Prefixes stay narrow
+enough that ordinary code, documentation and logging remain reviewable; `node --test
+scripts/test-oryn-validation.mjs` enforces that split against real repository paths, so a missing or
+dead prefix fails CI instead of surfacing in a live review.
 Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
