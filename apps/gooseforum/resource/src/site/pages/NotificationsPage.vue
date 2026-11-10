@@ -76,6 +76,9 @@ watch(
       userCategory = null
       markingAllRead.value = false
     }
+    // An accepted same-account payload replaces the visible page state even when the
+    // pinned-category branch below skips list replacement; pending reads must reload.
+    if (!awaitingOwnerPayload) listRevision++
     const incomingCategory = page.props.category ?? 'all'
     const incomingFilter = page.props.filter ?? 'all'
     // 服务端 payload 只在没有更新的用户选择时接管分类：同一次 flush 内既刷新

@@ -325,7 +325,7 @@ test('a concurrent failed single read restores only its row in the unread filter
   expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
 })
 
-test('a same-account layout refresh does not restore a pending optimistic row', async () => {
+test('a layout-only same-account refresh keeps the pending optimistic row', async () => {
   const pending = deferred<boolean>()
   api.markNotificationRead.mockReturnValueOnce(pending.promise)
   await mountPage()
@@ -333,6 +333,28 @@ test('a same-account layout refresh does not restore a pending optimistic row', 
   await wrapper!.setProps({ layout: { viewer: { id: 1024, isAuthenticated: true } } as any })
   expect(wrapper!.findAll('article button')).toHaveLength(0)
   expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
+})
+
+test.each(['success', 'failure'] as const)('a pinned-category payload refresh reconciles a pending single read (%s)', async variant => {
+  const mark = deferred<boolean>()
+  api.markNotificationRead.mockReturnValueOnce(mark.promise)
+  api.fetchNotifications.mockResolvedValueOnce(payload(3)).mockResolvedValueOnce(
+    variant === 'success' ? { ...payload(2), items: [{ ...item, isRead: true }] } : payload(3),
+  )
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(variant === 'success' ? 2 : 3)))
+  await mountPage(3, [item])
+  await click('Mentions') // pins the user category away from the payload's 'all'
+  await wrapper!.get('article button').trigger('click')
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('2 unread')
+  await wrapper!.setProps({ props: { ...wrapper!.props('props'), notifications: [{ ...item }], unreadCount: 3 } })
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe('3 unread')
+  if (variant === 'success') mark.resolve(true)
+  else mark.reject(new Error('offline'))
+  await flushPromises()
+  // The pending read must reconcile via a reload instead of local math on the stale payload count.
+  expect(api.fetchNotifications).toHaveBeenCalledTimes(2)
+  expect(wrapper!.get('[data-unread-summary]').text()).toBe(variant === 'success' ? '2 unread' : '3 unread')
+  expect(wrapper!.findAll('article button')).toHaveLength(variant === 'success' ? 0 : 1)
 })
 
 test.each([

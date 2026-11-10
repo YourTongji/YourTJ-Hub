@@ -130,8 +130,10 @@ async function refresh(force = false): Promise<UnreadStatusPayload> {
     const operation = fetchUnreadStatus(abort.signal).then(data => {
       if (captured === readGeneration) {
         // Preserve only the domain changed since this poll began; the other domain can advance.
+        // Polls are serialized by inFlight and sequences are monotonic, so this poll's own
+        // sequence is never behind appliedNotificationSequence when its response arrives.
         const next = { ...data }
-        if (capturedNotifications !== notificationRevision || notificationSequence < appliedNotificationSequence) Object.assign(next, {
+        if (capturedNotifications !== notificationRevision) Object.assign(next, {
           notifications: notifications.value, notificationCount: notificationCount.value,
           latestNotificationType: latestNotificationType.value, latestUnreadId: latestUnreadId.value,
         })
