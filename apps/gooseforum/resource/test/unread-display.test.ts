@@ -94,6 +94,25 @@ test('an old account response and cache cannot replace the next account snapshot
   expect(cached.data.notifications).toBe(false)
 })
 
+test.each(['notifications', 'messages'] as const)('a delayed poll cannot undo clearing %s or discard the other domain', async domain => {
+  let finish!: (value: unknown) => void
+  vi.stubGlobal('fetch', vi.fn(() => new Promise(resolve => { finish = resolve })))
+  status.startPolling(initial, 1024)
+  const poll = status.refresh(true)
+  if (domain === 'notifications') status.clearNotifications(status.captureNotificationRequest())
+  else status.clearMessages()
+  finish(response({ ...initial, notificationCount: 5, messageCount: 20 }))
+  await poll
+  expect(status.notificationCount.value).toBe(domain === 'notifications' ? 0 : 5)
+  expect(status.messageCount.value).toBe(domain === 'messages' ? 0 : 20)
+  const cache = JSON.parse(localStorage.getItem('goose:unread-status:1024')!).data
+  expect(cache.notificationCount).toBe(status.notificationCount.value)
+  expect(cache.messageCount).toBe(status.messageCount.value)
+  vi.mocked(fetch).mockResolvedValue(response({ ...initial, notificationCount: 1, messageCount: 1 }) as Response)
+  await status.refresh(true)
+  expect(status.notificationCount.value).toBe(1)
+  expect(status.messageCount.value).toBe(1)
+})
 
 test('category filtering saves independently, refreshes counts, and keeps browser delivery', async () => {
   const fetch = vi.fn().mockResolvedValueOnce(response({ badgeStyle: 'dot', badgeCategories: ['replies'] }))
