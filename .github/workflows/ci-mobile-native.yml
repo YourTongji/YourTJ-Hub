@@ -96,7 +96,7 @@ jobs:
       - name: Test Android widget projection
         if: matrix.platform == 'android'
         working-directory: apps/mobile/packages/forum_app/android
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew :app:testDebugUnitTest
       - name: Collect Android release size analysis
         if: matrix.platform == 'android'
         working-directory: apps/mobile/packages/forum_app
