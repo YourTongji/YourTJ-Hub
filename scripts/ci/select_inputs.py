@@ -48,6 +48,8 @@ def select(paths):
                 add("automation", reason=path)
                 continue
             add("mobile", reason=path)
+            if path.startswith("apps/mobile/packages/core/lib/src/gen/"):
+                add("contract", reason=path)
             if "server_message" in path:
                 add("frontend", reason=path)
             shared_native = path.endswith(("pubspec.yaml", "pubspec.lock", "pubspec_overrides.yaml", "build.yaml", "release-config.json")) or any(x in path for x in ("/hooks/", "/hook/", "/scripts/"))

@@ -223,7 +223,8 @@ settlement ledger; the forum would call its merchant distribution API. See the
   changes require measurements from the target PostgreSQL deployment (CPU, concurrency, p95 latency,
   and memory) before changing defaults.
 - For OpenAPI-covered operations, contract changes ship in the same PR: Go behavior/struct →
-  `openapi.yaml` → generated TypeScript output → fixture tests. Dart generation remains Planned.
+  `openapi.yaml` → generated TypeScript output → fixture tests. Dart generation is `Partial`: selected
+  wire models are generated from the same schemas; remaining mirrors retain explicit manual ownership.
 
 ## Private campus connection
 

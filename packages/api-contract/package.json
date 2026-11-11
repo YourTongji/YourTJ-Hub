@@ -12,7 +12,9 @@
     "check:coverage": "node scripts/check-route-coverage.mjs",
     "test": "node --test scripts/test-*.mjs",
     "check:fixtures": "node scripts/validate-fixtures.mjs",
-    "check": "pnpm run test && pnpm run lint && pnpm run bundle && pnpm run bundle:json && pnpm run check:fixtures && pnpm run generate:ts && pnpm run check:gen && pnpm run check:coverage"
+    "check": "pnpm run test && pnpm run lint && pnpm run bundle && pnpm run bundle:json && pnpm run check:fixtures && pnpm run generate:ts && pnpm run check:gen && pnpm run check:coverage && pnpm run check:dart",
+    "generate:dart": "node scripts/generate-dart-models.mjs",
+    "check:dart": "node scripts/generate-dart-models.mjs --check"
   },
   "devDependencies": {
     "@redocly/ajv": "8.11.2",
