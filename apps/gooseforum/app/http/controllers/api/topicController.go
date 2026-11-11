@@ -36,6 +36,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
@@ -362,6 +363,7 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 	if topic.PersonaUID != "" {
 		req.GinContext.Set(middleware.SkipUpdateUserActivity, true)
 	}
+	wasPublic := topic.Id != 0 && topic.Status == 1 && topic.ProcessStatus == topics.ProcessStatusNormal && firstPost.ProcessStatus == posts.ProcessStatusNormal
 	topic.CategoryIds = req.Params.CategoryId
 	topic.Status = req.Params.TopicStatus
 	images, err := fileusageservice.ResolveOwnedInlineImages(req.UserId, req.Params.Content, gallery)
@@ -557,6 +559,11 @@ func writeTopicWithMaintenance(req component.BetterRequest[WriteTopicReq], agent
 		if err := searchservice.EnqueueTopicSearchTask(tx, topic.Id); err != nil {
 			return err
 		}
+		if !wasPublic {
+			if err := pointservice.RewardPublicationTx(tx, topic.Id, firstPost.Id); err != nil {
+				return err
+			}
+		}
 		if maintenance != nil {
 			return maintenance.AuditTx(tx)
 		}
@@ -673,6 +680,11 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 		}
 		if nextStatus != 1 {
 			if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
+				return err
+			}
+		}
+		if nextStatus == 1 {
+			if err := pointservice.RewardPublicationTx(tx, topic.Id, topic.FirstPostId); err != nil {
 				return err
 			}
 		}
@@ -882,8 +894,11 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	if resolveErr != nil {
 		return component.FailResponseCode(component.MessageCommentCreateFailed, nil)
 	}
-	registerImages := func(tx *gorm.DB) error {
-		return fileusageservice.RegisterPostInlineImagesTx(tx, postEntity.Id, req.UserId, images, pendingReview)
+	registerPublication := func(tx *gorm.DB) error {
+		if err := fileusageservice.RegisterPostInlineImagesTx(tx, postEntity.Id, req.UserId, images, pendingReview); err != nil {
+			return err
+		}
+		return pointservice.RewardPublicationTx(tx, postEntity.TopicId, postEntity.Id)
 	}
 
 	if agent {
@@ -896,7 +911,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		}
 		after := func(tx *gorm.DB) error {
 			if !pendingReview {
-				if err := registerImages(tx); err != nil {
+				if err := registerPublication(tx); err != nil {
 					return err
 				}
 			}
@@ -913,7 +928,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	} else if pendingReview {
 		err = publicationservice.Submit(betterRequestContext(req), &topicEntity, postEntity)
 	} else {
-		err = postservice.CreateTopicPostWithHooks(postEntity, topicEntity, nil, registerImages)
+		err = postservice.CreateTopicPostWithHooks(postEntity, topicEntity, nil, registerPublication)
 	}
 	if err != nil {
 		if errors.Is(err, topicpolicyservice.ErrAgentRepliesDisabled) {

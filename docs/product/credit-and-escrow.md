@@ -8,7 +8,7 @@
 >
 > Owner: Product owner, Platform maintainers
 >
-> Last verified: 2026-10-26
+> Last verified: 2026-11-12
 
 ## Positioning
 
@@ -50,11 +50,18 @@ Forum built-in OIDC Provider (numeric sub = users.id)
 
 ## Current boundary
 
-- **Legacy forum-local point mechanics are `Current`**: accepted topic/reply events update the local
-  `user_points` balance and visible `users.prestige`; source keys make rewards idempotent, reply deletion
-  reverses its reward in the same transaction, and migration v14 reconstructs missing legacy balance rows.
-- **Forum-local delivery is `Partial`**: reward events use the in-memory event bus, so process loss after
-  content persistence can lose a reward; no durable outbox or reconciliation job currently repairs it.
+- **Legacy forum-local publication rewards are `Current`**: first publication of a forum topic (+10)
+  or reply (+2) commits `points_record`, `user_points`, and visible `users.prestige` in the same database
+  transaction as the content. This covers direct publication, draft publication, revision approval,
+  and legacy approval. A ledger failure rolls back publication; a retry uses the same source key.
+  Pending/rejected content, bot authors, and wiki first posts do not earn these rewards. Anonymous
+  replies credit their numeric owning account. Reply deletion reverses its reward in the delete
+  transaction, and migration v14 reconstructs missing legacy balance rows.
+- **Legacy reward recovery remains `Partial`**: event handlers remain compatible with queued events
+  and deduplicate against the same source keys. New publication does not depend on their delivery,
+  but no job reconstructs rewards lost before transactional publication, and content restoration
+  still uses its existing separate reward calls. This change does not provide a historical
+  reconciliation or atomic restoration guarantee. See the [transaction decision](../decisions/0128-transactional-publication-points.md).
 - **Forum XP end-to-end delivery is `Partial`**: `xp_balances` is a projection of the append-only `xp_entries` ledger;
   versioned reward rules track per-event, per-rule daily, and optional per-user daily positive XP limits
   on Asia/Shanghai dates from event time. XP levels are derived from the current balance and account eligibility. The

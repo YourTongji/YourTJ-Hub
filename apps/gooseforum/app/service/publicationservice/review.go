@@ -28,6 +28,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
@@ -353,6 +354,9 @@ func review(ctx context.Context, revisionID uint64, action, reason string, actor
 			}
 		}
 		if action == moderationDecision.ActionAllow && previous == 0 {
+			if err := pointservice.RewardPublicationTx(tx, topic.Id, post.Id); err != nil {
+				return err
+			}
 			activity, subject := userActivities.ActionComment, userActivities.SubjectPost
 			id := post.Id
 			if post.PostNo == 1 {
