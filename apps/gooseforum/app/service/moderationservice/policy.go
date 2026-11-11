@@ -5,7 +5,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/wordmatch"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/datastruct/message"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -14,40 +14,40 @@ import (
 )
 
 // CheckUsernameAllowed 检查用户名是否命中保留或禁用名单，未命中时返回空错误码与 nil。
-func CheckUsernameAllowed(username string) (component.MessageCode, error) {
+func CheckUsernameAllowed(username string) (message.MessageCode, error) {
 	return CheckUsernameAllowedWithConfig(username, hotdataserve.GetSecuritySettingsConfigCache())
 }
 
 // CheckUsernameAllowedWithConfig 使用给定配置检查用户名，便于测试。
 // 匹配为整串归一化后全等（wordmatch.NameOptions：大小写/NFKC/零宽折叠 +
 // ASCII leetspeak 折叠），不子串匹配，避免误伤 myadmin 之类合法名。
-func CheckUsernameAllowedWithConfig(username string, cfg pageConfig.SecurityAndRegistration) (component.MessageCode, error) {
+func CheckUsernameAllowedWithConfig(username string, cfg pageConfig.SecurityAndRegistration) (message.MessageCode, error) {
 	reserved := wordmatch.Compile(cfg.ReservedUsernames, wordmatch.NameOptions)
 	if _, ok := reserved.Equal(username); ok {
-		return component.MessageAuthUsernameReserved, component.NewMessageError(component.MessageAuthUsernameReserved, "该用户名已被保留，不可使用", nil)
+		return message.MessageAuthUsernameReserved, message.NewMessageError(message.MessageAuthUsernameReserved, "该用户名已被保留，不可使用", nil)
 	}
 	banned := wordmatch.Compile(cfg.BannedUsernames, wordmatch.NameOptions)
 	if _, ok := banned.Equal(username); ok {
-		return component.MessageAuthUsernameBanned, component.NewMessageError(component.MessageAuthUsernameBanned, "该用户名已被禁用，不可使用", nil)
+		return message.MessageAuthUsernameBanned, message.NewMessageError(message.MessageAuthUsernameBanned, "该用户名已被禁用，不可使用", nil)
 	}
 	return "", nil
 }
 
 // CheckNicknameAllowed 检查昵称是否命中保留或禁用名单（与用户名同一份名单、
 // 同一归一化全等规则，防止 "官方/客服/管理员" 之类冒充性昵称），未命中返回空错误码与 nil。
-func CheckNicknameAllowed(nickname string) (component.MessageCode, error) {
+func CheckNicknameAllowed(nickname string) (message.MessageCode, error) {
 	return CheckNicknameAllowedWithConfig(nickname, hotdataserve.GetSecuritySettingsConfigCache())
 }
 
 // CheckNicknameAllowedWithConfig 使用给定配置检查昵称，便于测试。
-func CheckNicknameAllowedWithConfig(nickname string, cfg pageConfig.SecurityAndRegistration) (component.MessageCode, error) {
+func CheckNicknameAllowedWithConfig(nickname string, cfg pageConfig.SecurityAndRegistration) (message.MessageCode, error) {
 	reserved := wordmatch.Compile(cfg.ReservedUsernames, wordmatch.NameOptions)
 	if _, ok := reserved.Equal(nickname); ok {
-		return component.MessageAuthNicknameReserved, component.NewMessageError(component.MessageAuthNicknameReserved, "该昵称已被保留，不可使用", nil)
+		return message.MessageAuthNicknameReserved, message.NewMessageError(message.MessageAuthNicknameReserved, "该昵称已被保留，不可使用", nil)
 	}
 	banned := wordmatch.Compile(cfg.BannedUsernames, wordmatch.NameOptions)
 	if _, ok := banned.Equal(nickname); ok {
-		return component.MessageAuthNicknameBanned, component.NewMessageError(component.MessageAuthNicknameBanned, "该昵称已被禁用，不可使用", nil)
+		return message.MessageAuthNicknameBanned, message.NewMessageError(message.MessageAuthNicknameBanned, "该昵称已被禁用，不可使用", nil)
 	}
 	return "", nil
 }

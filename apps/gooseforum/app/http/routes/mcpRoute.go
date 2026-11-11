@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/mcp"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mcpservice"
+	"github.com/gin-gonic/gin"
 )
 
 // mcpRoute mounts the MCP streamable HTTP endpoint at /mcp.
