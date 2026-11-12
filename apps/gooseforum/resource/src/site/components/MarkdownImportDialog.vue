@@ -5,11 +5,14 @@
  * 链路，审核规则不变）→ 预览最终正文 → 替换或插入到编辑器。
  *
  * 网络图片由浏览器直接下载（服务端不抓取外链图片）；图床不允许跨站下载时，用户可
- * 手动选择本地文件替换。导入时仍未上传的图片：网络图保留为普通链接，本地/内嵌图只保留
- * 替代文字，正文里不会出现无法显示的外链图片。
+ * 手动选择本地文件替换。本地图片按文档里的相对路径，在选择/拖入的文件夹中自动匹配；
+ * 找不到的可以补选文件夹或图片后一次性重新匹配。已上传的图片可以替换、移除或还原；
+ * 被替换/移除/放弃的上传不会出现在正文里，由孤儿附件清理回收（OrphanUploadTTL）。
+ * 导入时仍未上传的图片：网络图保留为普通链接，本地/内嵌图只保留替代文字，正文里不会出现
+ * 无法显示的外链图片。
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { AlertTriangle, Check, FileInput, FileText, ImageOff, Loader2, RotateCw, Upload, X } from '@lucide/vue'
+import { AlertTriangle, Check, FileInput, FileText, FolderOpen, ImageOff, Loader2, RotateCcw, RotateCw, Upload, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import GfSwitch from '@/site/components/GfSwitch.vue'
@@ -21,15 +24,19 @@ import {
   ImportImageError,
   MARKDOWN_IMPORT_ACCEPT,
   MARKDOWN_IMPORT_MAX_BYTES,
+  collectDroppedFiles,
   dataUrlToFile,
   downloadRemoteImage,
   imageMarkdown,
+  isImportImageFile,
   isMarkdownFile,
+  localImportFiles,
   matchLocalImage,
   parseMarkdownImport,
   rewriteImportImages,
   unresolvedImageFallback,
   type ImportImage,
+  type LocalImportFile,
   type MarkdownImportResult,
 } from '@/runtime/markdown-import'
 
@@ -59,17 +66,27 @@ interface ImportItem extends ImportImage {
   url: string
   error: string
   replacement: File | null
+  /** 自动匹配到的本地文件路径，便于核对 */
+  matchedPath: string
+  /** 用户选择不使用这张图：导入时按未上传处理（链接/替代文字） */
+  excluded: boolean
+  /** 替换前已上传的地址：替换后可以还原 */
+  previousUrl: string
 }
 
 const { t } = useI18n()
 const fileInput = ref<HTMLInputElement | null>(null)
+const folderInput = ref<HTMLInputElement | null>(null)
+const imagesInput = ref<HTMLInputElement | null>(null)
 const replaceInput = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
 const error = ref('')
 const fileName = ref('')
 const parsed = ref<MarkdownImportResult | null>(null)
 const items = ref<ImportItem[]>([])
-const localFiles = ref<File[]>([])
+const markdownPath = ref('')
+const markdownChoices = ref<LocalImportFile[]>([])
+const localFiles = ref<LocalImportFile[]>([])
 const useTitle = ref(false)
 const mode = ref<'replace' | 'insert'>('replace')
 let replaceTarget: ImportItem | null = null
@@ -80,9 +97,12 @@ const CONCURRENCY = 2
 
 const processing = computed(() => items.value.some((item) => item.status === 'pending' || item.status === 'working'))
 const uploadable = computed(() => items.value.filter((item) => item.kind !== 'site'))
-const doneCount = computed(() => uploadable.value.filter((item) => item.status === 'done').length)
-const unresolvedCount = computed(() => uploadable.value.filter((item) => item.status === 'needs-file' || item.status === 'failed').length)
-const progressPercent = computed(() => (uploadable.value.length ? Math.round((doneCount.value / uploadable.value.length) * 100) : 100))
+const doneCount = computed(() => uploadable.value.filter((item) => item.status === 'done' && !item.excluded).length)
+const excludedCount = computed(() => uploadable.value.filter((item) => item.excluded).length)
+const unresolvedCount = computed(() => uploadable.value.filter((item) => !item.excluded && (item.status === 'needs-file' || item.status === 'failed')).length)
+const missingLocalCount = computed(() => uploadable.value.filter((item) => !item.excluded && item.status === 'needs-file').length)
+const settledCount = computed(() => doneCount.value + excludedCount.value)
+const progressPercent = computed(() => (uploadable.value.length ? Math.round((settledCount.value / uploadable.value.length) * 100) : 100))
 const showTitleOption = computed(() => Boolean(props.allowTitle && parsed.value?.title))
 
 const finalBody = computed(() => {
@@ -92,7 +112,7 @@ const finalBody = computed(() => {
   let body = rewriteImportImages(result.body, (src, alt) => {
     const item = byUrl.get(src)
     if (!item || item.kind === 'site') return undefined
-    if (item.status === 'done' && item.url) return imageMarkdown(alt, item.url)
+    if (item.status === 'done' && item.url && !item.excluded) return imageMarkdown(alt, item.url)
     return unresolvedImageFallback({ src, alt, kind: item.kind })
   })
   // 不用作标题时，来自首行一级标题的标题回到正文开头
@@ -118,6 +138,8 @@ function reset() {
   fileName.value = ''
   parsed.value = null
   items.value = []
+  markdownPath.value = ''
+  markdownChoices.value = []
   localFiles.value = []
   dragging.value = false
 }
@@ -131,24 +153,71 @@ watch(open, (value) => {
   }
 })
 
+// 模板里的 webkitdirectory 没有类型声明，直接设属性；对话框内容打开后才渲染
+watch(folderInput, (input) => {
+  if (input) input.webkitdirectory = true
+})
 onBeforeUnmount(() => controller.abort())
 
 function chooseFile() {
   fileInput.value?.click()
 }
 
+function chooseFolder() {
+  folderInput.value?.click()
+}
+
+function chooseImages() {
+  imagesInput.value?.click()
+}
+
 function formatSize(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
-async function loadFiles(files: File[]) {
+/** 加入本地图片（按路径去重），并让找不到文件的图片重新匹配 */
+function addLocalFiles(files: readonly LocalImportFile[]) {
+  const known = new Set(localFiles.value.map((entry) => entry.path))
+  const added = files.filter((entry) => isImportImageFile(entry.file) && !known.has(entry.path))
+  if (!added.length) return
+  localFiles.value = [...localFiles.value, ...added]
+  for (const item of items.value) if (item.kind === 'local' && item.status === 'needs-file' && !item.replacement) item.status = 'pending'
+  void runQueue()
+}
+
+function shallowFirst(a: LocalImportFile, b: LocalImportFile) {
+  return a.path.split('/').length - b.path.split('/').length || a.path.localeCompare(b.path)
+}
+
+async function loadFiles(files: LocalImportFile[]) {
   error.value = ''
-  const markdown = files.find(isMarkdownFile)
-  if (!markdown) {
-    error.value = t('editor.import.errorNoMarkdown')
+  const documents = files.filter((entry) => isMarkdownFile(entry.file)).sort(shallowFirst)
+  // 文件夹里同时有 .md 与 .txt 时，.txt 多半只是附带说明，优先 Markdown
+  const markdownOnly = documents.filter((entry) => !/\.txt$/i.test(entry.file.name))
+  const markdowns = markdownOnly.length ? markdownOnly : documents
+  if (!markdowns.length) {
+    // 已导入文档时，单独选择/拖入的图片或文件夹用来补齐本地图片
+    if (parsed.value) addLocalFiles(files)
+    else error.value = t('editor.import.errorNoMarkdown')
     return
   }
-  if (markdown.size > MARKDOWN_IMPORT_MAX_BYTES) {
+  const images = files.filter((entry) => isImportImageFile(entry.file))
+  if (markdowns.length > 1) {
+    // 文件夹里有多份文档：让用户选一份，图片留着做匹配
+    controller.abort()
+    controller = new AbortController()
+    parsed.value = null
+    items.value = []
+    markdownChoices.value = markdowns
+    localFiles.value = images
+    return
+  }
+  await loadMarkdown(markdowns[0], images)
+}
+
+async function loadMarkdown(markdown: LocalImportFile, images: LocalImportFile[]) {
+  error.value = ''
+  if (markdown.file.size > MARKDOWN_IMPORT_MAX_BYTES) {
     error.value = t('editor.import.errorTooLarge', { size: formatSize(MARKDOWN_IMPORT_MAX_BYTES) })
     return
   }
@@ -156,7 +225,7 @@ async function loadFiles(files: File[]) {
   controller = new AbortController()
   let text: string
   try {
-    text = await markdown.text()
+    text = await markdown.file.text()
   } catch {
     error.value = t('editor.import.errorRead')
     return
@@ -166,8 +235,10 @@ async function loadFiles(files: File[]) {
     error.value = t('editor.import.errorEmpty')
     return
   }
-  fileName.value = markdown.name
-  localFiles.value = files.filter((file) => file !== markdown && file.type.startsWith('image/'))
+  fileName.value = markdown.file.name
+  markdownPath.value = markdown.path
+  markdownChoices.value = []
+  localFiles.value = images
   parsed.value = result
   useTitle.value = Boolean(props.titleEmpty)
   items.value = result.images.map((image) => ({
@@ -176,21 +247,53 @@ async function loadFiles(files: File[]) {
     url: image.kind === 'site' ? image.src : '',
     error: '',
     replacement: null,
+    matchedPath: '',
+    excluded: false,
+    previousUrl: '',
   }))
   void runQueue()
 }
 
+function chooseMarkdown(markdown: LocalImportFile) {
+  void loadMarkdown(markdown, localFiles.value)
+}
+
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
+  const files = localImportFiles(Array.from(input.files ?? []))
   input.value = ''
   if (files.length) void loadFiles(files)
 }
 
+/** 已载入文档后选择的文件夹只用来补齐图片：重新载入会丢掉替换/移除并重复上传 */
+function onFolderChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = localImportFiles(Array.from(input.files ?? []))
+  input.value = ''
+  if (!files.length) return
+  if (parsed.value) addLocalFiles(files)
+  else void loadFiles(files)
+}
+
+function onImagesChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = localImportFiles(Array.from(input.files ?? []))
+  input.value = ''
+  if (files.length) addLocalFiles(files)
+}
+
 function onDrop(event: DragEvent) {
   dragging.value = false
-  const files = Array.from(event.dataTransfer?.files ?? [])
-  if (files.length) void loadFiles(files)
+  if (!event.dataTransfer) return
+  void collectDroppedFiles(event.dataTransfer).then((files) => {
+    if (files.length) return loadFiles(files)
+  })
+}
+
+function onSupplementDrop(event: DragEvent) {
+  dragging.value = false
+  if (!event.dataTransfer) return
+  void collectDroppedFiles(event.dataTransfer).then(addLocalFiles)
 }
 
 function errorMessage(err: unknown): string {
@@ -207,10 +310,14 @@ async function sourceFile(item: ImportItem, signal: AbortSignal): Promise<File |
   if (item.replacement) return item.replacement
   if (item.kind === 'remote') return downloadRemoteImage(item.src, fetch, signal)
   if (item.kind === 'data') return dataUrlToFile(item.src)
-  return matchLocalImage(item.src, localFiles.value) ?? null
+  const match = matchLocalImage(item.src, localFiles.value, markdownPath.value)
+  item.matchedPath = match?.path ?? ''
+  return match?.file ?? null
 }
 
 async function resolveItem(item: ImportItem) {
+  // 重试/补选可能在队列运行中再起一个队列：已被领走的不再处理
+  if (item.status !== 'pending') return
   const { signal } = controller
   item.status = 'working'
   item.error = ''
@@ -259,6 +366,24 @@ function chooseReplacement(item: ImportItem) {
   replaceInput.value?.click()
 }
 
+function excludeItem(item: ImportItem) {
+  item.excluded = true
+}
+
+function restoreItem(item: ImportItem) {
+  item.excluded = false
+}
+
+/** 还原到替换前已上传的图片 */
+function revertReplacement(item: ImportItem) {
+  if (!item.previousUrl) return
+  item.url = item.previousUrl
+  item.previousUrl = ''
+  item.replacement = null
+  item.error = ''
+  item.status = 'done'
+}
+
 function onReplacementChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -266,7 +391,9 @@ function onReplacementChange(event: Event) {
   const item = replaceTarget
   replaceTarget = null
   if (!file || !item) return
+  if (item.status === 'done' && item.url && !item.previousUrl) item.previousUrl = item.url
   item.replacement = file
+  item.excluded = false
   item.status = 'pending'
   void runQueue()
 }
@@ -278,7 +405,9 @@ function itemLabel(item: ImportItem) {
 }
 
 function itemSource(item: ImportItem) {
+  if (item.replacement) return item.replacement.name
   if (item.kind === 'data') return t('editor.import.embeddedImage')
+  if (item.matchedPath) return item.matchedPath
   if (item.kind === 'remote') {
     try {
       return new URL(item.src.startsWith('//') ? `https:${item.src}` : item.src).host
@@ -290,13 +419,15 @@ function itemSource(item: ImportItem) {
 }
 
 function statusText(item: ImportItem) {
+  if (item.excluded) return item.kind === 'remote' ? t('editor.import.statusExcludedLink') : t('editor.import.statusExcludedText')
   switch (item.status) {
     case 'pending':
       return t('editor.import.statusPending')
     case 'working':
       return item.kind === 'remote' && !item.replacement ? t('editor.import.statusDownloading') : t('editor.import.statusUploading')
     case 'done':
-      return item.kind === 'site' ? t('editor.import.statusSite') : t('editor.import.statusDone')
+      if (item.kind === 'site') return t('editor.import.statusSite')
+      return item.previousUrl ? t('editor.import.statusReplaced') : t('editor.import.statusDone')
     case 'needs-file':
       return t('editor.import.statusNeedsFile')
     default:
@@ -343,24 +474,55 @@ function apply() {
 
           <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-1 pt-4 sm:px-5">
             <input ref="fileInput" type="file" class="hidden" multiple :accept="`${MARKDOWN_IMPORT_ACCEPT},image/*`" @change="onFileChange" />
+            <input ref="folderInput" type="file" class="hidden" multiple @change="onFolderChange" />
+            <input ref="imagesInput" type="file" class="hidden" multiple accept="image/*" @change="onImagesChange" />
             <input ref="replaceInput" type="file" class="hidden" accept="image/*" @change="onReplacementChange" />
 
-            <!-- 选择文件：整块是一个按钮，拖入同样可用 -->
-            <button
-              v-if="!parsed"
-              type="button"
-              class="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-6 py-10 text-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              :class="dragging ? 'border-primary bg-primary/5' : 'border-base-content/20 hover:border-base-content/35 hover:bg-base-200/60'"
-              @click="chooseFile"
+            <!-- 选择文件：整块是一个按钮，拖入文件或文件夹同样可用 -->
+            <div
+              v-if="!parsed && !markdownChoices.length"
+              class="rounded-xl border border-dashed transition-colors duration-150 ease-out"
+              :class="dragging ? 'border-primary bg-primary/5' : 'border-base-content/20'"
+              data-test="import-dropzone"
               @dragenter.prevent="dragging = true"
               @dragover.prevent="dragging = true"
               @dragleave.prevent="dragging = false"
               @drop.prevent="onDrop"
             >
-              <Upload class="h-6 w-6 text-base-content/45" />
-              <span class="text-sm font-medium text-base-content">{{ t('editor.import.dropTitle') }}</span>
-              <span class="max-w-sm text-xs leading-5 text-base-content/55 [text-wrap:pretty]">{{ t('editor.import.dropHint', { size: formatSize(MARKDOWN_IMPORT_MAX_BYTES) }) }}</span>
-            </button>
+              <button
+                type="button"
+                class="flex w-full flex-col items-center justify-center gap-2 rounded-xl px-6 pb-4 pt-10 text-center transition-colors duration-150 ease-out hover:bg-base-200/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                @click="chooseFile"
+              >
+                <Upload class="h-6 w-6 text-base-content/45" />
+                <span class="text-sm font-medium text-base-content">{{ t('editor.import.dropTitle') }}</span>
+                <span class="max-w-sm text-xs leading-5 text-base-content/55 [text-wrap:pretty]">{{ t('editor.import.dropHint', { size: formatSize(MARKDOWN_IMPORT_MAX_BYTES) }) }}</span>
+              </button>
+              <div class="flex justify-center pb-6">
+                <button type="button" class="gf-button gf-button-sm gf-button-outline" @click="chooseFolder">
+                  <FolderOpen class="h-3.5 w-3.5" />
+                  {{ t('editor.import.chooseFolder') }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 文件夹里有多份文档：选一份导入 -->
+            <section v-else-if="!parsed" data-test="import-markdown-choices">
+              <h3 class="mb-2 text-sm font-semibold text-base-content">{{ t('editor.import.chooseMarkdown', { count: markdownChoices.length }) }}</h3>
+              <ul class="max-h-72 space-y-1 overflow-y-auto">
+                <li v-for="choice in markdownChoices" :key="choice.path">
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-start transition-colors duration-150 ease-out hover:bg-base-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    @click="chooseMarkdown(choice)"
+                  >
+                    <FileText class="h-4 w-4 shrink-0 text-base-content/55" />
+                    <span class="min-w-0 flex-1 truncate text-sm text-base-content" :title="choice.path">{{ choice.path }}</span>
+                    <span class="shrink-0 text-xs tabular-nums text-base-content/50">{{ formatSize(choice.file.size) }}</span>
+                  </button>
+                </li>
+              </ul>
+            </section>
 
             <template v-else>
               <!-- 文档信息 -->
@@ -390,7 +552,7 @@ function apply() {
               <section v-if="uploadable.length" class="mt-4">
                 <div class="mb-2 flex items-center gap-2">
                   <h3 class="text-sm font-semibold text-base-content">{{ t('editor.import.images') }}</h3>
-                  <span class="text-xs tabular-nums text-base-content/55">{{ doneCount }}/{{ uploadable.length }}</span>
+                  <span class="text-xs tabular-nums text-base-content/55">{{ settledCount }}/{{ uploadable.length }}</span>
                   <button
                     v-if="items.some((item) => item.status === 'failed') && !processing"
                     type="button"
@@ -405,40 +567,102 @@ function apply() {
                   <div class="h-full rounded-full bg-primary transition-[width] duration-300 ease-out" :style="{ width: `${progressPercent}%` }" />
                 </div>
                 <ul class="max-h-56 space-y-1 overflow-y-auto">
-                  <li v-for="item in uploadable" :key="item.src" class="flex items-center gap-3 rounded-lg px-2 py-1.5">
-                    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md" :class="item.status === 'done' ? 'bg-success/10 text-success' : item.status === 'failed' || item.status === 'needs-file' ? 'bg-warning/10 text-warning' : 'bg-base-200 text-base-content/50'">
-                      <Loader2 v-if="item.status === 'working'" class="h-3.5 w-3.5 animate-spin" />
+                  <li v-for="item in uploadable" :key="item.src" class="flex items-center gap-3 rounded-lg px-2 py-1.5" data-test="import-image">
+                    <img
+                      v-if="item.status === 'done' && item.url && !item.excluded"
+                      :src="item.url"
+                      alt=""
+                      class="h-8 w-8 shrink-0 rounded-md object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
+                      loading="lazy"
+                    />
+                    <span v-else class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" :class="item.excluded ? 'bg-base-200 text-base-content/40' : item.status === 'failed' || item.status === 'needs-file' ? 'bg-warning/10 text-warning' : 'bg-base-200 text-base-content/50'">
+                      <ImageOff v-if="item.excluded" class="h-3.5 w-3.5" />
+                      <Loader2 v-else-if="item.status === 'working'" class="h-3.5 w-3.5 animate-spin" />
                       <Check v-else-if="item.status === 'done'" class="h-3.5 w-3.5" />
                       <AlertTriangle v-else-if="item.status === 'failed'" class="h-3.5 w-3.5" />
                       <ImageOff v-else-if="item.status === 'needs-file'" class="h-3.5 w-3.5" />
                       <Upload v-else class="h-3.5 w-3.5" />
                     </span>
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm text-base-content" :title="item.src.startsWith('data:') ? undefined : item.src">{{ itemLabel(item) }}</p>
-                      <p class="truncate text-xs text-base-content/55" :class="{ 'text-warning': item.status === 'failed' || item.status === 'needs-file' }">
+                      <p class="truncate text-sm" :class="item.excluded ? 'text-base-content/50 line-through' : 'text-base-content'" :title="item.src.startsWith('data:') ? undefined : item.src">{{ itemLabel(item) }}</p>
+                      <p class="truncate text-xs text-base-content/55" :class="{ 'text-warning': !item.excluded && (item.status === 'failed' || item.status === 'needs-file') }">
                         <span class="text-base-content/45">{{ itemSource(item) }}</span>
                         <span aria-hidden="true"> · </span>{{ statusText(item) }}
                       </p>
                     </div>
-                    <button
-                      v-if="item.status === 'failed' && item.kind === 'remote' && !item.replacement"
-                      type="button"
-                      class="gf-button gf-button-sm gf-button-ghost shrink-0"
-                      :aria-label="t('editor.import.retry')"
-                      @click="retry(item)"
-                    >
-                      <RotateCw class="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      v-if="item.status === 'failed' || item.status === 'needs-file'"
-                      type="button"
-                      class="gf-button gf-button-sm gf-button-outline shrink-0"
-                      @click="chooseReplacement(item)"
-                    >
-                      {{ t('editor.import.chooseImage') }}
-                    </button>
+                    <template v-if="item.excluded">
+                      <button type="button" class="gf-button gf-button-sm gf-button-ghost shrink-0" @click="restoreItem(item)">
+                        {{ t('editor.import.restoreImage') }}
+                      </button>
+                    </template>
+                    <template v-else>
+                      <button
+                        v-if="item.status === 'failed' && item.kind === 'remote' && !item.replacement"
+                        type="button"
+                        class="gf-button gf-button-sm gf-button-ghost shrink-0"
+                        :aria-label="t('editor.import.retry')"
+                        @click="retry(item)"
+                      >
+                        <RotateCw class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        v-if="item.previousUrl && (item.status === 'done' || item.status === 'failed')"
+                        type="button"
+                        class="gf-button gf-button-sm gf-button-ghost shrink-0"
+                        :aria-label="t('editor.import.revertReplacement')"
+                        :title="t('editor.import.revertReplacement')"
+                        @click="revertReplacement(item)"
+                      >
+                        <RotateCcw class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        v-if="item.status === 'failed' || item.status === 'needs-file'"
+                        type="button"
+                        class="gf-button gf-button-sm gf-button-outline shrink-0"
+                        @click="chooseReplacement(item)"
+                      >
+                        {{ t('editor.import.chooseImage') }}
+                      </button>
+                      <template v-else-if="item.status === 'done'">
+                        <button type="button" class="gf-button gf-button-sm gf-button-ghost shrink-0" @click="chooseReplacement(item)">
+                          {{ t('editor.import.replaceImage') }}
+                        </button>
+                        <button
+                          type="button"
+                          class="gf-button gf-button-sm gf-button-ghost shrink-0"
+                          :aria-label="t('editor.import.removeImage')"
+                          :title="t('editor.import.removeImage')"
+                          @click="excludeItem(item)"
+                        >
+                          <X class="h-3.5 w-3.5" />
+                        </button>
+                      </template>
+                    </template>
                   </li>
                 </ul>
+                <!-- 本地图片没找到：补选文件夹或图片（也可拖入），按相对路径一次性重新匹配 -->
+                <div
+                  v-if="missingLocalCount && !processing"
+                  class="mt-2 rounded-xl border border-dashed px-3 py-2.5 transition-colors duration-150 ease-out"
+                  :class="dragging ? 'border-primary bg-primary/5' : 'border-warning/40 bg-warning/5'"
+                  data-test="import-missing-local"
+                  @dragenter.prevent="dragging = true"
+                  @dragover.prevent="dragging = true"
+                  @dragleave.prevent="dragging = false"
+                  @drop.prevent="onSupplementDrop"
+                >
+                  <p class="text-sm font-medium text-base-content">{{ t('editor.import.missingLocalTitle', { count: missingLocalCount }) }}</p>
+                  <p class="mt-0.5 text-xs leading-5 text-base-content/60 [text-wrap:pretty]">{{ t('editor.import.missingLocalHint') }}</p>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <button type="button" class="gf-button gf-button-sm gf-button-outline" @click="chooseFolder">
+                      <FolderOpen class="h-3.5 w-3.5" />
+                      {{ t('editor.import.chooseFolder') }}
+                    </button>
+                    <button type="button" class="gf-button gf-button-sm gf-button-ghost" @click="chooseImages">
+                      {{ t('editor.import.chooseImages') }}
+                    </button>
+                  </div>
+                </div>
                 <p v-if="unresolvedCount && !processing" class="mt-2 flex items-start gap-2 text-xs leading-5 text-base-content/60">
                   <AlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                   <span>{{ t('editor.import.unresolvedNote', { count: unresolvedCount }) }}</span>

@@ -7,6 +7,8 @@ import {
   dataUrlToFile,
   downloadRemoteImage,
   fileNameFromSrc,
+  collectDroppedFiles,
+  localImportFiles,
   matchLocalImage,
   parseMarkdownImport,
   rewriteImportImages,
@@ -110,13 +112,52 @@ describe('Markdown 导入改写', () => {
     expect(fileNameFromSrc('data:image/png;base64,AAAA', 'image/jpeg')).toBe('image.jpg')
   })
 
-  test('本地图片先按相对路径匹配，再按文件名匹配', () => {
-    const nested = new File(['a'], 'shot.png', { type: 'image/png' })
-    Object.defineProperty(nested, 'webkitRelativePath', { value: 'notes/assets/shot.png' })
-    const loose = new File(['b'], 'shot.png', { type: 'image/png' })
+  test('本地图片先按文档目录解析相对路径，再取唯一的最长路径后缀匹配', () => {
+    const image = (path: string) => ({ file: new File(['x'], path.split('/').pop()!, { type: 'image/png' }), path })
+    const nested = image('notes/assets/shot.png')
+    const loose = image('shot.png')
+    const shared = image('vault/attachments/diagram.png')
+    const other = image('vault/notes/assets/diagram.png')
     expect(matchLocalImage('./assets/shot.png', [loose, nested])).toBe(nested)
     expect(matchLocalImage('C:\\Users\\me\\Pictures\\SHOT.png', [loose])).toBe(loose)
     expect(matchLocalImage('missing.png', [loose])).toBeUndefined()
+    // 文档在子目录，`../` 回到上级目录
+    expect(matchLocalImage('../attachments/diagram.png', [other, shared], 'vault/notes/post.md')).toBe(shared)
+    expect(matchLocalImage('assets/diagram.png', [shared, other], 'vault/notes/post.md')).toBe(other)
+    // 百分号编码的空格、file:// 绝对路径
+    const spaced = image('pics/my shot.png')
+    expect(matchLocalImage('pics/my%20shot.png', [spaced])).toBe(spaced)
+    expect(matchLocalImage('file:///Users/me/blog/pics/my%20shot.png', [spaced])).toBe(spaced)
+    // 只有文件名相同且有多个候选时不猜
+    expect(matchLocalImage('diagram.png', [shared, other])).toBeUndefined()
+  })
+
+  test('localImportFiles 保留文件夹内的相对路径', () => {
+    const file = new File(['x'], 'a.png', { type: 'image/png' })
+    Object.defineProperty(file, 'webkitRelativePath', { value: 'blog/img/a.png' })
+    const loose = new File(['y'], 'b.png', { type: 'image/png' })
+    expect(localImportFiles([file, loose]).map((entry) => entry.path)).toEqual(['blog/img/a.png', 'b.png'])
+  })
+
+  test('collectDroppedFiles 递归展开拖入的文件夹并跳过依赖目录', async () => {
+    const fileEntry = (name: string) => ({ name, isFile: true, isDirectory: false, file: (ok: (file: File) => void) => ok(new File(['x'], name)) })
+    const dirEntry = (name: string, children: unknown[]) => ({
+      name, isFile: false, isDirectory: true,
+      createReader: () => {
+        let read = false
+        return { readEntries: (ok: (entries: unknown[]) => void) => { ok(read ? [] : children); read = true } }
+      },
+    })
+    const root = dirEntry('blog', [fileEntry('post.md'), dirEntry('img', [fileEntry('a.png')]), dirEntry('node_modules', [fileEntry('x.png')])])
+    const transfer = { items: [{ kind: 'file', webkitGetAsEntry: () => root }], files: [] } as unknown as DataTransfer
+    const files = await collectDroppedFiles(transfer)
+    expect(files.map((entry) => entry.path)).toEqual(['blog/post.md', 'blog/img/a.png'])
+  })
+
+  test('Obsidian 图片嵌入转换为行内图片', () => {
+    const result = parseMarkdownImport('正文 ![[附件 1.png|300]] 与 ![[notes.md]]')
+    expect(result.body).toBe('正文 ![](<附件 1.png>) 与 ![[notes.md]]')
+    expect(result.images).toEqual([{ src: '附件 1.png', alt: '', kind: 'local' }])
   })
 
   test('classifyImageSrc：协议相对地址按网络图处理', () => {

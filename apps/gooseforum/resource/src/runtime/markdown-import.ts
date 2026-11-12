@@ -4,11 +4,12 @@
  * - 去掉 BOM、统一换行、去掉 YAML front matter（其 title 作为标题候选）；首行一级标题
  *   也作为标题候选（宿主可选择放回正文）。
  * - 站点不渲染原始 HTML：`<img>` 转成 Markdown 图片、注释删除，其余标签只计数提示。
- * - 引用式图片 `![alt][ref]` 展开为行内图片，后续只需处理一种写法。
+ * - 引用式图片 `![alt][ref]` 与 Obsidian 嵌入 `![[图片.png]]` 展开为行内图片，后续只需处理一种写法。
  * - 图片按来源分类：remote（网络图）、local（相对/本地路径）、data（内嵌 base64）、
  *   site（已是本站附件）。网络图由浏览器下载后走编辑器同一条上传链路（含审核）；
  *   服务端不抓取外链图片（见 moderationDecision.EvidenceExternal），下载失败的图片
  *   交由用户手动选择本地文件，仍未解决的在导入时降级为普通链接 / 替代文字。
+ * - 本地图片按文档所在目录解析相对路径（含 `../`），在用户选择或拖入的文件夹里匹配。
  *
  * 所有改写只发生在正文文本里，围栏/缩进代码块与行内代码原样保留。
  */
@@ -39,6 +40,8 @@ export const MARKDOWN_IMPORT_MAX_BYTES = 2 * 1024 * 1024
 export const MARKDOWN_IMPORT_ACCEPT = '.md,.markdown,.mdown,.mkd,.txt,text/markdown,text/plain'
 
 const MARKDOWN_FILE_RE = /\.(md|markdown|mdown|mkd|txt)$/i
+const IMAGE_FILE_RE = /\.(png|jpe?g|gif|webp|avif|svg|bmp|heic|heif)$/i
+const WIKI_IMAGE_RE = /!\[\[([^\]|\n]+?\.(?:png|jpe?g|gif|webp|avif|svg|bmp))(?:\|[^\]\n]*)?\]\]/gi
 const FRONT_MATTER_RE = /^---[ \t]*\n([\s\S]*?)\n(?:---|\.\.\.)[ \t]*(?:\n|$)/
 const IMAGE_RE = /!\[((?:\\.|[^\]\\\n])*)\]\(\s*(<[^>\n]*>|[^\s)]+)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\s*\)/g
 const REFERENCE_DEF_RE = /^ {0,3}\[([^\]\n]+)\]:[ \t]*<?([^\s>]+)>?(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?[ \t]*$/gm
@@ -48,6 +51,10 @@ const PLACEHOLDER_RE = /\u0000(\d+)\u0000/g
 
 export function isMarkdownFile(file: File): boolean {
   return MARKDOWN_FILE_RE.test(file.name) || file.type === 'text/markdown'
+}
+
+export function isImportImageFile(file: File): boolean {
+  return file.type.startsWith('image/') || IMAGE_FILE_RE.test(file.name)
 }
 
 /** 围栏/缩进代码块所在行：只在代码之外改写正文 */
@@ -132,6 +139,7 @@ function normalizeProse(prose: string, definitions: Map<string, string>): string
       const url = definitions.get(normalizeLabel(unescapeAlt(alt)))
       return url ? `![${alt}](${linkDestination(url)})` : match
     })
+    .replace(WIKI_IMAGE_RE, (_, target: string) => `![](${linkDestination(target.trim())})`)
 }
 
 function leadingHeadingTitle(text: string): { title: string; body: string } | null {
@@ -241,6 +249,56 @@ export function fileNameFromSrc(src: string, mime = ''): string {
   return name
 }
 
+/** 导入时可用的本地文件：path 是相对所选文件夹（或拖入位置）的路径，用 `/` 分隔，含文件名。 */
+export interface LocalImportFile {
+  file: File
+  path: string
+}
+
+/** 文件选择框给出的文件：选择文件夹时浏览器提供 webkitRelativePath。 */
+export function localImportFiles(files: readonly File[]): LocalImportFile[] {
+  return files.map((file) => ({ file, path: (file.webkitRelativePath || file.name).replace(/\\/g, '/') }))
+}
+
+/** 单次拖入最多读取的文件数：误拖入整个磁盘目录时不至于卡住页面。 */
+export const MAX_DROPPED_FILES = 5000
+const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git', '.obsidian', '.trash'])
+
+/**
+ * 拖入的文件与文件夹（递归展开）。必须在 drop 事件里同步调用：DataTransfer 在事件结束后失效，
+ * 所以先同步取出全部 entry 再异步读取。浏览器不支持 entry 时退回 dataTransfer.files。
+ */
+export async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<LocalImportFile[]> {
+  const entries = Array.from(dataTransfer.items ?? [])
+    .filter((item) => item.kind === 'file')
+    .map((item) => item.webkitGetAsEntry?.() ?? null)
+  if (!entries.length || entries.some((entry) => !entry)) return localImportFiles(Array.from(dataTransfer.files ?? []))
+  const out: LocalImportFile[] = []
+  const visit = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
+    if (out.length >= MAX_DROPPED_FILES) return
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name
+    if (entry.isFile) {
+      const file = await new Promise<File | null>((resolve) => (entry as FileSystemFileEntry).file(resolve, () => resolve(null)))
+      if (file && out.length < MAX_DROPPED_FILES) out.push({ file, path })
+      return
+    }
+    if (!entry.isDirectory || SKIPPED_DIRECTORIES.has(entry.name)) return
+    const reader = (entry as FileSystemDirectoryEntry).createReader()
+    for (;;) {
+      // readEntries 分批返回，直到返回空数组
+      const batch = await new Promise<FileSystemEntry[]>((resolve) => reader.readEntries(resolve, () => resolve([])))
+      if (!batch.length) return
+      for (const child of batch) await visit(child, path)
+    }
+  }
+  for (const entry of entries) await visit(entry!, '')
+  return out
+}
+
+function pathSegments(path: string): string[] {
+  return path.split('/').filter((segment) => segment && segment !== '.')
+}
+
 function normalizedLocalPath(src: string): string {
   let path = src.replace(/[?#].*$/, '').replace(/^file:\/\//i, '').replace(/\\/g, '/')
   try {
@@ -248,18 +306,48 @@ function normalizedLocalPath(src: string): string {
   } catch {
     // 保留原文：不合法的百分号编码按字面比较
   }
-  return path.replace(/^(\.\/)+/, '').toLowerCase()
+  return path.toLowerCase()
 }
 
-/** 用户随文档一起选择的图片里，找出与本地路径对应的文件：先比相对路径，再比文件名。 */
-export function matchLocalImage(src: string, files: readonly File[]): File | undefined {
+/**
+ * 找出与文档里本地图片地址对应的文件：
+ * 1. 相对地址按文档所在目录解析（含 `../`），与文件路径完全一致即命中；
+ * 2. 否则比较路径末尾连续相同的段数（文件名至少相同），取唯一的最长匹配——用户只选了图片
+ *    文件夹、或地址是另一台电脑上的绝对路径时也能找到；多个文件同样匹配时不猜，交给用户选择。
+ */
+export function matchLocalImage(src: string, files: readonly LocalImportFile[], markdownPath = ''): LocalImportFile | undefined {
   const target = normalizedLocalPath(src)
-  const baseName = target.split('/').pop() ?? target
-  const pathOf = (file: File) => (file.webkitRelativePath || file.name).replace(/\\/g, '/').toLowerCase()
-  return (
-    files.find((file) => pathOf(file) === target || pathOf(file).endsWith(`/${target}`)) ??
-    files.find((file) => file.name.toLowerCase() === baseName)
-  )
+  const segments = pathSegments(target)
+  if (!segments.length) return undefined
+  const keyed = files.map((entry) => ({ entry, segments: pathSegments(entry.path.toLowerCase()) }))
+
+  if (!/^(?:\/|[a-z]:\/)/.test(target)) {
+    const resolved = pathSegments(markdownPath.toLowerCase()).slice(0, -1)
+    let escaped = false
+    for (const segment of segments) {
+      if (segment !== '..') resolved.push(segment)
+      else if (!resolved.pop()) escaped = true
+    }
+    const key = resolved.join('/')
+    const exact = escaped ? undefined : keyed.find((item) => item.segments.join('/') === key)
+    if (exact) return exact.entry
+  }
+
+  const tail = segments.filter((segment) => segment !== '..' && !/^[a-z]:$/.test(segment))
+  let best: LocalImportFile | undefined
+  let bestScore = 0
+  let tied = false
+  for (const item of keyed) {
+    let score = 0
+    while (score < tail.length && score < item.segments.length && tail[tail.length - 1 - score] === item.segments[item.segments.length - 1 - score]) score++
+    if (score === 0 || score < bestScore) continue
+    tied = score === bestScore
+    if (score > bestScore) {
+      best = item.entry
+      bestScore = score
+    }
+  }
+  return tied ? undefined : best
 }
 
 export type ImportImageErrorCode = 'blocked' | 'http' | 'not-image' | 'invalid'
