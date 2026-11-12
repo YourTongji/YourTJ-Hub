@@ -21,32 +21,58 @@ func ServesHomeMarkdown(c *gin.Context) bool {
 	return !isPageRequest(c) && prefersTextMarkdown(c.GetHeader("Accept"))
 }
 
-// prefersTextMarkdown reports whether Accept explicitly prefers text/markdown
-// over text/html. A missing header, an equal quality, or a wildcard such as
-// */* keeps HTML, which is what ordinary browsers send.
+// prefersTextMarkdown reports whether Accept prefers text/markdown over
+// text/html. Quality comes from the most specific matching range
+// (type/subtype, then type/*, then */*), including an explicit q=0.
+// A missing header, an equal quality, or a wildcard alone keeps HTML.
 func prefersTextMarkdown(accept string) bool {
-	markdownQ := -1.0
-	htmlQ := -1.0
-	for _, part := range strings.Split(accept, ",") {
-		media, q, ok := parseAcceptMedia(part)
-		if !ok || q <= 0 {
-			continue
-		}
-		switch media {
-		case "text/markdown":
-			if q > markdownQ {
-				markdownQ = q
-			}
-		case "text/html":
-			if q > htmlQ {
-				htmlQ = q
-			}
-		}
-	}
-	if markdownQ < 0 {
+	if strings.TrimSpace(accept) == "" {
 		return false
 	}
-	return htmlQ < 0 || markdownQ > htmlQ
+	markdownQ := mediaQuality(accept, "text/markdown")
+	htmlQ := mediaQuality(accept, "text/html")
+	return markdownQ > htmlQ && markdownQ > 0
+}
+
+func mediaQuality(accept, target string) float64 {
+	bestSpecificity := 0
+	bestQ := 0.0
+	for _, part := range strings.Split(accept, ",") {
+		media, q, ok := parseAcceptMedia(part)
+		if !ok {
+			continue
+		}
+		specificity := acceptSpecificity(media, target)
+		if specificity == 0 {
+			continue
+		}
+		if specificity > bestSpecificity || (specificity == bestSpecificity && q > bestQ) {
+			bestSpecificity = specificity
+			bestQ = q
+		}
+	}
+	if bestSpecificity == 0 {
+		return 0
+	}
+	return bestQ
+}
+
+func acceptSpecificity(media, target string) int {
+	if media == target {
+		return 3
+	}
+	mediaType, mediaSub, mediaOK := strings.Cut(media, "/")
+	targetType, _, targetOK := strings.Cut(target, "/")
+	if !mediaOK || !targetOK {
+		return 0
+	}
+	if mediaSub == "*" && mediaType == targetType {
+		return 2
+	}
+	if media == "*/*" {
+		return 1
+	}
+	return 0
 }
 
 func parseAcceptMedia(part string) (string, float64, bool) {

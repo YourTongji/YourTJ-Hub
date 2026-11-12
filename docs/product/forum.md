@@ -434,14 +434,16 @@ Allow、Sitemap 与 Disallow 保持不变。取舍见[决策 0130](../decisions/
 
 `Current`：首页在 `Accept` 明确把 `text/markdown` 的质量值标得高于 `text/html` 时返回 Markdown，
 `Content-Type` 为 `text/markdown`。索引开启时正文就是 llms.txt 索引；关闭时只返回站点标题与简介。
-未带该偏好、或与 `text/html` 质量值相同的请求仍是 HTML。
+未带该偏好、质量值相同，或 `text/*`、`*/*` 给出的有效质量值不低于 Markdown 的请求仍是 HTML。
+更具体的媒体类型优先。首页 Markdown 使用 `Cache-Control: private, no-store`，避免会话刷新写入的 `New-Token` 和 `access_token` 进入共享缓存。
 `for_you` 与 `following` 在偏好 Markdown 时不返回个性化信息流，而是同一份公开文档。
 `X-Goose-Page` 仍返回 JSON。
 索引开启时这次响应共用 `/llms.txt` 的限流配额；索引关闭时的短文档不占用该配额。
 HTML、Markdown 和首页 JSON 都带 RFC 8288 `Link`，`rel="describedby"` 指向 `/llms.txt` 与 `/llms-full.txt`。
 
-`Current`：`GET /.well-known/mcp/server-card.json` 描述已经挂载的 `/mcp` streamable HTTP 服务、
-静态 Bearer 认证和该服务实际声明的能力。卡片不含凭证，也不声明 OAuth。
+`Current`：`GET /.well-known/mcp/server-card.json` 按 SEP-1649 描述已经挂载的 `/mcp` streamable HTTP 服务。
+卡片 schema 版本是 `1.0`，`serverInfo.version` 是构建版本，`authentication.schemes` 只有 `bearer`。
+卡片不含凭证，也不声明 OAuth。
 `/.well-known/oauth-authorization-server` 与 `/.well-known/oauth-protected-resource` 不发布。
 
 ## Content contribution statistics

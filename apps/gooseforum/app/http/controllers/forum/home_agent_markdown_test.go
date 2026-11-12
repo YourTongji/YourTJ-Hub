@@ -41,6 +41,23 @@ func TestHomeMarkdownNegotiationAndDiscoveryLinks(t *testing.T) {
 		t.Fatalf("markdown body = %q, want a markdown heading", body)
 	}
 	assertHomepageLLMSLinks(t, markdown.Header().Get("Link"))
+	if got := markdown.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("markdown Cache-Control = %q, want private, no-store", got)
+	}
+
+	refreshed := gin.New()
+	refreshed.GET("/", func(c *gin.Context) {
+		c.Header("New-Token", "refreshed-session")
+		c.Header("Set-Cookie", "access_token=refreshed-session; HttpOnly")
+		Home(c)
+	})
+	refreshedMarkdown := performHome(t, refreshed, "text/markdown")
+	if got := refreshedMarkdown.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("refreshed-session markdown Cache-Control = %q, want private, no-store", got)
+	}
+	if got := refreshedMarkdown.Header().Get("New-Token"); got != "refreshed-session" {
+		t.Fatalf("New-Token = %q, want the session refresh to remain on the response", got)
+	}
 
 	equal := performHome(t, router, "text/html, text/markdown")
 	if got := equal.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {

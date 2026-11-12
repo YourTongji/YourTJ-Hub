@@ -52,9 +52,22 @@ func TestMCPServerCardAndOAuthDiscoveryStaySplit(t *testing.T) {
 	if got, _ := info["version"].(string); got != buildinfo.Get().Version {
 		t.Fatalf("serverInfo.version = %q, want %q", got, buildinfo.Get().Version)
 	}
+	if card["version"] != "1.0" {
+		t.Fatalf("card schema version = %v, want 1.0", card["version"])
+	}
+	if card["$schema"] != "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json" {
+		t.Fatalf("$schema = %v", card["$schema"])
+	}
 	auth, _ := card["authentication"].(map[string]any)
-	if auth["type"] != "bearer" || auth["required"] != true {
-		t.Fatalf("authentication = %#v, want required static bearer", auth)
+	if auth["required"] != true {
+		t.Fatalf("authentication = %#v, want required", auth)
+	}
+	schemes, _ := auth["schemes"].([]any)
+	if len(schemes) != 1 || schemes[0] != "bearer" {
+		t.Fatalf("authentication.schemes = %#v, want [bearer]", schemes)
+	}
+	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("CORS origin = %q, want *", rec.Header().Get("Access-Control-Allow-Origin"))
 	}
 	lower := strings.ToLower(rec.Body.String())
 	for _, forbidden := range []string{"agt_", "oauth", "client_secret", "access_token"} {

@@ -16,6 +16,11 @@ func TestPrefersTextMarkdown(t *testing.T) {
 		{accept: "text/html, text/markdown", want: false},
 		{accept: "text/markdown;q=0", want: false},
 		{accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", want: false},
+		{accept: "text/markdown;q=0.1, text/*;q=0.9", want: false},
+		{accept: "text/markdown;q=0.1, */*;q=0.9", want: false},
+		{accept: "text/markdown, text/*;q=0.9", want: true},
+		{accept: "*/*", want: false},
+		{accept: "text/*", want: false},
 	}
 	for _, testCase := range cases {
 		if got := prefersTextMarkdown(testCase.accept); got != testCase.want {

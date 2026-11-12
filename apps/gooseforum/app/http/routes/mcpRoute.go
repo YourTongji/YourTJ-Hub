@@ -55,6 +55,9 @@ func renderMCPServerCard(c *gin.Context) {
 		return
 	}
 	c.Header("Cache-Control", "public, max-age=300")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Methods", "GET")
+	c.Header("Access-Control-Allow-Headers", "Content-Type")
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 }

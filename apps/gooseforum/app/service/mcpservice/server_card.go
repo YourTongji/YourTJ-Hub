@@ -11,20 +11,25 @@ import (
 // the public server card.
 const mcpServerName = "yourtj-hub"
 
+const (
+	serverCardSchema  = "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json"
+	serverCardVersion = "1.0"
+)
+
 // serverCard is the SEP-1649 discovery document for the existing streamable
-// HTTP server. Authentication describes the static Bearer check already
+// HTTP server. version is the card schema version. serverInfo.version is the
+// application build. Authentication lists the static Bearer scheme already
 // enforced by HTTPHandler; the card never carries a credential.
 type serverCard struct {
+	Schema     string `json:"$schema"`
+	Version    string `json:"version"`
 	ServerInfo struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
 	} `json:"serverInfo"`
-	Name                      string   `json:"name"`
-	Description               string   `json:"description"`
-	Version                   string   `json:"version"`
-	ProtocolVersion           string   `json:"protocolVersion"`
-	SupportedProtocolVersions []string `json:"supportedProtocolVersions"`
-	Transport                 struct {
+	Description     string `json:"description"`
+	ProtocolVersion string `json:"protocolVersion"`
+	Transport       struct {
 		Type     string `json:"type"`
 		Endpoint string `json:"endpoint"`
 	} `json:"transport"`
@@ -35,11 +40,10 @@ type serverCard struct {
 		} `json:"tools"`
 	} `json:"capabilities"`
 	Authentication struct {
-		Required    bool   `json:"required"`
-		Type        string `json:"type"`
-		Scheme      string `json:"scheme"`
-		Description string `json:"description"`
+		Required bool     `json:"required"`
+		Schemes  []string `json:"schemes"`
 	} `json:"authentication"`
+	Tools []string `json:"tools"`
 }
 
 // ServerCardJSON returns the public MCP server card. Transport matches
@@ -54,11 +58,11 @@ func ServerCardJSON() ([]byte, error) {
 		protocolVersion = versions[0]
 	}
 	card := serverCard{
-		Name:                      mcpServerName,
-		Description:               "Forum agent tools served at /mcp with streamable HTTP. Authentication is the existing static Bearer scheme. The credential is not included in this card.",
-		Version:                   version,
-		ProtocolVersion:           protocolVersion,
-		SupportedProtocolVersions: versions,
+		Schema:          serverCardSchema,
+		Version:         serverCardVersion,
+		Description:     "Forum agent tools served at /mcp with streamable HTTP. Authentication is the existing static Bearer scheme. The credential is not included in this card.",
+		ProtocolVersion: protocolVersion,
+		Tools:           []string{"dynamic"},
 	}
 	card.ServerInfo.Name = mcpServerName
 	card.ServerInfo.Version = version
@@ -66,8 +70,6 @@ func ServerCardJSON() ([]byte, error) {
 	card.Transport.Endpoint = "/mcp"
 	card.Capabilities.Tools.ListChanged = true
 	card.Authentication.Required = true
-	card.Authentication.Type = "bearer"
-	card.Authentication.Scheme = "Bearer"
-	card.Authentication.Description = "Static Authorization Bearer credential already required by /mcp. This card does not include the credential."
+	card.Authentication.Schemes = []string{"bearer"}
 	return json.Marshal(card)
 }

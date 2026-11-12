@@ -15,7 +15,9 @@ func renderHomeMarkdown(c *gin.Context) {
 		return
 	}
 	c.Header("Vary", "Accept, X-Goose-Page, Host")
-	c.Header("Cache-Control", "public, max-age=10")
+	// The homepage route refreshes a near-expiry session before this handler.
+	// A public cache could store that New-Token and access_token cookie.
+	c.Header("Cache-Control", "private, no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Data(http.StatusOK, "text/markdown; charset=utf-8", []byte(content))
 }
