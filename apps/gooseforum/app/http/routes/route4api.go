@@ -151,6 +151,7 @@ func serveHome(c *gin.Context) {
 
 func siteInfoRoute(ginApp *gin.Engine) {
 	ginApp.GET("/robots.txt", controllers.RenderRobotsTxt)
+	registerMCPServerCard(ginApp)
 	ginApp.GET("/sitemap.xml", controllers.RenderSitemapXml)
 	ginApp.GET("/rss.xml", controllers.RenderRss)
 	// LLMS 公开入口是派生文本投影：full 冷缓存全量重建、不同 {id}.md 会打穿 topic 级缓存，

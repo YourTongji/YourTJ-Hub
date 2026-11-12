@@ -440,6 +440,10 @@ Allow、Sitemap 与 Disallow 保持不变。取舍见[决策 0130](../decisions/
 索引开启时这次响应共用 `/llms.txt` 的限流配额；索引关闭时的短文档不占用该配额。
 HTML、Markdown 和首页 JSON 都带 RFC 8288 `Link`，`rel="describedby"` 指向 `/llms.txt` 与 `/llms-full.txt`。
 
+`Current`：`GET /.well-known/mcp/server-card.json` 描述已经挂载的 `/mcp` streamable HTTP 服务、
+静态 Bearer 认证和该服务实际声明的能力。卡片不含凭证，也不声明 OAuth。
+`/.well-known/oauth-authorization-server` 与 `/.well-known/oauth-protected-resource` 不发布。
+
 ## Content contribution statistics
 
 `Current`：四个贡献统计查询共用 `admin.stats` 限流，缺省每账号 60 秒内 60 次，无共享 IP 配额。

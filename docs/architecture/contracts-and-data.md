@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-11-12
 
 ## Contract status
 
@@ -191,7 +191,7 @@ frontend.
 | Request | GET status | HEAD status |
 |---|---|---|
 | `/health` | 200 (db ping ok) / 503 | **404** |
-| `/robots.txt`, `/sitemap.xml` | 200 | **404** |
+| `/robots.txt`, `/sitemap.xml`, `/.well-known/mcp/server-card.json` | 200 | **404** |
 | `/` (SSR home) | 200 | **404** |
 | `/api/login-public-key`, `/api/forum/get-site-statistics`, ... | 200 | **404** |
 | `/file/img/:filename` (existing upload) | 200 | **404** (no HEAD route registered) |
@@ -477,7 +477,15 @@ require virtual-hosted style — use `bucketLookup: dns` with an explicit region
 Principle: projections must be rebuildable from the fact source; never treat a projection as the only truth.
 
 The AI-readable exports are public text representations, not JSON API operations in the controlled
-OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
+OpenAPI surface. The homepage adds a `text/markdown` representation of the same llms index when
+`Accept` prefers that type and the index is enabled; with the index disabled the markdown body is
+only the site heading and description. While the index is enabled, that homepage response uses the
+`llms.index` rate limit so it cannot bypass `/llms.txt`. Both homepage representations, including the
+JSON page payload, link `rel="describedby"` to `/llms.txt` and `/llms-full.txt`. `GET
+/.well-known/mcp/server-card.json` is a separate public discovery document for the existing `/mcp`
+streamable HTTP server and its static Bearer authentication. It is excluded from the OpenAPI
+surface, contains no credential, and does not publish OAuth metadata. Export visibility follows the
+existing forum publication and moderation state:
 draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index and
 full-text exports cover forum topics only and never list wiki pages (`topics.topic_type = 1`), whose
 content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); content statistics
