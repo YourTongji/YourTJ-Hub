@@ -59,6 +59,7 @@ export 'src/gen/sticker.dart';
 export 'src/markdown/markdown_converter.dart';
 export 'src/markdown/blank_lines.dart';
 export 'src/markdown/image_width.dart';
+export 'src/markdown/math_segments.dart';
 export 'src/markdown/link_preview_candidate.dart';
 export 'src/markdown/url_labeled_links.dart';
 export 'src/markdown/sticker_embed.dart';

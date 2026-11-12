@@ -19,6 +19,7 @@ import '../images/image_save.dart';
 import '../link_navigation.dart';
 import '../providers.dart';
 import 'rich_content/gf_code_block.dart';
+import 'rich_content/gf_math.dart';
 import 'rich_content/gf_table.dart';
 import 'stickers/sticker_image.dart';
 import 'stickers/resolved_sticker_content.dart';
@@ -345,7 +346,9 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       );
     }
 
-    final MarkdownConfig config = MarkdownConfig(
+    // 公式在交给 Markdown 解析前换成占位（见 core ProtectedMath），链接、图片地址与
+    // 代码里的占位还原为原文，正文文字里的占位渲染为公式。
+    MarkdownConfig configFor(ProtectedMath math) => MarkdownConfig(
       configs: <WidgetConfig>[
         PConfig(textStyle: profile.body),
         // 列表缩进与行距同属 profile,避免各链路各写一套数字。
@@ -357,7 +360,8 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         // 目前只有 Web 侧，移动端见 docs/product/forum.md 的 Planned 段。
         LinkConfig(
           style: TextStyle(color: colors.primary),
-          onTap: (String url) {
+          onTap: (String target) {
+            final String url = math.restore(target);
             // 标签与目标不符的链接按 suspicious 处理（对齐 Web linkRisk）：
             // 白名单与会话信任都不豁免，始终弹确认层（issue #1200）。
             // 按 widget.data 而非展开后的 data 记忆：贴纸 token 展开会插入每次
@@ -384,7 +388,10 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H4Config(style: profile.h4),
         H5Config(style: profile.h5),
         H6Config(style: profile.h6),
-        ImgConfig(builder: buildImage),
+        ImgConfig(
+          builder: (String url, Map<String, String> attributes) =>
+              buildImage(math.restore(url), attributes),
+        ),
         // 引用:左线 + 底(prose.css blockquote)。
         BlockquoteConfig(
           sideColor: colors.line,
@@ -397,8 +404,11 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         // 代码块整体交给共享组件:自带底/边框/语言标签/复制/横向滚动,
         // 与 Wiki、课评 HTML 路径是同一个 widget。
         PreConfig(
-          builder: (String code, String language) =>
-              GfCodeBlock(profile: profile, code: code, language: language),
+          builder: (String code, String language) => GfCodeBlock(
+            profile: profile,
+            code: math.restore(code),
+            language: language,
+          ),
         ),
         // 行内代码:error 色 + base-200 底(prose.css code)。
         CodeConfig(
@@ -417,55 +427,76 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       ],
     );
 
-    Widget buildMarkdown(String source) => MarkdownWidget(
-      data: source,
-      // The shared selection area below owns selection across every Markdown
-      // block; GfText joins its registrar and Twemoji restoration scope.
-      selectable: false,
-      shrinkWrap: true,
-      markdownGenerator: MarkdownGenerator(
-        linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
-        generators: [
-          SpanNodeGeneratorWithTag(
-            tag: MarkdownTag.p.name,
-            generator: (element, config, visitor) {
-              if (element.textContent == blankMarker) {
-                return _BlankLineSpanNode(config.p);
-              }
-              final images = sizedImageRow(element);
-              if (images != null &&
-                  !images.any((a) => stickerImages.containsKey(a['src']))) {
-                return _ImageRowSpanNode(
-                  images: images,
-                  buildImage: buildImage,
+    Widget buildMarkdown(String markdown) {
+      final ProtectedMath math = ProtectedMath.of(markdown);
+      return MarkdownWidget(
+        data: math.source,
+        // The shared selection area below owns selection across every Markdown
+        // block; GfText joins its registrar and Twemoji restoration scope.
+        selectable: false,
+        shrinkWrap: true,
+        markdownGenerator: MarkdownGenerator(
+          linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
+          generators: [
+            SpanNodeGeneratorWithTag(
+              tag: MarkdownTag.p.name,
+              generator: (element, config, visitor) {
+                if (element.textContent == blankMarker) {
+                  return _BlankLineSpanNode(config.p);
+                }
+                final images = sizedImageRow(element);
+                if (images != null &&
+                    !images.any((a) => stickerImages.containsKey(a['src']))) {
+                  return _ImageRowSpanNode(
+                    images: images,
+                    buildImage: (url, attributes, {sized = false}) =>
+                        buildImage(math.restore(url), attributes, sized: sized),
+                  );
+                }
+                return ParagraphNode(config.p);
+              },
+            ),
+            SpanNodeGeneratorWithTag(
+              tag: MarkdownTag.img.name,
+              generator: (element, config, visitor) {
+                final sticker = stickerImages[element.attributes['src']];
+                if (sticker == null) {
+                  return ImageNode(element.attributes, config, visitor);
+                }
+                return _StickerSpanNode(
+                  name: sticker.name,
+                  url: sticker.url,
+                  fallbackFontSize: profile.body.fontSize ?? 16,
+                  size: widget.stickerSize,
                 );
-              }
-              return ParagraphNode(config.p);
-            },
-          ),
-          SpanNodeGeneratorWithTag(
-            tag: MarkdownTag.img.name,
-            generator: (element, config, visitor) {
-              final sticker = stickerImages[element.attributes['src']];
-              if (sticker == null) {
-                return ImageNode(element.attributes, config, visitor);
-              }
-              return _StickerSpanNode(
-                name: sticker.name,
-                url: sticker.url,
-                fallbackFontSize: profile.body.fontSize ?? 16,
-                size: widget.stickerSize,
-              );
-            },
-          ),
-        ],
-        richTextBuilder: (span) => GfText.rich(span),
-      ),
-      // Embedded in the page scroll view: never repeat its safe-area insets.
-      padding: EdgeInsets.zero,
-      physics: const NeverScrollableScrollPhysics(),
-      config: config,
-    );
+              },
+            ),
+            if (!math.isEmpty)
+              SpanNodeGeneratorWithTag(
+                tag: MarkdownTag.code.name,
+                generator: (element, config, visitor) =>
+                    CodeNode(math.restore(element.textContent), config.code),
+              ),
+          ],
+          textGenerator: math.isEmpty
+              ? null
+              : (node, config, visitor) {
+                  final String? text = markdownTextOf(node);
+                  final List<MathPiece>? pieces = text == null
+                      ? null
+                      : math.split(text);
+                  return pieces == null
+                      ? null
+                      : _MathTextNode(pieces, config.p.textStyle);
+                },
+          richTextBuilder: (span) => GfText.rich(span),
+        ),
+        // Embedded in the page scroll view: never repeat its safe-area insets.
+        padding: EdgeInsets.zero,
+        physics: const NeverScrollableScrollPhysics(),
+        config: configFor(math),
+      );
+    }
 
     Widget withMarkdownSelection(Widget child) {
       if (!widget.selectable || widget.screenshot) return child;
@@ -779,5 +810,50 @@ class _RenderFractionalImageWidth extends RenderProxyBox {
     }
     child!.layout(_childConstraints(constraints), parentUsesSize: true);
     size = constraints.constrain(child!.size);
+  }
+}
+
+/// 正文文字里的公式占位：行内公式按基线坐在文字行上，独立公式独占一行
+/// （紧邻的空白去掉，避免多出空行）。
+class _MathTextNode extends SpanNode {
+  _MathTextNode(this.pieces, this.textStyle);
+
+  final List<MathPiece> pieces;
+  final TextStyle textStyle;
+
+  @override
+  InlineSpan build() {
+    final TextStyle style = textStyle.merge(parentStyle);
+    final List<InlineSpan> children = <InlineSpan>[];
+    for (var i = 0; i < pieces.length; i++) {
+      final MathPiece piece = pieces[i];
+      final MathSegment? segment = piece.math;
+      if (segment == null) {
+        var text = piece.text;
+        if (i > 0 && pieces[i - 1].math?.display == true) {
+          text = text.trimLeft();
+        }
+        if (i + 1 < pieces.length && pieces[i + 1].math?.display == true) {
+          text = text.trimRight();
+        }
+        if (text.isNotEmpty) children.add(TextSpan(text: text));
+        continue;
+      }
+      children.add(
+        WidgetSpan(
+          alignment: segment.display
+              ? PlaceholderAlignment.middle
+              : PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: GfMath(
+            tex: segment.text,
+            display: segment.display,
+            source: piece.text,
+            style: style,
+          ),
+        ),
+      );
+    }
+    return TextSpan(style: style, children: children);
   }
 }

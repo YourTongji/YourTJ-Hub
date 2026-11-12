@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_card.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_widget/markdown_widget.dart';
@@ -19,6 +20,7 @@ import 'package:forum_app/src/link_navigation.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/reading_preferences.dart';
 import 'package:forum_app/src/widgets/rich_content/gf_code_block.dart';
+import 'package:forum_app/src/widgets/rich_content/gf_math.dart';
 import 'package:forum_app/src/widgets/rich_content/gf_table.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 
@@ -277,6 +279,71 @@ void main() {
     // Without a width fragment the image keeps the original inline layout.
     await images('![a](https://img.test/a.png)');
     expect(find.byType(Wrap), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('math renders like the web instead of raw delimiters', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final library = StickerLibrary(_FakeStickerRepository());
+    addTearDown(library.dispose);
+    Future<void> show(String data) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: _wrap(GfMarkdownView(key: ValueKey<String>(data), data: data)),
+        ),
+      );
+      await tester.pump();
+    }
+
+    String plain() => tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((r) => r.text.toPlainText(includePlaceholders: false))
+        .join('\n');
+
+    // Inline math sits in the sentence; underscores and asterisks stay TeX.
+    await show(r'速度 $v_1 * t_2$ 与 \(x^2\) 之和');
+    expect(find.byType(Math), findsNWidgets(2));
+    expect(plain(), contains('速度 '));
+    expect(plain(), isNot(contains(r'$')));
+    expect(plain(), isNot(contains('GFMATH')));
+
+    // Display math fills its own line, environments KaTeX knows still render.
+    await show(
+      'before\n\n\$\$\\frac{a}{b}\$\$\n\n'
+      r'\begin{align}a&=b\\c&=d\end{align}'
+      '\n\nafter',
+    );
+    expect(find.byType(Math), findsNWidgets(2));
+    final double body = tester.getSize(find.byType(GfMarkdownView)).width;
+    expect(
+      tester.getSize(find.byType(GfMath).first).width,
+      moreOrLessEquals(body, epsilon: 0.5),
+    );
+    expect(plain(), isNot(contains(r'\begin')));
+
+    // Code keeps the literal source; prices are not math.
+    await show('`\$x\$` costs \$5 and \$10\n\n```\n\$\$y\$\$\n```');
+    expect(find.byType(Math), findsNothing);
+    expect(plain(), contains(r'$x$'));
+    expect(plain(), contains(r'costs $5 and $10'));
+    expect(find.textContaining(r'$$y$$', findRichText: true), findsOneWidget);
+
+    // Math inside a table cell lays out with the table's natural widths.
+    await show('| a | b |\n|---|---|\n| \$x^2\$ | \$\\sqrt{y}\$ |');
+    expect(find.byType(Math), findsNWidgets(2));
+
+    // Unsupported TeX falls back to the original text instead of disappearing.
+    await show(r'bad $\frac{a}$ end');
+    expect(
+      find.textContaining(r'$\frac{a}$', findRichText: true),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));

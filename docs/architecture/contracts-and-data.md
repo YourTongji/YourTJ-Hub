@@ -278,6 +278,10 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
 - **Image-width fixtures are cross-renderer policy inputs**: `markdown-image-width.json` is consumed
   by Web and Flutter tests and pins the `#w=<preset>` destination fragment, its 160px minimum and
   editor snapping ([MADR 0131](../decisions/0131-relative-image-width.md)).
+- **Math-segment fixtures are cross-renderer policy inputs**: `markdown-math-segments.json` is consumed
+  by Go, Web and Flutter tests and pins which text becomes math (delimiters, whitespace guards,
+  escapes, brace balance) and whether it is display math. Offsets are left out because Go counts
+  bytes while Web and Flutter count UTF-16 units.
 - **Route coverage is gated**: `TestRoutesSnapshot` (`apps/gooseforum/app/http/routes/routes_dump_test.go`)
   dumps every route `RegisterByGin` registers under the default config into
   `packages/api-contract/fixtures/routes-snapshot.json` (OIDC `/api/oauth/*` endpoints are excluded —

@@ -367,7 +367,7 @@ canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否�
 片段只由服务器写入 HTML `<head>`，不进入内嵌 `goose-payload` 或 `X-Goose-Page` 页面 JSON；
 Web 与 Flutter 的页面数据模型不承载这段 HTML，管理端站点设置的读写契约保持不变。
 
-`Current`：阅读渲染支持 Mermaid、KaTeX、`\(...\)`、`\[...\]` 与常见数学环境。
+`Current`：阅读渲染支持 Mermaid、KaTeX、`\(...\)`、`\[...\]` 与常见数学环境；App 按同一套分隔符渲染公式（见移动端体验文档）。
 `Planned`：Vditor 对替代数学分隔符的所见即所得预览；保存及阅读不受此编辑器限制影响。
 
 `Current`：官方表情目录、管理员 CRUD／zip 导入及个人 token 渲染可用；Flutter 提供最近／我的／官方

@@ -252,6 +252,11 @@ so alignment and matrix syntax keep their meaning. Supported environments are
 supported by the bundled KaTeX and stays literal. The rendered HTML version is
 incremented so existing posts can be refreshed with the new delimiter protection.
 
+The Flutter app (`Current`) applies the same segment rule: Markdown bodies swap math for tokens before
+parsing and render them with `flutter_math_fork`; server HTML (Wiki, course reviews) wraps math found
+in text nodes outside `pre`/`code`/`script`/`style`/`textarea`. The shared
+`packages/api-contract/fixtures/markdown-math-segments.json` keeps Go, Web and Flutter on one rule.
+
 Vditor WYSIWYG preserves these alternate delimiters in emitted Markdown, but its
 inline preview still recognizes its native dollar syntax. Users who need a live
 editor preview can use the existing inline/block math toolbar buttons. The

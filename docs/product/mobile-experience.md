@@ -401,6 +401,13 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   preset lays them out in a centred, wrapping row at that share of the body width, never narrower
   than 160 logical pixels and without the height cap. `Planned`: a width control in the app editors;
   they currently keep the fragment they load.
+- `Current`: post Markdown, the publishing preview, Wiki and course-review HTML render math with the
+  same delimiters and guards as the Web (`$`, `$$`, `\(…\)`, `\[…\]` and the common environments;
+  a lone `$` next to whitespace, code and over-5000-character formulas stay literal), at the Web's
+  1.21× body size. Inline formulas sit on the text baseline; display formulas take their own line,
+  start-aligned like narrow Web screens, and scroll sideways inside their own region when too wide.
+  Numbered environments render without numbering, `\tag{n}` shows as a trailing (n), and TeX the app
+  renderer does not support (for example `\ce` or `CD`) falls back to its original source text.
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
   The toolbar's layout button switches between card and list in one tap; its glyph, tooltip and

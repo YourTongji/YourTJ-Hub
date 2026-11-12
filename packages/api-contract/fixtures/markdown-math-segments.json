@@ -1,0 +1,263 @@
+{
+  "description": "Math delimiters recognised in Markdown (server math protection, Web KaTeX enhancement, app renderer). Each case lists the segments extracted from `source`, in order: `text` is the TeX handed to the renderer (begin/end environments keep their markers), `display` selects block layout. Unlisted text stays literal. Offsets are omitted because Go counts bytes and JavaScript/Dart count UTF-16 units.",
+  "cases": [
+    {
+      "source": "$x$",
+      "segments": [
+        {
+          "text": "x",
+          "display": false
+        }
+      ]
+    },
+    {
+      "source": "$$x$$",
+      "segments": [
+        {
+          "text": "x",
+          "display": true
+        }
+      ]
+    },
+    {
+      "source": "a $x$ and $$y$$ end",
+      "segments": [
+        {
+          "text": "x",
+          "display": false
+        },
+        {
+          "text": "y",
+          "display": true
+        }
+      ]
+    },
+    {
+      "source": "$a$ and $b$",
+      "segments": [
+        {
+          "text": "a",
+          "display": false
+        },
+        {
+          "text": "b",
+          "display": false
+        }
+      ]
+    },
+    {
+      "source": "$a_{x}$",
+      "segments": [
+        {
+          "text": "a_{x}",
+          "display": false
+        }
+      ]
+    },
+    {
+      "source": "$a {b}$",
+      "segments": [
+        {
+          "text": "a {b}",
+          "display": false
+        }
+      ]
+    },
+    {
+      "source": "$$\na\nb\n$$",
+      "segments": [
+        {
+          "text": "\na\nb\n",
+          "display": true
+        }
+      ]
+    },
+    {
+      "source": "$$\n\nE = mc^2\n\n$$",
+      "segments": [
+        {
+          "text": "\n\nE = mc^2\n\n",
+          "display": true
+        }
+      ]
+    },
+    {
+      "source": "\\(x+y\\)",
+      "segments": [
+        {
+          "text": "x+y",
+          "display": false
+        }
+      ]
+    },
+    {
+      "source": "\\[x+y\\]",
+      "segments": [
+        {
+          "text": "x+y",
+          "display": true
+        }
+      ]
+    },
+    {
+      "source": "\\begin{equation}E=mc^2\\end{equation}",
+      "segments": [
+        {
+          "text": "\\begin{equation}E=mc^2\\end{equation}",
+          "display": true
+        }
+      ]
+    },
+    {
+      "source": "\\begin{align}a&=b\\end{align}",
+      "segments": [
+        {
+          "text": "\\begin{align}a&=b\\end{align}",
+          "display": true
+        }
+      ]
+    },
+    {
+      "source": "\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}",
+      "segments": [
+        {
+          "text": "\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}",
+          "display": true
+        }
+      ]
+    },
+    {
+      "source": "Inline $f'(x)$ and block $$a--b$$",
+      "segments": [
+        {
+          "text": "f'(x)",
+          "display": false
+        },
+        {
+          "text": "a--b",
+          "display": true
+        }
+      ]
+    },
+    {
+      "source": "$a*b*c$",
+      "segments": [
+        {
+          "text": "a*b*c",
+          "display": false
+        }
+      ]
+    },
+    {
+      "source": "`$x$`",
+      "segments": [
+        {
+          "text": "x",
+          "display": false
+        }
+      ]
+    },
+    {
+      "source": "$\\frac{1}{2}$ 与 $\\sqrt{2}$",
+      "segments": [
+        {
+          "text": "\\frac{1}{2}",
+          "display": false
+        },
+        {
+          "text": "\\sqrt{2}",
+          "display": false
+        }
+      ]
+    },
+    {
+      "source": "$5 and $x$",
+      "segments": [
+        {
+          "text": "x",
+          "display": false
+        }
+      ]
+    },
+    {
+      "source": "\\$x$",
+      "segments": []
+    },
+    {
+      "source": "$ x$",
+      "segments": []
+    },
+    {
+      "source": "$x $",
+      "segments": []
+    },
+    {
+      "source": "x $ x$",
+      "segments": []
+    },
+    {
+      "source": "$x\ny$",
+      "segments": []
+    },
+    {
+      "source": "a $5 discount",
+      "segments": []
+    },
+    {
+      "source": "$PATH and $HOME are set",
+      "segments": []
+    },
+    {
+      "source": "cost $5 and $10 each",
+      "segments": []
+    },
+    {
+      "source": "$$$$",
+      "segments": []
+    },
+    {
+      "source": "$",
+      "segments": []
+    },
+    {
+      "source": "$$x",
+      "segments": []
+    },
+    {
+      "source": "plain text without math",
+      "segments": []
+    },
+    {
+      "source": "\\\\(x\\\\)",
+      "segments": []
+    },
+    {
+      "source": "\\\\[x\\\\]",
+      "segments": []
+    },
+    {
+      "source": "\\(x",
+      "segments": []
+    },
+    {
+      "source": "\\[x",
+      "segments": []
+    },
+    {
+      "source": "\\begin{align}x",
+      "segments": []
+    },
+    {
+      "source": "\\(\\)",
+      "segments": []
+    },
+    {
+      "source": "\\[ \\]",
+      "segments": []
+    },
+    {
+      "source": "\\begin{multline}x\\end{multline}",
+      "segments": []
+    }
+  ]
+}
