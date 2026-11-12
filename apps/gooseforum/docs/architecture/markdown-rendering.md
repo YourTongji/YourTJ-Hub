@@ -106,6 +106,15 @@ go test ./app/bundles/markdown2html
 cd resource && pnpm exec vitest run test/markdown-compat.test.ts
 ```
 
+Visible blank lines (`Current`, [MADR 0128](../../../../docs/decisions/0128-visible-blank-lines.md))
+are the one intentional departure from CommonMark: between top-level blocks,
+each blank line after the first in a run renders as
+`<p class="gf-blank-line" aria-hidden="true"></p>`, at most three per run. Go
+(`app/bundles/markdown2html/blank_lines.go`, `PostMarkdownToHTML` only),
+markdown-it (`resource/src/runtime/blank-lines.ts`) and Flutter
+(`core/lib/src/markdown/blank_lines.dart`) implement the same line rule and read
+`packages/api-contract/fixtures/markdown-blank-lines.json`.
+
 ## Server Responsibilities
 
 Server rendering owns:

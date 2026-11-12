@@ -22,7 +22,8 @@ import (
 // Increment when persisted HTML rendering changes so existing posts are refreshed.
 func GetPostVersion() uint32 {
 	// 9: Only renderer-generated sticker images carry data-gf-sticker provenance.
-	return 9
+	// 10: Extra blank lines between blocks render as gf-blank-line spacers.
+	return 10
 }
 
 var md = goldmark.New(
@@ -52,7 +53,9 @@ func MarkdownToHTML(markdown string) string {
 
 // PostMarkdownToHTML renders public user content and applies UGC link/image policies.
 func PostMarkdownToHTML(markdown string) string {
-	return normalizePostHTML(MarkdownToHTML(markdown))
+	marker := blankLineMarker(markdown)
+	rendered := MarkdownToHTML(markBlankLines(markdown, marker, MaxRenderedBlankLines))
+	return normalizePostHTML(replaceBlankLineMarkers(rendered, marker))
 }
 
 // 课程评审段落标题（与 YourTJCourse-Serverless 前端 CollapsibleMarkdown 的

@@ -272,6 +272,9 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   is consumed directly by Web and Flutter tests, while the resolver response fixture pins the
   `/api/link-previews/resolve` envelope. The operation accepts at most five URLs; clients render at most
   five standalone-paragraph previews and keep the raw Markdown as the only editable source.
+- **Blank-line fixtures are cross-renderer policy inputs**: `markdown-blank-lines.json` is consumed
+  directly by Go, Web and Flutter tests and pins where extra blank lines between Markdown blocks render
+  as empty-line spacers ([MADR 0128](../decisions/0128-visible-blank-lines.md)).
 - **Route coverage is gated**: `TestRoutesSnapshot` (`apps/gooseforum/app/http/routes/routes_dump_test.go`)
   dumps every route `RegisterByGin` registers under the default config into
   `packages/api-contract/fixtures/routes-snapshot.json` (OIDC `/api/oauth/*` endpoints are excluded —

@@ -21,9 +21,9 @@ type markdownCompatCase struct {
 }
 
 func TestMarkdownVersions(t *testing.T) {
-	if got := GetPostVersion(); got != 9 {
-		// Sticker provenance is renderer-owned rather than inferred from alt.
-		t.Fatalf("GetPostVersion() = %d, want 9", got)
+	if got := GetPostVersion(); got != 10 {
+		// Extra blank lines between blocks render as gf-blank-line spacers.
+		t.Fatalf("GetPostVersion() = %d, want 10", got)
 	}
 	if GetParser() == nil {
 		t.Fatal("GetParser() returned nil")

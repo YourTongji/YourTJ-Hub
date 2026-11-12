@@ -1,0 +1,138 @@
+{
+  "description": "Visible blank lines (docs/decisions/0128-visible-blank-lines.md). `marked` is the input after inserting the marker paragraph `{{blank}}` at each visible blank line; null means the input is returned unchanged. Rendered output caps each run at maxRendered; `unlimited` cases use the editor reload mode with no cap.",
+  "marker": "{{blank}}",
+  "maxRendered": 3,
+  "cases": [
+    {
+      "name": "paragraph break keeps no spacer",
+      "markdown": "甲\n\n乙",
+      "marked": null
+    },
+    {
+      "name": "soft break is untouched",
+      "markdown": "甲\n乙",
+      "marked": null
+    },
+    {
+      "name": "one extra blank line",
+      "markdown": "甲\n\n\n乙",
+      "marked": "甲\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "three extra blank lines",
+      "markdown": "甲\n\n\n\n\n乙",
+      "marked": "甲\n\n{{blank}}\n\n{{blank}}\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "rendered spacers are capped",
+      "markdown": "甲\n\n\n\n\n\n\n乙",
+      "marked": "甲\n\n{{blank}}\n\n{{blank}}\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "editor reload keeps every blank line",
+      "markdown": "甲\n\n\n\n\n\n\n乙",
+      "marked": "甲\n\n{{blank}}\n\n{{blank}}\n\n{{blank}}\n\n{{blank}}\n\n{{blank}}\n\n乙",
+      "unlimited": true
+    },
+    {
+      "name": "spaces and tabs are blank",
+      "markdown": "甲\n  \n\t\n乙",
+      "marked": "甲\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "ideographic space is text",
+      "markdown": "甲\n　\n\n乙",
+      "marked": null
+    },
+    {
+      "name": "CRLF input",
+      "markdown": "甲\r\n\r\n\r\n乙",
+      "marked": "甲\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "before and after a heading",
+      "markdown": "# 标题\n\n\n正文\n\n\n## 小节",
+      "marked": "# 标题\n\n{{blank}}\n\n正文\n\n{{blank}}\n\n## 小节"
+    },
+    {
+      "name": "leading and trailing blank lines",
+      "markdown": "\n\n\n甲\n\n\n",
+      "marked": null
+    },
+    {
+      "name": "blank lines inside fenced code",
+      "markdown": "```\na\n\n\n\nb\n```",
+      "marked": null
+    },
+    {
+      "name": "after fenced code",
+      "markdown": "```js\na\n```\n\n\n乙",
+      "marked": "```js\na\n```\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "unclosed tilde fence",
+      "markdown": "~~~\na\n\n\nb",
+      "marked": null
+    },
+    {
+      "name": "backtick info string with backtick is not a fence",
+      "markdown": "```a`b\n\n\n乙",
+      "marked": "```a`b\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "indented code continues",
+      "markdown": "    a\n\n\n    b",
+      "marked": null
+    },
+    {
+      "name": "between bullet items",
+      "markdown": "- a\n\n\n- b",
+      "marked": null
+    },
+    {
+      "name": "between ordered items",
+      "markdown": "1. a\n\n\n2. b",
+      "marked": null
+    },
+    {
+      "name": "lazy line keeps the list open",
+      "markdown": "- a\nlazy\n\n\n- b",
+      "marked": null
+    },
+    {
+      "name": "indented list continuation",
+      "markdown": "- a\n\n\n  b",
+      "marked": null
+    },
+    {
+      "name": "list then paragraph",
+      "markdown": "- a\n\n\n乙",
+      "marked": "- a\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "paragraph then list",
+      "markdown": "甲\n\n\n- b",
+      "marked": "甲\n\n{{blank}}\n\n- b"
+    },
+    {
+      "name": "between blockquotes",
+      "markdown": "> a\n\n\n> b",
+      "marked": "> a\n\n{{blank}}\n\n> b"
+    },
+    {
+      "name": "display math keeps blank lines",
+      "markdown": "$$\na\n\n\nb\n$$",
+      "marked": null
+    },
+    {
+      "name": "between images",
+      "markdown": "![](a.png)\n\n\n\n![](b.png)",
+      "marked": "![](a.png)\n\n{{blank}}\n\n{{blank}}\n\n![](b.png)"
+    },
+    {
+      "name": "thematic break",
+      "markdown": "甲\n\n\n---\n\n\n乙",
+      "marked": "甲\n\n{{blank}}\n\n---\n\n{{blank}}\n\n乙"
+    }
+  ]
+}

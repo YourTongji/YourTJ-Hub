@@ -15,6 +15,7 @@ import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import PageHeader from '@/site/components/PageHeader.vue'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
+import MarkdownImportDialog, { type MarkdownImportPayload } from '@/site/components/MarkdownImportDialog.vue'
 import MentionCandidates from '@/site/components/MentionCandidates.vue'
 import StickerPicker from '@/site/components/StickerPicker.vue'
 import { useMentionAutocomplete } from '@/site/composables/useMentionAutocomplete'
@@ -341,6 +342,25 @@ function insertMarkdownBlock(text: string) {
 
 const stickerPickerOpen = ref(false)
 
+/** 编辑区排版档位跟随内容类型，与发布后的阅读排版一致（issue #1630） */
+const editorProfile = computed<'post' | 'thought' | 'article'>(() => (contentType.value === 3 ? 'article' : contentType.value === 2 ? 'thought' : 'post'))
+
+/** 导入 Markdown（issue #1630）：图片已在弹窗内上传，这里只写入标题与正文 */
+const importOpen = ref(false)
+
+function applyMarkdownImport(payload: MarkdownImportPayload) {
+  clearSensitiveHighlight()
+  if (payload.title && !title.value.trim()) title.value = payload.title
+  if (payload.mode === 'replace') {
+    if (editor.value?.editorReady) editor.value.setValue(payload.body)
+    else content.value = payload.body
+  } else {
+    insertMarkdownBlock(payload.body)
+  }
+  error.value = ''
+  message.value = t('editor.import.applied')
+}
+
 function insertStickerToken(name: string) {
   stickerPickerOpen.value = false
   insertMarkdownBlock(`[:sticker:${name}:]`)
@@ -631,7 +651,18 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 @upload="uploadImageFiles"
                 @error="handleEditorError"
                 :sticker-picker="true"
+                :import-markdown="true"
+                :profile="editorProfile"
                 @open-stickers="stickerPickerOpen = !stickerPickerOpen"
+                @import-markdown="importOpen = true"
+              />
+              <MarkdownImportDialog
+                v-model:open="importOpen"
+                :allow-title="true"
+                :title-empty="!title.trim()"
+                :body-empty="!content.trim()"
+                :profile="editorProfile"
+                @apply="applyMarkdownImport"
               />
               <!-- @mention 候选面板（issue #590）：与回复编辑器共享会话引擎与面板组件 -->
               <MentionCandidates

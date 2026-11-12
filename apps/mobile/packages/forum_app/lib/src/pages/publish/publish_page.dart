@@ -2668,30 +2668,31 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                if (_images.isNotEmpty)
-                  GfMediaCarousel(
-                    images: _images.map(resolveApiAssetUrl).toList(),
-                  ),
+                // Same order and renderer as the topic detail page: title,
+                // photo carousel (non-article types), then the Markdown body,
+                // so stickers, mentions and formatting read as published.
                 if (_title.text.trim().isNotEmpty) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   GfText(
                     _title.text.trim(),
                     key: const Key('publish-preview-title'),
-                    style: type.heading.copyWith(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: type.title1,
                   ),
-                  const SizedBox(height: 12),
                 ],
-                if (_contentType == 3)
-                  GfMarkdownView(data: _previewMarkdown, selectable: true)
-                else
-                  GfSelectableText(
-                    _simple.text,
-                    style: readingBodyStyle(context),
+                if (_contentType != 3 && _images.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  GfMediaCarousel(
+                    images: _images.map(resolveApiAssetUrl).toList(),
                   ),
+                ],
+                if (_previewMarkdown.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  GfMarkdownView(
+                    key: const Key('publish-preview-body'),
+                    data: _previewMarkdown,
+                    selectable: true,
+                  ),
+                ],
               ],
             ),
     );

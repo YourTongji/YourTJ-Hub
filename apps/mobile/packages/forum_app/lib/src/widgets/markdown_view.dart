@@ -254,6 +254,9 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       expandPostMentions(screenshotSource, widget.mentions),
       stickerSources,
     );
+    // 顶层块之间多出的空行渲染为空行占位，与服务端 HTML 同一规则（DQ-1）。
+    final String blankMarker = blankLineMarker(data);
+    final String rendered = markBlankLines(data, blankMarker);
     // Expressions never belong to a photo gallery, including supplied lists.
     final ordinary = _extractImages(
       data,
@@ -423,6 +426,13 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
         generators: [
           SpanNodeGeneratorWithTag(
+            tag: MarkdownTag.p.name,
+            generator: (element, config, visitor) =>
+                element.textContent == blankMarker
+                ? _BlankLineSpanNode(config.p)
+                : ParagraphNode(config.p),
+          ),
+          SpanNodeGeneratorWithTag(
             tag: MarkdownTag.img.name,
             generator: (element, config, visitor) {
               final sticker = stickerImages[element.attributes['src']];
@@ -463,14 +473,14 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     }
 
     final List<LinkPreviewMarkdownBlock> blocks = splitLinkPreviewMarkdown(
-      data,
+      rendered,
     );
     final List<String> previewUrls = blocks
         .where((LinkPreviewMarkdownBlock block) => block.isPreview)
         .map((LinkPreviewMarkdownBlock block) => block.url!)
         .toList(growable: false);
     if (previewUrls.isEmpty || widget.screenshot) {
-      return withMarkdownSelection(buildMarkdown(data));
+      return withMarkdownSelection(buildMarkdown(rendered));
     }
 
     Future<List<LinkPreviewPayload>> loadPreviews() => _linkPreviews ??=
@@ -618,6 +628,20 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
           },
     );
   }
+}
+
+/// One empty body line for a visible blank line: an empty span keeps the
+/// paragraph's line height and margins without selectable or spoken text.
+class _BlankLineSpanNode extends ElementNode {
+  _BlankLineSpanNode(this.pConfig);
+
+  final PConfig pConfig;
+
+  @override
+  InlineSpan build() => TextSpan(text: '', style: style);
+
+  @override
+  TextStyle? get style => pConfig.textStyle.merge(parentStyle);
 }
 
 /// Places a token-generated sticker on the text line: centred on it and sized

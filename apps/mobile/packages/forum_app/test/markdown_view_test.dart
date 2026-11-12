@@ -196,6 +196,43 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('extra blank lines render capped empty lines', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final library = StickerLibrary(_FakeStickerRepository());
+    addTearDown(library.dispose);
+    Future<double> gap(String data) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: _wrap(GfMarkdownView(key: ValueKey<String>(data), data: data)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('GFBLANKLINE'), findsNothing);
+      return tester.getTopLeft(find.text('乙')).dy -
+          tester.getBottomLeft(find.text('甲')).dy;
+    }
+
+    final double paragraph = await gap('甲\n\n乙');
+    final double oneLine = await gap('甲\n\n\n乙') - paragraph;
+    final double lineHeight = tester
+        .renderObject<RenderParagraph>(find.text('甲'))
+        .preferredLineHeight;
+    // One empty line is a body line plus the paragraph rhythm around it.
+    expect(oneLine, moreOrLessEquals(lineHeight + paragraph, epsilon: 1));
+    expect(
+      await gap('甲\n\n\n\n\n\n\n\n\n乙') - paragraph,
+      moreOrLessEquals(oneLine * maxRenderedBlankLines, epsilon: 1),
+    );
+    // Blank lines inside code stay literal code.
+    await gap('甲\n\n```\na\n\n\nb\n```\n\n乙');
+    expect(find.byType(GfCodeBlock), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('server mention mapping opens native user page', (tester) async {
     final router = GoRouter(
       routes: [

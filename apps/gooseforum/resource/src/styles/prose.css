@@ -64,12 +64,64 @@
     @apply font-medium text-primary no-underline hover:text-primary;
   }
 
+  /* ---- 正文排版档位（issue #1630）----
+     一组 --gf-rich-* 节奏变量按内容类型分档：普通帖/回复/课评（post）、瞬间（thought）、
+     文章（article）。发布后的 .gf-prose-post 与编辑区（VditorOfficial 的
+     [data-gf-rich-profile]）读取同一组变量，编辑时所见的字号、行高、段距、标题层级与
+     图片间距即发布结果。间距用 em：随字号与读者字号偏好一起缩放。
+     只改呈现不改 Markdown：历史正文的段落结构不变；连续空行的占位见下方 .gf-blank-line。 */
+  .gf-prose-post,
+  [data-gf-rich-profile] {
+    --gf-rich-size: 0.9375rem;
+    --gf-rich-leading: 1.75;
+    /* 段落之间 */
+    --gf-rich-flow: 0.75em;
+    /* 代码、引用、表格、图表等块级内容前后 */
+    --gf-rich-block: 1em;
+    /* 图片前后与高度上限 */
+    --gf-rich-media: 1em;
+    --gf-rich-media-max-h: min(360px, 70vh);
+    --gf-rich-h1: 1.5em;
+    --gf-rich-h2: 1.3em;
+    --gf-rich-h3: 1.15em;
+    --gf-rich-h4: 1.05em;
+  }
+
+  .gf-prose-thought,
+  [data-gf-rich-profile='thought'] {
+    --gf-rich-size: 1rem;
+    --gf-rich-flow: 0.6em;
+  }
+
+  .gf-prose-article,
+  [data-gf-rich-profile='article'] {
+    --gf-rich-size: 1.0625rem;
+    --gf-rich-leading: 1.85;
+    --gf-rich-flow: 1em;
+    --gf-rich-block: 1.25em;
+    --gf-rich-media: 1.5em;
+    --gf-rich-media-max-h: min(640px, 80vh);
+    --gf-rich-h1: 1.75em;
+    --gf-rich-h2: 1.45em;
+    --gf-rich-h3: 1.2em;
+    --gf-rich-h4: 1.05em;
+  }
+
   .gf-prose-post {
-    @apply max-w-none min-w-0 text-[15px] leading-relaxed text-base-content;
+    @apply max-w-none min-w-0 text-base-content;
+    font-size: var(--gf-rich-size);
+    line-height: var(--gf-rich-leading);
   }
 
   .gf-prose-post p {
-    @apply my-1.5;
+    margin-block: var(--gf-rich-flow);
+  }
+
+  /* 连续空行（DQ-1，docs/decisions/0128-visible-blank-lines.md）：服务端与预览把顶层块之间
+     多出的每个空行渲染成一个空段落占位。高一行、沿用所在档位的段距，与编辑区多按一次
+     Enter 留下的空段等高；不放在 .gf-prose-post 下，紧凑、公告与 Vditor 预览同样生效。 */
+  .gf-blank-line {
+    min-height: 1lh;
   }
 
   .gf-prose-post > :first-child {
@@ -80,24 +132,59 @@
     @apply mb-0;
   }
 
+  .gf-prose-post h1,
+  .gf-prose-post h2,
+  .gf-prose-post h3,
+  .gf-prose-post h4,
+  .gf-prose-post h5,
+  .gf-prose-post h6 {
+    margin-block: 1.4em 0.5em;
+    color: var(--gf-color-base-content);
+    font-weight: 600;
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
   .gf-prose-post h1 {
-    @apply mt-7 mb-2 text-base-content;
+    font-size: var(--gf-rich-h1);
+    letter-spacing: -0.01em;
   }
 
   .gf-prose-post h2 {
-    @apply mt-6 mb-2.5 text-base-content;
+    font-size: var(--gf-rich-h2);
+    letter-spacing: -0.005em;
   }
 
   .gf-prose-post h3 {
-    @apply mt-5 mb-2 text-base-content;
+    font-size: var(--gf-rich-h3);
   }
 
   .gf-prose-post h4 {
-    @apply mt-4 mb-1.5 text-base-content;
+    font-size: var(--gf-rich-h4);
   }
 
+  .gf-prose-post h5,
+  .gf-prose-post h6 {
+    font-size: 1em;
+  }
+
+  .gf-prose-post hr {
+    margin-block: 2em;
+    border-color: var(--gf-color-line);
+  }
+
+  .gf-prose-post table,
+  .gf-prose-post .gf-content-diagram {
+    margin-block: var(--gf-rich-block);
+  }
+
+  /* 行内代码用中性色块：红色读起来像报错，与「代码」语义无关 */
   .gf-prose code {
-    @apply rounded bg-base-200 px-1 py-0.5 font-mono text-error;
+    @apply rounded font-mono;
+    padding: 0.125em 0.35em;
+    background: color-mix(in oklch, var(--gf-color-base-content) 7%, transparent);
+    color: color-mix(in oklch, var(--gf-color-base-content) 88%, transparent);
+    font-size: 0.875em;
   }
 
   .gf-prose :not(pre) > code {
@@ -123,8 +210,14 @@
     white-space: pre;
   }
 
+  /* 引用：细竖线 + 弱化文字，不用底色块，也不用斜体（中文没有真斜体，浏览器只能伪造倾斜） */
   .gf-prose blockquote {
-    @apply border-l-4 border-line bg-base-200/70 py-1 pr-3 text-base-content/75;
+    padding-block: 0.125em;
+    padding-inline: 1em 0;
+    border-inline-start: 3px solid color-mix(in oklch, var(--gf-color-base-content) 16%, transparent);
+    color: color-mix(in oklch, var(--gf-color-base-content) 72%, transparent);
+    font-style: normal;
+    font-weight: 400;
   }
 
   .gf-prose blockquote p:first-of-type::before,
@@ -181,11 +274,18 @@
     text-align: right;
   }
 
+  /* 图片外描边用纯黑/纯白低透明度，而不是带色相的 line 色：不会在图片边缘显脏 */
   .gf-prose img:not(.twemoji, [data-gf-sticker]) {
-    @apply my-2.5 max-w-full rounded-lg border border-line object-contain;
+    @apply my-2.5 max-w-full rounded-lg object-contain;
     display: block;
     margin-left: auto;
     margin-right: auto;
+    outline: 1px solid oklch(0 0 0 / 0.1);
+    outline-offset: -1px;
+  }
+
+  [data-theme='gf-dark'] .gf-prose img:not(.twemoji, [data-gf-sticker]) {
+    outline-color: oklch(1 0 0 / 0.1);
   }
 
   .gf-prose-post img:not(.twemoji, [data-gf-sticker]) {
@@ -215,19 +315,28 @@
 
   .gf-prose-post ul,
   .gf-prose-post ol {
-    @apply my-1.5 pl-5;
+    margin-block: var(--gf-rich-flow);
+    padding-inline-start: 1.5em;
   }
 
   .gf-prose-post li {
-    @apply my-0.5;
+    margin-block: 0.25em;
+  }
+
+  .gf-prose-post li > :is(ul, ol),
+  .gf-prose-post li > p {
+    margin-block: 0.25em;
   }
 
   .gf-prose-post blockquote {
-    @apply my-1.5 border-l-4 border-line bg-base-200/70 py-1 pl-3 pr-3 text-base-content/75;
+    margin-block: var(--gf-rich-block);
+  }
+
+  .gf-prose-post blockquote p {
+    margin-block: 0.4em;
   }
 
   .gf-prose-post code {
-    @apply rounded bg-base-200 px-1 py-0.5 font-mono text-error;
     overflow-wrap: anywhere;
     word-break: break-word;
     white-space: normal;
@@ -239,7 +348,11 @@
   }
 
   .gf-prose-post pre {
-    @apply my-1.5 overflow-x-auto rounded-lg border border-line bg-base-200 p-3 text-base-content;
+    @apply overflow-x-auto rounded-lg border border-line bg-base-200 text-base-content;
+    margin-block: var(--gf-rich-block);
+    padding: 0.875em 1em;
+    font-size: 0.875em;
+    line-height: 1.65;
   }
 
   .gf-prose-post pre code {
@@ -249,6 +362,7 @@
     white-space: pre;
   }
 
+  /* 正文链接：主色 + 字体自带位置的淡下划线，不只靠颜色区分；悬停时下划线加深 */
   .gf-prose-post a {
     @apply font-medium text-primary no-underline hover:text-primary;
     overflow-wrap: anywhere;
@@ -278,8 +392,9 @@
   }
 
   .gf-prose-post img:not(.twemoji, [data-gf-sticker]) {
-    @apply my-1.5 max-w-full rounded-lg border border-line object-contain;
-    max-height: min(360px, 70vh);
+    @apply max-w-full rounded-lg object-contain;
+    margin-block: var(--gf-rich-media);
+    max-height: var(--gf-rich-media-max-h);
   }
 
   /* 客户端内容增强（Mermaid 等）渲染出的图表容器：居中、横向可滚动、自适应深浅色 */
