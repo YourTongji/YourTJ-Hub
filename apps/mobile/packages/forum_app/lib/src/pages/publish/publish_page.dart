@@ -1391,7 +1391,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 key: const Key('publish-save-draft'),
                 // One icon action in both steps keeps the bar inside long
                 // locale labels (de/ja) and frees the writing row for tools.
-                symbol: 'save',
+                symbol: 'floppy',
                 tooltip: l10n.publishSaveDraft,
                 size: 44,
                 onPressed: _uploading || _submitting

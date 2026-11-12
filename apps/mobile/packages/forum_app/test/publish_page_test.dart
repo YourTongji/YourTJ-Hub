@@ -1384,6 +1384,11 @@ void main() {
     await tester.pumpAndSettle();
     final scope = writingScope('http://fake.local', 1);
     expect(await WritingStore().drafts(scope), hasLength(1));
+    // 软盘是通用的“保存”图形；原先叠放的书签与收藏混淆。
+    final saveDraft = tester.widget<GfIconButton>(
+      find.byKey(const Key('publish-save-draft')),
+    );
+    expect(saveDraft.symbol, 'floppy');
     await tester.tap(find.byKey(const Key('publish-save-draft')));
     await tester.pumpAndSettle();
     expect(await WritingStore().drafts(scope), isEmpty);

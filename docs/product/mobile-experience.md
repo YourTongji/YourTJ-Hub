@@ -890,7 +890,7 @@ change. The header keeps a small outer margin for its primary action.
   tinted with a check. As in Web's quick composer, moments and questions take one category and the
   menu closes on pick; articles take up to three with the menu staying open and a count. The row
   lists the picks as small pills.
-  Publishing identity and the bot-reply switch follow. Save draft is an app-bar icon in both steps.
+  Publishing identity and the bot-reply switch follow. Save draft is an app-bar icon in both steps: the ReIcon floppy disk, which does not read as the bookmark used for saving to favourites.
 - `Current`: an article preview with two or more body images adds an image-order card above the
   settings: numbered thumbnails in reading order that long-press dragging reorders. The move swaps
   which image fills each existing slot, leaves the text untouched, refreshes the preview at once and
