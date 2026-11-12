@@ -46,10 +46,16 @@ const agentRepliesDisabled = ref(false)
 const title = ref(page.props.topic.title || '')
 const identity = ref<'member' | 'persona'>(page.props.topic.identity ?? 'member')
 const content = ref(page.props.topic.content || '')
+// Server cap on gallery candidates per topic write (fileusageservice.MaxGalleryImagesPerTopicWrite).
+const MAX_SUBMITTED_IMAGES = 9
 // Body images follow the editor; only gallery-only attachments need separate controls.
 const initialBodyImages = new Set(bodyImageUrls(content.value))
 const galleryImages = ref([...(page.props.topic.images ?? [])].filter(url => !initialBodyImages.has(url)))
-const submissionImages = computed(() => [...new Set([...galleryImages.value, ...bodyImageUrls(content.value)])])
+// Without gallery-only images the server derives topic images from the body, so long imported
+// documents are not rejected by the gallery cap; otherwise gallery images keep priority.
+const submissionImages = computed(() => galleryImages.value.length
+  ? [...new Set([...galleryImages.value, ...bodyImageUrls(content.value)])].slice(0, MAX_SUBMITTED_IMAGES)
+  : [])
 const categoryIds = ref<number[]>([...(page.props.topic.categoryIds || [])])
 const currentTopicId = ref(page.props.topicId)
 const submitting = ref(false)
