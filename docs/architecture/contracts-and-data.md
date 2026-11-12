@@ -275,6 +275,9 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
 - **Blank-line fixtures are cross-renderer policy inputs**: `markdown-blank-lines.json` is consumed
   directly by Go, Web and Flutter tests and pins where extra blank lines between Markdown blocks render
   as empty-line spacers ([MADR 0128](../decisions/0128-visible-blank-lines.md)).
+- **Image-width fixtures are cross-renderer policy inputs**: `markdown-image-width.json` is consumed
+  by Web and Flutter tests and pins the `#w=<preset>` destination fragment, its 160px minimum and
+  editor snapping ([MADR 0131](../decisions/0131-relative-image-width.md)).
 - **Route coverage is gated**: `TestRoutesSnapshot` (`apps/gooseforum/app/http/routes/routes_dump_test.go`)
   dumps every route `RegisterByGin` registers under the default config into
   `packages/api-contract/fixtures/routes-snapshot.json` (OIDC `/api/oauth/*` endpoints are excluded —

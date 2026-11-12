@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:html/parser.dart' show parseFragment;
 import 'package:markdown_widget/markdown_widget.dart';
@@ -276,6 +277,74 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     final int imageCacheWidth = (media.size.width * media.devicePixelRatio)
         .round();
 
+    // 图片:contain + 高度约束 + 圆角边框(prose.css img)。指定了相对宽度的图片
+    // 不套高度上限，与 Web 一致（docs/decisions/0131-relative-image-width.md）。
+    Widget buildImage(
+      String url,
+      Map<String, String> attributes, {
+      bool sized = false,
+    }) {
+      final String resolvedUrl = resolveApiAssetUrl(url);
+      readiness?.begin(resolvedUrl);
+      var hasFrame = false;
+      return GestureDetector(
+        onTap: widget.screenshot
+            ? null
+            : () {
+                final int index = sourceUrls.indexOf(url);
+                _openViewer(
+                  context,
+                  resolvedUrls.isEmpty ? [resolvedUrl] : resolvedUrls,
+                  index < 0 ? 0 : index,
+                );
+              },
+        onLongPress: widget.screenshot
+            ? null
+            : () async {
+                final bool save = await showGfImageSaveSheet(
+                  context,
+                  saveImageLabel: AppLocalizations.of(context).imageSave,
+                );
+                if (!mounted || !save) return;
+                await saveImageFromUrl(context, resolvedUrl);
+              },
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxImageHeight),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: colors.line, width: borders.width),
+              borderRadius: BorderRadius.circular(GfRadius.sm),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: GfNetworkImage(
+              resolvedUrl,
+              fit: BoxFit.contain,
+              cacheWidth: imageCacheWidth,
+              frameBuilder: (_, child, frame, _) {
+                hasFrame = frame != null;
+                if (frame != null) readiness?.finish(resolvedUrl);
+                return child;
+              },
+              loadingBuilder: (_, child, progress) {
+                if (readiness?.isFrozen(resolvedUrl) == true ||
+                    (widget.screenshot && !hasFrame)) {
+                  return SizedBox(
+                    height: 80,
+                    child: Center(
+                      child: GfSymbol('image-off', color: colors.iconMuted),
+                    ),
+                  );
+                }
+                return child;
+              },
+              // 失败时交给宿主兜底（可重试/在浏览器打开），readiness 仍按原语义收口。
+              onImageError: (_) => readiness?.finish(resolvedUrl),
+            ),
+          ),
+        ),
+      );
+    }
+
     final MarkdownConfig config = MarkdownConfig(
       configs: <WidgetConfig>[
         PConfig(textStyle: profile.body),
@@ -314,76 +383,8 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H3Config(style: profile.h3),
         H4Config(style: profile.h4),
         H5Config(style: profile.h5),
-        H6Config(style: profile.h6), // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
-        ImgConfig(
-          builder: (String url, Map<String, String> attributes) {
-            final String resolvedUrl = resolveApiAssetUrl(url);
-            readiness?.begin(resolvedUrl);
-            var hasFrame = false;
-            return GestureDetector(
-              onTap: widget.screenshot
-                  ? null
-                  : () {
-                      final int index = sourceUrls.indexOf(url);
-                      _openViewer(
-                        context,
-                        resolvedUrls.isEmpty ? [resolvedUrl] : resolvedUrls,
-                        index < 0 ? 0 : index,
-                      );
-                    },
-              onLongPress: widget.screenshot
-                  ? null
-                  : () async {
-                      final bool save = await showGfImageSaveSheet(
-                        context,
-                        saveImageLabel: AppLocalizations.of(context).imageSave,
-                      );
-                      if (!mounted || !save) return;
-                      await saveImageFromUrl(context, resolvedUrl);
-                    },
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxImageHeight),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: colors.line,
-                      width: borders.width,
-                    ),
-                    borderRadius: BorderRadius.circular(GfRadius.sm),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: GfNetworkImage(
-                    resolvedUrl,
-                    fit: BoxFit.contain,
-                    cacheWidth: imageCacheWidth,
-                    frameBuilder: (_, child, frame, _) {
-                      hasFrame = frame != null;
-                      if (frame != null) readiness?.finish(resolvedUrl);
-                      return child;
-                    },
-                    loadingBuilder: (_, child, progress) {
-                      if (readiness?.isFrozen(resolvedUrl) == true ||
-                          (widget.screenshot && !hasFrame)) {
-                        return SizedBox(
-                          height: 80,
-                          child: Center(
-                            child: GfSymbol(
-                              'image-off',
-                              color: colors.iconMuted,
-                            ),
-                          ),
-                        );
-                      }
-                      return child;
-                    },
-                    // 失败时交给宿主兜底（可重试/在浏览器打开），readiness 仍按原语义收口。
-                    onImageError: (_) => readiness?.finish(resolvedUrl),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
+        H6Config(style: profile.h6),
+        ImgConfig(builder: buildImage),
         // 引用:左线 + 底(prose.css blockquote)。
         BlockquoteConfig(
           sideColor: colors.line,
@@ -427,10 +428,20 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         generators: [
           SpanNodeGeneratorWithTag(
             tag: MarkdownTag.p.name,
-            generator: (element, config, visitor) =>
-                element.textContent == blankMarker
-                ? _BlankLineSpanNode(config.p)
-                : ParagraphNode(config.p),
+            generator: (element, config, visitor) {
+              if (element.textContent == blankMarker) {
+                return _BlankLineSpanNode(config.p);
+              }
+              final images = sizedImageRow(element);
+              if (images != null &&
+                  !images.any((a) => stickerImages.containsKey(a['src']))) {
+                return _ImageRowSpanNode(
+                  images: images,
+                  buildImage: buildImage,
+                );
+              }
+              return ParagraphNode(config.p);
+            },
           ),
           SpanNodeGeneratorWithTag(
             tag: MarkdownTag.img.name,
@@ -670,5 +681,103 @@ class _StickerSpanNode extends SpanNode {
         size: size ?? fontSize * StickerImage.inlineScale,
       ),
     );
+  }
+}
+
+/// 只含图片且至少一张带 `#w=` 的段落：居中换行排布，与 Web prose.css 并排规则一致。
+/// 未指定宽度的图片独占一行；多张指定宽度的图片之间留 8 逻辑像素间距。
+class _ImageRowSpanNode extends SpanNode {
+  _ImageRowSpanNode({required this.images, required this.buildImage});
+
+  final List<Map<String, String>> images;
+  final Widget Function(
+    String url,
+    Map<String, String> attributes, {
+    bool sized,
+  })
+  buildImage;
+
+  @override
+  InlineSpan build() {
+    final bool spaced =
+        images.where((a) => imageWidthOf(a['src'] ?? '') != null).length > 1;
+    return WidgetSpan(
+      child: SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          runSpacing: 8,
+          children: <Widget>[
+            for (final Map<String, String> attributes in images)
+              _imageItem(attributes, spaced),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _imageItem(Map<String, String> attributes, bool spaced) {
+    final String url = attributes['src'] ?? '';
+    final int? width = imageWidthOf(url);
+    if (width == null) return Align(child: buildImage(url, attributes));
+    return _FractionalImageWidth(
+      factor: width / 100,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: spaced ? 4 : 0),
+        child: buildImage(url, attributes, sized: true),
+      ),
+    );
+  }
+}
+
+/// 取可用宽度的 [factor]，不小于 [imageMinRenderedWidth]（也不超过可用宽度）。
+/// 不用 LayoutBuilder：WidgetSpan 里的子组件可能被询问内在尺寸。
+class _FractionalImageWidth extends SingleChildRenderObjectWidget {
+  const _FractionalImageWidth({required this.factor, required super.child});
+
+  final double factor;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderFractionalImageWidth(factor);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderFractionalImageWidth renderObject,
+  ) => renderObject.factor = factor;
+}
+
+class _RenderFractionalImageWidth extends RenderProxyBox {
+  _RenderFractionalImageWidth(this._factor);
+
+  double _factor;
+  set factor(double value) {
+    if (value == _factor) return;
+    _factor = value;
+    markNeedsLayout();
+  }
+
+  BoxConstraints _childConstraints(BoxConstraints constraints) {
+    if (!constraints.hasBoundedWidth) return constraints;
+    final double available = constraints.maxWidth;
+    return constraints.tighten(
+      width: min(available, max(available * _factor, imageMinRenderedWidth)),
+    );
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.constrain(
+    child?.getDryLayout(_childConstraints(constraints)) ?? Size.zero,
+  );
+
+  @override
+  void performLayout() {
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    child!.layout(_childConstraints(constraints), parentUsesSize: true);
+    size = constraints.constrain(child!.size);
   }
 }

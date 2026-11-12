@@ -19,6 +19,8 @@ func TestFileNameFromURL(t *testing.T) {
 		"/static/pic/default-avatar.webp":       "",
 		"https://example.com/static/a.webp":     "",
 		"../secret.webp":                        "",
+		// 图片相对宽度片段不属于文件名（MADR 0131）
+		"/file/img/2026/06/a.webp#w=50": "2026/06/a.webp",
 	}
 	for input, want := range tests {
 		if got := fileNameFromURL(input); got != want {

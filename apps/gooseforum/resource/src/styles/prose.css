@@ -397,6 +397,39 @@
     max-height: var(--gf-rich-media-max-h);
   }
 
+  /*
+   * 相对宽度（MADR 0131）：地址末尾 `#w=<预设>` 按正文宽度百分比显示，窄屏不小于 10rem。
+   * 指定宽度即用户的明确选择，不再套用高度上限（否则长图会被压进留白框里）。
+   * 同一段落里相邻的指定宽度图片并排成一行（两张 50%、三张 33%…），放不下时自动换行。
+   * 编辑区（VditorOfficial.vue）与 App（markdown_view.dart）按同一规则排版。
+   */
+  .gf-prose img:is([src$='#w=25'], [src$='#w=33'], [src$='#w=50'], [src$='#w=66'], [src$='#w=75'], [src$='#w=100']):not(.twemoji, [data-gf-sticker]) {
+    width: max(var(--gf-image-w), min(100%, 10rem));
+    height: auto;
+    max-height: none;
+  }
+
+  .gf-prose img[src$='#w=25'] { --gf-image-w: 25%; }
+  .gf-prose img[src$='#w=33'] { --gf-image-w: 33.333%; }
+  .gf-prose img[src$='#w=50'] { --gf-image-w: 50%; }
+  .gf-prose img[src$='#w=66'] { --gf-image-w: 66.667%; }
+  .gf-prose img[src$='#w=75'] { --gf-image-w: 75%; }
+  .gf-prose img[src$='#w=100'] { --gf-image-w: 100%; }
+
+  .gf-prose p:has(> img[src*='#w='] + img[src*='#w=']) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-block: var(--gf-rich-media, 1em);
+  }
+
+  .gf-prose p:has(> img[src*='#w='] + img[src*='#w=']) > img[src*='#w='] {
+    width: calc(max(var(--gf-image-w), min(100%, 10rem)) - 0.5rem);
+    margin: 0;
+  }
+
   /* 客户端内容增强（Mermaid 等）渲染出的图表容器：居中、横向可滚动、自适应深浅色 */
   .gf-prose .gf-content-diagram {
     @apply my-2.5 flex max-w-full justify-center overflow-x-auto rounded-lg border border-line bg-base-100 p-3;

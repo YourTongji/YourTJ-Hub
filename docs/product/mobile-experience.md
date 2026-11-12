@@ -396,6 +396,11 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   run; code, math and list items keep Markdown meaning. The long-form editor keeps empty lines when a
   draft or post is reopened and saves k empty lines as k+1 blank Markdown lines, matching the Web
   editor; the short-form editor stores text as typed.
+- `Current`: images with a relative width ([0131](../decisions/0131-relative-image-width.md)) follow
+  the Web rule in the reader and the publishing preview: a paragraph of only images with a `#w=`
+  preset lays them out in a centred, wrapping row at that share of the body width, never narrower
+  than 160 logical pixels and without the height cap. `Planned`: a width control in the app editors;
+  they currently keep the fragment they load.
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
   The toolbar's layout button switches between card and list in one tap; its glyph, tooltip and

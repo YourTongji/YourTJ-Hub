@@ -233,6 +233,55 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('sized images follow their relative width and share a row', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final library = StickerLibrary(_FakeStickerRepository());
+    addTearDown(library.dispose);
+    Future<List<Rect>> images(String data) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: _wrap(GfMarkdownView(key: ValueKey<String>(data), data: data)),
+        ),
+      );
+      await tester.pump();
+      // The bordered frame around each image (ConstrainedBox > Container).
+      final frames = find.ancestor(
+        of: find.byType(GfNetworkImage),
+        matching: find.byType(Container),
+      );
+      return frames
+          .evaluate()
+          .map((e) => tester.getRect(find.byWidget(e.widget)))
+          .toList();
+    }
+
+    final pair = await images(
+      '![a](https://img.test/a.png#w=50) ![b](https://img.test/b.png#w=50)',
+    );
+    final double body = tester.getSize(find.byType(GfMarkdownView)).width;
+    expect(pair, hasLength(2));
+    // Two halves sit on one line with an 8px gutter, like the web flex row.
+    expect(pair[0].top, pair[1].top);
+    expect(pair[0].width, moreOrLessEquals(body / 2 - 8, epsilon: 0.5));
+    expect(pair[1].left - pair[0].right, moreOrLessEquals(8, epsilon: 0.5));
+
+    // A lone quarter-width image never drops below the readable minimum.
+    final quarter = await images('![a](https://img.test/a.png#w=25)');
+    expect(quarter.single.width, imageMinRenderedWidth);
+    expect(quarter.single.center.dx, moreOrLessEquals(body / 2, epsilon: 0.5));
+
+    // Without a width fragment the image keeps the original inline layout.
+    await images('![a](https://img.test/a.png)');
+    expect(find.byType(Wrap), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('server mention mapping opens native user page', (tester) async {
     final router = GoRouter(
       routes: [

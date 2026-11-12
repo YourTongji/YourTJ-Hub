@@ -3,6 +3,10 @@ import { textBeforeCaret, isInsideFencedCode, replaceMentionTokenInElement } fro
 import { deleteStickerAtCaret, stickerBeforeInputDirection, stickerDeleteDirection } from "@/runtime/sticker-atomic"
 import { decorateStickerTokens, type StickerInlineAsset } from "@/runtime/sticker-inline-editor"
 import StickerSuggestions from '@/site/components/StickerSuggestions.vue'
+import EditorSelectionToolbar from '@/site/components/EditorSelectionToolbar.vue'
+import EditorImageToolbar from '@/site/components/EditorImageToolbar.vue'
+import MarkdownImageViewer from '@/components/MarkdownImageViewer.vue'
+import { useEditorFloatingTools } from '@/site/composables/useEditorFloatingTools'
 import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
 import { useStickerSuggest } from '@/site/composables/useStickerSuggest'
 import { isPersonalStickerName } from '@/site/utils/sticker-token'
@@ -167,6 +171,19 @@ function handleCompositionEnd() {
  */
 const { resolvedUrls, ensureContentStickers } = useResolvedStickers()
 let composing = false
+
+// 选区格式条与图片工具条（MADR 0131）：状态与事件见 useEditorFloatingTools
+const selectionToolbar = ref<InstanceType<typeof EditorSelectionToolbar> | null>(null)
+const imageToolbar = ref<InstanceType<typeof EditorImageToolbar> | null>(null)
+const imageViewer = ref<InstanceType<typeof MarkdownImageViewer> | null>(null)
+const floating = useEditorFloatingTools({
+  root,
+  editor: () => (ready && !destroyed ? editor : null),
+  modeElement: () => currentModeElement(),
+  composing: () => composing,
+  preview: (images, index) => imageViewer.value?.open(images, index),
+  insideFloating: (node) => Boolean(selectionToolbar.value?.contains(node) || imageToolbar.value?.contains(node)),
+})
 let stickerObserver: MutationObserver | null = null
 let stickerResolveTimer: ReturnType<typeof setTimeout> | undefined
 let stickerDecorationFrame = 0
@@ -2018,6 +2035,7 @@ onMounted(async () => {
         initToolbarPanelPositionCorrection(nextEditor!)
         attachSensitiveModeRefresh()
         attachStickerDecoration()
+        floating.attach()
       },
       input(value) {
         clearSensitiveHighlights()
@@ -2026,6 +2044,7 @@ onMounted(async () => {
         linkPreviewHintController.schedule(value)
         // 字数变化改变工具栏末位 counter 宽度，RO 只测 border-box，需显式重测
         scheduleMeasure()
+        floating.schedule()
       },
     })
     editor = nextEditor
@@ -2083,6 +2102,7 @@ onBeforeUnmount(() => {
   root.value?.removeEventListener('beforeinput', handleStickerBeforeInput, true)
   root.value?.removeEventListener('focusout', handleEditorFocusOut)
   document.removeEventListener('selectionchange', handleSelectionChange)
+  floating.detach()
   stickerObserver?.disconnect()
   stickerObserver = null
   clearTimeout(stickerResolveTimer)
@@ -2256,6 +2276,33 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
     :panel-style="stickerSuggest.panelStyle.value"
     @select="stickerSuggest.select"
   />
+  <EditorSelectionToolbar
+    ref="selectionToolbar"
+    :open="floating.selectionOpen.value"
+    :host="floating.host.value"
+    :anchor="floating.selectionAnchor.value"
+    :boundary="floating.boundary.value"
+    :available="floating.selectionAvailable.value"
+    :active="floating.selectionActive.value"
+    :heading="floating.selectionHeading.value"
+    :prefer-below="floating.preferBelow"
+    @command="floating.runCommand"
+    @heading="floating.setHeading"
+  />
+  <EditorImageToolbar
+    ref="imageToolbar"
+    :host="floating.host.value"
+    :image="floating.image.value"
+    :boundary="floating.boundary.value"
+    :width="floating.imageWidth.value"
+    :resizable="floating.imageResizable.value"
+    :alt="floating.imageAlt.value"
+    @width="floating.setImageWidth"
+    @alt="floating.setImageAlt"
+    @preview="floating.previewImage()"
+    @remove="floating.removeImage"
+  />
+  <MarkdownImageViewer ref="imageViewer" :to="floating.host.value ?? 'body'" />
 </template>
 
 <style>
@@ -2307,6 +2354,20 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   transition-property: border-color, box-shadow;
   transition-duration: 0.15s;
   transition-timing-function: ease-out;
+}
+
+/* 拖入图片文件：内容区出现主色虚线框与淡底，提示松手即可上传（类名由 useEditorFloatingTools 切换） */
+.vditor-official .vditor-content {
+  transition-property: background-color, outline-color;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+  outline: 2px dashed transparent;
+  outline-offset: -6px;
+}
+
+.vditor-official.gf-drop-active .vditor-content {
+  outline-color: color-mix(in oklch, var(--gf-color-primary) 55%, transparent);
+  background-color: color-mix(in oklch, var(--gf-color-primary) 4%, transparent);
 }
 
 /* 编辑中的焦点提示：整块编辑器描边转主色并加柔和外环，与站点输入框一致 */
@@ -2552,6 +2613,33 @@ html[data-gf-font-body] .vditor-official .vditor-reset {
 
 [data-theme='gf-dark'] .vditor-official .vditor-reset img:not(.emoji):not(.twemoji) {
   outline-color: oklch(1 0 0 / 0.1);
+}
+
+/* 相对宽度（MADR 0131）：与发布后 prose.css 同一规则，所见即所得 */
+.vditor-official .vditor-reset img:is([src$='#w=25'], [src$='#w=33'], [src$='#w=50'], [src$='#w=66'], [src$='#w=75'], [src$='#w=100']):not(.emoji):not(.twemoji) {
+  width: max(var(--gf-image-w), min(100%, 10rem));
+  height: auto;
+  max-height: none;
+}
+
+.vditor-official .vditor-reset img[src$='#w=25'] { --gf-image-w: 25%; }
+.vditor-official .vditor-reset img[src$='#w=33'] { --gf-image-w: 33.333%; }
+.vditor-official .vditor-reset img[src$='#w=50'] { --gf-image-w: 50%; }
+.vditor-official .vditor-reset img[src$='#w=66'] { --gf-image-w: 66.667%; }
+.vditor-official .vditor-reset img[src$='#w=75'] { --gf-image-w: 75%; }
+.vditor-official .vditor-reset img[src$='#w=100'] { --gf-image-w: 100%; }
+
+.vditor-official .vditor-reset p:has(> img[src*='#w='] + img[src*='#w=']) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.vditor-official .vditor-reset p:has(> img[src*='#w='] + img[src*='#w=']) > img[src*='#w='] {
+  width: calc(max(var(--gf-image-w), min(100%, 10rem)) - 0.5rem);
+  margin: 0;
 }
 
 /* 编辑区与预览的占位提示：弱化文字色，跟随主题 */
@@ -2936,7 +3024,7 @@ html[data-gf-font-body] .vditor-official .vditor-reset {
 
   .vditor-official .vditor-toolbar__item .vditor-tooltipped:hover {
     background-color: color-mix(in oklch, var(--gf-color-base-content) 10%, transparent);
-    color: var(--color-base-content, #24292e);
+    color: var(--gf-color-base-content);
   }
 
   .vditor-official .vditor-toolbar__item .vditor-tooltipped:active {
@@ -3482,52 +3570,84 @@ html[data-gf-font-body] .vditor-official .vditor-reset {
   }
 }
 
-/* 正文段落跟随悬浮辅助组件（wysiwyg 行内浮层、公式块工具、链接浮层、表格浮层等）：
-   遵循 Vditor 动态计算的 top / left 坐标，跟随在其控制的段落文本块附近，同时避免被容器截断 */
+/*
+ * 正文块浮层（引用、列表、表格、代码块、链接等，Vditor 按块定位）：与编辑器浮层
+ * （styles/editor-float.css）同一表面——line 描边、同心圆角（字段圆角 + 2px 内边距）、同一投影。
+ * 层级低于吸顶工具栏（z-40），滚动时不会盖住工具栏和站点顶栏。
+ */
 .vditor-official .vditor-wysiwyg > .vditor-panel {
-  z-index: 80 !important;
-  border: 1px solid var(--color-line, rgba(0, 0, 0, 0.12)) !important;
-  border-radius: 8px !important;
-  background-color: var(--panel-background-color, #fff) !important;
-  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.14), 0 2px 6px -1px rgba(0, 0, 0, 0.08) !important;
+  z-index: 30 !important;
+  padding: 2px !important;
+  opacity: 1;
+  /* Vditor 把浮层顶边放在块顶上方 21px：上移 4px，让浮层底边不压住块的第一行文字 */
+  translate: 0 -4px;
+  border: var(--gf-border, 1px) solid var(--gf-color-line) !important;
+  border-radius: calc(var(--gf-radius-field) + 2px) !important;
+  background-color: var(--gf-color-base-100) !important;
+  color: var(--gf-color-base-content);
+  box-shadow:
+    0 18px 48px -24px rgb(15 23 42 / calc(var(--gf-depth, 1) * 0.5)),
+    0 4px 16px -12px rgb(15 23 42 / calc(var(--gf-depth, 1) * 0.35)) !important;
   max-width: calc(100% - 16px) !important;
   box-sizing: border-box !important;
+  transition-property: opacity, translate;
+  transition-duration: 0.12s;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* 浮动栏内的输入框美化 */
+/* 选区格式条或图片工具条出现时让位，避免两层浮层叠在一起（类名由 useEditorFloatingTools 切换） */
+.vditor-official.gf-floating-active .vditor-wysiwyg > .vditor-panel {
+  opacity: 0 !important;
+  translate: 0 -2px;
+  pointer-events: none;
+}
+
 .vditor-official .vditor-panel .vditor-input {
-  border: 1px solid var(--color-line, rgba(0, 0, 0, 0.14)) !important;
-  border-radius: 6px !important;
-  background-color: var(--color-base-100, #fff) !important;
-  color: var(--color-base-content, #24292e) !important;
-  padding: 4px 8px !important;
-  font-size: 13px !important;
+  height: 1.75rem !important;
+  border: var(--gf-border, 1px) solid var(--gf-color-line) !important;
+  border-radius: var(--gf-radius-field) !important;
+  background-color: var(--gf-color-base-100) !important;
+  color: var(--gf-color-base-content) !important;
+  padding: 0 0.5rem !important;
+  font-size: 0.8125rem !important;
   line-height: 1.4 !important;
   margin: 0 2px !important;
   box-sizing: border-box !important;
-  transition: border-color 0.15s, box-shadow 0.15s !important;
+  transition-property: border-color, box-shadow !important;
+  transition-duration: 0.15s !important;
+}
+
+.vditor-official .vditor-panel .vditor-input::placeholder {
+  color: color-mix(in oklch, var(--gf-color-base-content) 42%, transparent);
 }
 
 .vditor-official .vditor-panel .vditor-input:focus {
-  border-color: var(--color-primary, #3b82f6) !important;
+  border-color: color-mix(in oklch, var(--gf-color-primary) 60%, var(--gf-color-line)) !important;
   outline: none !important;
-  box-shadow: 0 0 0 2px var(--color-primary-focus, rgba(59, 130, 246, 0.2)) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--gf-color-primary) 15%, transparent) !important;
 }
 
-/* 浮动栏内的操作图标按钮美化与触控 */
+/* 块浮层里的图标按钮：与格式条按钮同尺寸、同圆角、同 hover 底 */
 .vditor-official .vditor-panel .vditor-icon {
-  border-radius: 6px !important;
-  padding: 4px !important;
+  border-radius: var(--gf-radius-field) !important;
+  padding: 5px !important;
   width: 26px !important;
   height: 26px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  transition: background-color 0.15s, color 0.15s !important;
+  color: color-mix(in oklch, var(--gf-color-base-content) 72%, transparent) !important;
+  transition-property: background-color, color, scale !important;
+  transition-duration: 0.12s !important;
 }
 
 .vditor-official .vditor-panel .vditor-icon:hover {
-  background-color: var(--color-base-200, rgba(0, 0, 0, 0.06)) !important;
+  background-color: var(--gf-editor-hover) !important;
+  color: var(--gf-color-base-content) !important;
+}
+
+.vditor-official .vditor-panel .vditor-icon:active {
+  scale: 0.96;
 }
 
 /* 移动视图下的面板与表情栏防裁切：紧凑高度、自适应视口宽度 */
@@ -3547,15 +3667,16 @@ html[data-gf-font-body] .vditor-official .vditor-reset {
   .vditor-official .vditor-emojis {
     max-height: 160px !important;
   }
+  /* 16px 防止 iOS Safari 聚焦时整页放大 */
   .vditor-official .vditor-panel .vditor-input {
-    width: 95px !important;
-    max-width: 110px !important;
-    font-size: 12px !important;
-    padding: 3px 5px !important;
+    width: 7.5rem !important;
+    max-width: 100% !important;
+    height: 2rem !important;
+    font-size: 16px !important;
   }
   .vditor-official .vditor-panel .vditor-icon {
-    width: 24px !important;
-    height: 24px !important;
+    width: 28px !important;
+    height: 28px !important;
   }
 }
 

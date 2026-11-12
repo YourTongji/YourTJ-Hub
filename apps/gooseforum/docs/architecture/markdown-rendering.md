@@ -115,6 +115,15 @@ markdown-it (`resource/src/runtime/blank-lines.ts`) and Flutter
 (`core/lib/src/markdown/blank_lines.dart`) implement the same line rule and read
 `packages/api-contract/fixtures/markdown-blank-lines.json`.
 
+Relative image width (`Current`, [MADR 0131](../../../../docs/decisions/0131-relative-image-width.md))
+is a destination fragment, not syntax: `![a](/file/img/a.webp#w=50)`. The server
+keeps `src` verbatim and file usage tracking ignores the fragment; Web
+`resource/src/styles/prose.css` (and the editor copy in `VditorOfficial.vue`)
+sizes images with attribute selectors, and Flutter `GfMarkdownView` uses
+`sizedImageRow` from `core/lib/src/markdown/image_width.dart`. Presets, the
+160px minimum and editor snapping come from
+`packages/api-contract/fixtures/markdown-image-width.json`.
+
 ## Server Responsibilities
 
 Server rendering owns:

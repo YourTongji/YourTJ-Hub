@@ -107,6 +107,20 @@ func TestNormalizePostHTMLUpdatesExistingAttributes(t *testing.T) {
 	}
 }
 
+// 图片相对宽度（docs/decisions/0131-relative-image-width.md）只是地址里的 `#w=` 片段：
+// 渲染后原样留在 src 上供样式匹配，提取图片地址时也不丢。
+func TestPostMarkdownToHTMLKeepsImageWidthFragment(t *testing.T) {
+	html := PostMarkdownToHTML("![a](/file/img/a.png#w=50) ![b](/file/img/b.png#w=50)")
+	for _, want := range []string{`src="/file/img/a.png#w=50"`, `src="/file/img/b.png#w=50"`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("PostMarkdownToHTML() = %q, want it to contain %q", html, want)
+		}
+	}
+	if got := ExtractImageURLs("![a](/file/img/a.png#w=50)"); !slices.Equal(got, []string{"/file/img/a.png#w=50"}) {
+		t.Fatalf("ExtractImageURLs() = %v", got)
+	}
+}
+
 func TestExtractFirstImageURL(t *testing.T) {
 	got := ExtractFirstImageURL("正文\n\n![first](/file/img/first.webp)\n\n![second](https://example.com/second.webp)")
 	if got != "/file/img/first.webp" {
