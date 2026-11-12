@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-16
+> Last verified: 2026-11-12
 
 ## Content and publishing
 
@@ -427,6 +427,10 @@ HTTP 通知发送失败后复用数据库任务队列有限重试：每次检查
 `Current`：AI 可读索引、全文和单篇 Markdown 可独立开关，仅导出公开可见内容；全文受主题数、体积及
 耗时上限约束，截断明确标记。Agent API 与 MCP 的认证、写入开关和未实现唤醒链路见
 [身份规范](identity-and-access.md)与[契约与数据](../architecture/contracts-and-data.md)。
+
+`Current`：`robots.txt` 在既有 `User-agent: *` 组声明
+`Content-Signal: search=yes, ai-input=yes, ai-train=no`。允许搜索索引和作为模型输入，不允许训练。
+Allow、Sitemap 与 Disallow 保持不变。取舍见[决策 0130](../decisions/0130-community-content-signals.md)。
 
 ## Content contribution statistics
 
