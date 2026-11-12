@@ -16,6 +16,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
@@ -89,7 +90,7 @@ func viewRoute(ginApp *gin.Engine) {
 		slog.Info("view gzip disabled")
 	}
 
-	viewRouteApp.GET("/", forum.Home)
+	viewRouteApp.GET("/", serveHome)
 	viewRouteApp.GET("/p/post/:id", forum.TopicDetail)
 	viewRouteApp.GET("/p/post/:id/:postNo", forum.TopicDetail)
 	viewRouteApp.GET("/topics/:id", forum.TopicDetail)
@@ -132,6 +133,20 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/activate", controllers.ActivateAccount)
 
 	ginApp.GET("/site-theme.css", forum.SiteThemeCSS)
+}
+
+// serveHome keeps the HTML homepage on the normal view path. A markdown
+// representation that reuses the llms index shares that index's rate limit so
+// Accept negotiation cannot bypass /llms.txt. The header-only body used while
+// the index is disabled does not.
+func serveHome(c *gin.Context) {
+	if forum.ServesHomeMarkdown(c) && hotdataserve.GetPostingSettingsConfigCache().LLMS.Enabled {
+		middleware.RateLimit(middleware.RateLimitLLMSIndex)(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+	forum.Home(c)
 }
 
 func siteInfoRoute(ginApp *gin.Engine) {

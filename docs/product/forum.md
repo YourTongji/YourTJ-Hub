@@ -432,6 +432,14 @@ HTTP 通知发送失败后复用数据库任务队列有限重试：每次检查
 `Content-Signal: search=yes, ai-input=yes, ai-train=no`。允许搜索索引和作为模型输入，不允许训练。
 Allow、Sitemap 与 Disallow 保持不变。取舍见[决策 0130](../decisions/0130-community-content-signals.md)。
 
+`Current`：首页在 `Accept` 明确把 `text/markdown` 的质量值标得高于 `text/html` 时返回 Markdown，
+`Content-Type` 为 `text/markdown`。索引开启时正文就是 llms.txt 索引；关闭时只返回站点标题与简介。
+未带该偏好、或与 `text/html` 质量值相同的请求仍是 HTML。
+`for_you` 与 `following` 在偏好 Markdown 时不返回个性化信息流，而是同一份公开文档。
+`X-Goose-Page` 仍返回 JSON。
+索引开启时这次响应共用 `/llms.txt` 的限流配额；索引关闭时的短文档不占用该配额。
+HTML、Markdown 和首页 JSON 都带 RFC 8288 `Link`，`rel="describedby"` 指向 `/llms.txt` 与 `/llms-full.txt`。
+
 ## Content contribution statistics
 
 `Current`：四个贡献统计查询共用 `admin.stats` 限流，缺省每账号 60 秒内 60 次，无共享 IP 配额。
