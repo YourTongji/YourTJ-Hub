@@ -441,6 +441,23 @@ void main() {
     );
   });
 
+  test('Android all three receivers share the projection update schedule', () {
+    final bridge = read('lib/src/campus_widget/schedule_widget_bridge.dart');
+    final schedule = bridge.substring(
+      bridge.indexOf('final times = projection.updateTimesAfter'),
+      bridge.indexOf('await _reload();'),
+    );
+
+    expect(schedule, contains('HomeWidget.scheduleWidgetUpdates('));
+    for (final receiver in [
+      '_nextReceiver',
+      '_todayReceiver',
+      '_timelineReceiver',
+    ]) {
+      expect(schedule, contains('qualifiedAndroidName: $receiver'));
+    }
+  });
+
   test('iOS WidgetKit target, App Group and timeline are fully configured', () {
     final project = read('ios/Runner.xcodeproj/project.pbxproj');
     final source =
