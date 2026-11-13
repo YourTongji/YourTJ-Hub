@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -201,8 +202,20 @@ func restorePageConfigAfterTest(t *testing.T, conn *gorm.DB, pageType string) {
 	})
 }
 
+var lastContractTestID atomic.Uint64
+
+// contractTestID reserves room for fixtures that derive neighboring IDs from
+// a base. Wall-clock timestamps alone can repeat on coarse or adjusted clocks.
 func contractTestID() uint64 {
-	return uint64(time.Now().UnixNano())
+	const fixtureIDStride = 1024
+	now := uint64(time.Now().UnixNano())
+	for {
+		previous := lastContractTestID.Load()
+		next := max(now, previous+fixtureIDStride)
+		if lastContractTestID.CompareAndSwap(previous, next) {
+			return next
+		}
+	}
 }
 
 func createHTTPContractUser(t *testing.T, conn *gorm.DB, id uint64) *users.EntityComplete {
