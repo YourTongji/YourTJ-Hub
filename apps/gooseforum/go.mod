@@ -1,6 +1,6 @@
 module github.com/YourTongji/YourTJ-Hub/apps/gooseforum
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -51,7 +51,7 @@ require (
 	golang.org/x/image v0.47.0
 	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
-	golang.org/x/sync v0.24.0
+	golang.org/x/sync v0.25.0
 	golang.org/x/text v0.43.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gorm.io/driver/postgres v1.6.3

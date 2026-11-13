@@ -138,6 +138,11 @@ const protectedPaths = [
   'apps/gooseforum/app/models/forum/oidcAccessTokens/oidcAccessTokens.go',
   'apps/gooseforum/app/models/forum/role/role.go',
   'apps/gooseforum/app/models/forum/users/users.go',
+  'apps/gooseforum/app/models/forum/userActivities/userActivities.go',
+  'apps/gooseforum/app/models/forum/userBadges/userBadges.go',
+  'apps/gooseforum/app/models/forum/userFollow/userFollow.go',
+  'apps/gooseforum/app/models/forum/userPoints/userPoints.go',
+  'apps/gooseforum/app/models/forum/userStatistics/userStatistics.go',
   'apps/gooseforum/app/service/authsessionservice/authsessionservice.go',
   'apps/gooseforum/app/service/permission/permission.go',
   'apps/gooseforum/app/service/tokenservice/signing_key.go',
@@ -151,9 +156,9 @@ const protectedPaths = [
   'scripts/verify-decisions.mjs',
 ];
 
-// The policy must not lose a prefix: the path specification above proves a needed area is covered,
-// it cannot notice a coverage line that silently disappears. Both lists change together.
-const requiredPrefixes = [
+// Keep the original 58-prefix protection baseline from #1638. A replacement must cover every
+// entire old prefix, including future paths, rather than only today's tracked file samples.
+const originalProtectedPrefixes = [
   '.github/actions/',
   '.github/oryn/',
   '.github/workflows/',
@@ -220,6 +225,8 @@ const ordinaryPaths = [
   'apps/gooseforum/app/http/controllers/api/wikiController.go',
   'apps/gooseforum/app/http/middleware/logger.go',
   'apps/gooseforum/app/service/datamigration/topic_excerpt.go',
+  'apps/gooseforum/app/models/forum/topic/topic.go',
+  'apps/gooseforum/app/models/forum/post/post.go',
   'docs/development/testing.md',
   'docs/operations/oryn.md',
 ];
@@ -232,7 +239,9 @@ test('Hub Oryn policy enables low-risk approval and keeps check, lesson, and mer
   assert.deepEqual(repository.lessonPaths, ['docs/decisions', 'docs/postmortems']);
   assert.equal(repository.allowMerge, true);
   assert.deepEqual(repository.protectedMergePaths, ['releases/requests/']);
-  assert.deepEqual(repository.sensitivePaths, requiredPrefixes);
+  for (const prefix of originalProtectedPrefixes) {
+    assert.equal(prefixCovers(prefix, repository.sensitivePaths), true, `lost coverage for ${prefix}`);
+  }
   assert.equal(repository.sensitivePaths.includes('releases/requests/'), false);
   assert.equal(prefixCovers('releases/requests/example/request.json', repository.sensitivePaths), false);
   assert.equal(prefixCovers('releases/requests/example/request.json', repository.protectedMergePaths), true);
@@ -262,9 +271,14 @@ test('every sensitive prefix is a valid rule that protects at least one tracked 
 test('the pinned Oryn modules parse this policy and classify the same paths', async (t) => {
   const source = process.env.ORYN_PIN_SRC;
   if (!source) {
+    assert.notEqual(process.env.ORYN_REQUIRE_PIN_SRC, '1',
+      'ORYN_REQUIRE_PIN_SRC=1 requires the actual pinned runtime checkout; parser validation cannot skip');
     t.skip('ORYN_PIN_SRC is unset, so this run does not import the private pin');
     return;
   }
+  // Do not accept an arbitrary export or newer runtime as evidence for this workflow's pin.
+  assert.equal(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), verifiedOrynSha);
+  execFileSync('git', ['diff', '--quiet', 'HEAD', '--', 'src', 'package.json', 'bun.lock'], { cwd: source });
   const { spawnSync } = await import('node:child_process');
   const { existsSync } = await import('node:fs');
   const bun = existsSync('/home/ubuntu/.bun/bin/bun') ? '/home/ubuntu/.bun/bin/bun' : 'bun';
@@ -274,6 +288,9 @@ test('the pinned Oryn modules parse this policy and classify the same paths', as
     import { readFileSync } from 'node:fs';
     const raw = JSON.parse(readFileSync(${JSON.stringify(new URL('../.github/oryn/repositories.json', import.meta.url).pathname)}, 'utf8'));
     const parsed = RepositoryPolicy.parse(raw.repositories[0]);
+    const original = RepositoryPolicy.safeParse({ ...raw.repositories[0], sensitivePaths: ${JSON.stringify(originalProtectedPrefixes)} });
+    const atLimit = RepositoryPolicy.safeParse({ ...raw.repositories[0], sensitivePaths: Array.from({ length: 50 }, (_, i) => 'sample/' + i) });
+    const aboveLimit = RepositoryPolicy.safeParse({ ...raw.repositories[0], sensitivePaths: Array.from({ length: 51 }, (_, i) => 'sample/' + i) });
     const prefixes = [...parsed.sensitivePaths, ...parsed.protectedMergePaths];
     const files = {
       policy: '.github/oryn/repositories.json',
@@ -291,6 +308,11 @@ test('the pinned Oryn modules parse this policy and classify the same paths', as
     };
     const classified = Object.fromEntries(Object.entries(files).map(([key, file]) => [key, isSensitivePath(file, prefixes)]));
     console.log(JSON.stringify({
+      protectedSamples: ${JSON.stringify(protectedPaths)}.every((file) => isSensitivePath(file, prefixes)),
+      ordinarySamples: ${JSON.stringify(ordinaryPaths)}.every((file) => !isSensitivePath(file, prefixes)),
+      originalIssues: original.success ? [] : original.error.issues.map(({ code, path, maximum }) => ({ code, path, maximum })),
+      atLimit: atLimit.success,
+      aboveLimit: aboveLimit.success,
       allowLowRiskApprove: parsed.allowLowRiskApprove,
       requiredChecks: parsed.requiredChecks,
       trustedCheckApps: parsed.trustedCheckApps,
@@ -315,6 +337,11 @@ test('the pinned Oryn modules parse this policy and classify the same paths', as
   `], { encoding: 'utf8' });
   assert.equal(probe.status, 0, probe.stderr);
   const report = JSON.parse(probe.stdout);
+  assert.equal(report.protectedSamples, true);
+  assert.equal(report.ordinarySamples, true);
+  assert.deepEqual(report.originalIssues, [{ code: 'too_big', path: ['sensitivePaths'], maximum: 50 }]);
+  assert.equal(report.atLimit, true);
+  assert.equal(report.aboveLimit, false);
   assert.equal(report.allowLowRiskApprove, true);
   assert.deepEqual(report.requiredChecks, ['ci-required']);
   assert.deepEqual(report.trustedCheckApps, [{ name: 'ci-required', app: 'github-actions' }]);
@@ -342,4 +369,12 @@ test('publishing manual work and automatic events keep their shared receipt-writ
   for (const event of ['schedule', 'pull_request_target', 'issues', 'issue_comment']) {
     assert.equal(await orynConcurrency({}, event), 'oryn-sweep');
   }
+});
+
+// Regression for #1649: the pinned runtime rejects the complete policy before planning when
+// this array exceeds 50 entries. This guard runs even without access to the private parser.
+test('Hub sensitive prefixes fit the pinned runtime array limit', async () => {
+  const repository = await policyRepository();
+  assert.ok(repository.sensitivePaths.length <= 50,
+    `sensitivePaths has ${repository.sensitivePaths.length} entries; the pinned runtime permits at most 50`);
 });
