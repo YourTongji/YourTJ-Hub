@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-11-08
+> Last verified: 2026-11-11
 
 Implementation status: **Current** for the configured integration. Live run results are recorded in
 Actions; a green preflight proves App access and planning, while an executed review proves model access.
@@ -38,8 +38,9 @@ repository does not enable auto-merge. Policy directs lesson reuse to the truste
 copies of [decisions](../decisions/) and [postmortems](../postmortems/README.md)
 (`lessonPaths`: `docs/decisions`, `docs/postmortems`). There is no separate lessons tree. Policy pairs
 the check name `ci-required` with the GitHub App slug `github-actions` (`trustedCheckApps`), so trust
-in that check is app-bound rather than name-only. `sensitivePaths` holds Hub prefixes. The runtime
-checks those prefixes and then `protectedMergePaths` with the same `startsWith` rule.
+in that check is app-bound rather than name-only. `sensitivePaths` holds at most 50 Hub prefixes, the
+pinned parser's array limit. The runtime checks those prefixes and then `protectedMergePaths` with
+the same `startsWith` rule.
 `releases/requests/` stays only in `protectedMergePaths`. The list covers policy, workflows and the
 repo-seed gate manifest (`.repo-seed/manifest.json`), repository tooling under `scripts/`, the
 password, admin and account API controllers, the whole route table, the session, JWT, permission and
@@ -49,8 +50,17 @@ The pinned matcher
 also treats `.github/`, path tokens such as `migration`, `deploy`, and `releases`, and
 `docs/decisions/` plus `docs/postmortems/` as sensitive without a Hub prefix. Prefixes stay narrow
 enough that ordinary code, documentation and logging remain reviewable; `node --test
-scripts/test-oryn-validation.mjs` enforces that split against real repository paths, so a missing or
-dead prefix fails CI instead of surfacing in a live review.
+scripts/test-oryn-validation.mjs` enforces that split against real repository paths. It checks the
+50-entry limit and proves that each original protection prefix remains covered by a current prefix,
+including future files beneath it. The model prefixes consolidate into `app/models/forum/oidc`,
+`app/models/forum/role`, and `app/models/forum/user` under `apps/gooseforum/`. This also marks user
+activities, badges, follows, points and statistics models sensitive; ordinary topic/post models,
+logging, Wiki controllers and documentation remain outside the Hub prefixes. These additional account
+models receive comments rather than low-risk bot approval. No original sensitive coverage is removed.
+The local limit guard is not a substitute for the private runtime parser. Full schema/matcher
+verification remains **Partial** in ordinary CI because it has no private runtime checkout. An
+operator with source access must run the strict probe below against the exact setup-action pin and
+perform a selected-ref manual preflight before claiming parser/planning compatibility.
 Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
@@ -267,12 +277,17 @@ selected report after changing runtime or credentials. Review local entry change
 ```sh
 actionlint -ignore 'unexpected key "queue" for "concurrency" section' .github/workflows/oryn.yml .github/workflows/oryn-item.yml
 node --test scripts/test-oryn-validation.mjs
+# For the real parser/matcher check, use a clean checkout at the setup action's exact runtime pin
+# with its locked dependencies installed. Strict mode fails rather than skips if source is absent.
+ORYN_REQUIRE_PIN_SRC=1 ORYN_PIN_SRC=/path/to/pinned-oryn node --test scripts/test-oryn-validation.mjs
 node scripts/run-gates.mjs
 git diff --check
 ```
 
 The ignore covers only an older actionlint version's lack of native queued-concurrency support; do not
-suppress other errors. Local checks do not establish live App authentication or model success.
+suppress other errors. The strict probe checks the final policy, the original over-limit policy,
+the parser's 50/51 boundary, and the real matcher. An unset `ORYN_PIN_SRC` skips that probe in ordinary local/CI runs; a skip is not
+parser success. Local checks do not establish live App authentication or model success.
 
 References: [GitHub App registration](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app),
 [pinned token action and permission inputs](https://github.com/actions/create-github-app-token/tree/bcd2ba49218906704ab6c1aa796996da409d3eb1),
