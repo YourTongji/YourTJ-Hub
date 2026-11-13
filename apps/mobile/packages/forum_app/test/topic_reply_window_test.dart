@@ -874,6 +874,7 @@ void main() {
     expect(renderedMarkdown, contains('一楼正文的完整内容 [:sticker:smile:]'));
     expect(find.text('旧摘要 [:sticker:smile:]'), findsNothing);
     expect(find.byType(StickerImage), findsOneWidget);
+    expect(find.textContaining('[:sticker:'), findsNothing);
     expect(renderedMarkdown, contains('35楼内容'));
     expect(renderedMarkdown, contains('40楼内容'));
 
