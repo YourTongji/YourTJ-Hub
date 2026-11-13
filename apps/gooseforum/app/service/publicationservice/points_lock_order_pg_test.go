@@ -33,6 +33,8 @@ func TestPostgreSQLPublicationPointsUseOneParticipantLockOrder(t *testing.T) {
 	rows := []any{
 		&identity.Persona{UID: personaUID, Name: "Points lock persona", AvatarSeed: "seed"},
 		&identity.Binding{OwnerID: owner.Id, PersonaUID: personaUID},
+		// Two published topics let the two transactions hold distinct content locks
+		// while contending on the same participant row.
 		&topics.Entity{Id: 10, UserId: owner.Id, Status: 1, FirstPostId: 100, PostCount: 2, PostSeq: 2, VisibilityStatus: topics.VisibilityActive, ProcessStatus: topics.ProcessStatusNormal},
 		&topics.Entity{Id: 20, UserId: owner.Id, Status: 1, FirstPostId: 200, PostCount: 2, PostSeq: 2, VisibilityStatus: topics.VisibilityActive, ProcessStatus: topics.ProcessStatusNormal},
 		&posts.Entity{Id: 100, TopicId: 10, UserId: owner.Id, PostNo: 1, VisibilityStatus: posts.VisibilityActive, ProcessStatus: posts.ProcessStatusNormal},
@@ -49,19 +51,25 @@ func TestPostgreSQLPublicationPointsUseOneParticipantLockOrder(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 	personaOwnerLocked := make(chan struct{})
-	memberBalanceLocked := make(chan struct{})
+	memberAtReward := make(chan struct{})
 	personaProceed := make(chan struct{})
-	memberCtx := context.WithValue(ctx, lockOrderContextKey{}, "member")
 
-	if err := conn.Callback().Update().Before("gorm:update").Register("test:points-member-balance-barrier", func(tx *gorm.DB) {
-		if tx.Statement == nil || tx.Statement.Context.Value(lockOrderContextKey{}) != "member" || tx.Statement.Table != "user_points" {
+	if err := conn.Callback().Query().Before("gorm:query").Register("test:points-member-reward-barrier", func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Table != "posts" {
 			return
 		}
-		close(memberBalanceLocked)
+		if tx.Statement.Context.Value(lockOrderContextKey{}) != "member" {
+			return
+		}
+		close(memberAtReward)
+		select {
+		case <-personaProceed:
+		case <-ctx.Done():
+		}
 	}); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = conn.Callback().Update().Remove("test:points-member-balance-barrier") })
+	t.Cleanup(func() { _ = conn.Callback().Query().Remove("test:points-member-reward-barrier") })
 
 	results := make(chan error, 2)
 	go func() {
@@ -73,16 +81,15 @@ func TestPostgreSQLPublicationPointsUseOneParticipantLockOrder(t *testing.T) {
 				return err
 			}
 			close(personaOwnerLocked)
-			// Hold the participant lock until member has reached its balance UPDATE.
-			// Old implementation: persona then waits for user_points while member
-			// waits for users -> PostgreSQL deadlock. Fixed implementation: persona
-			// already owns users, so member's participant lock waits and both
-			// transactions serialize.
 			select {
-			case <-memberBalanceLocked:
+			case <-memberAtReward:
 			case <-ctx.Done():
 				return ctx.Err()
 			}
+			// Both implementations now enter the reward path together. The fixed
+			// implementation gives the member transaction the participant lock
+			// before user_points; the old implementation lets member take
+			// user_points first and then wait for persona's users row.
 			close(personaProceed)
 			return pointservice.RewardPublicationTx(tx, 10, 101)
 		})
@@ -93,31 +100,13 @@ func TestPostgreSQLPublicationPointsUseOneParticipantLockOrder(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	go func() {
-		results <- conn.WithContext(memberCtx).Transaction(func(tx *gorm.DB) error {
+		results <- conn.WithContext(context.WithValue(ctx, lockOrderContextKey{}, "member")).Transaction(func(tx *gorm.DB) error {
 			if _, err := topics.GetForUpdateTx(tx, 20); err != nil {
 				return err
-			}
-			// Hold user_points before RewardPublicationTx on both implementations.
-			// The fixed path has already locked users; the old path then waits for
-			// persona's users row while persona waits for this balance row.
-			result := tx.Table("user_points").Where("user_id = ?", owner.Id).
-				Update("current_points", gorm.Expr("current_points + 0"))
-			if result.Error != nil {
-				return result.Error
-			}
-			select {
-			case <-personaProceed:
-			case <-ctx.Done():
-				return ctx.Err()
 			}
 			return pointservice.RewardPublicationTx(tx, 20, 201)
 		})
 	}()
-	select {
-	case <-memberBalanceLocked:
-	case <-ctx.Done():
-		t.Fatal(ctx.Err())
-	}
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-results:
