@@ -2,6 +2,7 @@ package mcpservice
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -49,19 +50,21 @@ type serverCard struct {
 // ServerCardJSON returns the public MCP server card. Transport matches
 // NewStreamableHTTPHandler mounted at /mcp. Capabilities match the SDK
 // defaults used by buildServer: logging, plus tools with listChanged once
-// tools are registered. Protocol versions come from the same SDK.
+// tools are registered. TestServerCardMatchesLiveServer guards that claim
+// against the real initialize result.
 func ServerCardJSON() ([]byte, error) {
 	version := buildinfo.Get().Version
+	// SupportedProtocolVersions reports the linked SDK's versions newest
+	// first, so the first entry is the latest supported protocol version.
 	versions := mcp.SupportedProtocolVersions()
-	protocolVersion := ""
-	if len(versions) > 0 {
-		protocolVersion = versions[0]
+	if len(versions) == 0 {
+		return nil, errors.New("mcp: SDK reports no supported protocol versions")
 	}
 	card := serverCard{
 		Schema:          serverCardSchema,
 		Version:         serverCardVersion,
 		Description:     "Forum agent tools served at /mcp with streamable HTTP. Authentication is the existing static Bearer scheme. The credential is not included in this card.",
-		ProtocolVersion: protocolVersion,
+		ProtocolVersion: versions[0],
 		Tools:           []string{"dynamic"},
 	}
 	card.ServerInfo.Name = mcpServerName

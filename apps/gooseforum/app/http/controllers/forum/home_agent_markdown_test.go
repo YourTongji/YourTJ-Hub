@@ -75,6 +75,34 @@ func TestHomeMarkdownNegotiationAndDiscoveryLinks(t *testing.T) {
 	assertHomepageLLMSLinks(t, pageRec.Header().Get("Link"))
 }
 
+// TestHomeMarkdownFoldsMultipleAcceptFields guards RFC 9110 field folding:
+// several Accept header fields form one combined list, so a markdown
+// preference in a later field must not be lost to the first field alone.
+func TestHomeMarkdownFoldsMultipleAcceptFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/", Home)
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost/", nil)
+	req.Header.Add("Accept", "*/*;q=0.1")
+	req.Header.Add("Accept", "text/markdown")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Content-Type"); !strings.Contains(got, "text/markdown") {
+		t.Fatalf("split Accept content-type = %q, want text/markdown", got)
+	}
+
+	// A browser-like split list still prefers HTML.
+	htmlReq := httptest.NewRequest(http.MethodGet, "http://localhost/", nil)
+	htmlReq.Header.Add("Accept", "text/html")
+	htmlReq.Header.Add("Accept", "*/*;q=0.8")
+	htmlRec := httptest.NewRecorder()
+	router.ServeHTTP(htmlRec, htmlReq)
+	if got := htmlRec.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("split HTML Accept content-type = %q, want text/html", got)
+	}
+}
+
 func performHome(t *testing.T, router http.Handler, accept string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/", nil)

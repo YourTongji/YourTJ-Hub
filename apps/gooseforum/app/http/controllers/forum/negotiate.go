@@ -18,7 +18,10 @@ func setHomepageAgentLinks(c *gin.Context) {
 // ServesHomeMarkdown reports whether this homepage request should receive the
 // markdown representation instead of HTML or the JSON page payload.
 func ServesHomeMarkdown(c *gin.Context) bool {
-	return !isPageRequest(c) && prefersTextMarkdown(c.GetHeader("Accept"))
+	// RFC 9110 allows multiple Accept header fields; negotiate over their
+	// combined list rather than only the first field.
+	accept := strings.Join(c.Request.Header.Values("Accept"), ", ")
+	return !isPageRequest(c) && prefersTextMarkdown(accept)
 }
 
 // prefersTextMarkdown reports whether Accept prefers text/markdown over

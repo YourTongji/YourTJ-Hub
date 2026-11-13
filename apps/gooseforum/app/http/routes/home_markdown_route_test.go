@@ -8,11 +8,13 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,7 +29,7 @@ func TestHomeMarkdownSharesLLMSIndexRateLimit(t *testing.T) {
 	setLLMSIndexRateLimit(t, 1)
 
 	router := gin.New()
-	router.GET("/", serveHome)
+	router.GET("/", homeMarkdownRateLimit, forum.Home)
 
 	first := requestHome(router, "text/markdown")
 	if first.Code != http.StatusOK {
@@ -46,6 +48,42 @@ func TestHomeMarkdownSharesLLMSIndexRateLimit(t *testing.T) {
 	disabled := requestHome(router, "text/markdown")
 	if disabled.Code != http.StatusOK {
 		t.Fatalf("disabled-index markdown status = %d, want 200 without the index quota", disabled.Code)
+	}
+}
+
+// TestHomeMarkdownErrorIsNotCacheable guards the session-credential invariant
+// on the error branch: the route runs after JWTAuth, so any response — not
+// only a successful build — may carry a refreshed New-Token/access_token and
+// must stay uncacheable.
+func TestHomeMarkdownErrorIsNotCacheable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &topics.Entity{}, &posts.Entity{}); err != nil {
+		t.Fatalf("migrate home markdown tables: %v", err)
+	}
+	restoreLLMSRouteSettings(t, conn)
+	persistLLMSRouteSettings(t, conn, pageConfig.LLMSConfig{Enabled: true})
+	// Force the index build to fail so the handler takes its error branch.
+	if err := conn.Migrator().DropTable(&topics.Entity{}); err != nil {
+		t.Fatalf("drop topics table: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.AutoMigrate(&topics.Entity{}); err != nil {
+			t.Errorf("restore topics table: %v", err)
+		}
+		llmsservice.ClearCache()
+	})
+	llmsservice.ClearCache()
+
+	router := gin.New()
+	router.GET("/", homeMarkdownRateLimit, forum.Home)
+
+	rec := requestHome(router, "text/markdown")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("broken-index markdown status = %d, want 500: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("error markdown Cache-Control = %q, want private, no-store", got)
 	}
 }
 
