@@ -1342,6 +1342,8 @@ export default {
       changeFile: 'ファイルを変更',
       useTitle: 'タイトルに使う：',
       images: '画像',
+      imagesStatus: '準備できた画像 {done}/{total}',
+      imagesStatusIssues: '準備できた画像 {done}/{total}。{count} 枚は対応が必要です',
       retry: '再試行',
       retryAll: 'すべて再試行',
       chooseImage: '画像を選択',

@@ -117,7 +117,7 @@
     margin-block: var(--gf-rich-flow);
   }
 
-  /* 连续空行（DQ-1，docs/decisions/0128-visible-blank-lines.md）：服务端与预览把顶层块之间
+  /* 连续空行（DQ-1，docs/decisions/0133-visible-blank-lines.md）：服务端与预览把顶层块之间
      多出的每个空行渲染成一个空段落占位。高一行、沿用所在档位的段距，与编辑区多按一次
      Enter 留下的空段等高；不放在 .gf-prose-post 下，紧凑、公告与 Vditor 预览同样生效。 */
   .gf-blank-line {
@@ -362,7 +362,7 @@
     white-space: pre;
   }
 
-  /* 正文链接：主色 + 字体自带位置的淡下划线，不只靠颜色区分；悬停时下划线加深 */
+  /* 正文链接沿用 #1371：主色、无下划线 */
   .gf-prose-post a {
     @apply font-medium text-primary no-underline hover:text-primary;
     overflow-wrap: anywhere;
@@ -401,7 +401,7 @@
    * 相对宽度（MADR 0131）：地址末尾 `#w=<预设>` 按正文宽度百分比显示，窄屏不小于 10rem。
    * 指定宽度即用户的明确选择，不再套用高度上限（否则长图会被压进留白框里）。
    * 同一段落里相邻的指定宽度图片并排成一行（两张 50%、三张 33%…），放不下时自动换行。
-   * 编辑区（VditorOfficial.vue）与 App（markdown_view.dart）按同一规则排版。
+   * 编辑区（VditorOfficial.vue）按同一规则排版；App（markdown_view.dart）只处理只含图片的段落。
    */
   .gf-prose img:is([src$='#w=25'], [src$='#w=33'], [src$='#w=50'], [src$='#w=66'], [src$='#w=75'], [src$='#w=100']):not(.twemoji, [data-gf-sticker]) {
     width: max(var(--gf-image-w), min(100%, 10rem));

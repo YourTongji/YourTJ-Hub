@@ -1343,6 +1343,8 @@ export default {
       changeFile: 'Change file',
       useTitle: 'Use as title:',
       images: 'Images',
+      imagesStatus: 'Images ready: {done} of {total}',
+      imagesStatusIssues: 'Images ready: {done} of {total}. {count} need attention.',
       retry: 'Retry',
       retryAll: 'Retry all',
       chooseImage: 'Choose image',

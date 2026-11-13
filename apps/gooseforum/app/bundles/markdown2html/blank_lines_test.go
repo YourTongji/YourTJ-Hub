@@ -76,3 +76,21 @@ func TestPostMarkdownToHTMLRendersBlankLineSpacers(t *testing.T) {
 		t.Fatalf("mention render = %s", got)
 	}
 }
+
+func TestPostMarkdownToHTMLKeepsBlankLineMarkersOutOfMath(t *testing.T) {
+	for _, source := range []string{
+		"$$x\n\n\ny$$",
+		"\\[x\n\n\ny\\]",
+		"\\begin{aligned}a\n\n\nb\\end{aligned}",
+		"甲\n\n\n$$x\n\n\ny$$\n\n\n乙",
+	} {
+		for _, rendered := range []string{
+			PostMarkdownToHTML(source),
+			PostMarkdownToHTMLWithMentions(source, map[string]uint64{"alice": 1}),
+		} {
+			if strings.Contains(rendered, blankLineMarkerPrefix) {
+				t.Fatalf("marker leaked into math for %q: %s", source, rendered)
+			}
+		}
+	}
+}

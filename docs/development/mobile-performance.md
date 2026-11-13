@@ -53,9 +53,11 @@ submit a reviewed baseline update with the new measurement and provenance. Do no
 or copy a failing size into the baseline merely to make CI green. Build-only signing and OEM inputs
 must remain comparable; changing that workflow setup also requires reviewing the baseline.
 
-`Current`: the baseline was re-measured in #1663 after accepting the Markdown math renderer
-(`flutter_math_fork`): its bundled KaTeX fonts add about 370 KB and its compiled code about 466 KB to the
-arm64 release APK (from 48,833,689 to 50,310,187 bytes, measured on the PR merge commit).
+`Current`: the arm64 baseline includes the Markdown math renderer (`flutter_math_fork`). Its directly
+attributable additions are the bundled KaTeX fonts (about 370 KB) and the package's own compiled code
+(about 466 KB). The total increase is larger — about 1.11 MB in `libapp.so` and about 1.48 MB in the
+APK — so those two items do not explain all of it; the remainder is other AOT and packaging growth that
+is not attributed to a single package.
 
 `Partial`: this budget covers builds selected by the native CI policy, not every Dart/asset-only PR.
 Budget checker, test and baseline changes select an Android build. It is not a production APK,

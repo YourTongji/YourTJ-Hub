@@ -40,8 +40,12 @@ Choose option 1, at most three spacers per run (`MAX_RENDERED_BLANK_LINES`, `Max
 
 - **Rule.** A run of r blank lines (lines of only spaces or tabs) between two top-level blocks
   renders `min(r - 1, 3)` spacers. It applies only before an unindented line, never inside fenced
-  code, `$$` math or an unclosed fence, never between items of the same list and never before an
-  indented continuation. Leading and trailing blank lines are ignored.
+  code or an unclosed fence, never inside a math segment and never before an indented continuation.
+  Math segments are the ones the shared math scanner finds (`$$…$$`, `\[…\]`, math environments,
+  including display math opened on a text line), so blank lines inside math stay part of the formula.
+  Blank lines between items of the same list are not marked; a different bullet character (`-`,
+  `+`, `*`) or ordered delimiter (`.`, `)`), or a switch between bullet and ordered items, starts a
+  new list as in CommonMark and is marked. Leading and trailing blank lines are ignored.
 - **Mechanism.** Each renderer inserts a marker paragraph (a string absent from the source) at every
   spacer, renders with its usual parser, then swaps the marker paragraph for
   `<p class="gf-blank-line" aria-hidden="true"></p>`. Because the marker sits between blocks that

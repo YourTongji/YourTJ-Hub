@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -235,6 +236,68 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('sized images drop the height cap that plain images keep', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final library = StickerLibrary(_FakeStickerRepository());
+    addTearDown(library.dispose);
+    // A 1:6 portrait image: at half the body width it is far taller than the
+    // min(360, 70vh) cap plain images keep.
+    final tall = MemoryImage(
+      Uint8List.fromList(img.encodePng(img.Image(width: 10, height: 60))),
+    );
+    Future<double> height(String data) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: GfMediaScope(
+            identity: 'tall-image-test',
+            factory:
+                (
+                  url, {
+                  int? width,
+                  int? height,
+                  Set<String>? allowedOrigins,
+                  ResizeImagePolicy policy = ResizeImagePolicy.exact,
+                }) => tall,
+            child: _wrap(
+              SingleChildScrollView(
+                child: GfMarkdownView(key: ValueKey<String>(data), data: data),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => precacheImage(tall, tester.element(find.byType(GfMarkdownView))),
+      );
+      await tester.pump();
+      await tester.pump();
+      return tester
+          .getSize(
+            find
+                .ancestor(
+                  of: find.byType(GfNetworkImage),
+                  matching: find.byType(Container),
+                )
+                .first,
+          )
+          .height;
+    }
+
+    expect(
+      await height('![a](https://img.test/a.png)'),
+      lessThanOrEqualTo(360),
+    );
+    final double sized = await height('![a](https://img.test/a.png#w=50)');
+    expect(sized, greaterThan(800));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('sized images follow their relative width and share a row', (
     tester,
   ) async {
@@ -333,6 +396,14 @@ void main() {
     expect(plain(), contains(r'$x$'));
     expect(plain(), contains(r'costs $5 and $10'));
     expect(find.textContaining(r'$$y$$', findRichText: true), findsOneWidget);
+
+    // A fence info string that looks like math stays the author's text.
+    await show('```\$x\$\ncode\n```');
+    expect(
+      tester.widget<GfCodeBlock>(find.byType(GfCodeBlock)).language,
+      r'$x$',
+    );
+    expect(plain(), isNot(contains('GFMATH')));
 
     // Math inside a table cell lays out with the table's natural widths.
     await show('| a | b |\n|---|---|\n| \$x^2\$ | \$\\sqrt{y}\$ |');

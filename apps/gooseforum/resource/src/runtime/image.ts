@@ -15,7 +15,10 @@ export function supportsWebP(): boolean {
   return canvas.toDataURL('image/webp').startsWith('data:image/webp')
 }
 
-export function validateImageFile(file: File, maxSize = 10 * 1024 * 1024): string | null {
+/** 单张图片上传上限：编辑器上传与 Markdown 导入下载共用。 */
+export const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
+
+export function validateImageFile(file: File, maxSize = MAX_IMAGE_UPLOAD_BYTES): string | null {
   if (!file.type.startsWith('image/')) return i18n.global.t('image.selectFile')
   if (file.size > maxSize) return i18n.global.t('image.maxSize', { size: (maxSize / 1024 / 1024).toFixed(0) })
   return null

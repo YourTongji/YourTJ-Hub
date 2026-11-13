@@ -11,13 +11,13 @@
  * 导入时仍未上传的图片：网络图保留为普通链接，本地/内嵌图只保留替代文字，正文里不会出现
  * 无法显示的外链图片。
  */
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { AlertTriangle, Check, FileInput, FileText, FolderOpen, ImageOff, Loader2, RotateCcw, RotateCw, Upload, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import GfSwitch from '@/site/components/GfSwitch.vue'
 import { uploadImage } from '@/runtime/api'
-import { processImageFile, validateImageFile } from '@/runtime/image'
+import { MAX_IMAGE_UPLOAD_BYTES, processImageFile, validateImageFile } from '@/runtime/image'
 import { renderMarkdownPreview } from '@/runtime/markdown'
 import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
 import {
@@ -34,6 +34,7 @@ import {
   matchLocalImage,
   parseMarkdownImport,
   rewriteImportImages,
+  stripLeadingHeading,
   unresolvedImageFallback,
   type ImportImage,
   type LocalImportFile,
@@ -91,6 +92,9 @@ const useTitle = ref(false)
 const mode = ref<'replace' | 'insert'>('replace')
 let replaceTarget: ImportItem | null = null
 let controller = new AbortController()
+// 每次开始载入文档（选择、拖入、多文档中选一份）递增；读取或遍历文件夹之后不是最新的
+// 载入就丢弃，较早选择的慢文档不会覆盖后选择的文档。
+let loadGeneration = 0
 
 const PREVIEW_LIMIT = 12000
 const CONCURRENCY = 2
@@ -103,23 +107,27 @@ const unresolvedCount = computed(() => uploadable.value.filter((item) => !item.e
 const missingLocalCount = computed(() => uploadable.value.filter((item) => !item.excluded && item.status === 'needs-file').length)
 const settledCount = computed(() => doneCount.value + excludedCount.value)
 const progressPercent = computed(() => (uploadable.value.length ? Math.round((settledCount.value / uploadable.value.length) * 100) : 100))
+// 读屏只播报汇总：已就绪/总数与需要处理的数量，不把逐行状态设为 live
+const imagesStatus = computed(() =>
+  unresolvedCount.value
+    ? t('editor.import.imagesStatusIssues', { done: settledCount.value, total: uploadable.value.length, count: unresolvedCount.value })
+    : t('editor.import.imagesStatus', { done: settledCount.value, total: uploadable.value.length }),
+)
+const imagesHeadingId = `gf-import-images-${useId()}`
 const showTitleOption = computed(() => Boolean(props.allowTitle && parsed.value?.title))
 
 const finalBody = computed(() => {
   const result = parsed.value
   if (!result) return ''
   const byUrl = new Map(items.value.map((item) => [item.src, item]))
-  let body = rewriteImportImages(result.body, (src, alt) => {
+  const body = rewriteImportImages(result.body, (src, alt) => {
     const item = byUrl.get(src)
     if (!item || item.kind === 'site') return undefined
     if (item.status === 'done' && item.url && !item.excluded) return imageMarkdown(alt, item.url)
     return unresolvedImageFallback({ src, alt, kind: item.kind })
   })
-  // 不用作标题时，来自首行一级标题的标题回到正文开头
-  if (result.titleSource === 'heading' && result.title && !(showTitleOption.value && useTitle.value)) {
-    body = `# ${result.title}\n\n${body}`
-  }
-  return body
+  // 首个一级标题用作标题时才从正文移除；它里面的图片已与正文一起改写
+  return result.titleSource === 'heading' && showTitleOption.value && useTitle.value ? stripLeadingHeading(body) : body
 })
 
 const { resolvedUrls: stickerUrls, ensureContentStickers } = useResolvedStickers()
@@ -132,6 +140,7 @@ const characterCount = computed(() => finalBody.value.replace(/\s+/g, '').length
 const profileClass = computed(() => (props.profile === 'article' ? 'gf-prose-article' : props.profile === 'thought' ? 'gf-prose-thought' : ''))
 
 function reset() {
+  loadGeneration++
   controller.abort()
   controller = new AbortController()
   error.value = ''
@@ -189,7 +198,8 @@ function shallowFirst(a: LocalImportFile, b: LocalImportFile) {
   return a.path.split('/').length - b.path.split('/').length || a.path.localeCompare(b.path)
 }
 
-async function loadFiles(files: LocalImportFile[]) {
+async function loadFiles(files: LocalImportFile[], load: number) {
+  if (load !== loadGeneration) return
   error.value = ''
   const documents = files.filter((entry) => isMarkdownFile(entry.file)).sort(shallowFirst)
   // 文件夹里同时有 .md 与 .txt 时，.txt 多半只是附带说明，优先 Markdown
@@ -212,24 +222,27 @@ async function loadFiles(files: LocalImportFile[]) {
     localFiles.value = images
     return
   }
-  await loadMarkdown(markdowns[0], images)
+  await loadMarkdown(markdowns[0], images, load)
 }
 
-async function loadMarkdown(markdown: LocalImportFile, images: LocalImportFile[]) {
+async function loadMarkdown(markdown: LocalImportFile, images: LocalImportFile[], load: number) {
+  if (load !== loadGeneration) return
   error.value = ''
   if (markdown.file.size > MARKDOWN_IMPORT_MAX_BYTES) {
     error.value = t('editor.import.errorTooLarge', { size: formatSize(MARKDOWN_IMPORT_MAX_BYTES) })
     return
   }
-  controller.abort()
-  controller = new AbortController()
   let text: string
   try {
     text = await markdown.file.text()
   } catch {
-    error.value = t('editor.import.errorRead')
+    if (load === loadGeneration) error.value = t('editor.import.errorRead')
     return
   }
+  if (load !== loadGeneration) return
+  // 新文档确定后才取消上一份的上传队列
+  controller.abort()
+  controller = new AbortController()
   const result = parseMarkdownImport(text, { siteOrigin: window.location.origin })
   if (!result.body.trim() && !result.title) {
     error.value = t('editor.import.errorEmpty')
@@ -255,14 +268,14 @@ async function loadMarkdown(markdown: LocalImportFile, images: LocalImportFile[]
 }
 
 function chooseMarkdown(markdown: LocalImportFile) {
-  void loadMarkdown(markdown, localFiles.value)
+  void loadMarkdown(markdown, localFiles.value, ++loadGeneration)
 }
 
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const files = localImportFiles(Array.from(input.files ?? []))
   input.value = ''
-  if (files.length) void loadFiles(files)
+  if (files.length) void loadFiles(files, ++loadGeneration)
 }
 
 /** 已载入文档后选择的文件夹只用来补齐图片：重新载入会丢掉替换/移除并重复上传 */
@@ -272,7 +285,7 @@ function onFolderChange(event: Event) {
   input.value = ''
   if (!files.length) return
   if (parsed.value) addLocalFiles(files)
-  else void loadFiles(files)
+  else void loadFiles(files, ++loadGeneration)
 }
 
 function onImagesChange(event: Event) {
@@ -285,15 +298,20 @@ function onImagesChange(event: Event) {
 function onDrop(event: DragEvent) {
   dragging.value = false
   if (!event.dataTransfer) return
+  const load = ++loadGeneration
   void collectDroppedFiles(event.dataTransfer).then((files) => {
-    if (files.length) return loadFiles(files)
+    if (files.length) return loadFiles(files, load)
   })
 }
 
 function onSupplementDrop(event: DragEvent) {
   dragging.value = false
   if (!event.dataTransfer) return
-  void collectDroppedFiles(event.dataTransfer).then(addLocalFiles)
+  // 补图属于当前文档：遍历期间换了文档就丢弃
+  const load = loadGeneration
+  void collectDroppedFiles(event.dataTransfer).then((files) => {
+    if (load === loadGeneration) addLocalFiles(files)
+  })
 }
 
 function errorMessage(err: unknown): string {
@@ -301,6 +319,7 @@ function errorMessage(err: unknown): string {
     if (err.code === 'blocked') return t('editor.import.errorBlocked')
     if (err.code === 'http') return t('editor.import.errorHttp', { status: err.status })
     if (err.code === 'not-image') return t('editor.import.errorNotImage')
+    if (err.code === 'too-large') return t('image.maxSize', { size: (MAX_IMAGE_UPLOAD_BYTES / 1024 / 1024).toFixed(0) })
     return t('editor.import.errorInvalid')
   }
   return err instanceof Error && err.message ? err.message : t('api.imageUploadFailed')
@@ -391,7 +410,8 @@ function onReplacementChange(event: Event) {
   const item = replaceTarget
   replaceTarget = null
   if (!file || !item) return
-  if (item.status === 'done' && item.url && !item.previousUrl) item.previousUrl = item.url
+  // 每次从已上传状态替换都记下当时的图片：还原回到最近一次替换之前
+  if (item.status === 'done' && item.url) item.previousUrl = item.url
   item.replacement = file
   item.excluded = false
   item.status = 'pending'
@@ -551,7 +571,7 @@ function apply() {
               <!-- 图片 -->
               <section v-if="uploadable.length" class="mt-4">
                 <div class="mb-2 flex items-center gap-2">
-                  <h3 class="text-sm font-semibold text-base-content">{{ t('editor.import.images') }}</h3>
+                  <h3 :id="imagesHeadingId" class="text-sm font-semibold text-base-content">{{ t('editor.import.images') }}</h3>
                   <span class="text-xs tabular-nums text-base-content/55">{{ settledCount }}/{{ uploadable.length }}</span>
                   <button
                     v-if="items.some((item) => item.status === 'failed') && !processing"
@@ -563,9 +583,18 @@ function apply() {
                     {{ t('editor.import.retryAll') }}
                   </button>
                 </div>
-                <div class="mb-2 h-1 overflow-hidden rounded-full bg-base-content/10" role="progressbar" :aria-valuenow="progressPercent" aria-valuemin="0" aria-valuemax="100">
+                <div
+                  class="mb-2 h-1 overflow-hidden rounded-full bg-base-content/10"
+                  role="progressbar"
+                  :aria-labelledby="imagesHeadingId"
+                  :aria-valuenow="progressPercent"
+                  :aria-valuetext="imagesStatus"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                >
                   <div class="h-full rounded-full bg-primary transition-[width] duration-300 ease-out" :style="{ width: `${progressPercent}%` }" />
                 </div>
+                <p class="sr-only" role="status" aria-live="polite" data-test="import-images-status">{{ imagesStatus }}</p>
                 <ul class="max-h-56 space-y-1 overflow-y-auto">
                   <li v-for="item in uploadable" :key="item.src" class="flex items-center gap-3 rounded-lg px-2 py-1.5" data-test="import-image">
                     <img

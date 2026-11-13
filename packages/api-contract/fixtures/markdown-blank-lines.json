@@ -1,5 +1,5 @@
 {
-  "description": "Visible blank lines (docs/decisions/0128-visible-blank-lines.md). `marked` is the input after inserting the marker paragraph `{{blank}}` at each visible blank line; null means the input is returned unchanged. Rendered output caps each run at maxRendered; `unlimited` cases use the editor reload mode with no cap.",
+  "description": "Visible blank lines (docs/decisions/0133-visible-blank-lines.md). `marked` is the input after inserting the marker paragraph `{{blank}}` at each visible blank line; null means the input is returned unchanged. Rendered output caps each run at maxRendered; `unlimited` cases use the editor reload mode with no cap.",
   "marker": "{{blank}}",
   "maxRendered": 3,
   "cases": [
@@ -133,6 +133,51 @@
       "name": "thematic break",
       "markdown": "甲\n\n\n---\n\n\n乙",
       "marked": "甲\n\n{{blank}}\n\n---\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "display math opened on its text line keeps blank lines",
+      "markdown": "$$x\n\n\ny$$",
+      "marked": null
+    },
+    {
+      "name": "bracket display math keeps blank lines",
+      "markdown": "\\[x\n\n\ny\\]",
+      "marked": null
+    },
+    {
+      "name": "math environment keeps blank lines",
+      "markdown": "\\begin{aligned}a\n\n\nb\\end{aligned}",
+      "marked": null
+    },
+    {
+      "name": "blank lines after display math still render",
+      "markdown": "$$x\n\n\ny$$\n\n\n乙",
+      "marked": "$$x\n\n\ny$$\n\n{{blank}}\n\n乙"
+    },
+    {
+      "name": "different bullets start a new list",
+      "markdown": "- a\n\n\n* b",
+      "marked": "- a\n\n{{blank}}\n\n* b"
+    },
+    {
+      "name": "bullet list then ordered list",
+      "markdown": "- a\n\n\n1. b",
+      "marked": "- a\n\n{{blank}}\n\n1. b"
+    },
+    {
+      "name": "ordered lists with different delimiters",
+      "markdown": "1. a\n\n\n2) b",
+      "marked": "1. a\n\n{{blank}}\n\n2) b"
+    },
+    {
+      "name": "same ordered list keeps items together",
+      "markdown": "1. a\n\n\n2. b",
+      "marked": null
+    },
+    {
+      "name": "math, code and lists combined",
+      "markdown": "\\[x\n\n\ny\\]\n\n\n```\n\n\n```\n\n\n- a\n\n\n- b\n\n\n+ c",
+      "marked": "\\[x\n\n\ny\\]\n\n{{blank}}\n\n```\n\n\n```\n\n{{blank}}\n\n- a\n\n\n- b\n\n{{blank}}\n\n+ c"
     }
   ]
 }

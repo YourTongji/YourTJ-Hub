@@ -8,10 +8,12 @@ import {
   downloadRemoteImage,
   fileNameFromSrc,
   collectDroppedFiles,
+  MAX_IMPORT_FILES,
   localImportFiles,
   matchLocalImage,
   parseMarkdownImport,
   rewriteImportImages,
+  stripLeadingHeading,
   unresolvedImageFallback,
 } from '../src/runtime/markdown-import'
 
@@ -25,9 +27,11 @@ describe('Markdown 导入解析（issue #1630）', () => {
     expect(result.body).toBe('第一段\n\n第二段')
   })
 
-  test('没有 front matter 时首行一级标题作为标题候选并从正文移除；二级标题不当作标题', () => {
+  test('没有 front matter 时首个一级标题作为标题候选，用作标题时才从正文移除；二级标题不当作标题', () => {
     const heading = parseMarkdownImport('# 选课经验\n\n正文')
-    expect(heading).toMatchObject({ title: '选课经验', titleSource: 'heading', body: '正文' })
+    expect(heading).toMatchObject({ title: '选课经验', titleSource: 'heading', body: '# 选课经验\n\n正文' })
+    expect(stripLeadingHeading(heading.body)).toBe('正文')
+    expect(parseMarkdownImport('选课经验\n===\n\n正文').title).toBe('选课经验')
 
     const second = parseMarkdownImport('## 小节\n\n正文')
     expect(second).toMatchObject({ title: '', titleSource: null, body: '## 小节\n\n正文' })
@@ -87,6 +91,33 @@ describe('Markdown 导入解析（issue #1630）', () => {
     expect(result.images).toHaveLength(1)
   })
 
+  test('首行缩进代码不是标题，原样保留', () => {
+    const result = parseMarkdownImport('    # 代码标题\n\n正文')
+    expect(result).toMatchObject({ title: '', titleSource: null, body: '    # 代码标题\n\n正文' })
+    expect(stripLeadingHeading(result.body)).toBe(result.body)
+  })
+
+  test('一级标题里的图片进入同一图片流程，标题只取纯文本', () => {
+    const result = parseMarkdownImport('# ![封面](https://img.example/a.png) 期末 `复习`\n\n正文')
+    expect(result.title).toBe('期末 复习')
+    expect(result.images.map((image) => image.src)).toEqual(['https://img.example/a.png'])
+    const rewritten = rewriteImportImages(result.body, () => '![封面](/file/img/a.webp)')
+    expect(rewritten).toBe('# ![封面](/file/img/a.webp) 期末 `复习`\n\n正文')
+    expect(stripLeadingHeading(rewritten)).toBe('正文')
+    // 只有图片、没有文字的一级标题不作为标题候选
+    expect(parseMarkdownImport('# ![封面](https://img.example/a.png)\n\n正文').titleSource).toBeNull()
+  })
+
+  test('图片地址按 CommonMark 切分：配平/转义括号与带空格的尖括号引用定义', () => {
+    const source = '![括号](https://img.example/a_(b).png) ![转义](https://img.example/c\\).png "标题") ![引用][r]\n\n[r]: <images/my shot.png> "说明"'
+    const result = parseMarkdownImport(source)
+    expect(result.images.map((image) => image.src)).toEqual(['https://img.example/a_(b).png', 'https://img.example/c).png', 'images/my shot.png'])
+    const rewritten = rewriteImportImages(result.body, (src) => (src.startsWith('https') ? '[IMG]' : undefined))
+    expect(rewritten.split('\n')[0]).toBe('[IMG] [IMG] ![引用](<images/my shot.png>)')
+    const fallback = rewriteImportImages('![括号](https://img.example/a_(b).png)', (src, alt) => unresolvedImageFallback({ src, alt, kind: 'remote' }))
+    expect(fallback).toBe('[括号](<https://img.example/a_(b).png>)')
+  })
+
   test('包含空格的本地路径用尖括号目标书写也能识别', () => {
     const result = parseMarkdownImport('![截图](<images/my shot.png>)')
     expect(result.images).toEqual([{ src: 'images/my shot.png', alt: '截图', kind: 'local' }])
@@ -139,6 +170,20 @@ describe('Markdown 导入改写', () => {
     expect(localImportFiles([file, loose]).map((entry) => entry.path)).toEqual(['blog/img/a.png', 'b.png'])
   })
 
+  test('单次最多读取的文件数在文件选择与拖入退回路径上同样生效', async () => {
+    const files = Array.from({ length: MAX_IMPORT_FILES + 1 }, (_, index) => new File(['x'], `${index}.png`))
+    expect(localImportFiles(files)).toHaveLength(MAX_IMPORT_FILES)
+    const fallback = { items: [], files } as unknown as DataTransfer
+    expect(await collectDroppedFiles(fallback)).toHaveLength(MAX_IMPORT_FILES)
+  })
+
+  test('本地图片地址逐段解码：%23 匹配文件名里的 #，%2F 不当作目录分隔', () => {
+    const hash = { file: new File(['x'], 'a#b.png'), path: 'post/pics/a#b.png' }
+    const slash = { file: new File(['x'], 'b.png'), path: 'post/a/b.png' }
+    expect(matchLocalImage('pics/a%23b.png', [hash], 'post/post.md')).toBe(hash)
+    expect(matchLocalImage('a%2Fb.png', [slash], 'post/post.md')).toBeUndefined()
+  })
+
   test('collectDroppedFiles 递归展开拖入的文件夹并跳过依赖目录', async () => {
     const fileEntry = (name: string) => ({ name, isFile: true, isDirectory: false, file: (ok: (file: File) => void) => ok(new File(['x'], name)) })
     const dirEntry = (name: string, children: unknown[]) => ({
@@ -183,6 +228,32 @@ describe('Markdown 导入图片获取', () => {
 
     const html = vi.fn(async () => new Response(new Blob(['<html>'], { type: 'text/html' }), { status: 200 }))
     await expect(downloadRemoteImage('https://x.test/a.png', html as unknown as typeof fetch)).rejects.toBeInstanceOf(ImportImageError)
+  })
+
+  test('网络图片超过上传上限时在下载过程中中止', async () => {
+    const declared = vi.fn(async () => new Response('x', { status: 200, headers: { 'content-type': 'image/png', 'content-length': '11' } }))
+    await expect(downloadRemoteImage('https://x.test/a.png', declared as unknown as typeof fetch, undefined, 10)).rejects.toMatchObject({ code: 'too-large' })
+
+    let pulled = 0
+    let cancelled = false
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled++
+        controller.enqueue(new Uint8Array(4))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    const streamed = vi.fn(async () => new Response(stream, { status: 200, headers: { 'content-type': 'image/png' } }))
+    await expect(downloadRemoteImage('https://x.test/a.png', streamed as unknown as typeof fetch, undefined, 10)).rejects.toMatchObject({ code: 'too-large' })
+    expect(pulled).toBeLessThan(5)
+    expect(cancelled).toBe(true)
+
+    const fits = vi.fn(async () => new Response(new Uint8Array(10), { status: 200, headers: { 'content-type': 'image/png; charset=binary' } }))
+    const file = await downloadRemoteImage('https://x.test/a.png', fits as unknown as typeof fetch, undefined, 10)
+    expect(file.size).toBe(10)
+    expect(file.type).toBe('image/png')
   })
 
   test('内嵌 base64 图片转文件', async () => {

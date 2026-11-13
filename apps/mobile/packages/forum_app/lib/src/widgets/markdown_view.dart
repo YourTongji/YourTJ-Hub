@@ -310,7 +310,9 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
                 await saveImageFromUrl(context, resolvedUrl);
               },
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxImageHeight),
+          constraints: sized
+              ? const BoxConstraints()
+              : BoxConstraints(maxHeight: maxImageHeight),
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(color: colors.line, width: borders.width),
@@ -407,7 +409,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
           builder: (String code, String language) => GfCodeBlock(
             profile: profile,
             code: math.restore(code),
-            language: language,
+            language: math.restore(language),
           ),
         ),
         // 行内代码:error 色 + base-200 底(prose.css code)。

@@ -85,5 +85,5 @@ Consequences:
 ## Links
 
 - Issue #1630.
-- [0128](0128-visible-blank-lines.md) for the shared-fixture approach.
+- [0133](0133-visible-blank-lines.md) for the shared-fixture approach.
 - `apps/gooseforum/docs/architecture/markdown-rendering.md`.

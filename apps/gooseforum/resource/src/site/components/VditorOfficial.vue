@@ -1731,7 +1731,7 @@ function syncHeaderToggleHost() {
 type LuteRenderMethod = 'Md2VditorDOM' | 'Md2VditorIRDOM' | 'SpinVditorSVDOM' | 'Md2HTML'
 
 /**
- * 连续空行（DQ-1，docs/decisions/0128-visible-blank-lines.md）：Lute 载入 Markdown 时把一段
+ * 连续空行（DQ-1，docs/decisions/0133-visible-blank-lines.md）：Lute 载入 Markdown 时把一段
  * 空行合并成一个段落间隔，重新编辑再保存就丢掉了作者留的空段。载入前在这些位置插入标记
  * 段落，渲染后清空成与按 Enter 相同的空段，VditorDOM2Md 再把 k 个空段写回 k+1 行空行。
  * 编辑区（所见即所得、即时渲染、源码）全部保留；预览按发布规则渲染为有上限的占位。
@@ -2302,7 +2302,7 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
     @preview="floating.previewImage()"
     @remove="floating.removeImage"
   />
-  <MarkdownImageViewer ref="imageViewer" :to="floating.host.value ?? 'body'" />
+  <MarkdownImageViewer ref="imageViewer" />
 </template>
 
 <style>

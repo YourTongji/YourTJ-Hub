@@ -1,4 +1,4 @@
-/// 连续空行（#1584 / #1630 DQ-1，docs/decisions/0128-visible-blank-lines.md）。
+/// 连续空行（#1584 / #1630 DQ-1，docs/decisions/0133-visible-blank-lines.md）。
 ///
 /// Markdown 原文是唯一来源。渲染时，顶层块之间一段空行里第一行之后的每个空行
 /// 显示为一个空行占位，每处最多 [maxRenderedBlankLines] 个；代码、数学、列表与
@@ -8,15 +8,17 @@
 /// `packages/api-contract/fixtures/markdown-blank-lines.json`。
 library;
 
+import 'math_segments.dart';
+
 const int maxRenderedBlankLines = 3;
 
 const String _markerPrefix = 'GFBLANKLINE';
 final RegExp _fence = RegExp(r'^(`{3,}|~{3,})');
-final RegExp _listItem = RegExp(r'^(?:[*+-]|\d{1,9}[.)])(?:[ \t]|$)');
+final RegExp _listItem = RegExp(r'^(?:([*+-])|\d{1,9}([.)]))(?:[ \t]|$)');
 // CommonMark 的空行只含空格与制表符；全角空格等算正文。
 final RegExp _blank = RegExp(r'^[ \t]*$');
 final RegExp _run = RegExp(r'\n[ \t]*\r?\n[ \t]*\r?\n');
-final RegExp _lineBreak = RegExp(r'\r\n?|\n');
+final RegExp _lineBreak = RegExp(r'\r\n?');
 final RegExp _leadingSpaces = RegExp(r'^[ \t]+');
 final RegExp _trailingSpaces = RegExp(r'[ \t]+$');
 
@@ -38,21 +40,34 @@ String markBlankLines(
 }) {
   if ((max != null && max < 1) || !_run.hasMatch(source)) return source;
 
+  final String normalized = source.replaceAll(_lineBreak, '\n');
+  // 公式范围与 ProtectedMath 相同：标记不会落进随后整体换成占位的公式里。
+  final List<MathSegment> math = extractMathSegments(normalized);
+  var nextMath = 0;
   final List<String> out = <String>[];
   List<String> pending = <String>[];
   String? fence;
-  var math = false;
-  var inList = false;
+  var list = '';
   var seenBlock = false;
   var changed = false;
+  var offset = 0;
 
-  for (final String line in source.split(_lineBreak)) {
-    if (fence != null || math) {
+  for (final String line in normalized.split('\n')) {
+    final int start = offset;
+    offset += line.length + 1;
+    if (fence != null) {
       out.add(line);
-      if (fence != null ? _closesFence(line, fence) : _trim(line) == r'$$') {
-        fence = null;
-        math = false;
-      }
+      if (_closesFence(line, fence)) fence = null;
+      continue;
+    }
+    while (nextMath < math.length && math[nextMath].end <= start) {
+      nextMath++;
+    }
+    if (nextMath < math.length && math[nextMath].start < start) {
+      out
+        ..addAll(pending)
+        ..add(line);
+      pending = <String>[];
       continue;
     }
     if (_blank.hasMatch(line)) {
@@ -62,12 +77,19 @@ String markBlankLines(
 
     final int indent = _indentWidth(line);
     final String body = line.replaceFirst(_leadingSpaces, '');
-    final bool listItem = indent < 4 && _listItem.hasMatch(body);
+    // 换了项目符号或有序分隔符就是另一个列表。
+    final RegExpMatch? match = indent < 4 ? _listItem.firstMatch(body) : null;
+    final String item = match == null
+        ? ''
+        : match.group(1) ?? '1${match.group(2)}';
     var extra = pending.length - 1;
     if (max != null && extra > max) extra = max;
     // 只在不缩进的新块之前插入：缩进行可能是列表续行或缩进代码，同类列表项
     // 之间的空行属于同一个列表。不确定时宁可不显示，也不改动结构。
-    if (seenBlock && extra > 0 && indent == 0 && !(inList && listItem)) {
+    if (seenBlock &&
+        extra > 0 &&
+        indent == 0 &&
+        !(item != '' && item == list)) {
       out.add('');
       for (var count = 0; count < extra; count++) {
         out
@@ -78,10 +100,10 @@ String markBlankLines(
     } else {
       out.addAll(pending);
     }
-    if (listItem) {
-      inList = true;
+    if (item != '') {
+      list = item;
     } else if (pending.isNotEmpty && indent == 0) {
-      inList = false;
+      list = '';
     }
     pending = <String>[];
     out.add(line);
@@ -92,8 +114,6 @@ String markBlankLines(
       if (open != null &&
           !(open[0] == '`' && body.substring(open.length).contains('`'))) {
         fence = open;
-      } else if (body.replaceFirst(_trailingSpaces, '') == r'$$') {
-        math = true;
       }
     }
   }

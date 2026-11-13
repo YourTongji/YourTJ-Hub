@@ -280,13 +280,13 @@ test('the image viewer zooms around the pointer and pans when zoomed', async () 
   const { page, editable } = await openEditor()
   try {
     await editable.locator('img').first().dblclick()
-    const viewer = page.locator('[role="dialog"][aria-modal="true"]')
+    const viewer = page.locator('[data-test="image-viewer"]')
     await viewer.waitFor({ state: 'visible' })
     const picture = viewer.locator('img').first()
     const box = await picture.boundingBox()
     await page.mouse.move(box.x + box.width * 0.75, box.y + box.height / 2)
     await page.mouse.wheel(0, -400)
-    await page.waitForFunction(() => /scale\((?!1\))/.test(document.querySelector('[role="dialog"][aria-modal="true"] img').style.transform))
+    await page.waitForFunction(() => /scale\((?!1\))/.test(document.querySelector('[data-test="image-viewer"] img').style.transform))
     assert.match(await viewer.innerText(), /\d{3}%/)
     const before = await picture.evaluate((img) => img.style.transform)
     await page.mouse.down()
@@ -296,6 +296,119 @@ test('the image viewer zooms around the pointer and pans when zoomed', async () 
     assert.equal(await viewer.count(), 1, 'a pan never closes the viewer')
     await page.keyboard.press('Escape')
     await viewer.waitFor({ state: 'detached' })
+  } finally {
+    await page.close()
+  }
+})
+
+test('instant-render alt text is escaped in Markdown and undo restores it', async () => {
+  const { page, errors } = await openEditor()
+  try {
+    // 切换到即时渲染：「更多」→ 编辑模式 → 即时渲染
+    await page.locator('.vditor-toolbar [data-type="more"]').first().click()
+    const irMode = page.locator('button[data-mode="ir"]').first()
+    if (!(await irMode.isVisible())) await page.locator('button[data-type="edit-mode"]').first().click()
+    await irMode.click()
+    const ir = page.locator('.vditor-ir .vditor-reset')
+    await ir.waitFor()
+    const cover = ir.locator('img').first()
+    await cover.click()
+    const bar = page.locator(imageBar)
+    await bar.waitFor({ state: 'visible' })
+    // 先改一次普通替代文字，作为撤销要回到的状态
+    await bar.getByRole('button', { name: '替代文字' }).click()
+    await page.locator('.gf-editor-float-input').fill('第一次')
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => window.testValue().includes('![第一次]('))
+    await cover.click()
+    await bar.waitFor({ state: 'visible' })
+    await bar.getByRole('button', { name: '替代文字' }).click()
+    await page.locator('.gf-editor-float-input').fill('a]b[c\\d')
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => window.testValue().includes('![a\\]b\\[c\\\\d]('))
+    assert.equal(await cover.getAttribute('alt'), 'a]b[c\\d')
+    // 转义后整段仍是一个合法的图片语法
+    assert.match(await page.evaluate(() => window.testValue()), /!\[a\\\]b\\\[c\\\\d\]\([^)]*topic-feed-art\.svg\)/)
+
+    await page.locator('.vditor-toolbar [data-type="undo"]').first().click()
+    await page.waitForFunction(() => window.testValue().includes('![第一次]('))
+    assert.deepEqual(errors, [])
+  } finally {
+    await page.close()
+  }
+})
+
+async function openViewer(page, editable) {
+  await editable.locator('img').first().click()
+  const bar = page.locator(imageBar)
+  await bar.waitFor({ state: 'visible' })
+  await bar.getByRole('button', { name: '查看大图' }).click()
+  const viewer = page.locator('[data-test="image-viewer"]')
+  await viewer.waitFor({ state: 'visible' })
+  return viewer
+}
+
+test('the image viewer covers the whole viewport from a transformed dialog', async () => {
+  const { page, editable, errors } = await openEditor('?host=dialog')
+  try {
+    const viewer = await openViewer(page, editable)
+    const rect = await viewer.evaluate((el) => {
+      const box = el.getBoundingClientRect()
+      return { x: box.x, y: box.y, width: box.width, height: box.height, parent: el.parentElement === document.body }
+    })
+    assert.deepEqual(rect, { x: 0, y: 0, width: 900, height: 900, parent: true })
+    await page.keyboard.press('Escape')
+    await viewer.waitFor({ state: 'detached' })
+    assert.deepEqual(errors, [])
+  } finally {
+    await page.close()
+  }
+})
+
+test('inside a reka modal the viewer takes focus and taps or Escape never close the modal', async () => {
+  const { page, editable, errors } = await openEditor('?host=reka')
+  try {
+    const viewer = await openViewer(page, editable)
+    assert.ok(await viewer.evaluate((el) => el.contains(document.activeElement)), 'focus moves into the viewer')
+    const box = await viewer.boundingBox()
+    assert.equal(box.width, 900)
+    // 点按查看器（切换缩放）不算模态外部点击
+    const picture = viewer.locator('img').first()
+    await picture.click()
+    await page.waitForFunction(() => /scale\((?!1\))/.test(document.querySelector('[data-test="image-viewer"] img').style.transform))
+    assert.equal(await page.evaluate(() => window.dialogOpen()), true)
+    await page.keyboard.press('Escape')
+    await viewer.waitFor({ state: 'detached' })
+    assert.equal(await page.evaluate(() => window.dialogOpen()), true, 'Escape closes only the viewer')
+    assert.deepEqual(errors, [])
+  } finally {
+    await page.close()
+  }
+})
+
+test('the first tap after a pinch zoom toggles the zoom again', async () => {
+  const page = await browser.newPage({ viewport: { width: 900, height: 900 }, hasTouch: true })
+  try {
+    await page.goto(`${origin}/assets/test/fixtures/browser/editor-floating.html`)
+    const editable = page.locator('.vditor-wysiwyg .vditor-reset')
+    await editable.waitFor()
+    await page.waitForFunction(() => document.querySelectorAll('.vditor-wysiwyg .vditor-reset img').length >= 3)
+    const viewer = await openViewer(page, editable)
+    const picture = viewer.locator('img').first()
+    const box = await picture.boundingBox()
+    const cx = box.x + box.width / 2
+    const cy = box.y + box.height / 2
+    const cdp = await page.context().newCDPSession(page)
+    const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([x, y], id) => ({ x, y, id })) })
+    await touch('touchStart', [[cx - 20, cy], [cx + 20, cy]])
+    for (let step = 1; step <= 6; step++) await touch('touchMove', [[cx - 20 - step * 15, cy], [cx + 20 + step * 15, cy]])
+    await touch('touchEnd', [])
+    const scale = () => picture.evaluate((img) => Number(/scale\(([\d.]+)\)/.exec(img.style.transform)?.[1] ?? 1))
+    const pinched = await scale()
+    assert.ok(pinched > 1, `pinch zooms in, got ${pinched}`)
+    // 松开后的第一次单指点按就生效：回到适应屏幕
+    await page.touchscreen.tap(cx, cy)
+    await page.waitForFunction(() => /scale\(1\)/.test(document.querySelector('[data-test="image-viewer"] img').style.transform))
   } finally {
     await page.close()
   }

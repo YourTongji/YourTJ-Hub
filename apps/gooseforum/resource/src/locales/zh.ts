@@ -1343,6 +1343,8 @@ export default {
       changeFile: '更换文件',
       useTitle: '用作标题：',
       images: '图片',
+      imagesStatus: '图片已就绪 {done}/{total}',
+      imagesStatusIssues: '图片已就绪 {done}/{total}，{count} 张需要处理',
       retry: '重试',
       retryAll: '全部重试',
       chooseImage: '选择图片',

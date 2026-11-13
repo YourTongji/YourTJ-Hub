@@ -1,8 +1,9 @@
 /**
  * 本地 Markdown 导入（issue #1630）：把一份 .md 文档整理成可直接发布的正文。
  *
- * - 去掉 BOM、统一换行、去掉 YAML front matter（其 title 作为标题候选）；首行一级标题
- *   也作为标题候选（宿主可选择放回正文）。
+ * - 去掉 BOM、统一换行、去掉 YAML front matter（其 title 作为标题候选）；文档第一个块是一级
+ *   标题时取其纯文本作为标题候选。标题行留在正文里与其余内容一起处理图片，用作标题时再由
+ *   stripLeadingHeading 移除。
  * - 站点不渲染原始 HTML：`<img>` 转成 Markdown 图片、注释删除，其余标签只计数提示。
  * - 引用式图片 `![alt][ref]` 与 Obsidian 嵌入 `![[图片.png]]` 展开为行内图片，后续只需处理一种写法。
  * - 图片按来源分类：remote（网络图）、local（相对/本地路径）、data（内嵌 base64）、
@@ -13,6 +14,7 @@
  *
  * 所有改写只发生在正文文本里，围栏/缩进代码块与行内代码原样保留。
  */
+import { MAX_IMAGE_UPLOAD_BYTES } from './image'
 import { markdownPreview } from './markdown'
 
 export type ImportImageKind = 'remote' | 'local' | 'data' | 'site'
@@ -28,7 +30,7 @@ export interface MarkdownImportResult {
   /** 标题候选：front matter 的 title 或首行一级标题；没有则为空串 */
   title: string
   titleSource: 'front-matter' | 'heading' | null
-  /** 已移除标题候选（来自首行一级标题时）的正文 */
+  /** 正文；标题来自首个一级标题时仍含该标题，用作标题时交给 stripLeadingHeading 移除 */
   body: string
   /** 按出现顺序去重后的图片 */
   images: ImportImage[]
@@ -43,8 +45,9 @@ const MARKDOWN_FILE_RE = /\.(md|markdown|mdown|mkd|txt)$/i
 const IMAGE_FILE_RE = /\.(png|jpe?g|gif|webp|avif|svg|bmp|heic|heif)$/i
 const WIKI_IMAGE_RE = /!\[\[([^\]|\n]+?\.(?:png|jpe?g|gif|webp|avif|svg|bmp))(?:\|[^\]\n]*)?\]\]/gi
 const FRONT_MATTER_RE = /^---[ \t]*\n([\s\S]*?)\n(?:---|\.\.\.)[ \t]*(?:\n|$)/
-const IMAGE_RE = /!\[((?:\\.|[^\]\\\n])*)\]\(\s*(<[^>\n]*>|[^\s)]+)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\s*\)/g
-const REFERENCE_DEF_RE = /^ {0,3}\[([^\]\n]+)\]:[ \t]*<?([^\s>]+)>?(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?[ \t]*$/gm
+// 引用定义的地址：尖括号内可含空格与转义；否则到空白为止
+const REFERENCE_DEF_RE = /^ {0,3}\[([^\]\n]+)\]:[ \t]*(?:<((?:[^<>\n\\]|\\.)*)>|([^\s<]\S*))(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?[ \t]*$/gm
+const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/
 const HTML_TAG_RE = /<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s[^<>]*)?\/?>/g
 const INLINE_CODE_RE = /(?<!`)(`+)(?!`)((?:(?!\n\n)[\s\S])*?[^`])\1(?!`)/g
 const PLACEHOLDER_RE = /\u0000(\d+)\u0000/g
@@ -88,6 +91,108 @@ function transformProse(source: string, transform: (prose: string) => string): s
     start = end
   }
   return out.join('\n')
+}
+
+interface ImageSpan {
+  start: number
+  end: number
+  /** 方括号内的原文（含转义） */
+  alt: string
+  /** 去掉尖括号与反斜杠转义后的地址 */
+  src: string
+}
+
+function unescapeDestination(value: string): string {
+  return value.replace(/\\(.)/g, (match, char: string) => (ASCII_PUNCTUATION.test(char) ? char : match))
+}
+
+/**
+ * 按 CommonMark 的行内图片语法切分：地址可以是尖括号（可含空格）或不含空白、括号配平的
+ * 原文（支持转义），后面可跟标题。解析与改写共用，保证替换的正是被识别的那一段。
+ */
+function scanImages(prose: string): ImageSpan[] {
+  const spans: ImageSpan[] = []
+  let from = 0
+  for (;;) {
+    const start = prose.indexOf('![', from)
+    if (start < 0) return spans
+    from = start + 2
+    let slashes = 0
+    while (start - slashes - 1 >= 0 && prose[start - slashes - 1] === '\\') slashes++
+    if (slashes % 2) continue
+    const span = imageAt(prose, start)
+    if (span) {
+      spans.push(span)
+      from = span.end
+    }
+  }
+}
+
+function imageAt(prose: string, start: number): ImageSpan | null {
+  let index = start + 2
+  for (let depth = 0; ; index++) {
+    const char = prose[index]
+    if (char === undefined || char === '\n') return null
+    if (char === '\\') index++
+    else if (char === '[') depth++
+    else if (char === ']' && depth-- === 0) break
+  }
+  const alt = prose.slice(start + 2, index)
+  if (prose[index + 1] !== '(') return null
+  index = skipSpace(prose, index + 2)
+  let src: string
+  if (prose[index] === '<') {
+    let close = index + 1
+    for (; prose[close] !== '>'; close++) {
+      const char = prose[close]
+      if (char === undefined || char === '\n' || char === '<') return null
+      if (char === '\\') close++
+    }
+    src = unescapeDestination(prose.slice(index + 1, close))
+    index = close + 1
+  } else {
+    const begin = index
+    for (let depth = 0; ; index++) {
+      const char = prose[index]
+      if (char === undefined || /[\s\u0000-\u001f]/.test(char)) break
+      if (char === '\\' && ASCII_PUNCTUATION.test(prose[index + 1] ?? '')) index++
+      else if (char === '(') depth++
+      else if (char === ')' && depth-- === 0) break
+    }
+    if (index === begin) return null
+    src = unescapeDestination(prose.slice(begin, index))
+  }
+  const afterDestination = index
+  index = skipSpace(prose, index)
+  const opener = prose[index]
+  if (index > afterDestination && (opener === '"' || opener === "'" || opener === '(')) {
+    const closer = opener === '(' ? ')' : opener
+    for (index++; prose[index] !== closer; index++) {
+      if (prose[index] === undefined || prose.startsWith('\n\n', index)) return null
+      if (prose[index] === '\\') index++
+    }
+    index = skipSpace(prose, index + 1)
+  }
+  if (prose[index] !== ')' || !src) return null
+  return { start, end: index + 1, alt, src }
+}
+
+function skipSpace(prose: string, index: number): number {
+  let newline = false
+  for (; prose[index] === ' ' || prose[index] === '\t' || (prose[index] === '\n' && !newline); index++) {
+    if (prose[index] === '\n') newline = true
+  }
+  return index
+}
+
+function replaceImages(prose: string, replace: (span: ImageSpan) => string): string {
+  let out = ''
+  let cursor = 0
+  for (const span of scanImages(prose)) {
+    out += prose.slice(cursor, span.start) + replace(span)
+    cursor = span.end
+  }
+  return out + prose.slice(cursor)
 }
 
 function htmlAttribute(tag: string, name: string): string {
@@ -142,10 +247,25 @@ function normalizeProse(prose: string, definitions: Map<string, string>): string
     .replace(WIKI_IMAGE_RE, (_, target: string) => `![](${linkDestination(target.trim())})`)
 }
 
-function leadingHeadingTitle(text: string): { title: string; body: string } | null {
-  const match = /^\s*#[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*(?:\n|$)/.exec(text)
-  if (!match) return null
-  return { title: match[1].trim(), body: text.slice(match[0].length) }
+/** 文档第一个块是一级标题时返回它的行范围与纯文本（代码、HTML 等其他块不算）。 */
+function leadingHeading(text: string): { title: string; end: number } | null {
+  const tokens = markdownPreview.parse(text, {})
+  const open = tokens[0]
+  if (open?.type !== 'heading_open' || open.tag !== 'h1' || !open.map) return null
+  let title = ''
+  for (const child of tokens[1]?.children ?? []) {
+    if (child.type === 'text' || child.type === 'code_inline') title += child.content
+    else if (child.type === 'softbreak' || child.type === 'hardbreak') title += ' '
+  }
+  title = title.replace(/\s+/g, ' ').trim()
+  return title ? { title, end: open.map[1] } : null
+}
+
+/** 去掉正文开头作为标题使用的一级标题（图片改写之后调用，行范围不变）。 */
+export function stripLeadingHeading(body: string): string {
+  const heading = leadingHeading(body)
+  if (!heading) return body
+  return body.split('\n').slice(heading.end).join('\n').replace(/^\s*\n/, '')
 }
 
 export function classifyImageSrc(src: string, siteOrigin = ''): ImportImageKind {
@@ -170,20 +290,19 @@ export function parseMarkdownImport(source: string, options: { siteOrigin?: stri
   transformProse(frontMatter.text, (prose) => {
     for (const match of prose.matchAll(REFERENCE_DEF_RE)) {
       const label = normalizeLabel(match[1])
-      if (!definitions.has(label)) definitions.set(label, match[2])
+      if (!definitions.has(label)) definitions.set(label, unescapeDestination(match[2] ?? match[3]))
     }
     return prose
   })
 
-  let body = transformProse(frontMatter.text, (prose) => normalizeProse(prose, definitions))
+  const body = transformProse(frontMatter.text, (prose) => normalizeProse(prose, definitions)).replace(/^\s*\n/, '')
   let title = frontMatter.title
   let titleSource: MarkdownImportResult['titleSource'] = title ? 'front-matter' : null
   if (!title) {
-    const heading = leadingHeadingTitle(body)
+    const heading = leadingHeading(body)
     if (heading) {
       title = heading.title
       titleSource = 'heading'
-      body = heading.body
     }
   }
 
@@ -191,17 +310,16 @@ export function parseMarkdownImport(source: string, options: { siteOrigin?: stri
   const seen = new Set<string>()
   let htmlTagCount = 0
   transformProse(body, (prose) => {
-    for (const match of prose.matchAll(IMAGE_RE)) {
-      const src = match[2].replace(/^<|>$/g, '')
+    for (const { src, alt } of scanImages(prose)) {
       if (seen.has(src)) continue
       seen.add(src)
-      images.push({ src, alt: unescapeAlt(match[1]), kind: classifyImageSrc(src, options.siteOrigin) })
+      images.push({ src, alt: unescapeAlt(alt), kind: classifyImageSrc(src, options.siteOrigin) })
     }
     htmlTagCount += prose.match(HTML_TAG_RE)?.length ?? 0
     return prose
   })
 
-  return { title, titleSource, body: body.replace(/^\s*\n/, '').trimEnd(), images, htmlTagCount }
+  return { title, titleSource, body: body.trimEnd(), images, htmlTagCount }
 }
 
 /**
@@ -210,7 +328,7 @@ export function parseMarkdownImport(source: string, options: { siteOrigin?: stri
  */
 export function rewriteImportImages(body: string, resolve: (src: string, alt: string) => string | undefined): string {
   return transformProse(body, (prose) =>
-    prose.replace(IMAGE_RE, (match, alt: string, rawSrc: string) => resolve(rawSrc.replace(/^<|>$/g, ''), unescapeAlt(alt)) ?? match),
+    replaceImages(prose, (span) => resolve(span.src, unescapeAlt(span.alt)) ?? prose.slice(span.start, span.end)),
   )
 }
 
@@ -255,13 +373,13 @@ export interface LocalImportFile {
   path: string
 }
 
+/** 单次选择或拖入最多读取的文件数：误选整个磁盘目录时不至于卡住页面。 */
+export const MAX_IMPORT_FILES = 5000
+
 /** 文件选择框给出的文件：选择文件夹时浏览器提供 webkitRelativePath。 */
 export function localImportFiles(files: readonly File[]): LocalImportFile[] {
-  return files.map((file) => ({ file, path: (file.webkitRelativePath || file.name).replace(/\\/g, '/') }))
+  return files.slice(0, MAX_IMPORT_FILES).map((file) => ({ file, path: (file.webkitRelativePath || file.name).replace(/\\/g, '/') }))
 }
-
-/** 单次拖入最多读取的文件数：误拖入整个磁盘目录时不至于卡住页面。 */
-export const MAX_DROPPED_FILES = 5000
 const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git', '.obsidian', '.trash'])
 
 /**
@@ -275,11 +393,11 @@ export async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<L
   if (!entries.length || entries.some((entry) => !entry)) return localImportFiles(Array.from(dataTransfer.files ?? []))
   const out: LocalImportFile[] = []
   const visit = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
-    if (out.length >= MAX_DROPPED_FILES) return
+    if (out.length >= MAX_IMPORT_FILES) return
     const path = prefix ? `${prefix}/${entry.name}` : entry.name
     if (entry.isFile) {
       const file = await new Promise<File | null>((resolve) => (entry as FileSystemFileEntry).file(resolve, () => resolve(null)))
-      if (file && out.length < MAX_DROPPED_FILES) out.push({ file, path })
+      if (file && out.length < MAX_IMPORT_FILES) out.push({ file, path })
       return
     }
     if (!entry.isDirectory || SKIPPED_DIRECTORIES.has(entry.name)) return
@@ -299,14 +417,18 @@ function pathSegments(path: string): string[] {
   return path.split('/').filter((segment) => segment && segment !== '.')
 }
 
-function normalizedLocalPath(src: string): string {
-  let path = src.replace(/[?#].*$/, '').replace(/^file:\/\//i, '').replace(/\\/g, '/')
-  try {
-    path = decodeURI(path)
-  } catch {
-    // 保留原文：不合法的百分号编码按字面比较
-  }
-  return path.toLowerCase()
+/** 本地图片地址的路径段：逐段解码（`%23` 还原成 `#`，`%2F` 不会变成目录分隔）。 */
+function localPathSegments(src: string): { absolute: boolean; segments: string[] } {
+  const path = src.replace(/[?#].*$/, '').replace(/^file:\/\//i, '').replace(/\\/g, '/').toLowerCase()
+  const segments = pathSegments(path).map((segment) => {
+    try {
+      return decodeURIComponent(segment)
+    } catch {
+      // 保留原文：不合法的百分号编码按字面比较
+      return segment
+    }
+  })
+  return { absolute: /^(?:\/|[a-z]:\/)/.test(path), segments }
 }
 
 /**
@@ -316,20 +438,21 @@ function normalizedLocalPath(src: string): string {
  *    文件夹、或地址是另一台电脑上的绝对路径时也能找到；多个文件同样匹配时不猜，交给用户选择。
  */
 export function matchLocalImage(src: string, files: readonly LocalImportFile[], markdownPath = ''): LocalImportFile | undefined {
-  const target = normalizedLocalPath(src)
-  const segments = pathSegments(target)
+  const { absolute, segments } = localPathSegments(src)
   if (!segments.length) return undefined
   const keyed = files.map((entry) => ({ entry, segments: pathSegments(entry.path.toLowerCase()) }))
 
-  if (!/^(?:\/|[a-z]:\/)/.test(target)) {
+  if (!absolute) {
     const resolved = pathSegments(markdownPath.toLowerCase()).slice(0, -1)
     let escaped = false
     for (const segment of segments) {
       if (segment !== '..') resolved.push(segment)
       else if (!resolved.pop()) escaped = true
     }
-    const key = resolved.join('/')
-    const exact = escaped ? undefined : keyed.find((item) => item.segments.join('/') === key)
+    // 逐段比较：解码出的 `/` 只是文件名里的字符
+    const exact = escaped
+      ? undefined
+      : keyed.find((item) => item.segments.length === resolved.length && item.segments.every((segment, index) => segment === resolved[index]))
     if (exact) return exact.entry
   }
 
@@ -350,7 +473,7 @@ export function matchLocalImage(src: string, files: readonly LocalImportFile[], 
   return tied ? undefined : best
 }
 
-export type ImportImageErrorCode = 'blocked' | 'http' | 'not-image' | 'invalid'
+export type ImportImageErrorCode = 'blocked' | 'http' | 'not-image' | 'too-large' | 'invalid'
 
 export class ImportImageError extends Error {
   constructor(readonly code: ImportImageErrorCode, readonly status = 0) {
@@ -361,9 +484,15 @@ export class ImportImageError extends Error {
 
 /**
  * 浏览器内下载网络图片：不带 Cookie、不发 Referer。图床未开放跨域（CORS）或网络失败时
- * 抛 blocked，由界面提示「手动保存后选择本地文件」。
+ * 抛 blocked，由界面提示「手动保存后选择本地文件」。边下载边累计字节，超过上传上限立即
+ * 中止（too-large），不会先把超大响应整个读进内存。
  */
-export async function downloadRemoteImage(src: string, fetchImpl: typeof fetch = fetch, signal?: AbortSignal): Promise<File> {
+export async function downloadRemoteImage(
+  src: string,
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+  maxBytes = MAX_IMAGE_UPLOAD_BYTES,
+): Promise<File> {
   const url = src.startsWith('//') ? `https:${src}` : src
   let response: Response
   try {
@@ -373,10 +502,35 @@ export async function downloadRemoteImage(src: string, fetchImpl: typeof fetch =
     throw new ImportImageError('blocked')
   }
   if (!response.ok) throw new ImportImageError('http', response.status)
-  const blob = await response.blob()
-  const type = blob.type || response.headers.get('content-type') || ''
-  if (!type.startsWith('image/')) throw new ImportImageError('not-image')
-  return new File([blob], fileNameFromSrc(src, type), { type })
+  const type = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+  if (!type.startsWith('image/')) {
+    void response.body?.cancel().catch(() => {})
+    throw new ImportImageError('not-image')
+  }
+  // Content-Length 只用于提前拒绝；实际字节仍逐块累计
+  if (Number(response.headers.get('content-length')) > maxBytes) {
+    void response.body?.cancel().catch(() => {})
+    throw new ImportImageError('too-large')
+  }
+  const reader = response.body?.getReader()
+  if (!reader) {
+    const blob = await response.blob()
+    if (blob.size > maxBytes) throw new ImportImageError('too-large')
+    return new File([blob], fileNameFromSrc(src, type), { type })
+  }
+  const chunks: Uint8Array<ArrayBuffer>[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      void reader.cancel().catch(() => {})
+      throw new ImportImageError('too-large')
+    }
+    chunks.push(value as Uint8Array<ArrayBuffer>)
+  }
+  return new File(chunks, fileNameFromSrc(src, type), { type })
 }
 
 /** 内嵌 base64 图片转文件（不经 fetch：页面 CSP 的 connect-src 不放行 data:）。 */

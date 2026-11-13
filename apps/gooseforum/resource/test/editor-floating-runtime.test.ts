@@ -80,6 +80,10 @@ describe('editor image DOM', () => {
     expect(root.querySelector('.vditor-ir__node')!.textContent).toBe('![说明](/a.png#w=50)')
     setEditorImageAlt(img, '新说明', 'ir')
     expect(root.querySelector('.vditor-ir__node')!.textContent).toBe('![新说明](/a.png#w=50)')
+    // 标记是 Markdown 原文：`\`、`[`、`]` 转义，img.alt 保留原始文字
+    setEditorImageAlt(img, 'a]b[c\\d', 'ir')
+    expect(root.querySelector('.vditor-ir__node')!.textContent).toBe('![a\\]b\\[c\\\\d](/a.png#w=50)')
+    expect(img.alt).toBe('a]b[c\\d')
   })
 })
 

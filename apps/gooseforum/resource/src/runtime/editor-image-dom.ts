@@ -50,18 +50,24 @@ export function setEditorImageSource(img: HTMLImageElement, src: string, mode: E
   if (marker) marker.textContent = src
 }
 
+/** ir 标记是 Markdown 原文：替代文字里的 `\`、`[`、`]` 需要转义，否则 `a]b` 会提前结束图片语法 */
+export function markdownImageAlt(alt: string): string {
+  return alt.replace(/[\\[\]]/g, (char) => `\\${char}`)
+}
+
 export function setEditorImageAlt(img: HTMLImageElement, alt: string, mode: EditorMode): void {
   img.setAttribute('alt', alt)
   if (mode !== 'ir') return
+  const markdown = markdownImageAlt(alt)
   // ir 标记依次为 `!` `[` 替代文字 `]` `(` 地址 `)`；替代文字为空时没有中间那一段
   const brackets = irNode(img)?.querySelectorAll<HTMLElement>(':scope > .vditor-ir__marker--bracket')
   if (!brackets?.length) return
   if (brackets.length >= 3) {
-    brackets[1].textContent = alt
-  } else if (alt) {
+    brackets[1].textContent = markdown
+  } else if (markdown) {
     const label = document.createElement('span')
     label.className = 'vditor-ir__marker vditor-ir__marker--bracket'
-    label.textContent = alt
+    label.textContent = markdown
     brackets[0].after(label)
   }
 }

@@ -391,7 +391,7 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   through the same Markdown renderer, so stickers, mentions, links and formatting appear as they will
   be published instead of as raw source.
 - `Current`: extra blank lines between top-level blocks show as empty lines in the reader and the
-  publishing preview, using the server rule ([0128](../decisions/0128-visible-blank-lines.md)): each
+  publishing preview, using the server rule ([0133](../decisions/0133-visible-blank-lines.md)): each
   blank line after the first becomes one body-text line plus paragraph spacing, at most three per
   run; code, math and list items keep Markdown meaning. The long-form editor keeps empty lines when a
   draft or post is reopened and saves k empty lines as k+1 blank Markdown lines, matching the Web

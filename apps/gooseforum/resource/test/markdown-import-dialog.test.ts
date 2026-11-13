@@ -6,10 +6,10 @@ import MarkdownImportDialog from '../src/site/components/MarkdownImportDialog.vu
 
 const upload = vi.hoisted(() => vi.fn(async (file: File) => `/file/img/${file.name}`))
 vi.mock('@/runtime/api', async importOriginal => ({ ...await importOriginal<typeof import('../src/runtime/api')>(), uploadImage: upload }))
-vi.mock('@/runtime/image', () => ({ validateImageFile: () => '', processImageFile: async (file: File) => ({ file }) }))
+vi.mock('@/runtime/image', () => ({ MAX_IMAGE_UPLOAD_BYTES: 10 * 1024 * 1024, validateImageFile: () => '', processImageFile: async (file: File) => ({ file }) }))
 
 let wrapper: VueWrapper | undefined
-afterEach(() => { wrapper?.unmount(); wrapper = undefined; upload.mockClear(); document.body.innerHTML = '' })
+afterEach(() => { wrapper?.unmount(); wrapper = undefined; upload.mockClear(); upload.mockImplementation(async (file: File) => `/file/img/${file.name}`); document.body.innerHTML = '' })
 
 function fileAt(path: string, content = 'x', type = 'image/png') {
   const file = new File([content], path.split('/').pop()!, { type })
@@ -90,5 +90,76 @@ describe('Markdown 导入对话框的本地图片与回滚', () => {
     for (let i = 0; i < 10; i++) await flushPromises()
     expect(upload).toHaveBeenCalledWith(expect.objectContaining({ name: 'a.png' }))
     expect(rows()).toHaveLength(1)
+  })
+
+  test('较早选择但读取较慢的文档不会覆盖后选择的文档', async () => {
+    wrapper = mount(MarkdownImportDialog, { props: { open: true, bodyEmpty: true }, attachTo: document.body, global: { plugins: [i18n] } })
+    await flushPromises()
+    const [fileInput] = inputs()
+    let release!: (text: string) => void
+    const slow = new File(['slow'], 'slow.md', { type: 'text/markdown' })
+    Object.defineProperty(slow, 'text', { value: () => new Promise<string>(resolve => { release = resolve }) })
+    await choose(fileInput, [slow])
+    await choose(fileInput, [new File(['新文档'], 'fast.md', { type: 'text/markdown' })])
+    release('旧文档')
+    for (let i = 0; i < 10; i++) await flushPromises()
+    button(document.body, tr('confirm')).click()
+    await flushPromises()
+    expect(wrapper.emitted('apply')?.[0]?.[0]).toMatchObject({ body: '新文档' })
+  })
+
+  test('连续替换后还原回到最近一次替换前的图片，替换失败时也是', async () => {
+    wrapper = mount(MarkdownImportDialog, { props: { open: true, bodyEmpty: true }, attachTo: document.body, global: { plugins: [i18n] } })
+    await flushPromises()
+    const [, folderInput, , replaceInput] = inputs()
+    await choose(folderInput, [fileAt('doc/post.md', '![图](a.png)', 'text/markdown'), fileAt('doc/a.png')])
+    const replace = async (name: string) => {
+      button(rows()[0], tr('replaceImage')).click()
+      await choose(replaceInput, [new File(['n'], name, { type: 'image/png' })])
+    }
+    const body = async () => {
+      button(document.body, tr('confirm')).click()
+      await flushPromises()
+      return (wrapper!.emitted('apply')?.at(-1)?.[0] as { body: string }).body
+    }
+    await replace('b.png')
+    await replace('c.png')
+    button(rows()[0], tr('revertReplacement')).click()
+    await flushPromises()
+    expect(rows()[0].querySelector('img')?.getAttribute('src')).toBe('/file/img/b.png')
+
+    // 第二次替换失败：还原仍回到 B
+    await replace('c2.png')
+    upload.mockImplementationOnce(async () => { throw new Error('upload failed') })
+    await replace('d.png')
+    expect(rows()[0].textContent).toContain('upload failed')
+    button(rows()[0], tr('revertReplacement')).click()
+    await flushPromises()
+    expect(await body()).toBe('![图](/file/img/c2.png)')
+  })
+
+  test('一级标题里的图片随正文上传；用作标题时只移除标题行', async () => {
+    const source = '# ![封面](a.png) 期末复习\n\n正文'
+    for (const titleEmpty of [true, false]) {
+      wrapper = mount(MarkdownImportDialog, { props: { open: true, bodyEmpty: true, allowTitle: true, titleEmpty }, attachTo: document.body, global: { plugins: [i18n] } })
+      await flushPromises()
+      const [, folderInput] = inputs()
+      await choose(folderInput, [fileAt('doc/post.md', source, 'text/markdown'), fileAt('doc/a.png')])
+      expect(upload).toHaveBeenCalledWith(expect.objectContaining({ name: 'a.png' }))
+      expect(document.body.querySelector('[data-test="import-images-status"]')?.textContent).toBe(
+        i18n.global.t('editor.import.imagesStatus', { done: 1, total: 1 }),
+      )
+      button(document.body, tr('confirm')).click()
+      await flushPromises()
+      expect(wrapper.emitted('apply')?.[0]?.[0]).toMatchObject(
+        titleEmpty
+          ? { title: '期末复习', body: '正文' }
+          : { title: '', body: '# ![封面](/file/img/a.png) 期末复习\n\n正文' },
+      )
+      wrapper.unmount()
+      wrapper = undefined
+      document.body.innerHTML = ''
+      upload.mockClear()
+    }
   })
 })

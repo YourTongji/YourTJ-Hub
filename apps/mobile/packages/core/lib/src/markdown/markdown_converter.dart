@@ -17,7 +17,7 @@ import 'sticker_token.dart';
 /// - 表格只读保留(编辑不支持);
 /// - 引用内标题降级为引用文本;
 /// - 顶层块之间的连续空行按 Web 编辑器同一约定往返:k 个空段写成 k+1 行空行
-///   (docs/decisions/0128-visible-blank-lines.md)。
+///   (docs/decisions/0133-visible-blank-lines.md)。
 class MarkdownConverter {
   MarkdownConverter()
     : _mdToDelta = MarkdownToDelta(

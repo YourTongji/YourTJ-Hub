@@ -10,11 +10,6 @@ export interface MarkdownPreviewImage {
   alt: string
 }
 
-const props = withDefaults(defineProps<{
-  /** 挂载点：编辑器在对话框里时挂在对话框内，避免被模态焦点陷阱当成外部点击 */
-  to?: string | HTMLElement
-}>(), { to: 'body' })
-
 const { t } = useI18n()
 const images = ref<MarkdownPreviewImage[]>([])
 const currentIndex = ref(0)
@@ -48,13 +43,14 @@ const DRAG_SLOP_PX = 4
 function open(nextImages: MarkdownPreviewImage[], index: number) {
   const normalizedImages = nextImages.filter((image) => image.src)
   if (!normalizedImages.length) return
+  suppressClick = false
 
   images.value = normalizedImages
   currentIndex.value = Math.max(0, Math.min(index, normalizedImages.length - 1))
   view.value = IDENTITY_ZOOM
   lockBodyScroll()
   void nextTick(() => {
-    if (viewerOpen.value) window.addEventListener('keydown', handleKeydown)
+    if (viewerOpen.value) window.addEventListener('keydown', handleKeydown, true)
   })
 }
 
@@ -66,7 +62,8 @@ function close() {
   pointers.clear()
   gestureStart = null
   gesturing.value = false
-  window.removeEventListener('keydown', handleKeydown)
+  suppressClick = false
+  window.removeEventListener('keydown', handleKeydown, true)
   unlockBodyScroll()
 }
 
@@ -127,6 +124,8 @@ function handleWheel(event: WheelEvent) {
 
 function handlePointerDown(event: PointerEvent) {
   if (event.pointerType === 'mouse' && event.button !== 0) return
+  // 新的一次按下：上次拖动/双指缩放留下的标记作废（触屏结束后不一定有 click 来消费它）
+  if (pointers.size === 0) suppressClick = false
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
   if (pointers.size === 2) multiTouch = true
   if (!isZoomed.value && pointers.size < 2) return
@@ -177,7 +176,9 @@ function handlePointerUp(event: PointerEvent) {
 function handleKeydown(event: KeyboardEvent) {
   if (!viewerOpen.value) return
   if (event.key === 'Escape') {
+    // 捕获阶段拦下：外层模态（reka Dialog 在 window 冒泡阶段监听）不随之关闭
     event.preventDefault()
+    event.stopPropagation()
     close()
     return
   }
@@ -234,7 +235,7 @@ function unlockBodyScroll() {
 }
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('keydown', handleKeydown, true)
   unlockBodyScroll()
 })
 
@@ -245,7 +246,12 @@ defineExpose({
 </script>
 
 <template>
-  <Teleport :to="props.to">
+  <!--
+    始终挂到 body：放进带 transform 的对话框里，fixed 会以对话框为包含块并被其 overflow 裁切。
+    data-dismissable-layer 让外层 reka 模态把这里的点按视为层内（后出现的层），不会因此关闭；
+    模态给 body 设了 pointer-events: none，这里显式恢复。焦点由嵌套的 FocusScope 接管。
+  -->
+  <Teleport to="body">
     <Transition
       enter-active-class="transition duration-200 ease-out"
       enter-from-class="opacity-0"
@@ -261,6 +267,9 @@ defineExpose({
         class="fixed inset-0 z-[150] flex flex-col bg-black/92 backdrop-blur-md select-none animate-in fade-in-0 duration-200"
         role="dialog"
         aria-modal="true"
+        data-dismissable-layer
+        data-test="image-viewer"
+        style="pointer-events: auto"
         :aria-label="currentImage.alt || t('common.preview')"
         @touchstart="handleTouchStart"
         @touchend="handleTouchEnd"

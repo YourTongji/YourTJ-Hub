@@ -1342,6 +1342,8 @@ export default {
       changeFile: 'Datei ändern',
       useTitle: 'Als Titel verwenden:',
       images: 'Bilder',
+      imagesStatus: '{done} von {total} Bildern bereit',
+      imagesStatusIssues: '{done} von {total} Bildern bereit, {count} brauchen Aufmerksamkeit',
       retry: 'Erneut versuchen',
       retryAll: 'Alle erneut versuchen',
       chooseImage: 'Bild auswählen',
