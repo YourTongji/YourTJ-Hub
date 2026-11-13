@@ -210,7 +210,7 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
 - **前端**: site 区 `WikiHome.vue` / `WikiPage.vue` + `WikiSidebar` / `WikiToc` /
   `WikiPageActions`（编辑/历史按钮外链 GitHub），AppShell 侧栏 wiki 模式（桌面侧栏与
   移动端抽屉均渲染完整 wiki 导航树）；admin 区
-  `WikiManage.vue`（`/admin/wiki`，PageManager：递归只读页面树 + 同步面板）。
+  `WikiManage.vue`（`/admin/wiki`，PageManager：只读命名空间列表 + 递归只读页面树 + 同步面板）。
 - **隔离与通知**: `topics.topic_type`（0=论坛 1=wiki）隔离 feed 与搜索——默认论坛搜索/feed/RSS/
   sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；同步更新后向订阅者发
   `wiki_updated` 通知（`notifications.templates.wikiUpdated`，同页面 10 分钟节流）。
