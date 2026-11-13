@@ -3,6 +3,7 @@ package publicationservice_test
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -52,7 +53,7 @@ func TestPostgreSQLPublicationPointsUseOneParticipantLockOrder(t *testing.T) {
 	defer cancel()
 	personaOwnerLocked := make(chan struct{})
 	memberAtReward := make(chan struct{})
-	personaProceed := make(chan struct{})
+	var memberOnce sync.Once
 
 	if err := conn.Callback().Query().Before("gorm:query").Register("test:points-member-reward-barrier", func(tx *gorm.DB) {
 		if tx.Statement == nil || tx.Statement.Table != "posts" {
@@ -61,11 +62,7 @@ func TestPostgreSQLPublicationPointsUseOneParticipantLockOrder(t *testing.T) {
 		if tx.Statement.Context.Value(lockOrderContextKey{}) != "member" {
 			return
 		}
-		close(memberAtReward)
-		select {
-		case <-personaProceed:
-		case <-ctx.Done():
-		}
+		memberOnce.Do(func() { close(memberAtReward) })
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +87,6 @@ func TestPostgreSQLPublicationPointsUseOneParticipantLockOrder(t *testing.T) {
 			// implementation gives the member transaction the participant lock
 			// before user_points; the old implementation lets member take
 			// user_points first and then wait for persona's users row.
-			close(personaProceed)
 			return pointservice.RewardPublicationTx(tx, 10, 101)
 		})
 	}()
