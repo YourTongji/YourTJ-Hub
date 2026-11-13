@@ -16,6 +16,17 @@ class MainActivityOidcCallbackSource implements OidcCallbackSource {
   final MethodChannel _methodChannel;
   final EventChannel _eventChannel;
 
+  /// HarmonyOS opens the browser without logging the authorization URI.
+  Future<bool> openAuthorization(Uri uri) async {
+    if (uri.scheme != 'https' || uri.host.isEmpty || uri.userInfo.isNotEmpty) {
+      throw ArgumentError('Authorization requires an HTTPS origin');
+    }
+    return await _methodChannel.invokeMethod<bool>('openAuthorization', {
+          'url': uri.toString(),
+        }) ??
+        false;
+  }
+
   @override
   Stream<Uri> get callbacks => _eventChannel
       .receiveBroadcastStream()

@@ -1744,6 +1744,13 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 ## Distribution and updates
 
+- `Partial`: native HarmonyOS uses a Flutter OH HAP with ArkTS system bridges and service cards,
+  preserving the shared Flutter UI. ARM64 Release and x64 Debug artifacts are built and checked
+  for packaged ABI and ELF compatibility. AppGallery distribution, signed device acceptance,
+  Passkey, complete card/visual acceptance and configured real push delivery remain incomplete.
+  HarmonyOS preview readiness uses its own artifact and does not inherit Android readiness.
+  See [native HarmonyOS development](../development/mobile-harmonyos.md) for tools and checks.
+
 - `Current`: each dev merge automatically builds Web and native developer versions from the same SHA.
   Mobile builds show `DEV <YYYYMMDDNNNN> · <short SHA>`, connect to dev.yourtj.de and use isolated
   sessions/preferences/databases. Android `YourTJ Dev` installs beside production; iOS uses the

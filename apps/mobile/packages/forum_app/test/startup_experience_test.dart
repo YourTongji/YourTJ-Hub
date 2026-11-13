@@ -74,13 +74,22 @@ void expectRestoredSystemUi(WidgetTester tester) {
   } else {
     expect(style.statusBarIconBrightness, Brightness.dark);
     expect(style.statusBarColor, Colors.transparent);
-    expect(style.systemNavigationBarColor, Colors.transparent);
-    expect(style.systemNavigationBarIconBrightness, Brightness.dark);
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      expect(style.systemNavigationBarColor, Colors.transparent);
+      expect(style.systemNavigationBarIconBrightness, Brightness.dark);
+    } else {
+      // Flutter OH delegates the gesture navigation bar to the native window.
+      expect(style.systemNavigationBarColor, isNull);
+    }
   }
 }
 
 void main() {
-  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+  for (final platform in [
+    TargetPlatform.iOS,
+    TargetPlatform.android,
+    ...TargetPlatform.values.where((value) => value.name == 'ohos'),
+  ]) {
     testWidgets(
       '$platform reveals the mounted application within its deadline',
       (tester) async {
@@ -142,7 +151,10 @@ void main() {
       );
       expect(tester.hasRunningAnimations, isFalse);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: TargetPlatformVariant({
+      TargetPlatform.iOS,
+      ...TargetPlatform.values.where((value) => value.name == 'ohos'),
+    }),
   );
 
   testWidgets(
@@ -189,7 +201,10 @@ void main() {
       expectRestoredSystemUi(tester);
       expect(tester.takeException(), isNull);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: TargetPlatformVariant({
+      TargetPlatform.iOS,
+      ...TargetPlatform.values.where((value) => value.name == 'ohos'),
+    }),
   );
 
   testWidgets(
@@ -254,7 +269,10 @@ void main() {
       expect(taps, 1);
       expect(tester.takeException(), isNull);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: TargetPlatformVariant({
+      TargetPlatform.iOS,
+      ...TargetPlatform.values.where((value) => value.name == 'ohos'),
+    }),
   );
 
   testWidgets(

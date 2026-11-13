@@ -1,0 +1,170 @@
+name: Release / HarmonyOS APP Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Reviewed version name (for example 1.0.17)
+        type: string
+        required: true
+      build_number:
+        description: New increasing HarmonyOS version code
+        type: string
+        required: true
+      test_version_id:
+        description: Existing configured YourTJ invitation-test draft ID
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harmony-app-test-6917621118093079103
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    timeout-minutes: 60
+    env:
+      SOURCE_SHA: ${{ github.sha }}
+      MOBILE_VERSION: ${{ inputs.version }}
+      MOBILE_BUILD_NUMBER: ${{ inputs.build_number }}
+      HARMONY_TEST_VERSION_ID: ${{ inputs.test_version_id }}
+      FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
+      PUB_HOSTED_URL: https://pub.dev
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Check approved profile and unused build identity before installing SDK
+        env:
+          HARMONY_PROFILE_BASE64: ${{ secrets.HARMONY_PROFILE_BASE64 }}
+          HARMONY_SERVICE_ACCOUNT_JSON: ${{ secrets.HARMONY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, sys
+          sys.path.insert(0, 'scripts/mobile-release')
+          from build_harmony import validate_profile
+          from harmony_api import Client
+          validate_profile(base64.b64decode(os.environ['HARMONY_PROFILE_BASE64'], validate=True))
+          client = Client(json.loads(os.environ['HARMONY_SERVICE_ACCOUNT_JSON']))
+          draft = client.invitation(os.environ['HARMONY_TEST_VERSION_ID'])
+          assert draft['state'] == 7, 'Invitation draft is not ready to edit'
+          number = int(os.environ['MOBILE_BUILD_NUMBER'])
+          versions = client.versions()
+          assert all(int(package['versionCode']) < number for version in versions
+                     for package in (version.get('packageList') or [])), 'Build identity already used; recover its original APP'
+          PY
+      - name: Verify official Linux toolchain download
+        env:
+          HARMONY_CLI_DOWNLOAD_URL: ${{ secrets.HARMONY_CLI_DOWNLOAD_URL }}
+        run: python3 scripts/mobile-release/download_harmony_cli.py
+      - name: Install SDK and pinned Flutter HarmonyOS fork
+        run: |
+          unzip -q "$RUNNER_TEMP/harmony-cli.zip" -d "$RUNNER_TEMP/harmony-sdk"
+          rm "$RUNNER_TEMP/harmony-cli.zip"
+          tools="$RUNNER_TEMP/harmony-sdk/command-line-tools"
+          test -f "$tools/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar"
+          echo "DEVECO_SDK_HOME=$tools/sdk" >> "$GITHUB_ENV"
+          echo "NODE_HOME=$tools/tool/node" >> "$GITHUB_ENV"
+          echo "$tools/tool/node/bin" >> "$GITHUB_PATH"
+          echo "$tools/bin" >> "$GITHUB_PATH"
+          git init "$RUNNER_TEMP/flutter-ohos"
+          git -C "$RUNNER_TEMP/flutter-ohos" remote add origin https://gitcode.com/CPF-Flutter/flutter_flutter.git
+          git -C "$RUNNER_TEMP/flutter-ohos" fetch --depth=1 origin c2fb91fb38c40a6b97b5ae3d9f71107b7dae7ad2
+          git -C "$RUNNER_TEMP/flutter-ohos" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/flutter-ohos" rev-parse HEAD)" = c2fb91fb38c40a6b97b5ae3d9f71107b7dae7ad2
+          echo "$RUNNER_TEMP/flutter-ohos/bin" >> "$GITHUB_PATH"
+      - name: Resolve locked mobile dependencies
+        working-directory: apps/mobile
+        run: flutter pub get --enforce-lockfile
+      - name: Build and verify signed APP
+        env:
+          HARMONY_KEYSTORE_BASE64: ${{ secrets.HARMONY_KEYSTORE_BASE64 }}
+          HARMONY_CERTIFICATE_BASE64: ${{ secrets.HARMONY_CERTIFICATE_BASE64 }}
+          HARMONY_PROFILE_BASE64: ${{ secrets.HARMONY_PROFILE_BASE64 }}
+          HARMONY_KEYSTORE_PASSWORD: ${{ secrets.HARMONY_KEYSTORE_PASSWORD }}
+        run: python3 scripts/mobile-release/build_harmony.py
+      - name: Preserve original APP before publication
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: harmony-app-${{ github.run_id }}
+          path: apps/mobile/build/release/harmonyos/
+          if-no-files-found: error
+          retention-days: 90
+
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    env:
+      SOURCE_SHA: ${{ github.sha }}
+      HARMONY_TEST_VERSION_ID: ${{ inputs.test_version_id }}
+    steps:
+      - name: Initialize private runtime paths
+        run: |
+          echo "HARMONY_SERVICE_ACCOUNT_PATH=$RUNNER_TEMP/harmony-service-account.json" >> "$GITHUB_ENV"
+          echo "HARMONY_RECEIPT_PATH=$RUNNER_TEMP/receipt/harmony.json" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: harmony-app-${{ github.run_id }}
+          path: ${{ runner.temp }}/harmony-app
+      - name: Restore prior publication receipt if present
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/receipt"
+          if gh api "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/artifacts" --paginate \
+              --jq '.artifacts[].name' | rg -Fxq "harmony-receipt-$GITHUB_RUN_ID"; then
+            gh run download "$GITHUB_RUN_ID" --name "harmony-receipt-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/receipt"
+          fi
+      - name: Upload, check legality and submit invitation test
+        env:
+          HARMONY_SERVICE_ACCOUNT_JSON: ${{ secrets.HARMONY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, subprocess, sys
+          from pathlib import Path
+          directory = Path(os.environ['RUNNER_TEMP']) / 'harmony-app'
+          apps = list(directory.glob('*.app'))
+          assert len(apps) == 1, 'Expected one original APP'
+          app = apps[0]
+          with app.open('rb') as file:
+              digest = hashlib.file_digest(file, 'sha256').hexdigest()
+          assert app.with_suffix('.sha256').read_text() == f'{digest}  {app.name}\n', 'APP checksum mismatch'
+          path = Path(os.environ['HARMONY_SERVICE_ACCOUNT_PATH'])
+          path.touch(mode=0o600)
+          path.write_text(os.environ['HARMONY_SERVICE_ACCOUNT_JSON'])
+          os.environ['HARMONY_APP_PATH'] = str(app)
+          subprocess.run([sys.executable, 'scripts/mobile-release/publish_harmony.py'], check=True)
+          PY
+      - name: Preserve non-secret publication receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: harmony-receipt-${{ github.run_id }}
+          path: ${{ runner.temp }}/receipt/harmony.json
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 90
+      - name: Remove ephemeral service credential
+        if: always()
+        run: rm -f "$HARMONY_SERVICE_ACCOUNT_PATH"

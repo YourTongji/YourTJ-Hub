@@ -100,6 +100,10 @@ environment = {{APNS_ENVIRONMENT}}
 credentials_path = {{FCM_CREDENTIALS_PATH}}
 project_id = {{FCM_PROJECT_ID}}
 
+# HarmonyOS Push Kit：未接入服务账号时保持关闭。
+[push.huawei]
+credentials_path = ""
+
 [push.jpush]
 app_key = {{JPUSH_APP_KEY}}
 master_secret = {{JPUSH_MASTER_SECRET}}

@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:image/image.dart' as img;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/settings/account_closure_dialog.dart';
@@ -11,6 +15,7 @@ import 'package:forum_app/src/pages/settings/profile_edit_dialog.dart';
 import 'package:forum_app/src/pages/settings/session_device_label.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'pages_behavior_test.dart' show settingsPayloadJson;
+import 'test_font_helpers.dart' show loadTestFonts;
 
 Future<void> openEditor(
   WidgetTester tester,
@@ -80,6 +85,88 @@ void main() {
   SettingsUserPayload user() => SettingsUserPayload.fromJson(
     (settingsPayloadJson()['props'] as Map)['user'] as Map<String, dynamic>,
   );
+  final harmony = TargetPlatform.values
+      .where((platform) => platform.name == 'ohos')
+      .firstOrNull;
+  for (final brightness in Brightness.values) {
+    for (final width in [320.0, 390.0]) {
+      testWidgets(
+        'Harmony settings pixels match Android ${brightness.name} width $width',
+        (tester) async {
+          tester.view.physicalSize = Size(width, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          addTearDown(() => debugDefaultTargetPlatformOverride = null);
+          await loadTestFonts(tester);
+          final pages = <String, Widget Function()>{
+            'profile': () =>
+                ProfileEditPage(user: user(), onSave: (_) async {}),
+            'password': () => PasswordEditPage(onSave: (_, _) async {}),
+            'closure': () => const Scaffold(body: AccountClosureDialog()),
+          };
+          Future<Uint8List> pixels(TargetPlatform platform, Widget page) async {
+            await tester.pumpWidget(const SizedBox.shrink());
+            debugDefaultTargetPlatformOverride = platform;
+            try {
+              final key = GlobalKey();
+              await tester.pumpWidget(
+                RepaintBoundary(
+                  key: key,
+                  child: MaterialApp(
+                    theme: gfThemeData(brightness, disableAnimations: true),
+                    locale: const Locale('zh'),
+                    localizationsDelegates:
+                        AppLocalizations.localizationsDelegates,
+                    supportedLocales: AppLocalizations.supportedLocales,
+                    builder: (context, child) => MediaQuery(
+                      data: MediaQuery.of(context).copyWith(
+                        textScaler: GfAppTextScaler(
+                          system: TextScaler.linear(width == 320 ? 1.3 : 1),
+                          baseline: GfAppTextScaler.baselineFor(
+                            platform: platform,
+                            shortestSide: width,
+                          ),
+                        ),
+                      ),
+                      child: child!,
+                    ),
+                    home: page,
+                  ),
+                ),
+              );
+              await tester.pumpAndSettle();
+              expect(tester.takeException(), isNull);
+              expect(find.byType(EditableText), findsWidgets);
+              return (await tester.runAsync(() async {
+                final image =
+                    await (key.currentContext!.findRenderObject()
+                            as RenderRepaintBoundary)
+                        .toImage();
+                try {
+                  final data = await image.toByteData(
+                    format: ui.ImageByteFormat.rawRgba,
+                  );
+                  return data!.buffer.asUint8List();
+                } finally {
+                  image.dispose();
+                }
+              }))!;
+            } finally {
+              debugDefaultTargetPlatformOverride = null;
+            }
+          }
+
+          for (final page in pages.entries) {
+            final android = await pixels(TargetPlatform.android, page.value());
+            final actual = await pixels(harmony!, page.value());
+            expect(actual, orderedEquals(android), reason: page.key);
+          }
+        },
+        skip: harmony == null,
+      );
+    }
+  }
   testWidgets('nickname text and counter share the label vertical center', (
     tester,
   ) async {
@@ -263,36 +350,43 @@ void main() {
     expect(find.byType(ProfileEditPage), findsNothing);
   });
 
-  testWidgets('camera choice passes its source and stays local', (
-    tester,
-  ) async {
-    final picked = <ProfileImageSource>[];
-    final bytes = Uint8List.fromList(
-      img.encodePng(img.Image(width: 4, height: 4)),
-    );
-    await openEditor(
-      tester,
-      ProfileEditPage(
-        user: user(),
-        onSave: (_) async {},
-        onPickImage: (_, source) async {
-          picked.add(source);
-          return bytes;
-        },
-        onSaveAvatar: (_) async => fail('only selecting must not save'),
-      ),
-    );
-    await tester.tap(find.byKey(const Key('profile-edit-avatar')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('profile-sheet-avatar-gallery')),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const ValueKey('profile-sheet-avatar-camera')));
-    await tester.pumpAndSettle();
-    expect(picked, [ProfileImageSource.camera]);
-    expect(find.byKey(const Key('profile-local-avatar')), findsOneWidget);
-  });
+  testWidgets(
+    'camera choice passes its source and stays local',
+    (tester) async {
+      final picked = <ProfileImageSource>[];
+      final bytes = Uint8List.fromList(
+        img.encodePng(img.Image(width: 4, height: 4)),
+      );
+      await openEditor(
+        tester,
+        ProfileEditPage(
+          user: user(),
+          onSave: (_) async {},
+          onPickImage: (_, source) async {
+            picked.add(source);
+            return bytes;
+          },
+          onSaveAvatar: (_) async => fail('only selecting must not save'),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('profile-edit-avatar')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('profile-sheet-avatar-gallery')),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('profile-sheet-avatar-camera')),
+      );
+      await tester.pumpAndSettle();
+      expect(picked, [ProfileImageSource.camera]);
+      expect(find.byKey(const Key('profile-local-avatar')), findsOneWidget);
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.android,
+      ...TargetPlatform.values.where((platform) => platform.name == 'ohos'),
+    }),
+  );
 
   testWidgets(
     'profile waits for acknowledgement and prevents duplicate saves',

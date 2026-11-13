@@ -73,11 +73,12 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     _starting = true;
     try {
       if (kIsWeb ||
-          ![
-            TargetPlatform.android,
-            TargetPlatform.iOS,
-            TargetPlatform.macOS,
-          ].contains(defaultTargetPlatform) ||
+          (defaultTargetPlatform.name != 'ohos' &&
+              ![
+                TargetPlatform.android,
+                TargetPlatform.iOS,
+                TargetPlatform.macOS,
+              ].contains(defaultTargetPlatform)) ||
           !_navigation.isSecureOrigin) {
         throw StateError('Unsupported embedded browser origin or platform');
       }

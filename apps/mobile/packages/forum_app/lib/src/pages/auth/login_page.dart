@@ -883,15 +883,20 @@ class _LoginPageState extends ConsumerState<LoginPage>
     );
     try {
       final bool ok;
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      if (!kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform.name == 'ohos')) {
+        final callbackSource = MainActivityOidcCallbackSource();
         final AndroidOidcCoordinator coordinator = AndroidOidcCoordinator(
           begin: (value) =>
               controller.beginManualAuthorization(provider: value),
           complete: controller.completeManualAuthorization,
           reportError: controller.setExternalError,
-          callbackSource: MainActivityOidcCallbackSource(),
+          callbackSource: callbackSource,
           launchExternal: (uri) =>
-              launchUrl(uri, mode: LaunchMode.externalApplication),
+              defaultTargetPlatform.name == 'ohos'
+                  ? callbackSource.openAuthorization(uri)
+                  : launchUrl(uri, mode: LaunchMode.externalApplication),
         );
         _androidOidcCoordinator = coordinator;
         ok = await coordinator.login(provider: provider);

@@ -15,6 +15,12 @@ const previewStatusUrl =
 const _previewIndexUrl =
     'https://github.com/YourTongji/YourTJ-Hub/releases/download/dev-latest/dev-status.json';
 
+String get previewArtifact => switch (defaultTargetPlatform.name) {
+  'iOS' => 'ios',
+  'ohos' => 'harmonyos',
+  final name => name,
+};
+
 enum PreviewValidity { current, building, stale, unknown }
 
 /// Informational only: validity follows the source, never binary identity or QA.
@@ -140,9 +146,7 @@ class _PreviewStatusHostState extends State<PreviewStatusHost>
         await (widget.fetchStatus ?? _fetch)(),
         source: AppConfig.sourceSha,
         purpose: AppConfig.environment,
-        artifact: defaultTargetPlatform == TargetPlatform.iOS
-            ? 'ios'
-            : 'android',
+        artifact: previewArtifact,
         now: DateTime.now(),
       );
     } catch (_) {
