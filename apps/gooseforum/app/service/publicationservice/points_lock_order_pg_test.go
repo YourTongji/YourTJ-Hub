@@ -16,10 +16,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// Persona publication locks the owner users row before the reward path. Every
-// other points writer must acquire that same participant row before user_points;
-// otherwise PostgreSQL can abort one of two concurrent transactions for the same
-// owner with a deadlock.
+// This concurrent smoke exercises the fixed participant lock order with a
+// persona publication and a member publication entering rewards together.
+// The deterministic old-implementation regression is covered by the SQLite
+// lock-order test in pointservice.
 func TestPostgreSQLPublicationPointsUseOneParticipantLockOrder(t *testing.T) {
 	conn := setupAgentPolicyPostgreSQL(t)
 	conn.TranslateError = true
@@ -83,10 +83,9 @@ func TestPostgreSQLPublicationPointsUseOneParticipantLockOrder(t *testing.T) {
 			case <-ctx.Done():
 				return ctx.Err()
 			}
-			// Both implementations now enter the reward path together. The fixed
-			// implementation gives the member transaction the participant lock
-			// before user_points; the old implementation lets member take
-			// user_points first and then wait for persona's users row.
+			// Persona holds the owner row until both transactions are ready to
+			// enter their reward paths, then both rewards commit with the fixed
+			// participant lock order.
 			return pointservice.RewardPublicationTx(tx, 10, 101)
 		})
 	}()
