@@ -35,7 +35,8 @@ and wiki first posts remain excluded; anonymous replies use their stored numeric
 or `user_points` writes, then updates the visible `users.prestige` value. This keeps every caller in
 the content -> users -> points order and prevents a PostgreSQL `users` / `user_points` deadlock.
 The reward path does not take the participant lock before its source content lock; standalone event
-replay has no content row to lock.
+replay has no caller-owned publication lock but still locks the `topics` or `posts` row named by its
+source key before acquiring the participant row.
 
 Existing event consumers remain for compatibility, but new publication does not rely on them.
 This decision covers legacy forum-local points, not XP or cross-platform credit. It does not infer

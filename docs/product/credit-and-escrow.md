@@ -2,7 +2,8 @@
 
 > Doc type: product spec
 >
-> Status: Active (implementation `Partial`: legacy forum-local points mechanics are `Current`; the XP ledger and
+> Status: Active (implementation `Partial`: forum-local publication rewards are `Current`, while historical
+> reward recovery and atomic restoration rewards remain `Partial`; the XP ledger and
 > controlled single-date daily-base service/CLI are `Current`, while scheduled settlement and event delivery are not
 > connected; cross-platform credit is `Planned`)
 >

@@ -255,8 +255,8 @@ status checks succeed. See the [status specification](../product/server-status.m
 
 `Current`: local topic/reply publication rewards commit in the content transaction, including
 approval and draft publication; source keys deduplicate legacy event replay. `Partial`: historical
-reward reconciliation and atomic content-restoration rewards remain incomplete. `Planned`: credit is a separate OIDC client and
-settlement ledger; the forum would call its merchant distribution API. See the
+reward reconciliation and atomic content-restoration rewards remain incomplete. `Planned`: credit is
+a separate OIDC client and settlement ledger; the forum would call its merchant distribution API. See the
 [points specification](../product/credit-and-escrow.md).
 
 ## Consistency principles
