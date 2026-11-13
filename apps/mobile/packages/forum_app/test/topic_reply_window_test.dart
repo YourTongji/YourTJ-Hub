@@ -16,6 +16,9 @@ import 'package:forum_app/src/navigation/window_reserved_regions.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/widgets/markdown_view.dart';
+import 'package:forum_app/src/widgets/skeletons.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -156,6 +159,9 @@ class TopicWindowServer extends TopicRepository {
   bool delayNextTail = false;
   Completer<PostWindowPayload>? delayedTail;
   int failTailRequests = 0;
+  int failFirstPostRequests = 0;
+  bool delayFirstPostRequest = false;
+  Completer<PostWindowPayload>? delayedFirstPost;
   final List<String> calls = <String>[];
 
   PostWindowPayload _payload(
@@ -199,6 +205,48 @@ class TopicWindowServer extends TopicRepository {
         .where((post) => !hiddenPostIds.contains(post.id))
         .toList(growable: false);
     final int size = limit ?? 20;
+    if (anchorPostNo != null) {
+      if (anchorPostNo == 1 && failFirstPostRequests > 0) {
+        failFirstPostRequests--;
+        throw StateError('temporary first post failure');
+      }
+      if (anchorPostNo == 1 && delayFirstPostRequest) {
+        delayFirstPostRequest = false;
+        delayedFirstPost = Completer<PostWindowPayload>();
+        return delayedFirstPost!.future;
+      }
+      final int index = visiblePosts.indexWhere(
+        (post) => post.postNo >= anchorPostNo,
+      );
+      if (index < 0) {
+        return _payload(
+          const <PostPayload>[],
+          hasBefore: false,
+          hasAfter: false,
+        );
+      }
+      final beforeLimit = math.min(5, size ~/ 2);
+      final afterLimit = size - beforeLimit - 1;
+      final before = visiblePosts.sublist(
+        math.max(0, index - beforeLimit - 1),
+        index,
+      );
+      final after = visiblePosts.sublist(
+        index + 1,
+        math.min(visiblePosts.length, index + afterLimit + 2),
+      );
+      final hasBefore = before.length > beforeLimit;
+      final hasAfter = after.length > afterLimit;
+      return _payload(
+        <PostPayload>[
+          ...(hasBefore ? before.sublist(1) : before),
+          visiblePosts[index],
+          ...(hasAfter ? after.sublist(0, afterLimit) : after),
+        ],
+        hasBefore: hasBefore,
+        hasAfter: hasAfter,
+      );
+    }
     if (beforePostNo != null && beforePostNo >= 0x7fffffffffffffff) {
       if (failTailRequests > 0) {
         failTailRequests--;
@@ -339,6 +387,19 @@ class _CaptchaAuthRepository extends AuthRepository {
   );
 }
 
+class _TopicStickerRepository extends StickerRepository {
+  _TopicStickerRepository(super.client);
+
+  @override
+  Future<List<StickerItemPayload>> list() async => const <StickerItemPayload>[
+    StickerItemPayload(name: 'smile', url: '/file/img/stickers/smile.png'),
+  ];
+
+  @override
+  Future<List<StickerItemPayload>> resolve(List<String> names) async =>
+      const <StickerItemPayload>[];
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -362,6 +423,11 @@ void main() {
     int createdPostNo = 16,
     double textScale = 1,
     WindowReservedRegions? reservedRegions,
+    String mainPostContent = '1楼内容',
+    bool resolveSmileSticker = false,
+    bool failMainPostRequest = false,
+    bool delayMainPostRequest = false,
+    bool settle = true,
   }) async {
     final GfApiClient client = GfApiClient(
       dio: Dio(),
@@ -370,9 +436,12 @@ void main() {
     );
     server = TopicWindowServer(client)
       ..posts.addAll(<PostPayload>[
-        for (int floor = 1; floor <= floors; floor++) floorPost(floor),
+        for (int floor = 1; floor <= floors; floor++)
+          floorPost(floor, content: floor == 1 ? mainPostContent : null),
       ])
       ..hiddenPostIds.addAll(hiddenFloors.map((floor) => 9000 + floor));
+    if (failMainPostRequest) server.failFirstPostRequests = 1;
+    server.delayFirstPostRequest = delayMainPostRequest;
     container = ProviderContainer(
       overrides: <Override>[
         windowReservedRegionsProvider.overrideWith(
@@ -416,6 +485,12 @@ void main() {
         ),
         writingStoreProvider.overrideWithValue(WritingStore()),
         offlineTopicCacheProvider.overrideWithValue(NoopOfflineCache()),
+        if (resolveSmileSticker)
+          stickerLibraryProvider.overrideWith((ref) {
+            final library = StickerLibrary(_TopicStickerRepository(client));
+            ref.onDispose(library.dispose);
+            return library;
+          }),
       ],
     );
     addTearDown(container.dispose);
@@ -437,7 +512,12 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump();
+    }
   }
 
   GfPostComposer composer(WidgetTester tester) =>
@@ -754,6 +834,249 @@ void main() {
     expect(server.calls.last, 'anchor=0 before=8 after=0 limit=0');
     expect(find.text('7楼内容'), findsOneWidget);
     expect(find.text('8楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  testWidgets('深链锚点窗口缺少一楼时补取真实正文并保留回复分页', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 35; floor <= 40; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    final Map<String, dynamic> topic =
+        ((page['props'] as Map<String, dynamic>)['topic']
+            as Map<String, dynamic>);
+    topic['description'] = '旧摘要 [:sticker:smile:]';
+
+    await pumpTopic(
+      tester,
+      page: page,
+      floors: 60,
+      postNo: 35,
+      mainPostContent: '一楼正文的完整内容 [:sticker:smile:]',
+      resolveSmileSticker: true,
+    );
+    await expandViewport(tester);
+
+    expect(
+      server.calls,
+      contains('anchor=0 anchorNo=1 before=0 after=0 limit=1'),
+    );
+    final List<String> renderedMarkdown = tester
+        .widgetList<GfMarkdownView>(find.byType(GfMarkdownView))
+        .map((view) => view.data)
+        .toList();
+    expect(renderedMarkdown, contains('一楼正文的完整内容 [:sticker:smile:]'));
+    expect(find.text('旧摘要 [:sticker:smile:]'), findsNothing);
+    expect(find.byType(StickerImage), findsOneWidget);
+    expect(renderedMarkdown, contains('35楼内容'));
+    expect(renderedMarkdown, contains('40楼内容'));
+
+    await tester.tap(find.text(l10nOf(tester).topicEarlierReplies));
+    await tester.pumpAndSettle();
+    expect(server.calls.last, 'anchor=0 before=35 after=0 limit=0');
+    await disposePage(tester);
+  });
+
+  testWidgets('普通进入直接使用首屏的一楼且不补发请求', (tester) async {
+    await pumpTopic(tester, page: topicDetailPayloadJson());
+
+    expect(
+      tester
+          .widgetList<GfMarkdownView>(find.byType(GfMarkdownView))
+          .map((view) => view.data),
+      contains(startsWith('## 第一楼')),
+    );
+    expect(server.calls.where((call) => call.contains('anchorNo=1')), isEmpty);
+    await disposePage(tester);
+  });
+
+  testWidgets('深链首帖补取等待期间维持加载态且不显示摘要', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[floorPost(35), floorPost(36)],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    final Map<String, dynamic> topic =
+        ((page['props'] as Map<String, dynamic>)['topic']
+            as Map<String, dynamic>);
+    topic['description'] = '摘要里有 [:sticker:smile:]';
+
+    await pumpTopic(
+      tester,
+      page: page,
+      floors: 60,
+      postNo: 35,
+      delayMainPostRequest: true,
+      settle: false,
+    );
+
+    expect(
+      server.calls,
+      contains('anchor=0 anchorNo=1 before=0 after=0 limit=1'),
+    );
+    expect(find.byType(GfTopicDetailSkeleton), findsOneWidget);
+    expect(find.text('摘要里有 [:sticker:smile:]'), findsNothing);
+    expect(find.text('35楼内容'), findsNothing);
+
+    server.delayedFirstPost!.complete(
+      server._payload([server.posts.first], hasBefore: false, hasAfter: true),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GfTopicDetailSkeleton), findsNothing);
+    expect(
+      tester
+          .widgetList<GfMarkdownView>(find.byType(GfMarkdownView))
+          .map((view) => view.data),
+      contains('1楼内容'),
+    );
+    expect(
+      tester
+          .widgetList<GfMarkdownView>(find.byType(GfMarkdownView))
+          .map((view) => view.data),
+      contains('35楼内容'),
+    );
+    await disposePage(tester);
+  });
+
+  testWidgets('首帖补取失败时保留锚点回复并显示加载错误', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[floorPost(8), floorPost(9)],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    final Map<String, dynamic> topic =
+        ((page['props'] as Map<String, dynamic>)['topic']
+            as Map<String, dynamic>);
+    topic['description'] = '不可当作正文的摘要 [:sticker:smile:]';
+
+    await pumpTopic(
+      tester,
+      page: page,
+      floors: 20,
+      postNo: 8,
+      failMainPostRequest: true,
+    );
+
+    expect(find.text(l10nOf(tester).commonLoadFailed), findsOneWidget);
+    expect(find.text('不可当作正文的摘要 [:sticker:smile:]'), findsNothing);
+    expect(
+      tester
+          .widgetList<GfMarkdownView>(find.byType(GfMarkdownView))
+          .map((view) => view.data),
+      contains('8楼内容'),
+    );
+    expect(find.byType(GfLoadingIndicator), findsNothing);
+
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    expect(pageRepo.paths.last, '/p/post/100/8');
+    expect(find.text(l10nOf(tester).commonLoadFailed), findsNothing);
+    expect(
+      tester
+          .widgetList<GfMarkdownView>(find.byType(GfMarkdownView))
+          .map((view) => view.data),
+      contains('1楼内容'),
+    );
+    await disposePage(tester);
+  });
+
+  testWidgets('不可用贴纸沿用正文 Markdown 的现有回退行为', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[floorPost(8)],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    final Map<String, dynamic> topic =
+        ((page['props'] as Map<String, dynamic>)['topic']
+            as Map<String, dynamic>);
+    topic['description'] = '不显示的摘要';
+
+    await pumpTopic(
+      tester,
+      page: page,
+      floors: 10,
+      postNo: 8,
+      mainPostContent: '一楼正文 [:sticker:disabled:]',
+      resolveSmileSticker: true,
+    );
+
+    expect(
+      tester
+          .widgetList<GfMarkdownView>(find.byType(GfMarkdownView))
+          .map((view) => view.data),
+      contains('一楼正文 [:sticker:disabled:]'),
+    );
+    expect(find.byType(StickerImage), findsNothing);
+    expect(find.text('不显示的摘要'), findsNothing);
+    await disposePage(tester);
+  });
+
+  testWidgets('重复刷新保留深链窗口、滚动位置且不重复一楼', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    final Map<String, dynamic> topic =
+        ((page['props'] as Map<String, dynamic>)['topic']
+            as Map<String, dynamic>);
+    topic['description'] = '服务端摘要';
+    const String firstPostContent = '唯一一楼正文 [:sticker:smile:]';
+
+    await pumpTopic(
+      tester,
+      page: page,
+      floors: 40,
+      postNo: 8,
+      mainPostContent: firstPostContent,
+      resolveSmileSticker: true,
+    );
+    final ScrollController replies = tester
+        .widget<CustomScrollView>(find.byType(CustomScrollView).first)
+        .controller!;
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -300),
+    );
+    await tester.pumpAndSettle();
+    final double readingOffset = replies.offset;
+    expect(readingOffset, greaterThan(0));
+
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    expect(pageRepo.paths.last, '/p/post/100/8');
+    expect(
+      server.calls.where((call) => call.contains('anchorNo=1')),
+      hasLength(2),
+    );
+    expect(replies.offset, closeTo(readingOffset, 1));
+    replies.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widgetList<GfMarkdownView>(find.byType(GfMarkdownView))
+          .where((view) => view.data == firstPostContent),
+      hasLength(1),
+    );
+    expect(find.byType(StickerImage), findsOneWidget);
     await disposePage(tester);
   });
 
