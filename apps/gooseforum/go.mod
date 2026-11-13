@@ -11,7 +11,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/fxamacker/cbor/v2 v2.10.0
 	github.com/gen2brain/avif v0.6.0
-	github.com/gin-contrib/gzip v1.2.9
+	github.com/gin-contrib/gzip v1.2.10
 	github.com/gin-gonic/gin v1.12.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-jose/go-jose/v4 v4.1.9
