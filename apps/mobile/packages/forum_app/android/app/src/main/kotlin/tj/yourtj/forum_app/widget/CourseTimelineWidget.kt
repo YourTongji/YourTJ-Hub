@@ -70,9 +70,10 @@ class CourseTimelineWidget : ScheduleGlanceWidget() {
             val showTomorrow = preferences.getBoolean(timelineDayKey(appWidgetId), false)
             val now = Date()
             val date = if (showTomorrow) tomorrowDate(now) else schoolDate(now)
-            val day = projection?.days?.firstOrNull { it.date == date }
+            val day = projection?.dayOn(date, now)
             val emptyState = emptyStatus(preferences.getString(EMPTY_STATE_KEY, null))
             val status = when {
+                projection?.isStale(now) == true -> "stale"
                 day != null -> emptyStatusFor(day)
                 projection == null && emptyState != "ready" -> emptyState
                 else -> "needsRefresh"

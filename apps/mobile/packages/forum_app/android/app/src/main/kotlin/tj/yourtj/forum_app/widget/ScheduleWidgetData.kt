@@ -12,6 +12,7 @@ internal const val PROJECTION_KEY = "schedule_widget_projection"
 internal const val EMPTY_STATE_KEY = "schedule_widget_empty_state"
 internal const val WIDGET_TRANSPARENCY_KEY = "schedule_widget_transparency_percent"
 internal const val DEFAULT_WIDGET_TRANSPARENCY = 9
+private const val STALE_AFTER_MS = 7L * 24 * 60 * 60 * 1000
 
 internal data class ScheduleCourse(
     val id: String,
@@ -43,18 +44,20 @@ internal data class NextClassState(
 
 internal data class ScheduleProjection(
     val generatedAt: Date,
-    val days: List<ScheduleDay>,
+    private val days: List<ScheduleDay>,
 ) {
-    val schoolDate: String get() = days.first().date
-    val week: Int? get() = days.first().week
-    val kind: String get() = days.first().kind
-    val adjustmentLabel: String? get() = days.first().adjustmentLabel
-    val courses: List<ScheduleCourse> get() = days.first().courses
+    fun isStale(now: Date = Date()): Boolean =
+        now.time > generatedAt.time + STALE_AFTER_MS
 
-    fun dayFor(value: Date = Date()): ScheduleDay? = days.firstOrNull { it.date == schoolDate(value) }
+    fun dayFor(value: Date = Date()): ScheduleDay? = dayOn(schoolDate(value), value)
+
+    fun dayOn(date: String, now: Date = Date()): ScheduleDay? {
+        if (isStale(now)) return null
+        return days.firstOrNull { it.date == date }
+    }
 
     fun status(now: Date = Date()): Pair<String, ScheduleCourse?> {
-        if (now.time - generatedAt.time > 7L * 24 * 60 * 60 * 1000) return "stale" to null
+        if (isStale(now)) return "stale" to null
         val day = dayFor(now) ?: return "needsRefresh" to null
         if (day.kind == "unknown") return "needsRefresh" to null
         if (day.kind == "holiday") return "holiday" to null
@@ -67,7 +70,7 @@ internal data class ScheduleProjection(
     }
 
     fun nextClass(now: Date = Date()): NextClassState {
-        if (now.time - generatedAt.time > 7L * 24 * 60 * 60 * 1000) return NextClassState("stale")
+        if (isStale(now)) return NextClassState("stale")
         val date = schoolDate(now)
         val today = dayFor(now) ?: return NextClassState("needsRefresh")
         if (today.kind == "unknown") return NextClassState("needsRefresh")
@@ -99,10 +102,10 @@ internal data class ScheduleProjection(
         val nextCourseChange = days.asSequence()
             .flatMap { it.courses.asSequence() }
             .flatMap { sequenceOf(it.startAt, it.endAt) }
-            .filter { it.after(now) }
+            .filter { it.after(now) && !isStale(it) }
             .minByOrNull { it.time }
         val midnight = nextShanghaiMidnight(now)
-        val staleAt = Date(generatedAt.time + 7L * 24 * 60 * 60 * 1000 + 1)
+        val staleAt = Date(generatedAt.time + STALE_AFTER_MS + 1)
         return listOfNotNull(nextCountdownChange, nextCourseChange, midnight, staleAt)
             .filter { it.after(now) }
             .minByOrNull { it.time }

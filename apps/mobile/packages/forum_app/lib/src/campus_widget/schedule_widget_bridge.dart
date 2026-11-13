@@ -138,6 +138,10 @@ class ScheduleWidgetBridge {
         times,
         qualifiedAndroidName: _todayReceiver,
       ),
+      HomeWidget.scheduleWidgetUpdates(
+        times,
+        qualifiedAndroidName: _timelineReceiver,
+      ),
     ]);
     await _reload();
   }

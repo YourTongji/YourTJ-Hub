@@ -266,8 +266,9 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   class, missing inspector or inspector failure fails the job; a successful Flutter build alone
   cannot conceal missing app Kotlin compilation. The inspector is resolved from `PATH`, then
   `ANDROID_HOME`/`ANDROID_SDK_ROOT` under `cmdline-tools/latest/bin`. This checks the packaged
-  entrypoint, not device startup or every Kotlin class, and does not change the Flutter/AGP pins
-  or Kotlin/DSL compatibility flags. Checker changes select an Android native build; fixture
+  entrypoint, not device startup or every Kotlin class. Android additionally runs the widget-projection
+  JUnit tests with `./gradlew :app:testDebugUnitTest` after the release build generates the Gradle wrapper.
+  This does not change the Flutter/AGP pins or Kotlin/DSL compatibility flags. Checker changes select an Android native build; fixture
   regressions run with `python3 -m unittest discover -s scripts/ci -p 'test_*.py'`.
   iOS runs the simulator
   build, native `RunnerTests` storage-policy and widget schedule regressions, and effective distribution-signing checks.
