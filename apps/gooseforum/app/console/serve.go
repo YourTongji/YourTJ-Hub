@@ -454,7 +454,7 @@ func newGinEngine() *gin.Engine {
 		gin.SetMode(gin.DebugMode)
 		installGinDebugLogSanitizer()
 		app := gin.New()
-		app.Use(gin.LoggerWithConfig(gin.LoggerConfig{Skip: func(c *gin.Context) bool {
+		app.Use(gin.LoggerWithConfig(gin.LoggerConfig{SkipQueryString: true, Skip: func(c *gin.Context) bool {
 			return middleware.ShouldRedactQuery(c.Request.URL)
 		}}))
 		return app
@@ -485,10 +485,9 @@ func installGinDebugLogSanitizer() {
 				target := fmt.Sprint(values[2])
 				parsed, err := url.Parse(target)
 				if err != nil {
-					parsed = &url.URL{Path: fmt.Sprint(values[1])}
-				}
-				if middleware.ShouldRedactQuery(parsed) {
-					values[2] = parsed.Path
+					values[2] = "<invalid redirect target>"
+				} else {
+					values[2] = parsed.EscapedPath()
 				}
 			}
 			if previous != nil {
