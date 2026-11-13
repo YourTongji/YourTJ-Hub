@@ -14,14 +14,18 @@ func init() {
 	cmd := &cobra.Command{
 		Use:   "backfill-images",
 		Short: "Backfill topic image_urls from first post markdown",
-		Run:   runBackfillImages,
+		RunE:  runBackfillImages,
 	}
 	appendCommand(cmd)
 }
 
-func runBackfillImages(cmd *cobra.Command, args []string) {
-	all, _ := topics.GetLatestPublished(10000)
-	updated := 0
+// runBackfillImages 保留逐项处理，但查询或保存失败必须使维护命令失败。
+func runBackfillImages(cmd *cobra.Command, args []string) error {
+	all, err := topics.GetLatestPublished(10000)
+	if err != nil {
+		return fmt.Errorf("list topics for image backfill: %w", err)
+	}
+	updated, failed := 0, 0
 	for _, topic := range all {
 		if topic == nil || topic.Id == 0 {
 			continue
@@ -39,10 +43,15 @@ func runBackfillImages(cmd *cobra.Command, args []string) {
 		}
 		topic.ImageUrls = images
 		if err := topics.Save(topic); err != nil {
-			fmt.Println("save failed topic", topic.Id, ":", err)
+			failed++
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "save failed topic %d: %v\n", topic.Id, err)
 			continue
 		}
 		updated++
 	}
-	fmt.Printf("backfilled image_urls for %d/%d topics\n", updated, len(all))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "backfilled image_urls for %d/%d topics\n", updated, len(all))
+	if failed > 0 {
+		return fmt.Errorf("image backfill failed for %d/%d topics", failed, len(all))
+	}
+	return nil
 }
