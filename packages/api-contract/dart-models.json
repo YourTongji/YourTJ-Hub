@@ -1,0 +1,20 @@
+[
+  {
+    "schema": "ActivationStatus",
+    "className": "ActivationStatus",
+    "fromJson": true,
+    "toJson": false
+  },
+  {
+    "schema": "PushDeviceRegisterRequest",
+    "className": "RegisterPushDeviceInput",
+    "fromJson": false,
+    "toJson": true
+  },
+  {
+    "schema": "PushDeviceUnregisterRequest",
+    "className": "UnregisterPushDeviceInput",
+    "fromJson": false,
+    "toJson": true
+  }
+]

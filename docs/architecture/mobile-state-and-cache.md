@@ -111,12 +111,14 @@ count. The App provider binds requests to the active session/cache epoch and fen
 save; Web uses owner-scoped cache keys and equivalent request generations. A failed save restores the
 previous display choice. See [0118](../decisions/0118-account-unread-display.md).
 
-`Planned`: read acknowledgement accepts a bounded set of incoming message IDs actually visible in
+`Current`: read acknowledgement accepts a bounded set of incoming message IDs actually visible in
 the foreground conversation. It is idempotent, validates membership and message ownership, and
 updates per-message read state plus conversation unread counts in one transaction. It does not
 infer visibility from the largest ID, latest download cursor, reaching the route, or opening a push.
-The existing legacy mark-all endpoint retains its contract for older clients; the new client must not
-send ignored extra parameters to an old server and assume precise read semantics.
+The `mark-visible` endpoint accepts 1–100 explicit incoming IDs. The Flutter conversation tracks
+visible rows and sends those IDs; it does not substitute the legacy mark-all endpoint when this
+operation is unavailable. The legacy endpoint retains its contract for older clients. Wire details
+are owned by [the chat contract](contracts-and-data.md#contract-status).
 
 New message delivery and read writes share a concurrency boundary so interleavings cannot lose unread
 increments. Sending/reading failures cannot emit success events. Batch-read retries merge only

@@ -36,7 +36,7 @@
 | 移动端页面与语言 | `Current` | 首页／校园／通知／私信四个持久分支，课程／排课／Wiki 原生页面，中英日德四语言；见[移动端体验](mobile-experience.md)。 |
 | 移动端正式分发 | `Current` | [官网](https://yourtj.de/#download)提供 iPhone／iPad App Store 和 Android 正式 APK 入口；公开分发与更新边界见[移动端体验](mobile-experience.md#distribution-and-updates)。 |
 | 原生推送与设备验收 | `Partial` | APNs／JPush／OEM 生产投递、安装后签名升级、校园小组件及学校认证仍需相应真机证据；按[移动发布指南](../operations/mobile-releases.md)验收，已上架不代表所有设备链路完成验证。 |
-| 受控 API 契约 | `Partial` | 所有非排除 `/api` 路由已纳管；OIDC 标准端点、文本导出与自动 Dart 生成不在完整生成链路内，见[契约状态](../architecture/contracts-and-data.md#contract-status)。 |
+| 受控 API 契约 | `Partial` | 所有非排除 `/api` 路由已纳管；三个简单 Dart DTO 已接入生成与新鲜度门禁；其余镜像、OIDC 标准端点与文本导出仍不在完整生成链路内，见[契约状态](../architecture/contracts-and-data.md#contract-status)。 |
 | 数据库与文件 | `Current` | 部署默认 PostgreSQL，本地默认 SQLite；SQLite BLOB／S3 文件存储，见[架构](../architecture/system-overview.md)与[对象存储](../operations/object-storage.md)。 |
 | 论坛内积分 | `Partial` | 本地账本幂等入账和删除回滚可用；内存事件丢失后的持久补偿尚缺，见[积分规范](credit-and-escrow.md#current-boundary)。 |
 | 跨服务积分结算 | `Planned` | credit 尚未部署或接入论坛；见[积分规范](credit-and-escrow.md)。 |
