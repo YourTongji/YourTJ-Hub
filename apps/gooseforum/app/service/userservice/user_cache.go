@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice/view"
 	"strconv"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
@@ -115,7 +115,7 @@ func GetUserRoleId(userID uint64) (uint64, bool) {
 	return user.RoleId, true
 }
 
-func GetUserCard(userID uint64) (*vo.UserCard, bool) {
+func GetUserCard(userID uint64) (*view.UserCard, bool) {
 	profile, ok := GetUserPublicProfile(userID)
 	if !ok {
 		return nil, false
@@ -124,15 +124,15 @@ func GetUserCard(userID uint64) (*vo.UserCard, bool) {
 	return &card, true
 }
 
-func GetUserShow(userID uint64) *vo.UserInfoShow {
+func GetUserShow(userID uint64) *view.UserInfoShow {
 	if userID == 0 {
-		return &vo.UserInfoShow{}
+		return &view.UserInfoShow{}
 	}
 	user, ok := GetUserInfo(userID)
 	if !ok {
-		return &vo.UserInfoShow{}
+		return &view.UserInfoShow{}
 	}
-	return transform.User2userShow(user.toEntity())
+	return view.BuildUserShow(user.toEntity())
 }
 
 func GetUserPublicProfile(userID uint64) (UserPublicProfile, bool) {
@@ -300,11 +300,11 @@ func (user UserPublicInfo) webAvatarURL() string {
 	return entity.GetWebAvatarUrl()
 }
 
-func buildUserCard(profile UserPublicProfile) vo.UserCard {
+func buildUserCard(profile UserPublicProfile) view.UserCard {
 	user := profile.User
 	stats := profile.Stats
 	lastActiveTime := effectiveLastActiveTime(user.Id, stats.LastActiveTime)
-	return vo.UserCard{
+	return view.UserCard{
 		Decoration:        decorationservice.Effective(context.Background(), user.Id),
 		UserId:            user.Id,
 		Username:          user.Username,

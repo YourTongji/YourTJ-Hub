@@ -95,7 +95,9 @@ docs/        Docs center (product/architecture/development/operations)
   `openapi.yaml` → generated TypeScript output → fixture contract tests. Until the pipeline fully
   covers an operation, contract changes must also update the mobile Dart mirrors in
   `apps/mobile/packages/core/lib/src/gen/` (same PR) and web TS types
-  (`resource/packages/client/src/contracts/`) in the same commit. Dart generation remains Planned.
+  (`resource/packages/client/src/contracts/`) in the same commit. Dart generation is `Partial`: the
+  selected DTOs in `packages/api-contract/dart-models.json` are generated via `pnpm generate:dart`;
+  unlisted Dart mirrors remain hand-maintained.
   Route coverage is gated: every route from `RegisterByGin` (snapshot
   `packages/api-contract/fixtures/routes-snapshot.json`, regenerate with
   `YOURTJ_UPDATE_ROUTES_SNAPSHOT=1 go test ./app/http/routes/ -run TestRoutesSnapshot`) must be an

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-16
+> Last verified: 2026-11-12
 
 ## Content and publishing
 
@@ -481,6 +481,24 @@ HTTP 通知发送失败后复用数据库任务队列有限重试：每次检查
 `Current`：AI 可读索引、全文和单篇 Markdown 可独立开关，仅导出公开可见内容；全文受主题数、体积及
 耗时上限约束，截断明确标记。Agent API 与 MCP 的认证、写入开关和未实现唤醒链路见
 [身份规范](identity-and-access.md)与[契约与数据](../architecture/contracts-and-data.md)。
+
+`Current`：`robots.txt` 在既有 `User-agent: *` 组声明
+`Content-Signal: search=yes, ai-input=yes, ai-train=no`。允许搜索索引和作为模型输入，不允许训练。
+Allow、Sitemap 与 Disallow 保持不变。取舍见[决策 0130](../decisions/0130-community-content-signals.md)。
+
+`Current`：首页在 `Accept` 明确把 `text/markdown` 的质量值标得高于 `text/html` 时返回 Markdown，
+`Content-Type` 为 `text/markdown`。索引开启时正文就是 llms.txt 索引；关闭时只返回站点标题与简介。
+未带该偏好、质量值相同，或 `text/*`、`*/*` 给出的有效质量值不低于 Markdown 的请求仍是 HTML。
+更具体的媒体类型优先。首页 Markdown 使用 `Cache-Control: private, no-store`，避免会话刷新写入的 `New-Token` 和 `access_token` 进入共享缓存。
+`for_you` 与 `following` 在偏好 Markdown 时不返回个性化信息流，而是同一份公开文档。
+`X-Goose-Page` 仍返回 JSON。
+索引开启时这次响应共用 `/llms.txt` 的限流配额；索引关闭时的短文档不占用该配额。
+HTML、Markdown 和首页 JSON 都带 RFC 8288 `Link`，`rel="describedby"` 指向 `/llms.txt` 与 `/llms-full.txt`。
+
+`Current`：`GET /.well-known/mcp/server-card.json` 按 SEP-1649 描述已经挂载的 `/mcp` streamable HTTP 服务。
+卡片 schema 版本是 `1.0`，`serverInfo.version` 是构建版本，`authentication.schemes` 只有 `bearer`。
+卡片不含凭证，也不声明 OAuth。
+`/.well-known/oauth-authorization-server` 与 `/.well-known/oauth-protected-resource` 不发布。
 
 ## Content contribution statistics
 

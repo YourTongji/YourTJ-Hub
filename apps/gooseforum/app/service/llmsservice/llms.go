@@ -46,6 +46,19 @@ var (
 	projectionCacheTTL = 10 * time.Second
 )
 
+// BuildHomeMarkdown is the homepage representation for Accept: text/markdown.
+// An enabled llms index is reused as that document. When the index is off, the
+// response is only the site heading and description, so negotiation does not
+// fall back to HTML and does not build a second topic export.
+func BuildHomeMarkdown(host string) (string, error) {
+	if hotdataserve.GetPostingSettingsConfigCache().LLMS.Enabled {
+		return BuildIndex(host)
+	}
+	var builder strings.Builder
+	writeSiteHeader(&builder)
+	return builder.String(), nil
+}
+
 func BuildIndex(host string) (string, error) {
 	settings := hotdataserve.GetPostingSettingsConfigCache().LLMS
 	if !settings.Enabled {

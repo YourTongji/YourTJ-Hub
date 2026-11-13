@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-11-12
 
 ## Contract status
 
@@ -61,7 +61,7 @@ and CI rejects any route that is neither contracted nor listed. By domain:
 
 The remaining **Partial** gaps are not missing routes but: the OIDC Provider standard endpoint
 suite (separate OAuth/OIDC contract track), AI-readable text surfaces (`/llms.txt` etc.), and
-hand-maintained Dart mirrors (generation remains Planned).
+remaining hand-maintained Dart mirrors (generation is `Partial` for an explicit model registry).
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
@@ -191,7 +191,7 @@ frontend.
 | Request | GET status | HEAD status |
 |---|---|---|
 | `/health` | 200 (db ping ok) / 503 | **404** |
-| `/robots.txt`, `/sitemap.xml` | 200 | **404** |
+| `/robots.txt`, `/sitemap.xml`, `/.well-known/mcp/server-card.json` | 200 | **404** |
 | `/` (SSR home) | 200 | **404** |
 | `/api/login-public-key`, `/api/forum/get-site-statistics`, ... | 200 | **404** |
 | `/file/img/:filename` (existing upload) | 200 | **404** (no HEAD route registered) |
@@ -265,9 +265,18 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   Push subscription/device writes include missing-session, frozen/pending-account, CSRF and shared
   `interact` rate-limit responses. Their HTTP fixtures exercise the production `apiRoute` assembly;
   contract script tests also require the 429 header/schema and the pending-account example.
-- **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
-  this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
-  exercise their runtime deserialization where the mobile client consumes a controlled operation.
+- **Mobile/Dart generation is `Partial`**: [the selected model registry](../../packages/api-contract/dart-models.json)
+  generates `ActivationStatus`, `RegisterPushDeviceInput`, and `UnregisterPushDeviceInput` into
+  `core/lib/src/gen/openapi_models.dart` from `components/schemas.yaml`. Existing import paths re-export
+  those classes. `pnpm generate:dart` updates the artifact; `pnpm check:dart` compares it without writing
+  and is part of the contract gate. Changes anywhere under the mobile core `gen/` directory select
+  that CI gate, including output-only edits. The generator accepts closed, flat objects with
+  string/integer/boolean fields; optional fields are nullable and omitted from request JSON when null.
+  Unsupported selected schemas fail generation rather than silently guessing. String enums and
+  bounds remain server-validated; this is wire-model generation, not runtime schema validation or
+  an HTTP client. Unlisted models, tolerant parsing, and custom getters remain manually maintained.
+  See the [tooling guide](../../packages/api-contract/README.md) and
+  [generation decision](../decisions/0129-selected-dart-wire-model-generation.md).
 - **Link-preview fixtures are cross-client policy inputs**: `link-preview-markdown-candidates.json`
   is consumed directly by Web and Flutter tests, while the resolver response fixture pins the
   `/api/link-previews/resolve` envelope. The operation accepts at most five URLs; clients render at most
@@ -487,7 +496,15 @@ require virtual-hosted style — use `bucketLookup: dns` with an explicit region
 Principle: projections must be rebuildable from the fact source; never treat a projection as the only truth.
 
 The AI-readable exports are public text representations, not JSON API operations in the controlled
-OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
+OpenAPI surface. The homepage adds a `text/markdown` representation of the same llms index when
+`Accept` prefers that type and the index is enabled; with the index disabled the markdown body is
+only the site heading and description. While the index is enabled, that homepage response uses the
+`llms.index` rate limit so it cannot bypass `/llms.txt`. Both homepage representations, including the
+JSON page payload, link `rel="describedby"` to `/llms.txt` and `/llms-full.txt`. `GET
+/.well-known/mcp/server-card.json` is a separate public discovery document for the existing `/mcp`
+streamable HTTP server and its static Bearer authentication. It is excluded from the OpenAPI
+surface, contains no credential, and does not publish OAuth metadata. Export visibility follows the
+existing forum publication and moderation state:
 draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index and
 full-text exports cover forum topics only and never list wiki pages (`topics.topic_type = 1`), whose
 content is the read-only GitHub-synced projection served under `/wiki` (MADR-0005); content statistics
@@ -510,12 +527,11 @@ older topics or galleries extracted from the body. The section is counted in the
   representative fixtures/route-level contract tests ship in the same PR.
 - Operations outside the current coverage remain manually synchronized with their consumers until they
   are added to the controlled contract. `@gooseforum/client` must stay in sync with Go structs.
-- The mobile client mirrors contracts into `apps/mobile/packages/core/lib/src/gen/*.dart` (a
-  generated-artifact placeholder until the OpenAPI pipeline lands). Backend/TS contract changes that
-  affect the mobile surface must update the Dart mirrors in the same PR; fixture contract tests
-  (`core/test/fixtures`) back runtime deserialization.
-- Automated Dart generation remains Planned; route coverage is a current contract gate as described
-  above and is not a Planned capability.
+- The mobile client consumes contracts under `apps/mobile/packages/core/lib/src/gen/*.dart`.
+  For schemas in `dart-models.json`, regenerate and commit `openapi_models.dart` in the same PR as
+  contract changes. For unlisted models, update the hand-maintained mirror in that PR. Shared
+  contract fixtures back runtime deserialization; the existing import paths remain compatible.
+- Dart generation remains `Partial`; route coverage is a current contract gate as described above.
 - Docs status words updated in step (docs/README.md).
 
 `Current`: the read-only admin contribution statistics operations ship through that same chain — the

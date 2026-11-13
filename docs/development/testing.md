@@ -224,9 +224,12 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   or production-account/backend acceptance.
 - ci-contract.yml: changed contract inputs install the locked `packages/api-contract` pnpm tooling, run OpenAPI
   lint + bundle + TypeScript generation, then rejects an uncommitted diff below
-  `apps/gooseforum/resource/packages/client/src/gen`. Its inputs are the contract package, generated
-  TypeScript, client package manifest, and its own workflow configuration. The route-level HTTP
-  contract fixture tests run inside the backend `go test ./...` gate.
+  `apps/gooseforum/resource/packages/client/src/gen`. It also checks selected generated Dart wire
+  models without rewriting them (`pnpm check:dart`); regenerate with `pnpm generate:dart` before
+  committing schema changes. Its inputs include the contract package, generated TypeScript, mobile
+  core `lib/src/gen/`, client package manifest, and its own workflow configuration. The route-level
+  HTTP contract fixture tests run inside the backend `go test ./...` gate; Flutter fixture and push
+  repository tests verify the generated models through the existing client imports.
 - ci-mobile.yml: Flutter source, tests, assets, dependency/tooling or native files trigger independent
   analysis and test jobs. Before Flutter bootstrap, its analysis job runs the dependency-free
   UI-kit Node tool tests: Twemoji inventory/Unicode input → JSON manifest + Dart map freshness

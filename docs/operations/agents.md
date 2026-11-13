@@ -217,6 +217,13 @@ revocation promise. Use `reply:<eventId>` for responses and
 `daily:<job-id>:<Asia/Shanghai date>` for external scheduled topics. The site hosts neither daily
 schedules nor model execution.
 
+`GET /.well-known/mcp/server-card.json` describes the `/mcp` streamable HTTP server.
+The card schema version is `1.0`. `serverInfo.version` is the build version, `protocolVersion` is the
+newest version reported by the linked SDK, and capabilities match that server. Authentication is
+required with scheme `bearer`. The card is public, sends the discovery CORS headers, and contains no
+credential. Connecting still requires `mcp.enabled` and a valid bearer token; the card does not add
+OAuth discovery.
+
 HTTP MCP requires the configured `mcp.enabled`; write tools require `mcp.writes`. Stdio requires
 `YOURTJ_AGENT_TOKEN` in the process environment and `mcp-stdio --writes`; omit `--writes` for event/read tools only. Every tool call
 revalidates its pinned bearer hash and current Agent account; an open session does not survive token

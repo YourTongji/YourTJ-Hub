@@ -88,6 +88,11 @@
     },
     {
       "method": "GET",
+      "path": "/.well-known/mcp/server-card.json",
+      "reason": "MCP server card 发现文档，描述既有 /mcp，非论坛 JSON API"
+    },
+    {
+      "method": "GET",
       "path": "/llms-full.txt",
       "reason": "SEO/机器可读文本输出，非 JSON API"
     },

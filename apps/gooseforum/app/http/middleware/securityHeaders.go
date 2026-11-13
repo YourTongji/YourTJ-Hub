@@ -72,7 +72,8 @@ func isHTMLPageRoute(c *gin.Context) bool {
 	}
 	path := c.Request.URL.Path
 	switch {
-	case path == "/health", path == "/reload", path == "/mcp":
+	case path == "/health", path == "/reload", path == "/mcp",
+		path == "/.well-known/mcp/server-card.json":
 		return false
 	case strings.HasPrefix(path, "/api/"), strings.HasPrefix(path, "/file/"),
 		strings.HasPrefix(path, "/assets/"), strings.HasPrefix(path, "/static/"):
