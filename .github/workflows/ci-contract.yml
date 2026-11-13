@@ -30,7 +30,7 @@ jobs:
       - name: Install contract tooling
         working-directory: packages/api-contract
         run: pnpm install --frozen-lockfile
-      - name: Validate, bundle, and generate TypeScript types
+      - name: Validate contracts, generate TypeScript, and check Dart models
         working-directory: packages/api-contract
         run: pnpm run check
       - name: Require generated TypeScript types to be committed
