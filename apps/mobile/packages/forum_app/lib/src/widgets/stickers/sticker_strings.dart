@@ -25,6 +25,11 @@ class StickerStrings {
       : isMarketName(name)
       ? sticker
       : name;
+
+  /// Small list excerpts hide generated identifiers but retain readable names.
+  String previewLabel(String name) =>
+      isPersonalName(name) || isMarketName(name) ? sticker : name;
+
   String _s(String zh, String en, String de, String ja) => switch (_locale) {
     'zh' => zh,
     'de' => de,
