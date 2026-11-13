@@ -523,14 +523,6 @@ Future<void> _openTopic(
   onReturn?.call();
 }
 
-/// 无标题时展示摘要；无文本时复用本地化的无标题文案。
-String topicDisplayTitle(BuildContext context, TopicPayload topic) =>
-    topic.title.trim().isNotEmpty
-    ? topic.title
-    : (topic.description.trim().isNotEmpty
-          ? topic.description
-          : AppLocalizations.of(context).topicNoTitle);
-
 /// 小字视图的贴纸文案：token 全被省略而剥空时回退本地化"无标题"占位，
 /// 与 Web 列表行的稳定颜文字回退同族，保证任何列表行都有可识别文案。
 String _stickerLabelOrNoTitle(

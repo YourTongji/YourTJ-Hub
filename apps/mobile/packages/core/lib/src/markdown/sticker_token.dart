@@ -35,13 +35,12 @@ String stickerLabelText(
   for (final match in stickerTokenPattern.allMatches(content)) {
     final gap = content.substring(cursor, match.start);
     buffer.write(gap);
+    if (gap.trim().isNotEmpty) previousStickerLabel = null;
     cursor = match.end;
     final name = match.group(1)!;
     if (urlByName[name] case final String url when url.isNotEmpty) {
       final label = labelForName?.call(name) ?? name;
-      if (gap.trim().isNotEmpty || previousStickerLabel != label) {
-        buffer.write('[$label]');
-      }
+      if (previousStickerLabel != label) buffer.write('[$label]');
       previousStickerLabel = label;
     }
   }

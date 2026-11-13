@@ -213,5 +213,15 @@ void main() {
         expect(result, 'A [贴纸] [smile]');
       },
     );
+
+    test('text and an unknown token do not hide a later visible repeat', () {
+      expect(
+        stickerLabelText(
+          '[:sticker:smile:] 正文 [:sticker:unknown:] [:sticker:smile:]',
+          const <String, String>{'smile': '/smile.png'},
+        ),
+        '[smile] 正文 [smile]',
+      );
+    });
   });
 }
