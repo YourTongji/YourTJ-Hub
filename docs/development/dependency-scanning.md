@@ -29,7 +29,7 @@
 - DB 上游：Go 官方 `vuln.go.dev`（`GOVULNDB` 环境变量可覆盖，见下）。
 - govulncheck 二进制本身用 `go install ...@latest`（CI action 内部）或 `go run ...@latest`（本地），每次取最新版。
 - Go 工具链：CI 用 `go-version-file: apps/gooseforum/go.mod` 直接读取模块 `go` 指令声明的 patch 下限，不依赖可能滞后的 1.26 系列 manifest 解析。标准库漏洞随工具链升级消解：例如 go1.26.5 报告的 7 个 stdlib CVE（`net/url`、`html/template`、`crypto/tls`、`net/http`、`encoding/xml`、`encoding/asn1` 等）全部修复于 go1.26.6，升级 `go.mod` 的 patch 下限即可清零，无需动任何依赖。
-- 仓库工具链下限（issue #447）：`apps/gooseforum/go.mod` 声明 `go 1.26.11`（无独立 toolchain 指令，`go` 指令即下限）。本地/部署构建在旧 patch 工具链下由 `GOTOOLCHAIN=auto`（默认）自动下载合规版本，或设置 `GOTOOLCHAIN=local` 时明确失败——不再可能静默用带 stdlib 漏洞的旧工具链编译单二进制。CI `ci-backend` job 另有 `go env GOVERSION` ≥ 1.26.11 的显式断言作为门禁。
+- 仓库工具链下限（issue #447）：`apps/gooseforum/go.mod` 声明 `go 1.26.11`（无独立 toolchain 指令，`go` 指令即下限）。本地/部署构建在旧 patch 工具链下由 `GOTOOLCHAIN=auto`（默认）自动下载合规版本，或设置 `GOTOOLCHAIN=local` 时明确失败——不再可能静默用带 stdlib 漏洞的旧工具链编译单二进制。CI 直接复用该文件，不另设重复的 patch 版本断言。
 - 依赖版本升级由 Dependabot（`.github/dependabot.yml`，`go_modules` ecosystem，每周）提出 PR；升级 PR 会触发本扫描与 `ci-backend` 全量测试。
 
 `Current`：Wiki 相对 URL 渲染直接调用 `golang.org/x/net/html` 的 `Parse` 与 `Render`，

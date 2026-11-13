@@ -40,22 +40,6 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: apps/gooseforum/go.mod
-      # Go 工具链下限门禁(issue #447): go.mod 声明 go 1.26.11,
-      # setup-go 读取模块版本, 不依赖可能滞后的 1.26 系列 manifest。
-      # 显式断言解析到的实际工具链 >= 1.26.11, 防止缓存/回退导致旧 patch
-      # (crypto/x509 GO-2026-6809, go1.26.10 修复;
-      # net/http GO-2026-6859, go1.26.11 修复) 静默编译产物。
-      - name: Assert Go toolchain >= 1.26.11 (issue #447)
-        working-directory: apps/gooseforum
-        run: |
-          set -euo pipefail
-          min="1.26.11"
-          cur="$(go env GOVERSION | sed 's/^go//')"
-          if [[ "$(printf '%s\n%s\n' "$min" "$cur" | sort -V | head -n1)" != "$min" ]]; then
-            echo "::error::Go toolchain ${cur} is below the required minimum ${min} (stdlib CVEs fixed in Go 1.26.11, issue #447)"
-            exit 1
-          fi
-          echo "Go toolchain ${cur} >= ${min}: OK"
       - name: Vet
         working-directory: apps/gooseforum
         run: go vet ./...
