@@ -6,25 +6,46 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-13
+> Last verified: 2026-11-12
 
 ## System shape
 
 ```mermaid
 flowchart TB
+  browser["Browser · site / admin"]
   mobile["apps/mobile<br/>Flutter · iOS / Android"]
+  agent["External Agent · REST / MCP"]
   credit["services/credit<br/>Planned"]
   subgraph forum["apps/gooseforum — single binary"]
-    web["Vue + GoHTML"]
-    api["Go backend / JSON API"]
+    web["GoHTML + page payload<br/>embedded Vue site / admin assets"]
+    api["Gin · JSON API / MCP / SSE"]
     oidc["Built-in OIDC Provider /api/oauth<br/>forum users · numeric sub"]
-    web --> api
+    service["Business services<br/>forum · chat · courses · campus · Wiki · Agent"]
+    workers["Workers / scheduled jobs"]
+    memory["Process-local events / cache / SSE hub"]
+    web --> service
+    api --> service
+    service --> memory
   end
+  browser --> web
+  browser --> api
   mobile -->|JSON API / JWT Bearer| api
   mobile -->|OIDC / PKCE| oidc
+  agent --> api
   credit -.->|OIDC browser flow / Planned| oidc
-  api -->|Event-driven index sync| search["services/search<br/>Meilisearch (optional)"]
-  api --> db["PostgreSQL (deployment default)<br/>SQLite (local/tests + file DB)"]
+  service --> db["PostgreSQL · business data + task_queue<br/>SQLite for local development / tests"]
+  oidc --> db
+  workers <-->|Task claim / lease / retry| db
+  workers -->|Index sync| search["Meilisearch (optional)<br/>rebuildable projection"]
+  service -->|Search queries| search
+  service --> files["File storage<br/>SQLite BLOB / S3"]
+  service <--> sources["Tongji APIs / GitHub Wiki / AI providers"]
+  subgraph status["apps/status — independent Cloudflare application"]
+    collector["Cron Worker → GitHub Actions collector"]
+    snapshots["Private R2 snapshots"]
+    reader["Worker API + Vue static assets"]
+    collector --> snapshots --> reader
+  end
 ```
 
 ## Deployment shape
@@ -40,6 +61,18 @@ flowchart TB
   `services/` holds deployment configs only, not third-party source. Deployments default to
   PostgreSQL for the main database; local development and tests default to SQLite.
 
+### Serving-process boundary
+
+`Current`: each forum environment has one serving process. The `main` and `dev` containers are
+separate environments with separate databases, not replicas of one forum. A single binary describes
+packaging; it does not make several processes sharing one database a supported deployment.
+
+Process-local SSE delivery, cache invalidation and event handlers do not propagate across replicas.
+Database task leases protect task ownership, but do not coordinate every scheduled job or broadcast
+every in-memory event. PostgreSQL and S3 therefore do not by themselves make the forum horizontally
+scalable. The supported topology and operator checks are in
+[Deployment & Release](../operations/deployment.md#single-serving-process-check).
+
 ## Domain boundaries (apps/gooseforum upstream layers)
 
 | Layer | Responsibility |
@@ -48,6 +81,8 @@ flowchart TB
 | `app/bundles` | Utilities (connect/eventbus/jwtopt/i18n/captcha/logging/cache ...) |
 | `app/models` | GORM models + migrations (app/migration) |
 | `app/service` | Business logic (users/topics/mail/oauth/theme/wikiservice ...) |
+| `app/datastruct/message` | Transport-independent business error codes, parameters and errors |
+| `app/http/mcp` | MCP protocol adapter, authentication and tool registration; reused by HTTP and stdio entry points |
 | `app/http/controllers/api` | JSON API (auth/topic/user/admin/chat/notification/file ...) |
 | `app/http/controllers/forum` | Page rendering (GoHTML three-mode: payload + render + SEO) |
 | `app/http/middleware` | JWT auth, access log, maintenance mode, unified security response headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`; page CSP on HTML routes, issue #407), rate limiting (per-action, IP+user, 429 + Retry-After) ... |
@@ -55,6 +90,12 @@ flowchart TB
 
 **Boundary rules**
 - Business logic in `service`; data access in `models`/repository layer; HTTP in `http/controllers`.
+- Service packages do not import `app/http`: account and chat result types belong to their owning
+  services, and business message codes belong to `app/datastruct/message`. Existing HTTP DTO names
+  are type aliases, preserving their wire format. `app/architecture` checks the service import
+  boundary. MCP is a transport adapter under `app/http/mcp`; it currently reuses the legacy REST/page
+  controller entry points for content operations. That controller orchestration remains a shared
+  transport dependency, not an independently extracted business service.
 - Cross-domain access (e.g. forum→notifications) goes through the owner's public service API; no
   foreign SQL.
 - Frontend output only via `resource/static/dist` (go:embed). For OpenAPI-covered operations, consume
@@ -71,7 +112,11 @@ flowchart TB
   Google OAuth (goth, config [google]), Tongji SSO (campus credentials and callback), and the
   built-in OIDC Provider (authorization code + PKCE S256, numeric `sub` = users.id) for first-party
   clients. Sessions are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
-- Mobile (`Partial`): appauth+PKCE → id_token → `POST /api/auth/oidc/exchange` → forum JWT. The
+- Mobile: the external browser completes authorization code + PKCE; the app sends the code,
+  verifier, nonce and redirect URI to `POST /api/auth/oidc/exchange` for a forum JWT. OIDC tokens
+  remain server-side. Android uses the native callback bridge; other platforms use AppAuth.
+  Platform acceptance limits are owned by [the identity specification](../product/identity-and-access.md).
+  The
   Flutter shell and feature pages consume the repository-owned `Gf*` UI API. `ui_kit` composes
   Flutter primitives with shared semantic tokens and native interaction behavior; component shapes,
   focus, selected/disabled states and touch targets are owned by the repository
@@ -158,7 +203,7 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   歧义/内容同时变化时 fail-safe 新建+软删旧页，issue #288）→
   frontmatter 解析、sha256 幂等 diff、upsert/软删/恢复、贡献者快照；查询 `query.go`：
   BuildTree/BuildHome/贡献者；树以仓库路径递归投影目录节点（目录可无 `index.md`），同步结束后
-  将 `parent_id` 重算为最近祖先 `index.md` 页面；管理：命名空间 CRUD + 只读树）→ controllers：
+  将 `parent_id` 重算为最近祖先 `index.md` 页面；命名空间由仓库顶层目录同步驱动）→ controllers：
   `app/http/controllers/forum/wiki.go`（SSR，PageComponent `wiki.home`/`wiki.detail`）+
   `app/http/controllers/api/wikiController.go`（公开读 + `/api/admin/wiki/*` 管理端）+
   `wikiSyncController.go`（`/api/wiki/webhook` + `/api/admin/wiki/sync*`）。
@@ -166,15 +211,14 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   `/admin/wiki` 同步面板手动触发 + GitHub webhook（`POST /api/wiki/webhook`，HMAC-SHA256
   验签，push 事件，仅默认分支）。同步运行写入 `wiki_sync_runs`
   （trigger/status/head_sha/变更计数/错误）。
-- **路由**: `GET /wiki`、`GET /wiki/*path`（SSR 服务端渲染）；`/wiki/_assets/*path`
-  由同一 catch-all 分派并仅从当前仓库 clone 提供已验证的非 Markdown 资源；公开 API
-  `GET /api/wiki/{tree,namespaces,home}` + `POST /api/wiki/webhook`；管理端
-  `/api/admin/wiki/*`（PageManager：namespaces CRUD、只读树、`sync/status` /
-  `sync` / `sync/runs`）。站内写/回滚/diff/编辑者/版本历史端点已退役。
+- **路由**: `GET /wiki`、`GET /wiki/*path` 提供服务端页面；`/wiki/_assets/*path`
+  由同一 catch-all 分派并仅从当前仓库 clone 提供已验证的非 Markdown 资源。公开读、搜索、
+  webhook 与管理同步接口由 [Wiki 契约](../../packages/api-contract/paths/wiki.yaml)和
+  [同步契约](../../packages/api-contract/paths/wiki-sync.yaml)维护；站内不提供正文或命名空间 CRUD。
 - **前端**: site 区 `WikiHome.vue` / `WikiPage.vue` + `WikiSidebar` / `WikiToc` /
   `WikiPageActions`（编辑/历史按钮外链 GitHub），AppShell 侧栏 wiki 模式（桌面侧栏与
   移动端抽屉均渲染完整 wiki 导航树）；admin 区
-  `WikiManage.vue`（`/admin/wiki`，PageManager：命名空间 + 递归只读页面树 + 同步面板）。
+  `WikiManage.vue`（`/admin/wiki`，PageManager：只读命名空间列表 + 递归只读页面树 + 同步面板）。
 - **隔离与通知**: `topics.topic_type`（0=论坛 1=wiki）隔离 feed 与搜索——默认论坛搜索/feed/RSS/
   sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；同步更新后向订阅者发
   `wiki_updated` 通知（`notifications.templates.wikiUpdated`，同页面 10 分钟节流）。
@@ -184,9 +228,9 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
 
 ### Independent public status application (Partial)
 
-`apps/status` implements a separate Vue/Vite application on Cloudflare Workers Static Assets. Its
-reader is verified in isolated preview; production still points to Netlify, with Cloudflare collection
-and domain cutover awaiting operational acceptance. The forum
+`apps/status` implements a separate Vue/Vite application on Cloudflare Workers Static Assets.
+Deployment and timed-collection acceptance are owned by the
+[Cloudflare runbook](../operations/status-cloudflare.md), separately from source implementation. The forum
 only links to `https://status.yourtj.de`; page delivery and collection do not require the forum API,
 database or runtime assets. GitHub Actions collectors read public Umami, one Komari node and the
 independent Uptime Kuma status page. An optional server-only Umami account reads joint device/OS/client
@@ -198,8 +242,10 @@ snapshots. Collection preassembles range views; the API reads at most one public
 object, checking source scope fingerprints and original timestamps. Dynamic responses are no-store
 and do not enter the edge cache. Static assets bypass the Worker handler.
 
-Current metrics and history/traffic are collected every fifteen minutes; devices hourly. Worker has no
-collection schedules or upstream credentials. Source timestamps, independent freshness and bounded retention remain authoritative even
+The independent Cron Worker dispatches GitHub Actions collection every fifteen minutes for current
+metrics and history/traffic, and hourly for devices. The public reader has no collection schedules or
+upstream credentials; the scheduler has no public route or R2 binding. Source timestamps,
+independent freshness and bounded retention remain authoritative even
 between successful browser polls. Main-branch deployment runs only for status-related input changes and after
 status checks succeed. See the [status specification](../product/server-status.md),
 [Cloudflare runbook](../operations/status-cloudflare.md) and
@@ -242,5 +288,5 @@ apply rules. The LLM does not receive private timetables.
 Public source revisions and durable intents commit with forum content. Agent event materialization
 and optional signed delivery reuse `task_queue`; external runners own models, scheduling, ingress
 deduplication and processing ACK. Instance identity/epoch remain outside business snapshots.
-See [MADR 0065](../decisions/0069-agent-interaction-events.md) for transaction/lock and protocol choices
+See [MADR 0069](../decisions/0069-agent-interaction-events.md) for transaction/lock and protocol choices
 and the [Agent runbook](../operations/agents.md) for current limits and restore behavior.
