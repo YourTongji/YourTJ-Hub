@@ -86,6 +86,7 @@ func TestSecurityHeadersCSPWithheldFromNonPageSurfaces(t *testing.T) {
 		router.GET("/assets/site.js", func(c *gin.Context) { c.String(http.StatusOK, "") })
 		router.GET("/static/pic/1.webp", func(c *gin.Context) { c.String(http.StatusOK, "") })
 		router.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+		router.GET("/.well-known/mcp/server-card.json", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{}) })
 		router.POST("/api/login", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{}) })
 
 		for _, tc := range []struct{ method, path string }{
@@ -94,6 +95,7 @@ func TestSecurityHeadersCSPWithheldFromNonPageSurfaces(t *testing.T) {
 			{http.MethodGet, "/assets/site.js"},
 			{http.MethodGet, "/static/pic/1.webp"},
 			{http.MethodGet, "/health"},
+			{http.MethodGet, "/.well-known/mcp/server-card.json"},
 			{http.MethodPost, "/api/login"},
 		} {
 			recorder := httptest.NewRecorder()

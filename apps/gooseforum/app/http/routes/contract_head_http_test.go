@@ -152,6 +152,7 @@ func TestHeadRouteRegistrationContract(t *testing.T) {
 		"/",
 		"/robots.txt",
 		"/sitemap.xml",
+		"/.well-known/mcp/server-card.json",
 		"/api/login-public-key",
 		"/api/forum/get-site-statistics",
 		"/file/img/*filename",
@@ -384,7 +385,7 @@ func TestHeadContractDynamicRoutesAreGetOnly(t *testing.T) {
 	client := headContractClient()
 
 	// Routes where GET succeeds (200) but HEAD must be 404.
-	for _, path := range []string{"/health", "/robots.txt", "/api/login-public-key", "/"} {
+	for _, path := range []string{"/health", "/robots.txt", "/.well-known/mcp/server-card.json", "/api/login-public-key", "/"} {
 		getResp := headContractRequest(t, client, http.MethodGet, srv.URL+path, "")
 		_ = getResp.Body.Close()
 		headResp := headContractRequest(t, client, http.MethodHead, srv.URL+path, "")

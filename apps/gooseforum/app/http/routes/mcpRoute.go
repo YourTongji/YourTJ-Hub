@@ -40,3 +40,24 @@ func mcpRoute(ginApp *gin.Engine) {
 	})
 	slog.Info("mcp endpoint registered", "path", "/mcp")
 }
+
+// registerMCPServerCard publishes the discovery document for the /mcp server.
+// It is a public GET, like the other machine-readable site documents, and does
+// not mount or reconfigure the authenticated streamable HTTP handler.
+func registerMCPServerCard(ginApp *gin.Engine) {
+	ginApp.GET("/.well-known/mcp/server-card.json", renderMCPServerCard)
+}
+
+func renderMCPServerCard(c *gin.Context) {
+	body, err := mcpservice.ServerCardJSON()
+	if err != nil {
+		c.String(http.StatusInternalServerError, "server card error")
+		return
+	}
+	c.Header("Cache-Control", "public, max-age=300")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Methods", "GET")
+	c.Header("Access-Control-Allow-Headers", "Content-Type")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+}
