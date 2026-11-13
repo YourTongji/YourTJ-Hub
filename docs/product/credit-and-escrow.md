@@ -61,7 +61,7 @@ Forum built-in OIDC Provider (numeric sub = users.id)
   and deduplicate against the same source keys. New publication does not depend on their delivery,
   but no job reconstructs rewards lost before transactional publication, and content restoration
   still uses its existing separate reward calls. This change does not provide a historical
-  reconciliation or atomic restoration guarantee. See the [transaction decision](../decisions/0128-transactional-publication-points.md).
+  reconciliation or atomic restoration guarantee. See the [transaction decision](../decisions/0132-transactional-publication-points.md).
 - **Forum XP end-to-end delivery is `Partial`**: `xp_balances` is a projection of the append-only `xp_entries` ledger;
   versioned reward rules track per-event, per-rule daily, and optional per-user daily positive XP limits
   on Asia/Shanghai dates from event time. XP levels are derived from the current balance and account eligibility. The
