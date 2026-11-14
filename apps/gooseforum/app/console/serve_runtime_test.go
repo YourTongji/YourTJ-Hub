@@ -54,8 +54,8 @@ func TestDebugGinLoggerSkipsAuthenticationCallbackQueries(t *testing.T) {
 			t.Errorf("debug Gin log contains %q", secret)
 		}
 	}
-	if !bytes.Contains(output.Bytes(), []byte("q=hello")) {
-		t.Error("debug Gin logger did not preserve ordinary query")
+	if bytes.Contains(output.Bytes(), []byte("q=hello")) {
+		t.Error("debug Gin logger retained ordinary query")
 	}
 }
 

@@ -65,6 +65,14 @@ func TestCallbackQueriesAreExcludedFromAllAccessLogs(t *testing.T) {
 	}
 	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/search?q=hello", nil))
 
+	ordinaryPanic := httptest.NewRequest(http.MethodGet, "/search?panic=yes&q=diagnostic-panic-fixture", nil)
+	ordinaryPanic.Header.Set("Referer", "https://forum.test/referrer-fixture?q=diagnostic-referer-fixture")
+	panicked := httptest.NewRecorder()
+	router.ServeHTTP(panicked, ordinaryPanic)
+	if panicked.Code != http.StatusInternalServerError {
+		t.Fatalf("ordinary panic status = %d, want 500", panicked.Code)
+	}
+
 	var rows []networkAccessLog.Entity
 	if err := conn.Where("path IN ?", callbackPaths).Find(&rows).Error; err != nil {
 		t.Fatalf("read access logs: %v", err)
@@ -87,15 +95,15 @@ func TestCallbackQueriesAreExcludedFromAllAccessLogs(t *testing.T) {
 			t.Errorf("callback query retained in network access log path %q", row.Path)
 		}
 	}
-	if !strings.Contains(output.String(), "q=hello") {
-		t.Error("ordinary query missing from slog access log")
+	if strings.Contains(output.String(), "q=hello") || strings.Contains(output.String(), "diagnostic-panic-fixture") || strings.Contains(output.String(), "diagnostic-referer-fixture") || strings.Contains(output.String(), "referrer-fixture") {
+		t.Error("ordinary query retained in diagnostic output")
 	}
 	var ordinary networkAccessLog.Entity
-	if err := conn.Where("path = ?", "/search?q=hello").Last(&ordinary).Error; err != nil {
+	if err := conn.Where("path = ?", "/search").Last(&ordinary).Error; err != nil {
 		t.Fatalf("ordinary access log missing: %v", err)
 	}
-	if ordinary.Path != "/search?q=hello" {
-		t.Errorf("ordinary path = %q, want query preserved", ordinary.Path)
+	if ordinary.Path != "/search" {
+		t.Errorf("ordinary path = %q, want path only", ordinary.Path)
 	}
 }
 
@@ -112,32 +120,12 @@ func TestCallbackQueryRedaction(t *testing.T) {
 		"/login?redirect=%2Fapi%2Foauth%2Fauthorize%2Fcallback%3Fid%3Dfake%zz",
 	} {
 		r := httptest.NewRequest(http.MethodGet, raw, nil)
-		if got := logQuery(r.URL); got != "" {
-			t.Errorf("logQuery(%q) = %q, want blank", raw, got)
+		if !ShouldRedactQuery(r.URL) {
+			t.Errorf("ShouldRedactQuery(%q) = false", raw)
 		}
-	}
-	r := httptest.NewRequest(http.MethodGet, "/search?q=hello", nil)
-	if logQuery(r.URL) != "q=hello" {
-		t.Fatal("ordinary query removed")
-	}
-	for _, raw := range []string{
-		"/login?redirect=%2Fsettings",
-		"/login?redirect=https%3A%2F%2Fevil.example%2Fcallback",
-	} {
-		r := httptest.NewRequest(http.MethodGet, raw, nil)
-		if got := logQuery(r.URL); got == "" {
-			t.Errorf("logQuery(%q) blank, want ordinary redirect query preserved", raw)
-		}
-	}
-	callbackReferer := "https://forum.test/api/oauth/authorize/callback?id=fake"
-	if got := logReferer(callbackReferer); got != "https://forum.test/api/oauth/authorize/callback" {
-		t.Errorf("logReferer(callback) = %q, want query removed", got)
-	}
-	if got := logReferer("https://forum.test/api/oauth/authorize/callback/?id=fake%zz"); got != "" {
-		t.Errorf("logReferer(malformed) = %q, want blank", got)
 	}
 	ordinaryReferer := "https://forum.test/search?q=hello"
-	if got := logReferer(ordinaryReferer); got != ordinaryReferer {
-		t.Errorf("logReferer(ordinary) = %q, want unchanged", got)
+	if got := logReferer(ordinaryReferer); got != "https://forum.test" {
+		t.Errorf("referrer = %q, want origin only", got)
 	}
 }
