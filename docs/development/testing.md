@@ -222,6 +222,13 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   contact sheet and source receipt as `profile-bookmark-browser-evidence-<workflow SHA>` for
   30 days. These are synthetic-data browser captures for visual review, not screenshot goldens
   or production-account/backend acceptance.
+  The bookmark-excerpt suite (`resource/test/bookmark-excerpts.browser.mjs`) mounts the real
+  UserPage/AppShell and Tailwind cascade with synthetic bookmarks and an initialized memory
+  router, asserting the two-line reply-excerpt clamp at 320/1280px in both themes. The activity
+  variant covers the retained render branch, not a current server tab. CI preserves eight PNGs
+  and a source receipt (checkout SHA, PR head SHA, browser version, per-case measurements) as
+  `bookmark-excerpt-evidence-<workflow SHA>` for 30 days. Like the other bookmark captures, these
+  are synthetic-data browser evidence for visual review, not live-account/backend acceptance.
 - ci-contract.yml: changed contract inputs install the locked `packages/api-contract` pnpm tooling, run OpenAPI
   lint + bundle + TypeScript generation, then rejects an uncommitted diff below
   `apps/gooseforum/resource/packages/client/src/gen`. It also checks selected generated Dart wire
