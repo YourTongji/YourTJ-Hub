@@ -433,11 +433,14 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 		if err := checkRestorable(post.VisibilityStatus, post.RetentionStatus, deletedAt); err != nil {
 			return err
 		}
-		if err := posts.Restore(contentID); err != nil {
+		if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+			if err := posts.RestoreTx(tx, contentID); err != nil {
+				return err
+			}
+			return pointservice.RestorePostRewardTx(tx, post.UserId, post.Id)
+		}); err != nil {
 			return message.NewMessageError(message.MessageContentRestoreFailed, "恢复回复失败", message.MessageParams{"error": err.Error()})
 		}
-		// 恢复回补创建奖励（先清除删除回滚墓碑，否则积分永久丢失）。
-		reapplyPostReward(post.UserId, post.Id)
 		topicEntity := topics.GetSimple(post.TopicId)
 		if topicEntity.Id > 0 {
 			// 重建在函数内自载入 posts 并以独立事务执行：话题行锁 + 绝对写
@@ -850,21 +853,6 @@ func topicsTarget(topicID uint64) fileusageservice.TargetRef {
 
 func postsTarget(postID uint64) fileusageservice.TargetRef {
 	return fileusageservice.TargetRef{TargetType: "post", TargetID: postID}
-}
-
-// reapplyPostReward 恢复回复时回补创建奖励。先清除删除回滚墓碑（post-deleted:ID），
-// 否则 applyPointsTx 对已回滚过的 sourceKey 会跳过加分，导致"删除→恢复"积分永久丢失。
-func reapplyPostReward(userId, postID uint64) {
-	if userId == 0 || postID == 0 {
-		return
-	}
-	if err := pointservice.ClearPostDeletedTombstone(postID); err != nil {
-		slog.Error("clear post-deleted tombstone on restore failed", "userId", userId, "postId", postID, "err", err)
-	}
-	if err := pointservice.RewardPoints(userId, pointservice.PostCreatedReward, pointservice.PointsActionPostCreated,
-		fmt.Sprintf("post:%d", postID)); err != nil {
-		slog.Error("reapply post reward on restore failed", "userId", userId, "postId", postID, "err", err)
-	}
 }
 
 // DeleteAllUserContent 注销账号时删除该用户全部话题与回复（PRD R10 mode=delete）。
