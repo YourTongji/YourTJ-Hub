@@ -137,6 +137,12 @@ and comments into one reading column up to 720 pixels. Enlarged text raises the 
 Folding retains the active pane's relative reading offset and unsent reply draft; unfolding maps that
 position back into the appropriate pane. See [0111](../decisions/0111-topic-content-and-comments-panes.md).
 
+`Current`: when a notification or floor deep link opens a reply window that omits floor 1, the App
+loads the first post through the existing post-window API and includes it in the topic header. The
+reply window keeps its target floor and pagination cursors. If the first-post request fails, the
+reply window stays available and the header shows a localized load error instead of presenting the
+topic excerpt as the full post.
+
 `Current`: tablet workspaces organize navigation beside their content. Home keeps its category
 tabs in a horizontal row above one retained topic feed at every window width. Home centers its complete
 header and feed in a reading column up to 720 logical pixels wide, with a neutral canvas outside it.
