@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_math_fork/flutter_math.dart' show Math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:html/parser.dart' show parseFragment;
@@ -873,6 +874,28 @@ void main() {
     expect(copied, contains('❤️'));
     expect(copied, contains('🇺🇸'));
     await _dispose(tester);
+  });
+
+  testWidgets('server HTML math renders like the web, code stays literal', (
+    tester,
+  ) async {
+    await _pumpHtml(
+      tester,
+      r'<p>速度 $v_1 * t_2$ 与 \(a &lt; b\) 价格 $5 和 $10</p>'
+      r'<p>$$\frac{a}{b}$$</p>'
+      r'<p><code>$x$</code></p><pre><code>$$y$$</code></pre>',
+    );
+    expect(find.byType(Math), findsNWidgets(3));
+    final String text = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((r) => r.text.toPlainText(includePlaceholders: false))
+        .join('\n');
+    expect(text, contains(r'价格 $5 和 $10'));
+    expect(text, contains(r'$x$'));
+    expect(text, isNot(contains(r'$v_1')));
+    expect(find.textContaining(r'$$y$$', findRichText: true), findsOneWidget);
+    expect(gfHtmlWithMath('<p>无公式</p>'), '<p>无公式</p>');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('server HTML links use the theme colour without an underline', (

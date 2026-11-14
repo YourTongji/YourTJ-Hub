@@ -68,6 +68,20 @@ describe('发布页编辑图片', () => {
     await (view.vm as any).saveDraft()
     expect(submit).toHaveBeenCalledWith(expect.objectContaining({ images: [], topicStatus: 0 }))
   })
+
+  test('导入的长文正文图片不会让提交超过服务端图集上限', async () => {
+    const view = await mountPage()
+    const body = Array.from({ length: 12 }, (_, i) => `![图${i}](/file/img/body-${i}.png)`).join('\n\n')
+    await view.get('[data-test="editor"]').setValue(`导入正文\n\n${body}`)
+    await (view.vm as any).save()
+    const images = submit.mock.calls.at(-1)![0].images as string[]
+    expect(images).toHaveLength(9)
+    expect(images[0]).toBe('/file/img/gallery.png')
+
+    await view.get(`[aria-label="${i18n.global.t('publish.modal.deleteImage')}"]`).trigger('click')
+    await (view.vm as any).save()
+    expect(submit.mock.calls.at(-1)![0].images).toEqual([])
+  })
 })
 
 describe('published write-gate recovery', () => {

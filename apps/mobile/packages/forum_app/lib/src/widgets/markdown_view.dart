@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:html/parser.dart' show parseFragment;
 import 'package:markdown_widget/markdown_widget.dart';
@@ -18,6 +19,7 @@ import '../images/image_save.dart';
 import '../link_navigation.dart';
 import '../providers.dart';
 import 'rich_content/gf_code_block.dart';
+import 'rich_content/gf_math.dart';
 import 'rich_content/gf_table.dart';
 import 'stickers/sticker_image.dart';
 import 'stickers/resolved_sticker_content.dart';
@@ -254,6 +256,9 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       expandPostMentions(screenshotSource, widget.mentions),
       stickerSources,
     );
+    // 顶层块之间多出的空行渲染为空行占位，与服务端 HTML 同一规则（DQ-1）。
+    final String blankMarker = blankLineMarker(data);
+    final String rendered = markBlankLines(data, blankMarker);
     // Expressions never belong to a photo gallery, including supplied lists.
     final ordinary = _extractImages(
       data,
@@ -273,7 +278,79 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     final int imageCacheWidth = (media.size.width * media.devicePixelRatio)
         .round();
 
-    final MarkdownConfig config = MarkdownConfig(
+    // 图片:contain + 高度约束 + 圆角边框(prose.css img)。指定了相对宽度的图片
+    // 不套高度上限，与 Web 一致（docs/decisions/0131-relative-image-width.md）。
+    Widget buildImage(
+      String url,
+      Map<String, String> attributes, {
+      bool sized = false,
+    }) {
+      final String resolvedUrl = resolveApiAssetUrl(url);
+      readiness?.begin(resolvedUrl);
+      var hasFrame = false;
+      return GestureDetector(
+        onTap: widget.screenshot
+            ? null
+            : () {
+                final int index = sourceUrls.indexOf(url);
+                _openViewer(
+                  context,
+                  resolvedUrls.isEmpty ? [resolvedUrl] : resolvedUrls,
+                  index < 0 ? 0 : index,
+                );
+              },
+        onLongPress: widget.screenshot
+            ? null
+            : () async {
+                final bool save = await showGfImageSaveSheet(
+                  context,
+                  saveImageLabel: AppLocalizations.of(context).imageSave,
+                );
+                if (!mounted || !save) return;
+                await saveImageFromUrl(context, resolvedUrl);
+              },
+        child: ConstrainedBox(
+          constraints: sized
+              ? const BoxConstraints()
+              : BoxConstraints(maxHeight: maxImageHeight),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: colors.line, width: borders.width),
+              borderRadius: BorderRadius.circular(GfRadius.sm),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: GfNetworkImage(
+              resolvedUrl,
+              fit: BoxFit.contain,
+              cacheWidth: imageCacheWidth,
+              frameBuilder: (_, child, frame, _) {
+                hasFrame = frame != null;
+                if (frame != null) readiness?.finish(resolvedUrl);
+                return child;
+              },
+              loadingBuilder: (_, child, progress) {
+                if (readiness?.isFrozen(resolvedUrl) == true ||
+                    (widget.screenshot && !hasFrame)) {
+                  return SizedBox(
+                    height: 80,
+                    child: Center(
+                      child: GfSymbol('image-off', color: colors.iconMuted),
+                    ),
+                  );
+                }
+                return child;
+              },
+              // 失败时交给宿主兜底（可重试/在浏览器打开），readiness 仍按原语义收口。
+              onImageError: (_) => readiness?.finish(resolvedUrl),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 公式在交给 Markdown 解析前换成占位（见 core ProtectedMath），链接、图片地址与
+    // 代码里的占位还原为原文，正文文字里的占位渲染为公式。
+    MarkdownConfig configFor(ProtectedMath math) => MarkdownConfig(
       configs: <WidgetConfig>[
         PConfig(textStyle: profile.body),
         // 列表缩进与行距同属 profile,避免各链路各写一套数字。
@@ -285,7 +362,8 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         // 目前只有 Web 侧，移动端见 docs/product/forum.md 的 Planned 段。
         LinkConfig(
           style: TextStyle(color: colors.primary),
-          onTap: (String url) {
+          onTap: (String target) {
+            final String url = math.restore(target);
             // 标签与目标不符的链接按 suspicious 处理（对齐 Web linkRisk）：
             // 白名单与会话信任都不豁免，始终弹确认层（issue #1200）。
             // 按 widget.data 而非展开后的 data 记忆：贴纸 token 展开会插入每次
@@ -311,75 +389,10 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H3Config(style: profile.h3),
         H4Config(style: profile.h4),
         H5Config(style: profile.h5),
-        H6Config(style: profile.h6), // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
+        H6Config(style: profile.h6),
         ImgConfig(
-          builder: (String url, Map<String, String> attributes) {
-            final String resolvedUrl = resolveApiAssetUrl(url);
-            readiness?.begin(resolvedUrl);
-            var hasFrame = false;
-            return GestureDetector(
-              onTap: widget.screenshot
-                  ? null
-                  : () {
-                      final int index = sourceUrls.indexOf(url);
-                      _openViewer(
-                        context,
-                        resolvedUrls.isEmpty ? [resolvedUrl] : resolvedUrls,
-                        index < 0 ? 0 : index,
-                      );
-                    },
-              onLongPress: widget.screenshot
-                  ? null
-                  : () async {
-                      final bool save = await showGfImageSaveSheet(
-                        context,
-                        saveImageLabel: AppLocalizations.of(context).imageSave,
-                      );
-                      if (!mounted || !save) return;
-                      await saveImageFromUrl(context, resolvedUrl);
-                    },
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxImageHeight),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: colors.line,
-                      width: borders.width,
-                    ),
-                    borderRadius: BorderRadius.circular(GfRadius.sm),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: GfNetworkImage(
-                    resolvedUrl,
-                    fit: BoxFit.contain,
-                    cacheWidth: imageCacheWidth,
-                    frameBuilder: (_, child, frame, _) {
-                      hasFrame = frame != null;
-                      if (frame != null) readiness?.finish(resolvedUrl);
-                      return child;
-                    },
-                    loadingBuilder: (_, child, progress) {
-                      if (readiness?.isFrozen(resolvedUrl) == true ||
-                          (widget.screenshot && !hasFrame)) {
-                        return SizedBox(
-                          height: 80,
-                          child: Center(
-                            child: GfSymbol(
-                              'image-off',
-                              color: colors.iconMuted,
-                            ),
-                          ),
-                        );
-                      }
-                      return child;
-                    },
-                    // 失败时交给宿主兜底（可重试/在浏览器打开），readiness 仍按原语义收口。
-                    onImageError: (_) => readiness?.finish(resolvedUrl),
-                  ),
-                ),
-              ),
-            );
-          },
+          builder: (String url, Map<String, String> attributes) =>
+              buildImage(math.restore(url), attributes),
         ),
         // 引用:左线 + 底(prose.css blockquote)。
         BlockquoteConfig(
@@ -393,8 +406,11 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         // 代码块整体交给共享组件:自带底/边框/语言标签/复制/横向滚动,
         // 与 Wiki、课评 HTML 路径是同一个 widget。
         PreConfig(
-          builder: (String code, String language) =>
-              GfCodeBlock(profile: profile, code: code, language: language),
+          builder: (String code, String language) => GfCodeBlock(
+            profile: profile,
+            code: math.restore(code),
+            language: math.restore(language),
+          ),
         ),
         // 行内代码:error 色 + base-200 底(prose.css code)。
         CodeConfig(
@@ -413,38 +429,76 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       ],
     );
 
-    Widget buildMarkdown(String source) => MarkdownWidget(
-      data: source,
-      // The shared selection area below owns selection across every Markdown
-      // block; GfText joins its registrar and Twemoji restoration scope.
-      selectable: false,
-      shrinkWrap: true,
-      markdownGenerator: MarkdownGenerator(
-        linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
-        generators: [
-          SpanNodeGeneratorWithTag(
-            tag: MarkdownTag.img.name,
-            generator: (element, config, visitor) {
-              final sticker = stickerImages[element.attributes['src']];
-              if (sticker == null) {
-                return ImageNode(element.attributes, config, visitor);
-              }
-              return _StickerSpanNode(
-                name: sticker.name,
-                url: sticker.url,
-                fallbackFontSize: profile.body.fontSize ?? 16,
-                size: widget.stickerSize,
-              );
-            },
-          ),
-        ],
-        richTextBuilder: (span) => GfText.rich(span),
-      ),
-      // Embedded in the page scroll view: never repeat its safe-area insets.
-      padding: EdgeInsets.zero,
-      physics: const NeverScrollableScrollPhysics(),
-      config: config,
-    );
+    Widget buildMarkdown(String markdown) {
+      final ProtectedMath math = ProtectedMath.of(markdown);
+      return MarkdownWidget(
+        data: math.source,
+        // The shared selection area below owns selection across every Markdown
+        // block; GfText joins its registrar and Twemoji restoration scope.
+        selectable: false,
+        shrinkWrap: true,
+        markdownGenerator: MarkdownGenerator(
+          linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
+          generators: [
+            SpanNodeGeneratorWithTag(
+              tag: MarkdownTag.p.name,
+              generator: (element, config, visitor) {
+                if (element.textContent == blankMarker) {
+                  return _BlankLineSpanNode(config.p);
+                }
+                final images = sizedImageRow(element);
+                if (images != null &&
+                    !images.any((a) => stickerImages.containsKey(a['src']))) {
+                  return _ImageRowSpanNode(
+                    images: images,
+                    buildImage: (url, attributes, {sized = false}) =>
+                        buildImage(math.restore(url), attributes, sized: sized),
+                  );
+                }
+                return ParagraphNode(config.p);
+              },
+            ),
+            SpanNodeGeneratorWithTag(
+              tag: MarkdownTag.img.name,
+              generator: (element, config, visitor) {
+                final sticker = stickerImages[element.attributes['src']];
+                if (sticker == null) {
+                  return ImageNode(element.attributes, config, visitor);
+                }
+                return _StickerSpanNode(
+                  name: sticker.name,
+                  url: sticker.url,
+                  fallbackFontSize: profile.body.fontSize ?? 16,
+                  size: widget.stickerSize,
+                );
+              },
+            ),
+            if (!math.isEmpty)
+              SpanNodeGeneratorWithTag(
+                tag: MarkdownTag.code.name,
+                generator: (element, config, visitor) =>
+                    CodeNode(math.restore(element.textContent), config.code),
+              ),
+          ],
+          textGenerator: math.isEmpty
+              ? null
+              : (node, config, visitor) {
+                  final String? text = markdownTextOf(node);
+                  final List<MathPiece>? pieces = text == null
+                      ? null
+                      : math.split(text);
+                  return pieces == null
+                      ? null
+                      : _MathTextNode(pieces, config.p.textStyle);
+                },
+          richTextBuilder: (span) => GfText.rich(span),
+        ),
+        // Embedded in the page scroll view: never repeat its safe-area insets.
+        padding: EdgeInsets.zero,
+        physics: const NeverScrollableScrollPhysics(),
+        config: configFor(math),
+      );
+    }
 
     Widget withMarkdownSelection(Widget child) {
       if (!widget.selectable || widget.screenshot) return child;
@@ -463,14 +517,14 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     }
 
     final List<LinkPreviewMarkdownBlock> blocks = splitLinkPreviewMarkdown(
-      data,
+      rendered,
     );
     final List<String> previewUrls = blocks
         .where((LinkPreviewMarkdownBlock block) => block.isPreview)
         .map((LinkPreviewMarkdownBlock block) => block.url!)
         .toList(growable: false);
     if (previewUrls.isEmpty || widget.screenshot) {
-      return withMarkdownSelection(buildMarkdown(data));
+      return withMarkdownSelection(buildMarkdown(rendered));
     }
 
     Future<List<LinkPreviewPayload>> loadPreviews() => _linkPreviews ??=
@@ -620,6 +674,20 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
   }
 }
 
+/// One empty body line for a visible blank line: an empty span keeps the
+/// paragraph's line height and margins without selectable or spoken text.
+class _BlankLineSpanNode extends ElementNode {
+  _BlankLineSpanNode(this.pConfig);
+
+  final PConfig pConfig;
+
+  @override
+  InlineSpan build() => TextSpan(text: '', style: style);
+
+  @override
+  TextStyle? get style => pConfig.textStyle.merge(parentStyle);
+}
+
 /// Places a token-generated sticker on the text line: centred on it and sized
 /// from the nearest styled ancestor (body, heading, quote).
 class _StickerSpanNode extends SpanNode {
@@ -646,5 +714,148 @@ class _StickerSpanNode extends SpanNode {
         size: size ?? fontSize * StickerImage.inlineScale,
       ),
     );
+  }
+}
+
+/// 只含图片且至少一张带 `#w=` 的段落：居中换行排布，与 Web prose.css 并排规则一致。
+/// 未指定宽度的图片独占一行；多张指定宽度的图片之间留 8 逻辑像素间距。
+class _ImageRowSpanNode extends SpanNode {
+  _ImageRowSpanNode({required this.images, required this.buildImage});
+
+  final List<Map<String, String>> images;
+  final Widget Function(
+    String url,
+    Map<String, String> attributes, {
+    bool sized,
+  })
+  buildImage;
+
+  @override
+  InlineSpan build() {
+    final bool spaced =
+        images.where((a) => imageWidthOf(a['src'] ?? '') != null).length > 1;
+    return WidgetSpan(
+      child: SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          runSpacing: 8,
+          children: <Widget>[
+            for (final Map<String, String> attributes in images)
+              _imageItem(attributes, spaced),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _imageItem(Map<String, String> attributes, bool spaced) {
+    final String url = attributes['src'] ?? '';
+    final int? width = imageWidthOf(url);
+    if (width == null) return Align(child: buildImage(url, attributes));
+    return _FractionalImageWidth(
+      factor: width / 100,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: spaced ? 4 : 0),
+        child: buildImage(url, attributes, sized: true),
+      ),
+    );
+  }
+}
+
+/// 取可用宽度的 [factor]，不小于 [imageMinRenderedWidth]（也不超过可用宽度）。
+/// 不用 LayoutBuilder：WidgetSpan 里的子组件可能被询问内在尺寸。
+class _FractionalImageWidth extends SingleChildRenderObjectWidget {
+  const _FractionalImageWidth({required this.factor, required super.child});
+
+  final double factor;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderFractionalImageWidth(factor);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderFractionalImageWidth renderObject,
+  ) => renderObject.factor = factor;
+}
+
+class _RenderFractionalImageWidth extends RenderProxyBox {
+  _RenderFractionalImageWidth(this._factor);
+
+  double _factor;
+  set factor(double value) {
+    if (value == _factor) return;
+    _factor = value;
+    markNeedsLayout();
+  }
+
+  BoxConstraints _childConstraints(BoxConstraints constraints) {
+    if (!constraints.hasBoundedWidth) return constraints;
+    final double available = constraints.maxWidth;
+    return constraints.tighten(
+      width: min(available, max(available * _factor, imageMinRenderedWidth)),
+    );
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.constrain(
+    child?.getDryLayout(_childConstraints(constraints)) ?? Size.zero,
+  );
+
+  @override
+  void performLayout() {
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    child!.layout(_childConstraints(constraints), parentUsesSize: true);
+    size = constraints.constrain(child!.size);
+  }
+}
+
+/// 正文文字里的公式占位：行内公式按基线坐在文字行上，独立公式独占一行
+/// （紧邻的空白去掉，避免多出空行）。
+class _MathTextNode extends SpanNode {
+  _MathTextNode(this.pieces, this.textStyle);
+
+  final List<MathPiece> pieces;
+  final TextStyle textStyle;
+
+  @override
+  InlineSpan build() {
+    final TextStyle style = textStyle.merge(parentStyle);
+    final List<InlineSpan> children = <InlineSpan>[];
+    for (var i = 0; i < pieces.length; i++) {
+      final MathPiece piece = pieces[i];
+      final MathSegment? segment = piece.math;
+      if (segment == null) {
+        var text = piece.text;
+        if (i > 0 && pieces[i - 1].math?.display == true) {
+          text = text.trimLeft();
+        }
+        if (i + 1 < pieces.length && pieces[i + 1].math?.display == true) {
+          text = text.trimRight();
+        }
+        if (text.isNotEmpty) children.add(TextSpan(text: text));
+        continue;
+      }
+      children.add(
+        WidgetSpan(
+          alignment: segment.display
+              ? PlaceholderAlignment.middle
+              : PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: GfMath(
+            tex: segment.text,
+            display: segment.display,
+            source: piece.text,
+            style: style,
+          ),
+        ),
+      );
+    }
+    return TextSpan(style: style, children: children);
   }
 }

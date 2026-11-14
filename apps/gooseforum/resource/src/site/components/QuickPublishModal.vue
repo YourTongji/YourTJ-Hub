@@ -960,6 +960,7 @@ async function handleSubmit() {
               v-model="content"
               :simple="true"
               :hide-upload="true"
+              :profile="quickPublishType === 2 ? 'thought' : 'post'"
               :sensitive-words="sensitiveWords"
               :placeholder="t('publish.modal.contentPlaceholder')"
               @input="handleBodyInput"

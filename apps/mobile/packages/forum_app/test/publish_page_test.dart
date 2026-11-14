@@ -29,6 +29,8 @@ import 'fixtures/sticker_fixtures.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
+// ignore: depend_on_referenced_packages
+import 'package:visibility_detector/visibility_detector.dart';
 
 class _MemoryTokenStorage implements TokenStorage {
   String? _token = 'token';
@@ -293,6 +295,9 @@ Finder _pickerSticker(String label) => find.byWidgetPredicate(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // Moment and question previews now mount GfMarkdownView, whose visibility
+  // detectors would otherwise leave a 500ms timer after disposal.
+  VisibilityDetectorController.instance.updateInterval = Duration.zero;
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   void usePhoneViewport(WidgetTester tester) {
@@ -886,6 +891,55 @@ void main() {
     },
   );
 
+  testWidgets(
+    'moment preview renders Markdown and stickers like the detail page',
+    (tester) async {
+      usePhoneViewport(tester);
+      await pumpPublishPage(
+        tester,
+        editing: false,
+        contentType: 2,
+        categoryIds: [2],
+        withStickers: true,
+      );
+      await tester.enterText(
+        find.byKey(const Key('publish-editor')),
+        '**加粗** 正文 [:sticker:smile:]',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      final Finder preview = find.byKey(const Key('publish-preview'));
+      expect(
+        find.descendant(
+          of: preview,
+          matching: find.byKey(const Key('publish-preview-body')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: preview, matching: find.byType(StickerImage)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: preview,
+          matching: find.textContaining('[:sticker:', findRichText: true),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: preview,
+          matching: find.textContaining('**', findRichText: true),
+        ),
+        findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
   for (final type in [1, 3]) {
     testWidgets('type $type keeps its required title field visible', (
       tester,
@@ -1330,6 +1384,11 @@ void main() {
     await tester.pumpAndSettle();
     final scope = writingScope('http://fake.local', 1);
     expect(await WritingStore().drafts(scope), hasLength(1));
+    // 软盘是通用的“保存”图形；原先叠放的书签与收藏混淆。
+    final saveDraft = tester.widget<GfIconButton>(
+      find.byKey(const Key('publish-save-draft')),
+    );
+    expect(saveDraft.symbol, 'floppy');
     await tester.tap(find.byKey(const Key('publish-save-draft')));
     await tester.pumpAndSettle();
     expect(await WritingStore().drafts(scope), isEmpty);

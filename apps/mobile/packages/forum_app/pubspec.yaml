@@ -55,6 +55,7 @@ dependencies:
   flutter_native_splash: ^2.4.8
   flutter_svg: ^2.3.0
   animated_text_effects: ^0.0.7
+  flutter_math_fork: ^0.7.4
 dev_dependencies:
   url_launcher_platform_interface: ^2.3.2
   flutter_secure_storage_platform_interface: ^1.1.2

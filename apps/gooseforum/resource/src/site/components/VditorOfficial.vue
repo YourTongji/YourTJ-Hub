@@ -3,6 +3,10 @@ import { textBeforeCaret, isInsideFencedCode, replaceMentionTokenInElement } fro
 import { deleteStickerAtCaret, stickerBeforeInputDirection, stickerDeleteDirection } from "@/runtime/sticker-atomic"
 import { decorateStickerTokens, type StickerInlineAsset } from "@/runtime/sticker-inline-editor"
 import StickerSuggestions from '@/site/components/StickerSuggestions.vue'
+import EditorSelectionToolbar from '@/site/components/EditorSelectionToolbar.vue'
+import EditorImageToolbar from '@/site/components/EditorImageToolbar.vue'
+import MarkdownImageViewer from '@/components/MarkdownImageViewer.vue'
+import { useEditorFloatingTools } from '@/site/composables/useEditorFloatingTools'
 import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
 import { useStickerSuggest } from '@/site/composables/useStickerSuggest'
 import { isPersonalStickerName } from '@/site/utils/sticker-token'
@@ -31,6 +35,8 @@ import { renderTwemojiHtml } from '@/runtime/twemoji'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { useI18n } from 'vue-i18n'
 import { createLinkPreviewHintController, formatLinkPreviewHintDomains, type LinkPreviewHint } from '@/runtime/link-preview-hint'
+import { editorToolbarIcon, hasEditorToolbarIcon } from '@/runtime/editor-toolbar-icons'
+import { BLANK_LINE_HTML, blankLineMarker, markBlankLines, MAX_RENDERED_BLANK_LINES } from '@/runtime/blank-lines'
 
 /**
  * 官方 Vditor Vue 示例（https://b3log.org/vditor/demo/vue.html）的 Vue 3 移植。
@@ -85,6 +91,13 @@ const props = defineProps<{
   sensitiveWords?: string[]
   /** 在 emoji 旁注入站点表情包按钮（MADR 0030）：面板由宿主渲染，点击仅 emit open-stickers */
   stickerPicker?: boolean
+  /** 注入「导入 Markdown」按钮（issue #1630）：解析与图片上传由宿主弹窗负责，点击仅 emit import-markdown */
+  importMarkdown?: boolean
+  /**
+   * 编辑区排版档位（issue #1630）：与发布后 .gf-prose-post / -thought / -article 读取同一组
+   * --gf-rich-* 节奏变量（styles/prose.css），编辑时看到的字号、段距、标题与图片间距即发布结果。
+   */
+  profile?: 'post' | 'thought' | 'article'
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -93,6 +106,7 @@ const emit = defineEmits<{
   error: [error: Error]
   'toggle-header': []
   'open-stickers': []
+  'import-markdown': []
 }>()
 
 const { t, te, locale } = useI18n()
@@ -157,6 +171,19 @@ function handleCompositionEnd() {
  */
 const { resolvedUrls, ensureContentStickers } = useResolvedStickers()
 let composing = false
+
+// 选区格式条与图片工具条（MADR 0131）：状态与事件见 useEditorFloatingTools
+const selectionToolbar = ref<InstanceType<typeof EditorSelectionToolbar> | null>(null)
+const imageToolbar = ref<InstanceType<typeof EditorImageToolbar> | null>(null)
+const imageViewer = ref<InstanceType<typeof MarkdownImageViewer> | null>(null)
+const floating = useEditorFloatingTools({
+  root,
+  editor: () => (ready && !destroyed ? editor : null),
+  modeElement: () => currentModeElement(),
+  composing: () => composing,
+  preview: (images, index) => imageViewer.value?.open(images, index),
+  insideFloating: (node) => Boolean(selectionToolbar.value?.contains(node) || imageToolbar.value?.contains(node)),
+})
 let stickerObserver: MutationObserver | null = null
 let stickerResolveTimer: ReturnType<typeof setTimeout> | undefined
 let stickerDecorationFrame = 0
@@ -316,50 +343,61 @@ function detachSensitiveModeRefresh() {
 }
 
 /**
- * 官方默认工具栏（vditor src/ts/util/Options.ts），调整：
- * 1. outline 从工具栏移除：开关改为大纲面板自带的按钮
- *    （展开时在标题栏右侧、收起时悬浮左缘，见 syncOutlineToggleHost）
- * 2. 去掉 record（录音）按钮
- * 3. 新增行间公式 / 块级公式自定义按钮（mathToolbarItems）
- * 4. 仅「插入上方/插入下方」低频项收进 more 子菜单：
- *    主行 24 个高频按钮在发布页容器宽度内刚好单行（KISS：功能不减，入口统一）
- * 其余与官版逐项一致。
+ * 长文工具栏（文章，桌面端，issue #1630）：按「写作意图」分组，组内按使用频率排序：
+ *   段落样式 | 行内格式 | 段落结构 | 插入内容 | 撤销重做 | 全屏 + 更多
+ * - outline 不在工具栏：开关在大纲面板自带按钮（见 syncOutlineToggleHost）
+ * - 缩进、分割线、行内公式、上方/下方插入、编辑模式、预览与帮助是低频项，收进 more
+ * - 去掉面向开发者或与站点主题重复的官方项：record、devtools、info、export、
+ *   code-theme、content-theme（深浅色跟随站点主题）
+ * 宿主开启 importMarkdown 时「导入」按钮插在全屏前（见 withImportItem）；
+ * 窄窗口仍由折叠收纳把末尾按钮依次移入 more，功能不减。
  */
 const OFFICIAL_TOOLBAR: Array<string | IMenuItem> = [
   'headings',
+  '|',
   'bold',
   'italic',
   'strike',
+  'inline-code',
   'link',
   '|',
   'list',
   'ordered-list',
   'check',
-  'outdent',
-  'indent',
-  '|',
   'quote',
-  'line',
-  'code',
-  'inline-code',
-  ...mathToolbarItems(),
   '|',
-  // 插入类工具同组：表情 / 图片 / 表格
-  'emoji',
+  // 插入类工具同组：图片 / 表情（表情包紧随其后注入）/ 表格 / 代码块 / 块级公式
   uploadToolbarItem(),
+  'emoji',
   'table',
+  'code',
+  mathBlockToolbarItem(),
   '|',
   'undo',
   'redo',
   '|',
   'fullscreen',
-  'edit-mode',
   {
     name: 'more',
     // 官方默认 tipPosition 为 e（右向气泡），在浮动面板（overflow hidden）里会被裁剪；
     // 统一改为 n（上向气泡），在 vditor 横向边距内显示
     tipPosition: 'n',
-    toolbar: ['both', 'insert-before', 'insert-after', '|', 'code-theme', 'content-theme', 'export', 'preview', 'devtools', 'info', 'help'],
+    // 菜单按「插入 | 段落 | 编辑模式（就地单选组） | 查看与帮助」分组，见 decorateEditorMenus
+    toolbar: [
+      'line',
+      mathInlineToolbarItem(),
+      '|',
+      'insert-before',
+      'insert-after',
+      'outdent',
+      'indent',
+      '|',
+      'edit-mode',
+      '|',
+      'preview',
+      'both',
+      'help',
+    ],
   },
 ]
 
@@ -374,7 +412,7 @@ const languageAssets = {
 function uploadToolbarItem(): IMenuItem {
   return {
     name: 'upload',
-    icon: '<svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>',
+    icon: editorToolbarIcon('upload'),
     tip: t('editor.toolbar.uploadImageTip'),
     tipPosition: 'n',
   }
@@ -384,7 +422,7 @@ function uploadToolbarItem(): IMenuItem {
 function stickerToolbarItem(): IMenuItem {
   return {
     name: 'sticker',
-    icon: '<svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/><path d="M15 3v5a1 1 0 0 0 1 1h5"/><path d="M8 13h.01"/><path d="M16 13h.01"/><path d="M10 16s.8 1 2 1c1.3 0 2-1 2-1"/></svg>',
+    icon: editorToolbarIcon('sticker'),
     tip: t('editor.toolbar.stickers'),
     tipPosition: 'n',
     click() {
@@ -409,30 +447,30 @@ function withStickerItem(list: Array<string | IMenuItem>): Array<string | IMenuI
   if (!moreItem) return [item, ...list]
   const submenu = moreItem.toolbar ?? []
   const emojiSub = submenu.findIndex((entry) => (typeof entry === 'string' ? entry : entry.name) === 'emoji')
-  const nextSubmenu = emojiSub === -1 ? [item, ...submenu] : [...submenu.slice(0, emojiSub + 1), item, ...submenu.slice(emojiSub + 1)]
+  // 子菜单没有表情项时单独成「插入」组，不混进格式组
+  const nextSubmenu = emojiSub === -1 ? [item, '|', ...submenu] : [...submenu.slice(0, emojiSub + 1), item, ...submenu.slice(emojiSub + 1)]
   return list.map((entry) => (entry === moreItem ? { ...moreItem, toolbar: nextSubmenu } : entry))
 }
 
 /**
- * 紧凑工具栏（浮动回复面板等窄容器）：主行只保留高频按钮，
- * 标题/缩进/公式/表格/全屏等全部收进 more 子菜单，保证尽量单行。
+ * 回复工具栏（浮动回复面板、课评等窄容器，桌面端，issue #1630）：
+ * 回复是对话，最常用的是表情/表情包、图片与引用，因此「插入」组放在最前；
+ * 其后是行内格式与引用/列表/代码，标题、任务列表、表格、公式、全屏等低频项收进 more。
  */
 const COMPACT_TOOLBAR: Array<string | IMenuItem> = [
+  'emoji',
+  uploadToolbarItem(),
+  '|',
   'bold',
   'italic',
   'strike',
   'link',
   '|',
+  'quote',
   'list',
   'ordered-list',
-  'check',
-  '|',
-  'quote',
-  'code',
   'inline-code',
-  '|',
-  'emoji',
-  uploadToolbarItem(),
+  'code',
   '|',
   'undo',
   'redo',
@@ -441,14 +479,17 @@ const COMPACT_TOOLBAR: Array<string | IMenuItem> = [
     tipPosition: 'n',
     toolbar: [
       'headings',
-      'outdent',
-      'indent',
+      '|',
+      'check',
+      'table',
       'line',
       ...mathToolbarItems(),
-      'table',
       '|',
-      'fullscreen',
+      'outdent',
+      'indent',
+      '|',
       'preview',
+      'fullscreen',
       'help',
     ],
   },
@@ -473,18 +514,22 @@ const ARTICLE_MOBILE_TOOLBAR: Array<string | IMenuItem> = [
     name: 'more',
     tipPosition: 'n',
     toolbar: [
-      'table',
       'emoji',
-      'undo',
-      'redo',
+      '|',
       'strike',
+      'inline-code',
       'ordered-list',
       'check',
-      'inline-code',
+      '|',
+      'table',
       'line',
       ...mathToolbarItems(),
-      'fullscreen',
+      '|',
+      'undo',
+      'redo',
+      '|',
       'preview',
+      'fullscreen',
       'help',
     ],
   },
@@ -511,11 +556,14 @@ const COMPACT_MOBILE_TOOLBAR: Array<string | IMenuItem> = [
     toolbar: [
       'italic',
       'strike',
+      'inline-code',
+      '|',
       'ordered-list',
       'check',
-      'inline-code',
+      '|',
       'table',
       'line',
+      '|',
       'fullscreen',
       'help',
     ],
@@ -555,19 +603,20 @@ const SLIM_MOBILE_TOOLBAR: Array<string | IMenuItem> = [
     name: 'more',
     tipPosition: 'n',
     toolbar: [
-      'undo',
-      'redo',
-      '|',
-      'code',
-      'inline-code',
       'italic',
       'strike',
+      'inline-code',
       'link',
+      '|',
       'ordered-list',
       'check',
+      'code',
       '|',
-      'line',
       'table',
+      'line',
+      '|',
+      'undo',
+      'redo',
       '|',
       'fullscreen',
       'help',
@@ -583,17 +632,21 @@ const SLIM_MOBILE_TOOLBAR: Array<string | IMenuItem> = [
 const SLIM_DESKTOP_TOOLBAR: Array<string | IMenuItem> = (() => {
   const compact = COMPACT_TOOLBAR.map((item) =>
     typeof item === 'object' && item.name === 'more'
-      ? { ...item, toolbar: item.toolbar?.filter((name) => name !== 'headings') }
+      ? { ...item, toolbar: item.toolbar?.filter((name, index) => name !== 'headings' && !(index === 1 && name === '|')) }
       : item,
   )
   return ['headings', ...compact]
 })()
 
 /**
- * 极简/普通编辑器工具栏（参考推特/知乎输入卡片）：
- * 仅保留基础高频排版与媒体能力，彻底去除大纲、公式、表格、复杂主题及多级菜单。
+ * 短文工具栏（瞬间、提问、普通帖与快捷发布，桌面端，参考推特/知乎输入卡片，issue #1630）：
+ * 短文以图文与表情为主，「插入」组放最前；只保留基础行内格式与列表/引用/代码，
+ * 不提供大纲、公式、表格与多级菜单。
  */
 const SIMPLE_TOOLBAR: Array<string | IMenuItem> = [
+  uploadToolbarItem(),
+  'emoji',
+  '|',
   'bold',
   'italic',
   'strike',
@@ -602,11 +655,8 @@ const SIMPLE_TOOLBAR: Array<string | IMenuItem> = [
   'list',
   'ordered-list',
   'quote',
-  'code',
   'inline-code',
-  '|',
-  'emoji',
-  uploadToolbarItem(),
+  'code',
   '|',
   'undo',
   'redo',
@@ -657,16 +707,60 @@ function resolveToolbar(): Array<string | IMenuItem> {
       return (item as IMenuItem).name !== 'upload'
     })
   }
-  return withStickerItem(list)
+  return withLucideIcons(withImportItem(withStickerItem(list)))
+}
+
+/** Markdown 导入按钮（issue #1630）：解析与上传由宿主的导入弹窗负责，这里只发出 import-markdown。 */
+function importToolbarItem(): IMenuItem {
+  return {
+    name: 'import-markdown',
+    icon: editorToolbarIcon('import-markdown'),
+    tip: t('editor.toolbar.importMarkdownTip'),
+    tipPosition: 'n',
+    click() {
+      emit('import-markdown')
+    },
+  }
+}
+
+/**
+ * importMarkdown 开启时注入导入按钮：桌面放在全屏前（与「导出/全屏」这类文档级操作同组），
+ * 移动端主行项数按视口宽度精调，收进 more 子菜单首位。
+ */
+function withImportItem(list: Array<string | IMenuItem>): Array<string | IMenuItem> {
+  if (!props.importMarkdown) return list
+  const item = importToolbarItem()
+  const nameOf = (entry: string | IMenuItem) => (typeof entry === 'string' ? entry : entry.name)
+  const moreIndex = list.findIndex((entry) => nameOf(entry) === 'more')
+  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches && moreIndex !== -1) {
+    const moreItem = list[moreIndex] as IMenuItem
+    return list.map((entry, index) => (index === moreIndex ? { ...moreItem, toolbar: [item, ...(moreItem.toolbar ?? [])] } : entry))
+  }
+  const anchor = list.findIndex((entry) => nameOf(entry) === 'fullscreen')
+  const at = anchor !== -1 ? anchor : moreIndex !== -1 ? moreIndex : list.length
+  return [...list.slice(0, at), item, ...list.slice(at)]
+}
+
+/** 主行内置项统一换成 Lucide 图标（Vditor 合并工具栏时 Object.assign 保留传入的 icon）。 */
+function withLucideIcons(list: Array<string | IMenuItem>): Array<string | IMenuItem> {
+  return list.map((entry) => {
+    const name = typeof entry === 'string' ? entry : entry.name
+    if (!hasEditorToolbarIcon(name)) return entry
+    if (typeof entry === 'string') return { name, icon: editorToolbarIcon(name) }
+    return entry.icon ? entry : { ...entry, icon: editorToolbarIcon(name) }
+  })
 }
 
 /** 行间公式 / 块级公式：自定义按钮，插入 $...$ / $$...$$ 并交给 Lute 渲染。
- *  图标用全站 lucide 图标族（Sigma / SquareSigma，与 @lucide/vue 及上传按钮统一），
- *  内联 style 覆盖官方 toolbar svg 的 fill/stroke-width 规则。 */
+ *  图标用全站 lucide 图标族（Sigma / SquareSigma，见 editor-toolbar-icons）。 */
 function mathToolbarItems(): IMenuItem[] {
-  const mathInline: IMenuItem = {
+  return [mathInlineToolbarItem(), mathBlockToolbarItem()]
+}
+
+function mathInlineToolbarItem(): IMenuItem {
+  return {
     name: 'math-inline',
-    icon: '<svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2"/></svg>',
+    icon: editorToolbarIcon('math-inline'),
     tip: t('editor.toolbar.mathInline'),
     click() {
       if (!editor || !ready) return
@@ -679,9 +773,12 @@ function mathToolbarItems(): IMenuItem[] {
       emit('update:modelValue', editor.getValue())
     },
   }
-  const mathBlock: IMenuItem = {
+}
+
+function mathBlockToolbarItem(): IMenuItem {
+  return {
     name: 'math-block',
-    icon: '<svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M16 8.9V7H8l4 5-4 5h8v-1.9"/></svg>',
+    icon: editorToolbarIcon('math-block'),
     tip: t('editor.toolbar.mathBlock'),
     click() {
       if (!editor || !ready) return
@@ -694,7 +791,6 @@ function mathToolbarItems(): IMenuItem[] {
       emit('update:modelValue', editor.getValue())
     },
   }
-  return [mathInline, mathBlock]
 }
 
 /**
@@ -755,6 +851,7 @@ const TOOLBAR_LABEL_KEYS: Record<string, string> = {
   'insert-after': 'editor.toolbar.insertAfter',
   emoji: 'editor.toolbar.emoji',
   sticker: 'editor.toolbar.stickers',
+  'import-markdown': 'editor.toolbar.importMarkdown',
   upload: 'editor.toolbar.upload',
   table: 'editor.toolbar.table',
   undo: 'editor.toolbar.undo',
@@ -777,14 +874,60 @@ function toolbarLabel(type: string): string {
   return window.VditorI18n?.[type] || ''
 }
 
+/** 「更多」菜单行与折叠项用完整名称（主行图标下的 2-3 字短标签在菜单里含义不清） */
+const MENU_LABEL_KEYS: Record<string, string> = {
+  headings: 'editor.menu.headings',
+  bold: 'editor.menu.bold',
+  italic: 'editor.menu.italic',
+  strike: 'editor.menu.strike',
+  link: 'editor.menu.link',
+  list: 'editor.menu.list',
+  'ordered-list': 'editor.menu.orderedList',
+  check: 'editor.menu.check',
+  outdent: 'editor.menu.outdent',
+  indent: 'editor.menu.indent',
+  quote: 'editor.menu.quote',
+  line: 'editor.menu.line',
+  code: 'editor.menu.code',
+  'inline-code': 'editor.menu.inlineCode',
+  'math-inline': 'editor.menu.mathInline',
+  'math-block': 'editor.menu.mathBlock',
+  'insert-before': 'editor.menu.insertBefore',
+  'insert-after': 'editor.menu.insertAfter',
+  emoji: 'editor.menu.emoji',
+  sticker: 'editor.menu.stickers',
+  'import-markdown': 'editor.menu.importMarkdown',
+  upload: 'editor.menu.upload',
+  table: 'editor.menu.table',
+  undo: 'editor.menu.undo',
+  redo: 'editor.menu.redo',
+  fullscreen: 'editor.menu.fullscreen',
+  'edit-mode': 'editor.menu.editMode',
+  preview: 'editor.menu.preview',
+  both: 'editor.menu.both',
+  help: 'editor.menu.help',
+}
+const EDIT_MODE_MENU_KEYS: Record<string, string> = {
+  wysiwyg: 'editor.menu.wysiwyg',
+  ir: 'editor.menu.ir',
+  sv: 'editor.menu.sv',
+}
+
+function menuLabel(type: string): string {
+  const key = MENU_LABEL_KEYS[type]
+  return key && te(key) ? t(key) : toolbarLabel(type)
+}
+
 /**
  * 在工具栏按钮内部补/保「图标下小字」（不挪到按钮外）。
  * 全屏等会 innerHTML 整按钮，需可重复调用。
  */
 function ensureToolbarButtonLabel(item: HTMLElement) {
   const type = item.getAttribute('data-type') || ''
+  // 同一节点会在主行与「更多」菜单（折叠收纳）之间移动，按当前位置取短/全称
+  const inMenu = item.closest('.vditor-hint') !== null
   const labelText =
-    toolbarLabel(type) ||
+    (inMenu ? menuLabel(type) : toolbarLabel(type)) ||
     (item.getAttribute('aria-label') || '').replace(HOTKEY_PATTERN, '').trim()
   if (!labelText) return
 
@@ -798,6 +941,92 @@ function ensureToolbarButtonLabel(item: HTMLElement) {
   span.className = 'vditor-toolbar-label'
   span.textContent = labelText
   item.appendChild(span)
+}
+
+/**
+ * 「更多」菜单（issue #1630）：对齐站点下拉菜单（gf-menu-surface / gf-menu-item）。
+ * Vditor 的二级项是纯文本「名称 <快捷键>」，监听器直接绑在按钮节点上，因此只就地改写
+ * 子节点：图标 + 名称 + 右侧快捷键，不重建按钮。编辑模式与标题这类单选组的触发按钮
+ * 改作组标题、子面板就地展开（CSS），不再弹出二级浮层。标题面板按钮的监听器读
+ * event.target 的 data-tag，所以不往里加子节点，「H1」等文字由 CSS 生成。
+ * 可重复调用：语言热切换后再跑一次即刷新文案。
+ */
+const MENU_GROUP_TYPES = new Set(['edit-mode', 'headings'])
+
+function takeHotkeyText(button: HTMLElement): string {
+  let hotkey = ''
+  for (const node of Array.from(button.childNodes)) {
+    if (node.nodeType !== Node.TEXT_NODE) continue
+    hotkey = node.nodeValue?.match(HOTKEY_PATTERN)?.[1] || hotkey
+    node.remove()
+  }
+  return hotkey
+}
+
+function appendMenuHotkey(button: HTMLElement, hotkey: string) {
+  if (!hotkey || button.querySelector(':scope > .gf-menu-kbd')) return
+  const kbd = document.createElement('kbd')
+  kbd.className = 'gf-menu-kbd'
+  kbd.textContent = hotkey
+  button.appendChild(kbd)
+}
+
+/** 组标题只是说明文字：吞掉点击，避免切换已就地展开的子面板、关闭菜单或移除当前标题 */
+function swallowMenuEvent(event: Event) {
+  event.preventDefault()
+  event.stopImmediatePropagation()
+}
+
+function decorateMenuRow(button: HTMLElement) {
+  const type = button.getAttribute('data-type') || ''
+  if (!button.classList.contains('gf-menu-row')) {
+    const hotkey = takeHotkeyText(button)
+    if (!button.querySelector(':scope > svg') && hasEditorToolbarIcon(type)) {
+      button.insertAdjacentHTML('afterbegin', editorToolbarIcon(type))
+    }
+    button.classList.add('gf-menu-row')
+    if (MENU_GROUP_TYPES.has(type)) {
+      button.classList.add('gf-menu-group-title')
+      button.tabIndex = -1
+      button.addEventListener('click', swallowMenuEvent, true)
+      button.addEventListener('touchstart', swallowMenuEvent, { capture: true, passive: false })
+    }
+    ensureToolbarButtonLabel(button)
+    appendMenuHotkey(button, hotkey)
+    return
+  }
+  ensureToolbarButtonLabel(button)
+}
+
+function decorateModeOption(button: HTMLElement) {
+  const mode = button.getAttribute('data-mode') || ''
+  const key = EDIT_MODE_MENU_KEYS[mode]
+  const text = key && te(key) ? t(key) : (button.textContent || '').replace(HOTKEY_PATTERN, '').trim()
+  let label = button.querySelector<HTMLElement>(':scope > .vditor-toolbar-label')
+  if (!label) {
+    const hotkey = takeHotkeyText(button)
+    button.classList.add('gf-menu-row', 'gf-menu-option')
+    button.insertAdjacentHTML('afterbegin', editorToolbarIcon('selected'))
+    label = document.createElement('span')
+    label.className = 'vditor-toolbar-label'
+    button.appendChild(label)
+    appendMenuHotkey(button, hotkey)
+  }
+  if (label.textContent !== text) label.textContent = text
+}
+
+function decorateEditorMenus() {
+  const toolbar = root.value?.querySelector<HTMLElement>('.vditor-toolbar')
+  const menu = toolbar
+    ?.querySelector<HTMLElement>(':scope > .vditor-toolbar__item > [data-type="more"]')
+    ?.parentElement?.querySelector<HTMLElement>(':scope > .vditor-hint')
+  if (!menu) return
+  menu.classList.add('gf-editor-menu')
+  menu.querySelectorAll<HTMLElement>(':scope > div > [data-type]').forEach(decorateMenuRow)
+  menu.querySelectorAll<HTMLElement>('button[data-mode]').forEach(decorateModeOption)
+  menu.querySelectorAll<HTMLElement>('button[data-tag]').forEach((button) => {
+    button.title = (button.textContent || '').trim()
+  })
 }
 
 /**
@@ -818,6 +1047,9 @@ function guardFullscreenToolbarLabel() {
       fullscreenLabelObserver = null
       return
     }
+    // 进入全屏时官方把图标换回 ant 的 contract：改成同族 Lucide 图标（退出时官方恢复传入的 icon）
+    const officialIcon = button.querySelector('svg use')?.closest('svg')
+    if (officialIcon) officialIcon.outerHTML = editorToolbarIcon('contract')
     ensureToolbarButtonLabel(button)
   })
   fullscreenLabelObserver.observe(button, { childList: true })
@@ -896,6 +1128,7 @@ const TOOLBAR_TIP_KEYS: Record<string, string> = {
   'math-inline': 'editor.toolbar.mathInline',
   'math-block': 'editor.toolbar.mathBlock',
   sticker: 'editor.toolbar.stickers',
+  'import-markdown': 'editor.toolbar.importMarkdownTip',
 }
 
 /** 语言热切换竞态令牌：快速连续切换时只应用最后一次 */
@@ -1052,6 +1285,7 @@ async function refreshVditorLocale() {
   refreshEditModePanel(I)
   refreshOutlineAndToggles(I)
   refreshToolbarLabelText()
+  decorateEditorMenus()
   scheduleMeasure() // 英文文案变宽可能改变折叠收纳 / 图标-only 判定
 }
 
@@ -1138,6 +1372,9 @@ function unfoldItem(item: HTMLElement) {
   }
   toolbarEl!.insertBefore(item, anchor ?? moreWrapper!) // 放回原次序正确位置
   item.classList.remove('hub-fold-group-start')
+  // 回到主行换回短标签（菜单里用的是完整名称）
+  const button = item.querySelector<HTMLElement>(':scope > [data-type]')
+  if (button?.querySelector(':scope > .vditor-toolbar-label')) ensureToolbarButtonLabel(button)
   syncAdjacentDividers(item)
 }
 
@@ -1491,6 +1728,36 @@ function syncHeaderToggleHost() {
   syncToolbarLeftPadding()
 }
 
+type LuteRenderMethod = 'Md2VditorDOM' | 'Md2VditorIRDOM' | 'SpinVditorSVDOM' | 'Md2HTML'
+
+/**
+ * 连续空行（DQ-1，docs/decisions/0133-visible-blank-lines.md）：Lute 载入 Markdown 时把一段
+ * 空行合并成一个段落间隔，重新编辑再保存就丢掉了作者留的空段。载入前在这些位置插入标记
+ * 段落，渲染后清空成与按 Enter 相同的空段，VditorDOM2Md 再把 k 个空段写回 k+1 行空行。
+ * 编辑区（所见即所得、即时渲染、源码）全部保留；预览按发布规则渲染为有上限的占位。
+ */
+const SV_NEWLINE = '<span data-type="newline"><br /><span style="display: none">\n</span></span>'
+
+function preserveBlankParagraphs(v: Vditor) {
+  const lute = v.vditor.lute as unknown as Record<LuteRenderMethod, (markdown: string) => string>
+  const wrap = (method: LuteRenderMethod, max: number, marked: (marker: string) => string, empty: string) => {
+    const render = lute[method].bind(lute)
+    lute[method] = (markdown: string) => {
+      const marker = blankLineMarker(markdown)
+      const source = markBlankLines(markdown, marker, max)
+      if (source === markdown) return render(markdown)
+      const html = render(source).replaceAll(marked(marker), empty)
+      // 标记落进了其他结构（例如原始 HTML）时放弃保留，按原文渲染
+      return html.includes(marker) ? render(markdown) : html
+    }
+  }
+  wrap('Md2VditorDOM', Infinity, (marker) => `<p data-block="0">${marker}</p>`, '<p data-block="0"></p>')
+  wrap('Md2VditorIRDOM', Infinity, (marker) => `<p data-block="0">${marker}</p>`, '<p data-block="0"></p>')
+  // 源码模式显示原文：删掉标记行（文字连同它的换行），留下与原文相同行数的空行
+  wrap('SpinVditorSVDOM', Infinity, (marker) => `<span data-type="text">${marker}</span>${SV_NEWLINE}`, '')
+  wrap('Md2HTML', MAX_RENDERED_BLANK_LINES, (marker) => `<p>${marker}</p>`, BLANK_LINE_HTML)
+}
+
 let popoverObservers: MutationObserver[] = []
 
 /**
@@ -1589,21 +1856,35 @@ function initToolbarPanelPositionCorrection(v: Vditor) {
     }
   }
 
+  /** 「更多」菜单按视口剩余空间定方向与最大高度：下方放不下且上方更宽时向上展开（底部弹层编辑器恒向上） */
+  const fitMenuVertical = (menu: HTMLElement) => {
+    if (menu.style.display === 'none' || !menu.parentElement) return
+    const anchor = menu.parentElement.getBoundingClientRect()
+    const below = window.innerHeight - anchor.bottom - 12
+    const above = anchor.top - 12
+    const up = Boolean(menu.closest('.gf-modal-editor')) || (menu.scrollHeight > below && above > below)
+    menu.classList.toggle('gf-editor-menu--up', up)
+    menu.style.setProperty('--gf-menu-max-h', `${Math.max(160, Math.floor(up ? above : below))}px`)
+  }
+
   const runClamp = () => {
     if (toolbarPanelClampRaf) return
     toolbarPanelClampRaf = requestAnimationFrame(() => {
       toolbarPanelClampRaf = 0
       const activePanels = toolbarEl.querySelectorAll<HTMLElement>('.vditor-panel, .vditor-hint')
       for (const p of activePanels) {
+        if (p.classList.contains('gf-editor-menu')) fitMenuVertical(p)
         clampPanelHorizontal(p)
       }
     })
   }
 
+  // 捕获阶段：Vditor 的子菜单开关（toggleSubMenu）会 stopPropagation，冒泡监听收不到；
+  // runClamp 在下一帧执行，届时面板已展开
   toolbarEl.addEventListener('click', () => {
     runClamp()
     setTimeout(runClamp, 60)
-  }, { passive: true })
+  }, { capture: true, passive: true })
 
   // 模块级保存绑定引用：卸载时据此移除，防止每个编辑器实例泄漏一个 window 监听
   toolbarPanelResizeHandler = runClamp
@@ -1687,7 +1968,10 @@ onMounted(async () => {
         // 微任务中，使代码高亮和其他 Markdown 渲染先完成，再只处理预览子树中的文本。
         parse(element) {
           queueMicrotask(() => {
-            if (element.isConnected) renderTwemojiHtml(element)
+            if (!element.isConnected) return
+            renderTwemojiHtml(element)
+            // 预览与编辑区同一套贴纸装饰：token 显示为贴纸图，而不是一串原文
+            decorateStickerTokens(element, stickerAsset)
           })
         },
         // hljs/math 走官方默认（enable: true、KaTeX），资源已本地化
@@ -1719,6 +2003,7 @@ onMounted(async () => {
         syncContentTheme()
         syncHighlightTheme()
         attachToolbarLabels()
+        decorateEditorMenus()
         // 大纲初始展开：enable 只是配置，需 toggle 后面板才显示（官方 Outline 按钮同逻辑）
         // 未开启大纲时不创建开关按钮，避免悬浮层覆盖编辑区（如回复浮动面板）
         if (props.outline) {
@@ -1741,6 +2026,8 @@ onMounted(async () => {
         // 已按默认选项渲染过一次，含简码样式文本时关掉后重渲染。
         // Lute 运行时提供 SetEmoji，Vditor 的类型声明里没有列出
         ;(nextEditor?.vditor.lute as { SetEmoji?: (enabled: boolean) => void } | undefined)?.SetEmoji?.(false)
+        // 初值同样已按合并空行渲染过：含连续空行时与 getValue 不同，下面会按保留空段重渲染
+        preserveBlankParagraphs(nextEditor!)
         if (props.modelValue && (props.modelValue !== nextEditor?.getValue() || /:[^\s:]+:/.test(props.modelValue))) {
           nextEditor?.setValue(props.modelValue, true)
         }
@@ -1748,6 +2035,7 @@ onMounted(async () => {
         initToolbarPanelPositionCorrection(nextEditor!)
         attachSensitiveModeRefresh()
         attachStickerDecoration()
+        floating.attach()
       },
       input(value) {
         clearSensitiveHighlights()
@@ -1756,6 +2044,7 @@ onMounted(async () => {
         linkPreviewHintController.schedule(value)
         // 字数变化改变工具栏末位 counter 宽度，RO 只测 border-box，需显式重测
         scheduleMeasure()
+        floating.schedule()
       },
     })
     editor = nextEditor
@@ -1813,6 +2102,7 @@ onBeforeUnmount(() => {
   root.value?.removeEventListener('beforeinput', handleStickerBeforeInput, true)
   root.value?.removeEventListener('focusout', handleEditorFocusOut)
   document.removeEventListener('selectionchange', handleSelectionChange)
+  floating.detach()
   stickerObserver?.disconnect()
   stickerObserver = null
   clearTimeout(stickerResolveTimer)
@@ -1968,7 +2258,14 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 <template>
   <!-- 用 data-locale 属性而非 :class 驱动语言样式：Vue 动态 class 重渲染会抹掉
        Vditor 命令式添加的 .vditor 类（编辑器边框/工具栏样式依赖它），属性则不影响 className -->
-  <div v-bind="$attrs" ref="root" class="vditor-official" :class="{ 'vditor-official--slim': slimMobile }" :data-locale="locale" />
+  <div
+    v-bind="$attrs"
+    ref="root"
+    class="vditor-official"
+    :class="{ 'vditor-official--slim': slimMobile }"
+    :data-locale="locale"
+    :data-gf-rich-profile="profile ?? 'post'"
+  />
   <StickerSuggestions
     v-if="stickerPicker"
     :open="stickerSuggest.open.value"
@@ -1979,6 +2276,33 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
     :panel-style="stickerSuggest.panelStyle.value"
     @select="stickerSuggest.select"
   />
+  <EditorSelectionToolbar
+    ref="selectionToolbar"
+    :open="floating.selectionOpen.value"
+    :host="floating.host.value"
+    :anchor="floating.selectionAnchor.value"
+    :boundary="floating.boundary.value"
+    :available="floating.selectionAvailable.value"
+    :active="floating.selectionActive.value"
+    :heading="floating.selectionHeading.value"
+    :prefer-below="floating.preferBelow"
+    @command="floating.runCommand"
+    @heading="floating.setHeading"
+  />
+  <EditorImageToolbar
+    ref="imageToolbar"
+    :host="floating.host.value"
+    :image="floating.image.value"
+    :boundary="floating.boundary.value"
+    :width="floating.imageWidth.value"
+    :resizable="floating.imageResizable.value"
+    :alt="floating.imageAlt.value"
+    @width="floating.setImageWidth"
+    @alt="floating.setImageAlt"
+    @preview="floating.previewImage()"
+    @remove="floating.removeImage"
+  />
+  <MarkdownImageViewer ref="imageViewer" />
 </template>
 
 <style>
@@ -1989,6 +2313,223 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
  */
 .vditor-official .vditor-reset ol {
   list-style-type: decimal;
+}
+
+/*
+ * 设计系统映射（issue #1630）：Vditor 的外观全部由下列 CSS 变量驱动（官方 classic/dark
+ * 主题写死 GitHub 灰与 #4285f4 蓝），这里统一改读站点 --gf-* token，深浅色随站点主题切换，
+ * 不再依赖 .vditor--dark 的另一套色值。根节点本身就是 .vditor（Vditor 在挂载点上加类）。
+ */
+.vditor-official.vditor {
+  --border-color: var(--gf-color-line);
+  --second-color: color-mix(in oklch, var(--gf-color-base-content) 42%, transparent);
+  --panel-background-color: var(--gf-color-base-100);
+  --panel-shadow: 0 0 0 1px color-mix(in oklch, var(--gf-color-base-content) 8%, transparent), 0 8px 24px -8px oklch(0 0 0 / 0.18);
+  /* 官方把它同时用作工具栏底色和菜单/面板的 hover 底色：这里取后者（不透明的浅底），
+     工具栏本身的底色在 .vditor-toolbar 上单独设为编辑区同色 */
+  --toolbar-background-color: color-mix(in oklch, var(--gf-color-base-content) 5%, var(--gf-color-base-100));
+  --toolbar-icon-color: color-mix(in oklch, var(--gf-color-base-content) 62%, transparent);
+  --toolbar-icon-hover-color: var(--gf-color-base-content);
+  --textarea-background-color: var(--gf-color-base-100);
+  --textarea-text-color: var(--gf-color-base-content);
+  --resize-icon-color: var(--toolbar-icon-color);
+  --resize-background-color: var(--gf-color-base-200);
+  --resize-hover-icon-color: var(--gf-color-base-content);
+  --resize-hover-background-color: var(--gf-color-base-300);
+  --count-background-color: transparent;
+  --heading-border-color: transparent;
+  --blockquote-color: color-mix(in oklch, var(--gf-color-base-content) 72%, transparent);
+  --ir-heading-color: var(--gf-color-primary);
+  --ir-title-color: color-mix(in oklch, var(--gf-color-base-content) 55%, transparent);
+  --ir-bi-color: var(--gf-color-base-content);
+  --ir-link-color: var(--gf-color-primary);
+  --ir-bracket-color: color-mix(in oklch, var(--gf-color-base-content) 45%, transparent);
+  --ir-paren-color: color-mix(in oklch, var(--gf-color-base-content) 45%, transparent);
+  --gf-editor-hover: color-mix(in oklch, var(--gf-color-base-content) 6%, transparent);
+  --gf-editor-current: color-mix(in oklch, var(--gf-color-primary) 12%, transparent);
+  border-color: var(--gf-color-line);
+  border-radius: var(--gf-radius-box);
+  background-color: var(--gf-color-base-100);
+  font-family: inherit;
+  transition-property: border-color, box-shadow;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+}
+
+/* 拖入图片文件：内容区出现主色虚线框与淡底，提示松手即可上传（类名由 useEditorFloatingTools 切换） */
+.vditor-official .vditor-content {
+  transition-property: background-color, outline-color;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+  outline: 2px dashed transparent;
+  outline-offset: -6px;
+}
+
+.vditor-official.gf-drop-active .vditor-content {
+  outline-color: color-mix(in oklch, var(--gf-color-primary) 55%, transparent);
+  background-color: color-mix(in oklch, var(--gf-color-primary) 4%, transparent);
+}
+
+/* 编辑中的焦点提示：整块编辑器描边转主色并加柔和外环，与站点输入框一致 */
+.vditor-official.vditor:focus-within {
+  border-color: color-mix(in oklch, var(--gf-color-primary) 55%, var(--gf-color-line));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--gf-color-primary) 12%, transparent);
+}
+
+.vditor-official.vditor.vditor--fullscreen {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* 工具栏底色与编辑区同面，用一条结构分隔线分开；圆角与外框同心（外框 1px 描边内侧） */
+.vditor-official .vditor-toolbar {
+  background-color: var(--gf-color-base-100);
+  border-bottom-color: var(--gf-color-line);
+  border-radius: calc(var(--gf-radius-box) - 1px) calc(var(--gf-radius-box) - 1px) 0 0;
+}
+
+.vditor-official.vditor--fullscreen .vditor-toolbar {
+  border-radius: 0;
+}
+
+.vditor-official .vditor-counter {
+  color: color-mix(in oklch, var(--gf-color-base-content) 45%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 编辑区正文：读取与发布后 .gf-prose-post 相同的 --gf-rich-* 档位变量（styles/prose.css），
+ * 由根节点 data-gf-rich-profile 选择 post / thought / article。官方 index.css 与
+ * content-theme 的规则未分层，这里用 .vditor-official 前缀提高特异性覆盖。
+ */
+.vditor-official .vditor-reset {
+  color: var(--gf-color-base-content);
+  font-family: inherit;
+  font-size: var(--gf-rich-size, 0.9375rem);
+  line-height: var(--gf-rich-leading, 1.75);
+}
+
+html[data-gf-font-body] .vditor-official .vditor-reset {
+  font-size: var(--gf-font-size-body, var(--gf-rich-size));
+  font-family: var(--gf-font-family-body, inherit);
+}
+
+.vditor-official .vditor-reset > :first-child {
+  margin-top: 0;
+}
+
+.vditor-official .vditor-reset p {
+  margin-block: var(--gf-rich-flow);
+}
+
+.vditor-official .vditor-reset :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 1.4em 0.5em;
+  padding-bottom: 0;
+  border-bottom: 0;
+  color: var(--gf-color-base-content);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.vditor-official .vditor-reset h1 {
+  font-size: var(--gf-rich-h1);
+  letter-spacing: -0.01em;
+}
+
+.vditor-official .vditor-reset h2 {
+  font-size: var(--gf-rich-h2);
+  letter-spacing: -0.005em;
+}
+
+.vditor-official .vditor-reset h3 {
+  font-size: var(--gf-rich-h3);
+}
+
+.vditor-official .vditor-reset h4 {
+  font-size: var(--gf-rich-h4);
+}
+
+.vditor-official .vditor-reset :is(h5, h6) {
+  font-size: 1em;
+}
+
+.vditor-official .vditor-reset :is(ul, ol) {
+  margin-block: var(--gf-rich-flow);
+  padding-inline-start: 1.5em;
+}
+
+.vditor-official .vditor-reset li {
+  margin-block: 0.25em;
+}
+
+.vditor-official .vditor-reset li > :is(p, ul, ol) {
+  margin-block: 0.25em;
+}
+
+.vditor-official .vditor-reset blockquote {
+  margin-block: var(--gf-rich-block);
+  margin-inline: 0;
+  padding-block: 0.125em;
+  padding-inline: 1em 0;
+  border-left: 0;
+  border-inline-start: 3px solid color-mix(in oklch, var(--gf-color-base-content) 16%, transparent);
+  color: color-mix(in oklch, var(--gf-color-base-content) 72%, transparent);
+}
+
+.vditor-official .vditor-reset blockquote p {
+  margin-block: 0.4em;
+}
+
+.vditor-official .vditor-reset hr {
+  height: 1px;
+  margin-block: 2em;
+  background-color: var(--gf-color-line);
+}
+
+.vditor-official .vditor-reset code:not(.hljs):not(.highlight-chroma) {
+  padding: 0.125em 0.35em;
+  border-radius: 0.25rem;
+  background-color: color-mix(in oklch, var(--gf-color-base-content) 7%, transparent);
+  color: color-mix(in oklch, var(--gf-color-base-content) 88%, transparent);
+  font-size: 0.875em;
+}
+
+/* 代码块：与发布后的 .gf-prose-post pre 同底色、描边与圆角，去掉官方条纹背景 */
+.vditor-official .vditor-reset pre > code {
+  padding: 0.875em 1em;
+  border: 1px solid var(--gf-color-line);
+  border-radius: 0.5rem;
+  background-color: var(--gf-color-base-200);
+  background-image: none;
+  font-size: 0.875em;
+  line-height: 1.65;
+}
+
+.vditor-official .vditor-reset .vditor-wysiwyg__block,
+.vditor-official .vditor-reset table,
+.vditor-official .vditor-reset .language-mermaid {
+  margin-block: var(--gf-rich-block);
+}
+
+.vditor-official .vditor-reset table tr {
+  border-top: 0;
+  background-color: transparent;
+}
+
+.vditor-official .vditor-reset table tbody tr:nth-child(2n) {
+  background-color: transparent;
+}
+
+.vditor-official .vditor-reset table :is(td, th) {
+  padding: 0.5em 0.75em;
+  border: 0;
+  border-bottom: 1px solid var(--gf-color-line);
+}
+
+.vditor-official .vditor-reset table th {
+  border-bottom-width: 1.5px;
+  background: color-mix(in oklch, var(--gf-color-base-content) 5%, transparent);
+  font-weight: 600;
 }
 
 /*
@@ -2034,16 +2575,6 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   list-style-type: lower-roman;
 }
 
-/*
- * 正文文字色：官方 index.css 写死 .vditor-reset { color: #24292e }，
- * 不读 --textarea-text-color；.vditor--dark 只换 chrome token。
- * content-theme 异步加载前用 chrome token 立即跟主题，避免深色下仍是深色字。
- * 选择器加 .vditor-official 提高特异性，压过官方 content-theme 的硬编码色。
- */
-.vditor-official .vditor-reset {
-  color: var(--textarea-text-color);
-}
-
 /* 敏感词命中时只给现有段落着色，不包裹文本节点，避免破坏 Vditor 选区与序列化。 */
 .vditor-official .gf-sensitive-block {
   background-color: color-mix(in oklch, var(--gf-color-error) 14%, var(--gf-color-base-100));
@@ -2057,26 +2588,63 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 
 /*
  * preflight 把 a 重置为 color:inherit + text-decoration:inherit，
- * vditor 官方只定义了 cursor:pointer（颜色/下划线依赖浏览器默认）。
- * 用官方链接色 #4285f4（与 link-ref/工具栏 hover 色一致）补齐。
+ * vditor 官方只定义了 cursor:pointer。与发布后的正文链接一致：主色、无下划线（#1371）。
  */
 .vditor-official .vditor-reset a {
-  color: #4285f4;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.vditor-official .vditor-reset a:hover {
-  color: #3b76d6;
+  color: var(--gf-color-primary);
+  font-weight: 500;
+  text-decoration-line: none;
 }
 
 /*
- * 编辑区图片等比缩放：原图超宽/超高时收拢到适中尺寸（宽 80% / 高 ≤480px），
- * 小图不受影响；emoji 保持官方 20px 特例。
+ * 编辑区图片：与发布后同一组档位（居中、圆角、低透明度外描边、--gf-rich-media 间距与
+ * 高度上限），所见即所得；emoji 保持官方 20px 特例。
  */
 .vditor-official .vditor-reset img:not(.emoji):not(.twemoji) {
-  max-width: 80%;
-  max-height: 480px;
+  display: block;
+  max-width: 100%;
+  max-height: var(--gf-rich-media-max-h, 360px);
+  margin: var(--gf-rich-media, 1em) auto;
+  border-radius: 0.5rem;
+  outline: 1px solid oklch(0 0 0 / 0.1);
+  outline-offset: -1px;
+  object-fit: contain;
+}
+
+[data-theme='gf-dark'] .vditor-official .vditor-reset img:not(.emoji):not(.twemoji) {
+  outline-color: oklch(1 0 0 / 0.1);
+}
+
+/* 相对宽度（MADR 0131）：与发布后 prose.css 同一规则，所见即所得 */
+.vditor-official .vditor-reset img:is([src$='#w=25'], [src$='#w=33'], [src$='#w=50'], [src$='#w=66'], [src$='#w=75'], [src$='#w=100']):not(.emoji):not(.twemoji) {
+  width: max(var(--gf-image-w), min(100%, 10rem));
+  height: auto;
+  max-height: none;
+}
+
+.vditor-official .vditor-reset img[src$='#w=25'] { --gf-image-w: 25%; }
+.vditor-official .vditor-reset img[src$='#w=33'] { --gf-image-w: 33.333%; }
+.vditor-official .vditor-reset img[src$='#w=50'] { --gf-image-w: 50%; }
+.vditor-official .vditor-reset img[src$='#w=66'] { --gf-image-w: 66.667%; }
+.vditor-official .vditor-reset img[src$='#w=75'] { --gf-image-w: 75%; }
+.vditor-official .vditor-reset img[src$='#w=100'] { --gf-image-w: 100%; }
+
+.vditor-official .vditor-reset p:has(> img[src*='#w='] + img[src*='#w=']) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.vditor-official .vditor-reset p:has(> img[src*='#w='] + img[src*='#w=']) > img[src*='#w='] {
+  width: calc(max(var(--gf-image-w), min(100%, 10rem)) - 0.5rem);
+  margin: 0;
+}
+
+/* 编辑区与预览的占位提示：弱化文字色，跟随主题 */
+.vditor-official .vditor-reset:empty::before {
+  color: color-mix(in oklch, var(--gf-color-base-content) 38%, transparent);
 }
 
 /*
@@ -2107,7 +2675,7 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 
 .vditor-official .hub-outline-toggle:hover {
   color: var(--toolbar-icon-hover-color, var(--toolbar-icon-color));
-  background: var(--toolbar-background-color, var(--panel-background-color));
+  background: var(--gf-editor-hover, color-mix(in oklch, var(--gf-color-base-content) 6%, transparent));
 }
 
 .vditor-official .hub-outline-toggle.vditor-menu--current {
@@ -2129,7 +2697,7 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 }
 
 .vditor-official .hub-outline-toggle--float:hover {
-  background: var(--toolbar-background-color);
+  background: var(--gf-editor-hover, color-mix(in oklch, var(--gf-color-base-content) 6%, transparent));
 }
 
 /*
@@ -2210,12 +2778,12 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 }
 
 .vditor-official .hub-header-toggle-float:hover {
-  background: var(--toolbar-background-color);
+  background: var(--gf-editor-hover, color-mix(in oklch, var(--gf-color-base-content) 6%, transparent));
   color: var(--toolbar-icon-hover-color);
 }
 
 .vditor-official .hub-header-toggle-float.vditor-menu--current {
-  background: color-mix(in oklch, var(--gf-color-primary) 15%, transparent);
+  background: var(--gf-editor-current, color-mix(in oklch, var(--gf-color-primary) 12%, transparent));
   color: var(--gf-color-primary);
 }
 
@@ -2245,11 +2813,23 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   margin: 0;
   padding: 4px 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: transparent;
   color: var(--toolbar-icon-color, var(--second-color));
   box-sizing: border-box;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition-property: color, background-color, scale;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+}
+
+/* 按下反馈：轻微缩放，给工具按钮触感 */
+.vditor-official .vditor-toolbar__item .vditor-tooltipped:active {
+  scale: 0.96;
+}
+
+.vditor-official .vditor-toolbar__item .vditor-tooltipped.vditor-menu--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .vditor-official .vditor-toolbar__item .vditor-tooltipped svg {
@@ -2260,14 +2840,19 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 
 .vditor-official .vditor-toolbar__item .vditor-tooltipped:hover,
 .vditor-official .vditor-toolbar__item .vditor-tooltipped:focus {
-  background: var(--toolbar-background-color, var(--panel-background-color));
+  background: var(--gf-editor-hover, color-mix(in oklch, var(--gf-color-base-content) 6%, transparent));
   color: var(--toolbar-icon-hover-color, var(--toolbar-icon-color));
   cursor: pointer;
 }
 
 .vditor-official .vditor-toolbar__item .vditor-tooltipped.vditor-menu--current {
-  background: color-mix(in oklch, var(--gf-color-primary) 15%, transparent);
+  background: var(--gf-editor-current, color-mix(in oklch, var(--gf-color-primary) 12%, transparent));
   color: var(--gf-color-primary);
+}
+
+/* 工具分组的分隔线用站点 line 色 */
+.vditor-official .vditor-toolbar > .vditor-toolbar__divider {
+  border-left-color: var(--gf-color-line);
 }
 
 /* 小字标签：10px，单行不换行；短词不会撑宽（按钮定宽 36px 已容纳 2-3 字） */
@@ -2336,10 +2921,11 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   flex: 0 0 auto;
 }
 
-/* 分隔线：官方水平 8px margin 移除，间距统一由 toolbar gap 提供 */
+/* 分隔线：官方水平 8px margin 收窄，左 4px、右 5px（与按钮间距一致）：
+   组间留白（≈14px）至少是组内按钮间距（5px）的两倍，分组靠留白而不只靠竖线 */
 .vditor-official .vditor-toolbar__divider {
-  margin-left: 0;
-  margin-right: 0;
+  margin-left: 4px;
+  margin-right: 5px;
 }
 
 /* toggle 移入宿主行内容器（移动端「正文」label 行）：
@@ -2366,7 +2952,7 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 }
 
 .hub-toggle--inline:hover {
-  background: var(--toolbar-background-color, var(--panel-background-color));
+  background: var(--gf-editor-hover, color-mix(in oklch, var(--gf-color-base-content) 6%, transparent));
   color: var(--toolbar-icon-hover-color, var(--toolbar-icon-color));
 }
 
@@ -2431,17 +3017,19 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
     justify-content: center;
     box-sizing: border-box;
     color: color-mix(in oklch, var(--gf-color-base-content) 75%, transparent);
-    transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
+    transition-property: color, background-color, scale;
+    transition-duration: 0.15s;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
   }
 
   .vditor-official .vditor-toolbar__item .vditor-tooltipped:hover {
     background-color: color-mix(in oklch, var(--gf-color-base-content) 10%, transparent);
-    color: var(--color-base-content, #24292e);
+    color: var(--gf-color-base-content);
   }
 
   .vditor-official .vditor-toolbar__item .vditor-tooltipped:active {
-    transform: scale(0.92);
-    background-color: color-mix(in oklch, var(--gf-color-primary) 15%, transparent);
+    scale: 0.96;
+    background-color: var(--gf-editor-current, color-mix(in oklch, var(--gf-color-primary) 12%, transparent));
   }
 
   .vditor-official .vditor-toolbar__item .vditor-tooltipped svg {
@@ -2496,45 +3084,65 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 .vditor-official .hub-fold-region .vditor-toolbar__item {
   position: relative; /* 官方 .vditor-toolbar__item 本就有，保留给 upload input / 二级面板定位 */
   flex: none;
-  width: 100%;
+  width: auto;
   min-width: 0;
   margin: 0;
   padding: 0;
 }
 
-/* 折叠项按钮：图标+文字横排，与 hint 内既有自定义项视觉一致 */
+/* 折叠项按钮：与「更多」菜单行（.gf-menu-row）同一行样式 */
 .vditor-official .hub-fold-region .vditor-toolbar__item .vditor-tooltipped {
-  display: inline-flex;
+  display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px;
+  gap: 10px;
   width: 100%;
   min-width: 0;
   height: auto;
+  min-height: 32px;
   margin: 0;
-  padding: 5px 10px;
+  padding: 0 10px;
   box-sizing: border-box;
-  border-radius: 0;
-  font-size: 12px;
+  border-radius: calc(var(--gf-radius-box) - 4px);
+  color: color-mix(in oklch, var(--gf-color-base-content) 80%, transparent);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.vditor-official .hub-fold-region .vditor-toolbar__item .vditor-tooltipped svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: color-mix(in oklch, var(--gf-color-base-content) 55%, transparent);
 }
 
 .vditor-official .hub-fold-region .vditor-toolbar__item .vditor-toolbar-label {
-  display: inline-block;
-  margin-left: 0; /* 覆盖 hint 通用 6px，用 flex gap 统一间距 */
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.4;
+  display: block;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 20px;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  opacity: 1;
 }
 
-/* 跨组折叠项顶部细线（保持原分组感）；region 首个折叠项不加（其边界由主行 `… | more` 表示） */
-.vditor-official .hub-fold-region .vditor-toolbar__item.hub-fold-group-start .vditor-tooltipped {
-  border-top: 1px solid var(--border-color);
+/* 主行原次序里跨组的折叠项：上方加一条与菜单分组相同的细线；region 首项不加 */
+.vditor-official .hub-fold-region .vditor-toolbar__item.hub-fold-group-start {
+  margin-block-start: 4px;
+  padding-block-start: 4px;
+  border-block-start: 1px solid var(--gf-color-line);
+  margin-inline: -4px;
+  padding-inline: 4px;
 }
 
-.vditor-official .hub-fold-region .vditor-toolbar__item:first-child .vditor-tooltipped {
-  border-top: 0;
+.vditor-official .hub-fold-region .vditor-toolbar__item.hub-fold-group-start:first-child {
+  margin-block-start: 0;
+  padding-block-start: 0;
+  border-block-start: 0;
 }
 
 /* 折叠项在子菜单内关闭 hover 气泡（行内已有文字标签，气泡冗余且会与面板重叠） */
@@ -2565,6 +3173,13 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   z-index: 40;
 }
 
+/* 气泡配色走站点 tooltip token（浅色/深色主题统一深灰底 + 近白字） */
+.vditor-official .vditor-tooltipped::after {
+  border-radius: 6px;
+  background: var(--gf-color-tooltip-bg);
+  color: var(--gf-color-tooltip-content);
+}
+
 .vditor-official .vditor-toolbar__item .vditor-tooltipped::after {
   top: 100%;
   bottom: auto;
@@ -2583,7 +3198,7 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   left: 50%;
   right: auto;
   margin-left: -5px;
-  border-bottom-color: #3b3e43;
+  border-bottom-color: var(--gf-color-tooltip-bg);
   border-top-color: transparent;
 }
 
@@ -2640,7 +3255,7 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 .gf-modal-editor .vditor-toolbar__item .vditor-tooltipped::before {
   top: -5px !important;
   bottom: auto !important;
-  border-top-color: #3b3e43 !important;
+  border-top-color: var(--gf-color-tooltip-bg) !important;
   border-bottom-color: transparent !important;
 }
 
@@ -2649,11 +3264,15 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
 .vditor-official .vditor-toolbar__item > .vditor-hint {
   z-index: 100 !important;
   opacity: 1 !important;
-  background-color: var(--panel-background-color, #fff) !important;
-  border: 1px solid var(--color-line, rgba(0, 0, 0, 0.12)) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.18), 0 3px 8px -1px rgba(0, 0, 0, 0.08) !important;
-  padding: 4px 6px !important;
+  /* 与站点下拉菜单 .gf-menu-surface 同一表面：line 边框、box 圆角、同一投影；内边距 4px，
+     菜单行圆角 = box 圆角 - 4px（同心圆角） */
+  background-color: var(--gf-color-base-100) !important;
+  border: var(--gf-border, 1px) solid var(--gf-color-line) !important;
+  border-radius: var(--gf-radius-box) !important;
+  box-shadow:
+    0 18px 40px -24px rgb(15 23 42 / calc(var(--gf-depth, 1) * 0.45)),
+    0 4px 12px -6px rgb(15 23 42 / calc(var(--gf-depth, 1) * 0.16)) !important;
+  padding: 4px !important;
   box-sizing: border-box !important;
   max-height: min(280px, 48vh) !important;
   overflow-y: auto !important;
@@ -2698,52 +3317,337 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   right: 12px !important;
 }
 
-/* 正文段落跟随悬浮辅助组件（wysiwyg 行内浮层、公式块工具、链接浮层、表格浮层等）：
-   遵循 Vditor 动态计算的 top / left 坐标，跟随在其控制的段落文本块附近，同时避免被容器截断 */
-.vditor-official .vditor-wysiwyg > .vditor-panel {
-  z-index: 80 !important;
-  border: 1px solid var(--color-line, rgba(0, 0, 0, 0.12)) !important;
-  border-radius: 8px !important;
-  background-color: var(--panel-background-color, #fff) !important;
-  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.14), 0 2px 6px -1px rgba(0, 0, 0, 0.08) !important;
-  max-width: calc(100% - 16px) !important;
-  box-sizing: border-box !important;
+/*
+ * ===== 「更多」菜单（issue #1630，decorateEditorMenus）=====
+ * 行样式对齐站点 .gf-menu-item：图标 16px + 名称 + 右侧弱化快捷键；分组用整宽细线；
+ * 编辑模式 / 标题是就地展开的单选组（组标题 + 选项），不再弹二级浮层。
+ */
+.vditor-official .vditor-toolbar__item > .vditor-hint.gf-editor-menu {
+  min-width: 232px;
+  max-width: min(340px, calc(100vw - 24px));
+  /* --gf-menu-max-h：打开时按视口剩余空间写入（fitMenuVertical） */
+  max-height: min(560px, var(--gf-menu-max-h, 72vh)) !important;
+  line-height: 20px;
 }
 
-/* 浮动栏内的输入框美化 */
+.vditor-official .vditor-toolbar__item > .vditor-hint.gf-editor-menu.gf-editor-menu--up {
+  top: auto !important;
+  bottom: calc(100% + 6px) !important;
+}
+
+/* 站点菜单不带指向箭头 */
+.vditor-official .vditor-toolbar__item > .vditor-hint.gf-editor-menu::before {
+  display: none !important;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: calc(var(--gf-radius-box) - 4px);
+  color: color-mix(in oklch, var(--gf-color-base-content) 80%, transparent);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: start;
+  white-space: nowrap;
+  transition-property: color, background-color;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-row > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  color: color-mix(in oklch, var(--gf-color-base-content) 55%, transparent);
+  transition: color 0.15s ease-out;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-row > .vditor-toolbar-label {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  text-overflow: ellipsis;
+  opacity: 1;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-kbd {
+  flex: none;
+  margin-inline-start: auto;
+  padding: 0 0 0 12px;
+  border: 0;
+  background: none;
+  color: color-mix(in oklch, var(--gf-color-base-content) 45%, transparent);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  box-shadow: none;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-row:not(.vditor-menu--disabled, .gf-menu-group-title):hover {
+  background-color: var(--gf-editor-hover) !important;
+  color: var(--gf-color-base-content) !important;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-row:not(.vditor-menu--disabled, .gf-menu-group-title):hover > svg {
+  color: var(--gf-color-base-content);
+}
+
+.vditor-official .gf-editor-menu .gf-menu-row:focus-visible {
+  outline: 2px solid var(--gf-color-primary);
+  outline-offset: -2px;
+}
+
+/* 开关类（预览等）打开时 */
+.vditor-official .gf-editor-menu .gf-menu-row.vditor-menu--current:not(.gf-menu-option) {
+  background-color: var(--gf-editor-current) !important;
+  color: var(--gf-color-primary) !important;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-row.vditor-menu--current:not(.gf-menu-option) > svg {
+  color: currentColor;
+}
+
+/* 不可用（如光标不在列表里时的缩进）：保留位置，降低存在感 */
+.vditor-official .gf-editor-menu .gf-menu-row.vditor-menu--disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 分组细线：Vditor 的分隔符原是主行竖线，在菜单里改成整宽横线；首尾与连续的隐藏 */
+.vditor-official .gf-editor-menu > .vditor-toolbar__divider {
+  display: block;
+  float: none;
+  width: auto;
+  height: 1px;
+  margin: 4px -4px;
+  padding: 0;
+  border: 0 !important;
+  background-color: var(--gf-color-line);
+}
+
+.vditor-official .gf-editor-menu > .vditor-toolbar__divider:first-child,
+.vditor-official .gf-editor-menu > .hub-fold-region:empty + .vditor-toolbar__divider,
+.vditor-official .gf-editor-menu > .vditor-toolbar__divider + .vditor-toolbar__divider,
+.vditor-official .gf-editor-menu > .vditor-toolbar__divider:last-child {
+  display: none;
+}
+
+/* 窄屏收进来的主行按钮在最上方，和菜单原有项之间隔一条线 */
+.vditor-official .gf-editor-menu > .hub-fold-region:not(:empty) {
+  margin: 0 -4px 4px;
+  padding: 0 4px 4px;
+  border-block-end: 1px solid var(--gf-color-line);
+}
+
+.vditor-official .gf-editor-menu > .hub-fold-region:not(:empty) + .vditor-toolbar__divider {
+  display: none;
+}
+
+/* 单选组标题（编辑模式、标题）：小号弱化文字，不可点 */
+.vditor-official .gf-editor-menu .gf-menu-row.gf-menu-group-title,
+.vditor-official .gf-editor-menu .gf-menu-row.gf-menu-group-title:hover {
+  min-height: 28px;
+  padding-block: 6px 2px;
+  color: color-mix(in oklch, var(--gf-color-base-content) 55%, transparent) !important;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: default;
+  background: none !important;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-group-title > svg,
+.vditor-official .gf-editor-menu .gf-menu-group-title > .gf-menu-kbd {
+  display: none;
+}
+
+/* 组内选项就地展开：覆盖 Vditor 二级浮层的定位与 hidePanel 写入的 display:none */
+.vditor-official .gf-editor-menu .gf-menu-group-title + .vditor-hint {
+  position: static !important;
+  display: block !important;
+  min-width: 0;
+  max-width: none;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-group-title + .vditor-hint::before {
+  display: none !important;
+}
+
+/* 编辑模式选项：前导位只在当前模式显示对勾，名称保持对齐 */
+.vditor-official .gf-editor-menu .gf-menu-option > svg {
+  opacity: 0;
+  color: var(--gf-color-primary);
+}
+
+.vditor-official .gf-editor-menu .gf-menu-option.vditor-menu--current {
+  color: var(--gf-color-base-content);
+  background: none;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-option.vditor-menu--current > svg {
+  opacity: 1;
+  color: var(--gf-color-primary);
+}
+
+/* 标题选项：H1–H6 一排等宽小块（按钮内保持纯文本，文字由 data-tag 生成） */
+.vditor-official .gf-editor-menu .gf-menu-group-title + .vditor-hint:has(> button[data-tag]) {
+  display: flex !important;
+  gap: 2px;
+  padding: 2px 0 2px !important;
+}
+
+.vditor-official .gf-editor-menu button[data-tag] {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  border-radius: calc(var(--gf-radius-box) - 4px);
+  color: color-mix(in oklch, var(--gf-color-base-content) 80%, transparent);
+  font-size: 0;
+  transition-property: color, background-color;
+  transition-duration: 0.15s;
+}
+
+.vditor-official .gf-editor-menu button[data-tag]::before {
+  content: attr(data-tag);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.vditor-official .gf-editor-menu button[data-tag]:hover {
+  background-color: var(--gf-editor-hover) !important;
+  color: var(--gf-color-base-content) !important;
+}
+
+.vditor-official .gf-editor-menu .gf-menu-group-title.vditor-menu--disabled + .vditor-hint {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* 触控：行高 40px，隐藏键盘快捷键 */
+@media (hover: none), (max-width: 640px) {
+  .vditor-official .gf-editor-menu .gf-menu-row,
+  .vditor-official .hub-fold-region .vditor-toolbar__item .vditor-tooltipped {
+    min-height: 40px;
+  }
+
+  .vditor-official .gf-editor-menu .gf-menu-group-title {
+    min-height: 30px;
+  }
+
+  .vditor-official .gf-editor-menu button[data-tag] {
+    height: 40px;
+  }
+
+  .vditor-official .gf-editor-menu .gf-menu-kbd {
+    display: none;
+  }
+}
+
+/*
+ * 正文块浮层（引用、列表、表格、代码块、链接等，Vditor 按块定位）：与编辑器浮层
+ * （styles/editor-float.css）同一表面——line 描边、同心圆角（字段圆角 + 2px 内边距）、同一投影。
+ * 层级低于吸顶工具栏（z-40），滚动时不会盖住工具栏和站点顶栏。
+ */
+.vditor-official .vditor-wysiwyg > .vditor-panel {
+  z-index: 30 !important;
+  padding: 2px !important;
+  opacity: 1;
+  /* Vditor 把浮层顶边放在块顶上方 21px：上移 4px，让浮层底边不压住块的第一行文字 */
+  translate: 0 -4px;
+  border: var(--gf-border, 1px) solid var(--gf-color-line) !important;
+  border-radius: calc(var(--gf-radius-field) + 2px) !important;
+  background-color: var(--gf-color-base-100) !important;
+  color: var(--gf-color-base-content);
+  box-shadow:
+    0 18px 48px -24px rgb(15 23 42 / calc(var(--gf-depth, 1) * 0.5)),
+    0 4px 16px -12px rgb(15 23 42 / calc(var(--gf-depth, 1) * 0.35)) !important;
+  max-width: calc(100% - 16px) !important;
+  box-sizing: border-box !important;
+  transition-property: opacity, translate;
+  transition-duration: 0.12s;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* 选区格式条或图片工具条出现时让位，避免两层浮层叠在一起（类名由 useEditorFloatingTools 切换） */
+.vditor-official.gf-floating-active .vditor-wysiwyg > .vditor-panel {
+  opacity: 0 !important;
+  translate: 0 -2px;
+  pointer-events: none;
+}
+
 .vditor-official .vditor-panel .vditor-input {
-  border: 1px solid var(--color-line, rgba(0, 0, 0, 0.14)) !important;
-  border-radius: 6px !important;
-  background-color: var(--color-base-100, #fff) !important;
-  color: var(--color-base-content, #24292e) !important;
-  padding: 4px 8px !important;
-  font-size: 13px !important;
+  height: 1.75rem !important;
+  border: var(--gf-border, 1px) solid var(--gf-color-line) !important;
+  border-radius: var(--gf-radius-field) !important;
+  background-color: var(--gf-color-base-100) !important;
+  color: var(--gf-color-base-content) !important;
+  padding: 0 0.5rem !important;
+  font-size: 0.8125rem !important;
   line-height: 1.4 !important;
   margin: 0 2px !important;
   box-sizing: border-box !important;
-  transition: border-color 0.15s, box-shadow 0.15s !important;
+  transition-property: border-color, box-shadow !important;
+  transition-duration: 0.15s !important;
+}
+
+.vditor-official .vditor-panel .vditor-input::placeholder {
+  color: color-mix(in oklch, var(--gf-color-base-content) 42%, transparent);
 }
 
 .vditor-official .vditor-panel .vditor-input:focus {
-  border-color: var(--color-primary, #3b82f6) !important;
+  border-color: color-mix(in oklch, var(--gf-color-primary) 60%, var(--gf-color-line)) !important;
   outline: none !important;
-  box-shadow: 0 0 0 2px var(--color-primary-focus, rgba(59, 130, 246, 0.2)) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--gf-color-primary) 15%, transparent) !important;
 }
 
-/* 浮动栏内的操作图标按钮美化与触控 */
+/* 块浮层里的图标按钮：与格式条按钮同尺寸、同圆角、同 hover 底 */
 .vditor-official .vditor-panel .vditor-icon {
-  border-radius: 6px !important;
-  padding: 4px !important;
+  border-radius: var(--gf-radius-field) !important;
+  padding: 5px !important;
   width: 26px !important;
   height: 26px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  transition: background-color 0.15s, color 0.15s !important;
+  color: color-mix(in oklch, var(--gf-color-base-content) 72%, transparent) !important;
+  transition-property: background-color, color, scale !important;
+  transition-duration: 0.12s !important;
 }
 
 .vditor-official .vditor-panel .vditor-icon:hover {
-  background-color: var(--color-base-200, rgba(0, 0, 0, 0.06)) !important;
+  background-color: var(--gf-editor-hover) !important;
+  color: var(--gf-color-base-content) !important;
+}
+
+.vditor-official .vditor-panel .vditor-icon:active {
+  scale: 0.96;
 }
 
 /* 移动视图下的面板与表情栏防裁切：紧凑高度、自适应视口宽度 */
@@ -2763,15 +3667,16 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   .vditor-official .vditor-emojis {
     max-height: 160px !important;
   }
+  /* 16px 防止 iOS Safari 聚焦时整页放大 */
   .vditor-official .vditor-panel .vditor-input {
-    width: 95px !important;
-    max-width: 110px !important;
-    font-size: 12px !important;
-    padding: 3px 5px !important;
+    width: 7.5rem !important;
+    max-width: 100% !important;
+    height: 2rem !important;
+    font-size: 16px !important;
   }
   .vditor-official .vditor-panel .vditor-icon {
-    width: 24px !important;
-    height: 24px !important;
+    width: 28px !important;
+    height: 28px !important;
   }
 }
 

@@ -1,0 +1,32 @@
+{
+  "description": "Relative image width (docs/decisions/0131-relative-image-width.md). A Markdown image destination may end with the fragment `#w=<preset>`; the image is then rendered at that percentage of the content width, never narrower than minRenderedWidth CSS/logical pixels (or the content width when it is narrower). Values outside `presets` and other fragments are ignored. `set` writes or clears the width; a destination that already carries a foreign fragment is left unchanged. `snap` maps a dragged width ratio to the nearest preset.",
+  "presets": [25, 33, 50, 66, 75, 100],
+  "minRenderedWidth": 160,
+  "parse": [
+    { "src": "/file/img/a.png#w=50", "width": 50 },
+    { "src": "/file/img/a.png", "width": null },
+    { "src": "https://cdn.example.com/a.png?x=1#w=33", "width": 33 },
+    { "src": "/file/img/a.png#w=100", "width": 100 },
+    { "src": "/file/img/a.png#w=40", "width": null },
+    { "src": "/file/img/a.png#W=50", "width": null },
+    { "src": "/file/img/a.png#w=50&x", "width": null },
+    { "src": "/sprite.svg#icon", "width": null }
+  ],
+  "set": [
+    { "src": "/file/img/a.png", "width": 50, "result": "/file/img/a.png#w=50" },
+    { "src": "/file/img/a.png#w=50", "width": 75, "result": "/file/img/a.png#w=75" },
+    { "src": "/file/img/a.png#w=50", "width": null, "result": "/file/img/a.png" },
+    { "src": "/file/img/a.png#w=40", "width": 66, "result": "/file/img/a.png#w=66" },
+    { "src": "/sprite.svg#icon", "width": 50, "result": "/sprite.svg#icon" }
+  ],
+  "snap": [
+    { "ratio": 0.05, "width": 25 },
+    { "ratio": 0.2, "width": 25 },
+    { "ratio": 0.41, "width": 33 },
+    { "ratio": 0.47, "width": 50 },
+    { "ratio": 0.6, "width": 66 },
+    { "ratio": 0.8, "width": 75 },
+    { "ratio": 0.9, "width": 100 },
+    { "ratio": 1.4, "width": 100 }
+  ]
+}

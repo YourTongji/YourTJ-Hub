@@ -1,10 +1,23 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, test, vi } from 'vitest'
 import { extractMathSegments } from '../src/runtime/math-segments'
 import { MAX_MATH_LENGTH, renderMath, splitIntoMathParts } from '../src/runtime/math-rendering'
 import { enhanceMathText } from '../src/runtime/math-render-directive'
 import type { TextNodeLike } from '../src/runtime/math-render-directive'
 
+const mathFixture = JSON.parse(
+  readFileSync(resolve(process.cwd(), '../../../packages/api-contract/fixtures/markdown-math-segments.json'), 'utf8'),
+) as { cases: Array<{ source: string; segments: Array<{ text: string; display: boolean }> }> }
+
 describe('extractMathSegments', () => {
+  // Server math protection and the app renderer read the same cases.
+  for (const item of mathFixture.cases) {
+    test(`shared fixture: ${JSON.stringify(item.source)}`, () => {
+      expect(extractMathSegments(item.source).map(({ text, display }) => ({ text, display }))).toEqual(item.segments)
+    })
+  }
+
   test('detects a simple inline segment', () => {
     expect(extractMathSegments('$x$')).toEqual([
       { text: 'x', display: false, start: 0, end: 3 },
