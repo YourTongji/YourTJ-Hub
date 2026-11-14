@@ -38,7 +38,7 @@
 | 原生推送与设备验收 | `Partial` | APNs／JPush／OEM 生产投递、安装后签名升级、校园小组件及学校认证仍需相应真机证据；按[移动发布指南](../operations/mobile-releases.md)验收，已上架不代表所有设备链路完成验证。 |
 | 受控 API 契约 | `Partial` | 所有非排除 `/api` 路由已纳管；三个简单 Dart DTO 已接入生成与新鲜度门禁；其余镜像、OIDC 标准端点与文本导出仍不在完整生成链路内，见[契约状态](../architecture/contracts-and-data.md#contract-status)。 |
 | 数据库与文件 | `Current` | 部署默认 PostgreSQL，本地默认 SQLite；SQLite BLOB／S3 文件存储，见[架构](../architecture/system-overview.md)与[对象存储](../operations/object-storage.md)。 |
-| 论坛内积分 | `Partial` | 本地账本幂等入账和删除回滚可用；内存事件丢失后的持久补偿尚缺，见[积分规范](credit-and-escrow.md#current-boundary)。 |
+| 论坛内积分 | `Partial` | 新发布与奖励同事务，删除回滚和幂等重放可用；历史漏账补偿与恢复内容的原子奖励尚缺，见[积分规范](credit-and-escrow.md#current-boundary)。 |
 | 跨服务积分结算 | `Planned` | credit 尚未部署或接入论坛；见[积分规范](credit-and-escrow.md)。 |
 | 独立运行状态站 | `Partial` | Vue／Cloudflare 快照读取与 GitHub Actions 采集已实现；生产项目、DNS 与定时采集仍需配置验收，见[状态站规范](server-status.md)。 |
 

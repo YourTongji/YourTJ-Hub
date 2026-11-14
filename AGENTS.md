@@ -46,7 +46,8 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   current route-by-route inventory. The [contract architecture](docs/architecture/contracts-and-data.md#contract-status)
   owns coverage semantics and remaining protocol/generation gaps; route coverage does not mean
   that every product capability or client-generation pipeline is complete.
-- Points: forum-local ledger mechanics are `Current`, durable reward delivery is `Partial`;
+- Points: forum-local publication rewards commit with content (`Current`); historical reward
+  recovery and atomic content-restoration rewards remain `Partial`;
   cross-platform credit settlement is `Planned`. See `docs/product/credit-and-escrow.md`.
 
 ## 2. Repository layout & boundary rules
