@@ -556,7 +556,8 @@ String _topicListExcerpt(
   if (!hasImage) return text;
 
   final String imageLabel = '[${AppLocalizations.of(context).messagesImage}]';
-  if (text.startsWith(imageLabel)) return text;
+  // 无条件前置：服务端摘要不含图片占位，若按前缀去重，会把名为「图片」的
+  // 可读贴纸标签或手打同前缀文本误判为已有标记，吞掉真实图片提示。
   return text.isEmpty ? imageLabel : '$imageLabel $text';
 }
 

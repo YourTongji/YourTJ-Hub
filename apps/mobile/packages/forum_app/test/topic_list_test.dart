@@ -1086,6 +1086,26 @@ void main() {
     );
 
     testWidgets(
+      'image marker survives a leading sticker named like the image label',
+      (tester) async {
+        // 可读官方名保留为 [名字]：名为「图片」的贴纸居首时，图片占位仍要前置，
+        // 不能被误判为重复标记而吞掉。
+        final topic = topicWith(
+          '[:sticker:图片:] 正文',
+        ).copyWith(images: ['/image-named-sticker.webp']);
+        await pumpFeed(
+          tester,
+          [topic],
+          catalog: _StickerCatalog([
+            StickerItemPayload(name: '图片', url: '/sticker-image.webp'),
+          ]),
+        );
+
+        expect(find.text('[图片] [图片] 正文'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
       'sticker-only generated-name excerpts use a short placeholder',
       (tester) async {
         final String personalName = 'u_${List<String>.filled(48, "c").join()}';
