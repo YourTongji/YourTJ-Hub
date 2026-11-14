@@ -107,7 +107,10 @@ getCourse:
   get:
     tags: [Forum]
     summary: Get one canonical course with offerings, terms, and instructors
-    security: []
+    description: Optional authentication supplies current-user bookmark state. Responses are private and must not be cached.
+    security:
+      - {}
+      - bearerAuth: []
     operationId: getCourse
     parameters:
       - name: courseId
@@ -119,7 +122,12 @@ getCourse:
           minimum: 1
     responses:
       '200':
-        description: Course detail with offerings grouped by term.
+        description: Course detail with offerings grouped by term and current-user bookmark state.
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+              const: private, no-store
         content:
           application/json:
             schema:
@@ -143,7 +151,7 @@ getCourse:
               notFound:
                 externalValue: ../fixtures/course-not-found.json
       '500':
-        description: Course detail query failed (aliases, offerings, instructors, or terms).
+        description: Course detail or current-user bookmark query failed.
         content:
           application/json:
             schema:

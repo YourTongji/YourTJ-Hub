@@ -109,6 +109,7 @@ class FakeCourseRepository extends CourseRepository {
   final CourseAiSummaryPayload? summaryPayload;
   bool failBookmark;
   Object? createError;
+  Object? reviewsError;
 
   final List<CourseRepoCall> listCalls = <CourseRepoCall>[];
   final List<CourseRepoCall> reviewCalls = <CourseRepoCall>[];
@@ -162,9 +163,12 @@ class FakeCourseRepository extends CourseRepository {
 
   @override
   Future<CourseDetailPayload> detail(int courseId) async {
-    return detailPayload ??
+    return detailPayload?.copyWith(
+          bookmarked: detailPayload?.bookmarked ?? false,
+        ) ??
         CourseDetailPayload(
           id: courseId,
+          bookmarked: false,
           primaryCode: '100001',
           name: '高等数学(A)上',
           department: '数学科学学院',
@@ -213,6 +217,7 @@ class FakeCourseRepository extends CourseRepository {
     int pageSize = 20,
   }) async {
     reviewCalls.add(CourseRepoCall(offeringId: offeringId, cursor: cursor));
+    if (reviewsError != null) throw reviewsError!;
     if (cursor != null) {
       return const ReviewListResult(list: <ReviewPayload>[], total: 0);
     }
@@ -1971,64 +1976,78 @@ void main() {
       },
     );
 
-    testWidgets('in-flight review reload keeps the optimistic reaction state', (
-      tester,
-    ) async {
-      final ReviewPayload review = _reviewPayloads().first; // id=1
-      final course = FakeCourseRepository(
-        _client(),
-        detailPayload: _detailPayload(),
-        reviewPayloads: [review],
-      )..waitHelpful = Completer<void>();
-      await pumpDetail(tester, course, size: const Size(800, 2400));
+    for (final failReload in [false, true]) {
+      testWidgets(
+        'in-flight review reload keeps the optimistic reaction state (retry: $failReload)',
+        (tester) async {
+          final ReviewPayload review = _reviewPayloads().first; // id=1
+          final course = FakeCourseRepository(
+            _client(),
+            detailPayload: _detailPayload(),
+            reviewPayloads: [review],
+          )..waitHelpful = Completer<void>();
+          await pumpDetail(tester, course, size: const Size(800, 2400));
 
-      final Finder helpful = _reviewAction(review.id, 'helpful');
-      await tester.tap(helpful);
-      await tester.pumpAndSettle();
-      expect(
-        find.descendant(of: helpful, matching: find.text('1')),
-        findsOneWidget,
-      );
+          final Finder helpful = _reviewAction(review.id, 'helpful');
+          await tester.tap(helpful);
+          await tester.pumpAndSettle();
+          expect(
+            find.descendant(of: helpful, matching: find.text('1')),
+            findsOneWidget,
+          );
 
-      // 写入仍 pending 时触发一次完整列表重载：服务端尚未提交，这次响应
-      // 是旧快照（有用 0），不能覆盖本地乐观态。
-      final Finder offering = find.text('01班 · 10000101');
-      await tester.scrollUntilVisible(
-        offering,
-        400,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(offering);
-      await tester.pumpAndSettle();
-      expect(course.reviewCalls.length, greaterThanOrEqualTo(2));
+          // 写入仍 pending 时触发一次完整列表重载：服务端尚未提交，这次响应
+          // 是旧快照（有用 0），不能覆盖本地乐观态。
+          final Finder offering = find.text('01班 · 10000101');
+          await tester.scrollUntilVisible(
+            offering,
+            400,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pumpAndSettle();
+          if (failReload) {
+            course.reviewsError = const ApiException(
+              fallbackMessage: 'reload failed',
+            );
+          }
+          await tester.tap(offering);
+          await tester.pumpAndSettle();
+          expect(course.reviewCalls.length, greaterThanOrEqualTo(2));
+          if (failReload) {
+            expect(_reviewAction(review.id, 'helpful'), findsNothing);
+            course.reviewsError = null;
+            await tester.tap(find.text('重试'));
+            await tester.pumpAndSettle();
+          }
 
-      expect(
-        find.descendant(
-          of: _reviewAction(review.id, 'helpful'),
-          matching: find.text('1'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: _reviewAction(review.id, 'dislike'),
-          matching: find.text('0'),
-        ),
-        findsOneWidget,
-      );
+          expect(
+            find.descendant(
+              of: _reviewAction(review.id, 'helpful'),
+              matching: find.text('1'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(
+              of: _reviewAction(review.id, 'dislike'),
+              matching: find.text('0'),
+            ),
+            findsOneWidget,
+          );
 
-      course.waitHelpful!.complete();
-      await tester.pumpAndSettle();
-      expect(course.reactionCalls, [('helpful', review.id, true)]);
-      expect(
-        find.descendant(
-          of: _reviewAction(review.id, 'helpful'),
-          matching: find.text('1'),
-        ),
-        findsOneWidget,
+          course.waitHelpful!.complete();
+          await tester.pumpAndSettle();
+          expect(course.reactionCalls, [('helpful', review.id, true)]);
+          expect(
+            find.descendant(
+              of: _reviewAction(review.id, 'helpful'),
+              matching: find.text('1'),
+            ),
+            findsOneWidget,
+          );
+        },
       );
-    });
+    }
 
     testWidgets('failed target write rolls back to the committed cleanup', (
       tester,

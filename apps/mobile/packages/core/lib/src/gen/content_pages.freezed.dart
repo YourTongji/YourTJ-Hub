@@ -3866,6 +3866,7 @@ mixin _$CourseDetailPayload {
   List<String>? get teamInstructors =>
       throw _privateConstructorUsedError; // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
   List<String>? get legacyNames => throw _privateConstructorUsedError;
+  bool? get bookmarked => throw _privateConstructorUsedError;
 
   /// Serializes this CourseDetailPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -3901,6 +3902,7 @@ abstract class $CourseDetailPayloadCopyWith<$Res> {
     String? teamKey,
     List<String>? teamInstructors,
     List<String>? legacyNames,
+    bool? bookmarked,
   });
 }
 
@@ -3935,6 +3937,7 @@ class _$CourseDetailPayloadCopyWithImpl<$Res, $Val extends CourseDetailPayload>
     Object? teamKey = freezed,
     Object? teamInstructors = freezed,
     Object? legacyNames = freezed,
+    Object? bookmarked = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -4002,6 +4005,10 @@ class _$CourseDetailPayloadCopyWithImpl<$Res, $Val extends CourseDetailPayload>
                 ? _value.legacyNames
                 : legacyNames // ignore: cast_nullable_to_non_nullable
                       as List<String>?,
+            bookmarked: freezed == bookmarked
+                ? _value.bookmarked
+                : bookmarked // ignore: cast_nullable_to_non_nullable
+                      as bool?,
           )
           as $Val,
     );
@@ -4034,6 +4041,7 @@ abstract class _$$CourseDetailPayloadImplCopyWith<$Res>
     String? teamKey,
     List<String>? teamInstructors,
     List<String>? legacyNames,
+    bool? bookmarked,
   });
 }
 
@@ -4067,6 +4075,7 @@ class __$$CourseDetailPayloadImplCopyWithImpl<$Res>
     Object? teamKey = freezed,
     Object? teamInstructors = freezed,
     Object? legacyNames = freezed,
+    Object? bookmarked = freezed,
   }) {
     return _then(
       _$CourseDetailPayloadImpl(
@@ -4134,6 +4143,10 @@ class __$$CourseDetailPayloadImplCopyWithImpl<$Res>
             ? _value._legacyNames
             : legacyNames // ignore: cast_nullable_to_non_nullable
                   as List<String>?,
+        bookmarked: freezed == bookmarked
+            ? _value.bookmarked
+            : bookmarked // ignore: cast_nullable_to_non_nullable
+                  as bool?,
       ),
     );
   }
@@ -4159,6 +4172,7 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
     this.teamKey,
     final List<String>? teamInstructors,
     final List<String>? legacyNames,
+    this.bookmarked,
   }) : _aliases = aliases,
        _offerings = offerings,
        _ratingDistribution = ratingDistribution,
@@ -4249,8 +4263,11 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
   }
 
   @override
+  final bool? bookmarked;
+
+  @override
   String toString() {
-    return 'CourseDetailPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, teacherId: $teacherId, teacherName: $teacherName, aliases: $aliases, offerings: $offerings, ratingAvg: $ratingAvg, reviewCount: $reviewCount, ratingDistribution: $ratingDistribution, reviewScope: $reviewScope, teamKey: $teamKey, teamInstructors: $teamInstructors, legacyNames: $legacyNames)';
+    return 'CourseDetailPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, teacherId: $teacherId, teacherName: $teacherName, aliases: $aliases, offerings: $offerings, ratingAvg: $ratingAvg, reviewCount: $reviewCount, ratingDistribution: $ratingDistribution, reviewScope: $reviewScope, teamKey: $teamKey, teamInstructors: $teamInstructors, legacyNames: $legacyNames, bookmarked: $bookmarked)';
   }
 
   @override
@@ -4293,7 +4310,9 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
             const DeepCollectionEquality().equals(
               other._legacyNames,
               _legacyNames,
-            ));
+            ) &&
+            (identical(other.bookmarked, bookmarked) ||
+                other.bookmarked == bookmarked));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -4316,6 +4335,7 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
     teamKey,
     const DeepCollectionEquality().hash(_teamInstructors),
     const DeepCollectionEquality().hash(_legacyNames),
+    bookmarked,
   );
 
   /// Create a copy of CourseDetailPayload
@@ -4353,6 +4373,7 @@ abstract class _CourseDetailPayload implements CourseDetailPayload {
     final String? teamKey,
     final List<String>? teamInstructors,
     final List<String>? legacyNames,
+    final bool? bookmarked,
   }) = _$CourseDetailPayloadImpl;
 
   factory _CourseDetailPayload.fromJson(Map<String, dynamic> json) =
@@ -4390,6 +4411,8 @@ abstract class _CourseDetailPayload implements CourseDetailPayload {
   List<String>? get teamInstructors; // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
   @override
   List<String>? get legacyNames;
+  @override
+  bool? get bookmarked;
 
   /// Create a copy of CourseDetailPayload
   /// with the given fields replaced by the non-null parameter values.

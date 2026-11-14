@@ -346,6 +346,7 @@ _$CourseDetailPayloadImpl _$$CourseDetailPayloadImplFromJson(
   legacyNames: (json['legacyNames'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
+  bookmarked: json['bookmarked'] as bool?,
 );
 
 Map<String, dynamic> _$$CourseDetailPayloadImplToJson(
@@ -367,4 +368,5 @@ Map<String, dynamic> _$$CourseDetailPayloadImplToJson(
   'teamKey': instance.teamKey,
   'teamInstructors': instance.teamInstructors,
   'legacyNames': instance.legacyNames,
+  'bookmarked': instance.bookmarked,
 };

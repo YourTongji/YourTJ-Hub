@@ -353,7 +353,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
-	forumApi.GET("courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseDetailJSON))
+	forumApi.GET("courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), middleware.JWTAuth, UpUriQueryReq(forum.CourseDetailJSON))
 	// 课程评价列表：公开可读，可选 JWT 仅用于 viewer 状态，不要求登录。
 	forumApi.GET("courses/:courseId/reviews", middleware.RateLimit(middleware.RateLimitCourseCatalog), middleware.JWTAuth, UpUriQueryReq(forum.ListCourseReviews))
 	// 相关课程：同教师其他课 + 同课程其他教师（公开只读，与课程目录共用限流配额）。

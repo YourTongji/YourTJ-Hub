@@ -37,7 +37,7 @@ import '../../widgets/share/share_image_preview.dart';
 /// 页面纵向堆叠（对齐 web 移动端 DOM 顺序）：头部信息 → 评分分布卡 → AI 总结
 /// → 课评列表（cursor 分页 + 写评/编辑/删除/有用）+ 浮动写评 → 开课记录
 /// → 相关课程 + 课程沿革。收藏按钮在 AppBar（乐观切换 + 失败回滚）。
-class CourseDetailPage extends ConsumerStatefulWidget {
+class CourseDetailPage extends ConsumerWidget {
   const CourseDetailPage({
     super.key,
     required this.courseId,
@@ -50,10 +50,38 @@ class CourseDetailPage extends ConsumerStatefulWidget {
   final int? focusReviewId;
 
   @override
-  ConsumerState<CourseDetailPage> createState() => _CourseDetailPageState();
+  Widget build(BuildContext context, WidgetRef ref) => _CourseDetailContent(
+    key: ValueKey((
+      ref.watch(offlineCacheEpochProvider),
+      ref.watch(apiClientProvider).baseUrl,
+      courseId,
+      focusOfferingId,
+      focusReviewId,
+    )),
+    courseId: courseId,
+    focusOfferingId: focusOfferingId,
+    focusReviewId: focusReviewId,
+  );
 }
 
-class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
+// Private viewer state and pending reads/writes belong to one route/session.
+class _CourseDetailContent extends ConsumerStatefulWidget {
+  const _CourseDetailContent({
+    super.key,
+    required this.courseId,
+    this.focusOfferingId,
+    this.focusReviewId,
+  });
+
+  final int courseId;
+  final int? focusOfferingId;
+  final int? focusReviewId;
+
+  @override
+  ConsumerState<_CourseDetailContent> createState() => _CourseDetailPageState();
+}
+
+class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
   static const double _loadMoreThreshold = 400;
 
   final ScrollController _scrollController = ScrollController();
@@ -65,7 +93,12 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   AsyncValue<CourseRelatedResult> _related = const AsyncValue.loading();
 
   // 收藏（乐观切换）。
-  bool _bookmarked = false;
+  // null means an old server did not send authoritative state; never guess false.
+  bool? _bookmarked;
+  bool _bookmarkBusy = false;
+  int _bookmarkVersion = 0;
+  int _detailSeq = 0;
+  late final int _sessionEpoch;
 
   // 课评列表。
   List<ReviewPayload> _reviews = <ReviewPayload>[];
@@ -74,6 +107,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   bool _reviewsLoaded = false;
   bool _loadingMore = false;
   int _reviewTotal = 0;
+  int? _reviewsOfferingId;
+  Object? _reviewsError;
   // 写操作代际守卫：写成功后自增，使 in-flight 列表响应失效。
   int _reviewsSeq = 0;
   final Set<int> _reviewReactionBusy = <int>{};
@@ -93,6 +128,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   @override
   void initState() {
     super.initState();
+    _sessionEpoch = ref.read(offlineCacheEpochProvider);
     _load();
     _scrollController.addListener(_onScroll);
   }
@@ -120,21 +156,39 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 
   Future<void> _load() async {
+    if (!_activeSession) return;
+    final int seq = ++_detailSeq;
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final int bookmarkVersion = _bookmarkVersion;
+    final bool bookmarkBusy = _bookmarkBusy;
     setState(() => _detail = const AsyncValue.loading());
     try {
       final CourseDetailPayload detail = await _repository.detail(
         widget.courseId,
       );
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!_activeSession ||
+          seq != _detailSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() {
         _detail = AsyncValue.data(detail);
+        // A refresh overlapping a mutation must not restore its stale snapshot.
+        if (!bookmarkBusy &&
+            !_bookmarkBusy &&
+            bookmarkVersion == _bookmarkVersion) {
+          _bookmarked = detail.bookmarked;
+        }
         _validateInitialFocus(detail);
       });
       _loadRelated();
       _loadReviews();
     } catch (e, st) {
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!_activeSession ||
+          seq != _detailSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() => _detail = AsyncValue.error(e, st));
     }
   }
@@ -167,18 +221,30 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   Future<void> _loadReviews() async {
     final int seq = ++_reviewsSeq;
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final int? offeringId = _activeOfferingId;
     final Map<int, int> reactionVersions = Map<int, int>.of(
       _reviewReactionVersion,
     );
     final Set<int> reactionBusy = Set<int>.of(_reviewReactionBusy);
     setState(() {
+      // New list generation owns its own pagination lock. Old finally blocks
+      // remain fenced so they cannot unlock a newer request.
+      _loadingMore = false;
+      _reviewsError = null;
+      if (_reviewsOfferingId != offeringId) {
+        // Keep hidden rows while loading so in-flight reaction writes can
+        // settle and merge into matching rows in the new filter. Never reuse
+        // the old filter's cursor.
+        _nextCursor = '';
+        _reviewTotal = 0;
+      }
       _reviewsLoading = true;
       _reviewsLoaded = false;
     });
     try {
       final ReviewListResult result = await _repository.reviews(
         widget.courseId,
-        offeringId: _activeOfferingId,
+        offeringId: offeringId,
       );
       if (!mounted ||
           seq != _reviewsSeq ||
@@ -199,19 +265,27 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         _prioritizeEditableReviews();
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
+        _reviewsOfferingId = offeringId;
         _reviewsLoading = false;
         _reviewsLoaded = true;
       });
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _revealTargetReview(),
       );
-    } catch (_) {
-      if (!mounted || seq != _reviewsSeq) return;
+    } catch (e) {
+      if (!mounted ||
+          seq != _reviewsSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() {
         _reviewsLoading = false;
-        _reviewsLoaded = true;
+        // Hide rows from another filter, but retain them for pending reaction
+        // writes and the retry's merge. No old cursor can be used while failed.
+        _reviewsLoaded =
+            _reviewsOfferingId == offeringId && _reviews.isNotEmpty;
+        _reviewsError = e;
       });
-      _toast(_copy().reviewsLoadFailed, error: true);
     }
   }
 
@@ -258,6 +332,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   Future<void> _loadMoreReviews() async {
     if (_loadingMore ||
         _reviewsLoading ||
+        _reviewsError != null ||
         _nextCursor.isEmpty ||
         !_reviewsLoaded) {
       return;
@@ -329,17 +404,34 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
 
   // ---- 收藏 ----
 
+  bool get _activeSession =>
+      mounted && _sessionEpoch == ref.read(offlineCacheEpochProvider);
+
   Future<void> _toggleBookmark() async {
-    final bool target = !_bookmarked;
-    setState(() => _bookmarked = target);
+    final bool? previous = _bookmarked;
+    if (!_activeSession || _bookmarkBusy || previous == null) return;
+    final bool target = !previous;
+    final int version = ++_bookmarkVersion;
+    final repository = _repository;
+    setState(() {
+      _bookmarked = target;
+      _bookmarkBusy = true;
+    });
     try {
-      await _repository.bookmark(courseId: widget.courseId, bookmarked: target);
+      await repository.bookmark(courseId: widget.courseId, bookmarked: target);
     } catch (e) {
       // 401 由全局会话失效处理（跳登录），此处仅回滚本地态不打扰用户。
-      if (!mounted) return;
-      setState(() => _bookmarked = !target);
+      if (!_activeSession || version != _bookmarkVersion) return;
+      setState(() => _bookmarked = previous);
       if (!_isUnauthorized(e)) {
         _toast(_copy().operationFailed, error: true);
+      }
+    } finally {
+      if (_activeSession && version == _bookmarkVersion) {
+        setState(() {
+          _bookmarkBusy = false;
+          _bookmarkVersion += 1;
+        });
       }
     }
   }
@@ -393,6 +485,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     if (_activeOfferingId == null || created.offeringId == _activeOfferingId) {
       _reviewsSeq += 1;
       setState(() {
+        _loadingMore = false;
         _reviews = <ReviewPayload>[created, ..._reviews];
         _reviewTotal += 1;
       });
@@ -739,10 +832,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                   ),
                   Expanded(
                     child: AppRefreshIndicator(
-                      onRefresh: () async {
-                        await _load();
-                        await _loadRelated();
-                      },
+                      onRefresh: _load,
                       child: CustomScrollView(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -774,16 +864,22 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               child: Row(
                 children: [
                   IconButton(
-                    tooltip: _bookmarked
+                    tooltip: _bookmarked == null
+                        ? l10n.commonRetry
+                        : _bookmarked!
                         ? l10n.courseBookmarked
                         : l10n.courseBookmark,
                     icon: GfSymbol(
-                      'bookmark',
-                      color: _bookmarked
+                      _bookmarked == null ? 'refresh-cw' : 'bookmark',
+                      color: _bookmarked == true
                           ? GfTheme.colorsOf(context).primary
                           : null,
                     ),
-                    onPressed: _toggleBookmark,
+                    onPressed: _bookmarkBusy
+                        ? null
+                        : _bookmarked == null
+                        ? _load
+                        : _toggleBookmark,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -850,6 +946,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: GfLoadingIndicator()),
+              )
+            else if (_reviewsError != null)
+              GfErrorRetry(
+                message: copy.reviewsLoadFailed,
+                onRetry: _loadReviews,
               )
             else if (_reviewsLoaded && _reviews.isEmpty)
               GfEmpty(symbol: 'square-pen', message: l10n.reviewsEmpty),

@@ -3,6 +3,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/gin-gonic/gin"
@@ -24,6 +26,7 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(
 		&course.Entity{},
+		&course.CourseUserActionEntity{},
 		&course.AliasEntity{},
 		&course.TermEntity{},
 		&course.OfferingEntity{},
@@ -42,6 +45,7 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	}
 	// 清空课程域表，保证 fixture 断言确定性。
 	for _, model := range []any{
+		&course.CourseUserActionEntity{},
 		&course.HelpfulEntity{},
 		&course.ReviewEntity{},
 		&course.SourceRefEntity{},
@@ -66,7 +70,7 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 
 	router := gin.New()
 	router.GET("/api/forum/courses", UpQueryReq(forum.CourseListJSON))
-	router.GET("/api/forum/courses/:courseId", UpUriQueryReq(forum.CourseDetailJSON))
+	router.GET("/api/forum/courses/:courseId", middleware.JWTAuth, UpUriQueryReq(forum.CourseDetailJSON))
 	router.GET("/api/forum/courses/:courseId/related", UpUriQueryReq(forum.CourseRelatedJSON))
 	router.GET("/api/forum/courses/:courseId/summary", UpUriQueryReq(forum.GetCourseSummary))
 	return conn, router
@@ -751,4 +755,77 @@ func TestCourseListCanceledRequestHTTPContract(t *testing.T) {
 		t.Fatalf("canceled catalog status=%d retry=%q", recorder.Code, recorder.Header().Get("Retry-After"))
 	}
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "course-catalog-unavailable.json"))
+}
+
+// User state must be read on every request, independently of the public detail cache.
+func TestCourseDetailBookmarkStateHTTPContract(t *testing.T) {
+	setupHTTPContractTest(t)
+	conn, _ := setupCourseContractTest(t)
+	seedCourseContractData(t, conn)
+	// Exercise the production route assembly, including optional viewer auth.
+	router := gin.New()
+	RegisterByGin(router)
+	userA := createHTTPContractUser(t, conn, contractTestID())
+	userB := createHTTPContractUser(t, conn, contractTestID())
+	tokenA := contractSessionToken(t, userA)
+	tokenB := contractSessionToken(t, userB)
+	read := func(token string, want bool) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/forum/courses/42", nil)
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("detail status = %d: %s", rec.Code, rec.Body.String())
+		}
+		var body struct {
+			Result map[string]any `json:"result"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if got, exists := body.Result["bookmarked"]; !exists || got != want {
+			t.Fatalf("bookmarked = %v (present %v), want %v", got, exists, want)
+		}
+		if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+			t.Fatalf("Cache-Control = %q", got)
+		}
+	}
+	read("", false)
+	read(tokenA, false)
+	if !course.SetCourseBookmarked(userA.Id, 42, true) {
+		t.Fatal("bookmark failed")
+	}
+	read(tokenA, true)
+	read(tokenB, false)
+	read("", false)
+	read(tokenA, true)
+	if !course.SetCourseBookmarked(userA.Id, 42, false) {
+		t.Fatal("unbookmark failed")
+	}
+	read(tokenA, false)
+	// A broken user-state read must never become a successful false value.
+	const callback = "test:course_detail_bookmark_read_failure"
+	if err := conn.Callback().Query().Before("gorm:query").Register(callback, func(tx *gorm.DB) {
+		if tx.Statement.Table == "course_user_action" {
+			_ = tx.AddError(errors.New("forced bookmark read failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Callback().Query().Remove(callback); err != nil {
+			t.Error(err)
+		}
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/forum/courses/42", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("failed bookmark read status = %d: %s", rec.Code, rec.Body.String())
+	}
+	read("", false)
 }
