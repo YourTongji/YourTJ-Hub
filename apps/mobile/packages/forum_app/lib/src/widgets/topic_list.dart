@@ -16,6 +16,7 @@ import '../asset_url.dart';
 import '../images/image_save.dart';
 import 'sticker_message_span.dart';
 import 'stickers/sticker_image.dart';
+import 'stickers/sticker_strings.dart';
 
 enum GfTopicFeedMode { list, card }
 
@@ -70,7 +71,9 @@ class GfTopicList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final removed = ref.watch(removedTopicsProvider);
-    final topics = this.topics.where((topic) => !removed.contains(topic.id)).toList();
+    final topics = this.topics
+        .where((topic) => !removed.contains(topic.id))
+        .toList();
     if (loading && topics.isEmpty) return const GfLoading();
     if (topics.isEmpty) {
       return CustomScrollView(
@@ -174,11 +177,7 @@ class GfTopicList extends ConsumerWidget {
     final StickerLibrary? library = stickerLibrary;
     return library == null
         ? feed(const <String, String>{})
-        : TopicStickerExcerpts(
-            library: library,
-            topics: topics,
-            builder: feed,
-          );
+        : TopicStickerExcerpts(library: library, topics: topics, builder: feed);
   }
 }
 
@@ -302,8 +301,12 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
 
   // 标题是纯文本（不经过 Markdown 管线），与列表行/SSR 对齐：有标题原样展示；
   // 无标题瞬间的置顶标题其实是摘要，可能带 [:sticker:name:]，按小字视图规则换成 [名字]/省略。
-  Widget pinnedTitle(BuildContext context, TopicPayload topic, GfColors colors,
-      {double fontSize = 12.5}) {
+  Widget pinnedTitle(
+    BuildContext context,
+    TopicPayload topic,
+    GfColors colors, {
+    double fontSize = 12.5,
+  }) {
     final TextStyle style = TextStyle(
       fontSize: fontSize,
       fontWeight: FontWeight.w500,
@@ -313,10 +316,15 @@ class _PinnedTopicStripState extends State<_PinnedTopicStrip>
         ? topic.title
         : _stickerLabelOrNoTitle(
             context,
-            topicDisplayTitle(context, topic),
+            _topicListExcerpt(context, topic, widget.stickerUrlByName),
             widget.stickerUrlByName,
           );
-    return GfText(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+    return GfText(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
   }
 
   @override
@@ -515,14 +523,6 @@ Future<void> _openTopic(
   onReturn?.call();
 }
 
-/// 无标题时展示摘要；无文本时复用本地化的无标题文案。
-String topicDisplayTitle(BuildContext context, TopicPayload topic) =>
-    topic.title.trim().isNotEmpty
-    ? topic.title
-    : (topic.description.trim().isNotEmpty
-          ? topic.description
-          : AppLocalizations.of(context).topicNoTitle);
-
 /// 小字视图的贴纸文案：token 全被省略而剥空时回退本地化"无标题"占位，
 /// 与 Web 列表行的稳定颜文字回退同族，保证任何列表行都有可识别文案。
 String _stickerLabelOrNoTitle(
@@ -530,8 +530,35 @@ String _stickerLabelOrNoTitle(
   String text,
   Map<String, String> urlByName,
 ) {
-  final String label = stickerLabelText(text, urlByName);
+  final String label = stickerLabelText(
+    text,
+    urlByName,
+    labelForName: StickerStrings(context).previewLabel,
+  );
   return label.isEmpty ? AppLocalizations.of(context).topicNoTitle : label;
+}
+
+/// Build a compact list excerpt from the persisted text plus existing image
+/// metadata. Prefix one localized image marker so row truncation cannot hide it.
+String _topicListExcerpt(
+  BuildContext context,
+  TopicPayload topic,
+  Map<String, String> urlByName,
+) {
+  final String text = stickerLabelText(
+    topic.description,
+    urlByName,
+    labelForName: StickerStrings(context).previewLabel,
+  );
+  final bool hasImage =
+      (topic.images?.any((String image) => image.trim().isNotEmpty) ?? false) ||
+      (topic.firstImageUrl?.trim().isNotEmpty ?? false);
+  if (!hasImage) return text;
+
+  final String imageLabel = '[${AppLocalizations.of(context).messagesImage}]';
+  // 无条件前置：服务端摘要不含图片占位，若按前缀去重，会把名为「图片」的
+  // 可读贴纸标签或手打同前缀文本误判为已有标记，吞掉真实图片提示。
+  return text.isEmpty ? imageLabel : '$imageLabel $text';
 }
 
 /// 把后端话题 payload 映射为 [GfTopicRow](对齐 web TopicRow.vue 语义)。
@@ -545,17 +572,21 @@ Widget _topicRow(
   VoidCallback? onReturn,
 }) {
   final AppLocalizations l10n = AppLocalizations.of(context);
+  final String excerpt = _topicListExcerpt(context, topic, stickerUrlByName);
+  final String titleText = topic.title.trim().isNotEmpty
+      ? topic.title
+      : excerpt.isNotEmpty
+      ? excerpt
+      : l10n.topicNoTitle;
   final String displayTitle = topic.processStatus == 2
-      ? "${l10n.contentReviewPending} · ${topicDisplayTitle(context, topic)}"
-      : topicDisplayTitle(context, topic);
+      ? "${l10n.contentReviewPending} · $titleText"
+      : titleText;
   // 标题是纯文本（不经过 Markdown 管线），与 Web/SSR 对齐：有标题原样展示，
   // 不做贴纸转换；无标题瞬间把摘要放在标题位，才按小字视图规则换成 [名字]/省略。
   final String title = topic.title.trim().isNotEmpty
       ? displayTitle
       : _stickerLabelOrNoTitle(context, displayTitle, stickerUrlByName);
-  final String description = topic.title.trim().isEmpty
-      ? ''
-      : stickerLabelText(topic.description, stickerUrlByName);
+  final String description = topic.title.trim().isEmpty ? '' : excerpt;
   final List<GfTopicCategory> categories = <GfTopicCategory>[
     for (final CategoryBriefPayload cat in topic.categories)
       if (cat.id != hiddenCategoryId)
@@ -668,115 +699,127 @@ Widget buildTopicFeedCard(
     images.add(resolveApiAssetUrl(topic.firstImageUrl!));
   }
 
-  return Consumer(builder: (context, ref, _) {
-    if (ref.watch(removedTopicsProvider).contains(topic.id)) { return const SizedBox.shrink(); }
-    return FeedVisibility(
-    topic: topic,
-    child: GfTopicCard(
-      feedContext: _feedContext(l10n, topic),
-      avatarFrameColors: decorationColors(
-        context,
-        topic.author.decoration?.avatarFrame,
-      ),
-      avatarFrameAssetUrl: decorationFrameAssetUrl(
-        topic.author.decoration?.avatarFrame,
-      ),
-      avatarFrameScale:
-          topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
-      nicknameColors: decorationColors(
-        context,
-        topic.author.decoration?.nicknameStyle,
-      ),
-      key: ValueKey<int>(topic.id),
-      title: '$reviewPrefix$cardTitle',
-      titleSpan: excerptSpan == null
-          ? null
-          : TextSpan(text: reviewPrefix, children: <InlineSpan>[excerptSpan]),
-      description: description,
-      descriptionSpan: descriptionSpan,
-      authorName: topic.author.publicUid != null
-          ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousTag}'
-          : privateDisplayName(
-              context,
-              topic.author.id,
-              topic.author.username,
-              nickname,
-            ),
-      authorAvatarUrl: resolveApiAssetUrl(topic.author.avatarUrl),
-      onAvatarTap: topic.author.publicUid != null
-          ? () => context.push('/a/${topic.author.publicUid}')
-          : topic.author.id > 0
-          ? () => showUserProfilePreview(context, userId: topic.author.id,
-              username: topic.author.username, nickname: topic.author.nickname,
-              avatarUrl: topic.author.avatarUrl)
-          : null,
-      onAuthorTap: topic.author.publicUid != null
-          ? () => context.push('/a/${topic.author.publicUid}')
-          : topic.author.id > 0
-          ? () => context.push('/u/${topic.author.id}')
-          : null,
-      imageSemanticLabelBuilder: l10n.imageViewPosition,
-      onSaveImage: (url) => saveImageFromUrl(context, url),
-      saveImageLabel: l10n.imageSave,
-      onShareImage: (url) => shareImageFromUrl(context, url),
-      shareImageLabel: l10n.topicShare,
-      categories: <GfTopicCategory>[
-        for (final CategoryBriefPayload category in topic.categories)
-          if (category.id != hiddenCategoryId)
-            GfTopicCategory(
-              name: category.name,
-              color: colorFromHex(category.color),
-              onTap: onCategorySelected == null
-                  ? null
-                  : () => onCategorySelected(category.id),
-            ),
-      ],
-      imageUrls: images,
-      onFirstMediaFrame: onFirstMediaFrame,
-      imageMetadata: <GfTopicImageMetadata>[
-        for (final TopicImageMetadataPayload metadata
-            in topic.imageMetadata ?? const <TopicImageMetadataPayload>[])
-          GfTopicImageMetadata(
-            url: resolveApiAssetUrl(metadata.url),
-            width: metadata.width,
-            height: metadata.height,
-            variants: <GfTopicImageVariant>[
-              for (final TopicImageVariantPayload variant in metadata.variants)
-                GfTopicImageVariant(
-                  url: resolveApiAssetUrl(variant.url),
-                  width: variant.width,
-                  height: variant.height,
-                ),
-            ],
+  return Consumer(
+    builder: (context, ref, _) {
+      if (ref.watch(removedTopicsProvider).contains(topic.id)) {
+        return const SizedBox.shrink();
+      }
+      return FeedVisibility(
+        topic: topic,
+        child: GfTopicCard(
+          feedContext: _feedContext(l10n, topic),
+          avatarFrameColors: decorationColors(
+            context,
+            topic.author.decoration?.avatarFrame,
           ),
-      ],
-      activityText: timeAgo(
-        topic.activityText.isNotEmpty
-            ? topic.activityText
-            : topic.lastUpdateTime,
-        l10n: l10n,
-      ),
-      replyCount: topic.replyCount,
-      viewCount: topic.viewCount,
-      likeCount: topic.likeCount,
-      liked: topic.liked ?? false,
-      bookmarked: topic.bookmarked ?? false,
-      onLike: onLike,
-      onBookmark: onBookmark,
-      likeTooltip: l10n.topicLike,
-      bookmarkTooltip: l10n.topicBookmark,
-      bookmarkedTooltip: l10n.topicBookmarked,
-      pinned: topic.pinWeight > 0,
-      unseen: topic.unseen == true,
-      onTap: () async {
-        FeedTelemetry.instance.select(topic);
-        await context.push('/p/${topic.id}');
-        FeedTelemetry.instance.endDetail();
-        onReturn?.call();
-      },
-    ),
+          avatarFrameAssetUrl: decorationFrameAssetUrl(
+            topic.author.decoration?.avatarFrame,
+          ),
+          avatarFrameScale:
+              topic.author.decoration?.avatarFrame?.assetScale ?? 1.25,
+          nicknameColors: decorationColors(
+            context,
+            topic.author.decoration?.nicknameStyle,
+          ),
+          key: ValueKey<int>(topic.id),
+          title: '$reviewPrefix$cardTitle',
+          titleSpan: excerptSpan == null
+              ? null
+              : TextSpan(
+                  text: reviewPrefix,
+                  children: <InlineSpan>[excerptSpan],
+                ),
+          description: description,
+          descriptionSpan: descriptionSpan,
+          authorName: topic.author.publicUid != null
+              ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousTag}'
+              : privateDisplayName(
+                  context,
+                  topic.author.id,
+                  topic.author.username,
+                  nickname,
+                ),
+          authorAvatarUrl: resolveApiAssetUrl(topic.author.avatarUrl),
+          onAvatarTap: topic.author.publicUid != null
+              ? () => context.push('/a/${topic.author.publicUid}')
+              : topic.author.id > 0
+              ? () => showUserProfilePreview(
+                  context,
+                  userId: topic.author.id,
+                  username: topic.author.username,
+                  nickname: topic.author.nickname,
+                  avatarUrl: topic.author.avatarUrl,
+                )
+              : null,
+          onAuthorTap: topic.author.publicUid != null
+              ? () => context.push('/a/${topic.author.publicUid}')
+              : topic.author.id > 0
+              ? () => context.push('/u/${topic.author.id}')
+              : null,
+          imageSemanticLabelBuilder: l10n.imageViewPosition,
+          onSaveImage: (url) => saveImageFromUrl(context, url),
+          saveImageLabel: l10n.imageSave,
+          onShareImage: (url) => shareImageFromUrl(context, url),
+          shareImageLabel: l10n.topicShare,
+          categories: <GfTopicCategory>[
+            for (final CategoryBriefPayload category in topic.categories)
+              if (category.id != hiddenCategoryId)
+                GfTopicCategory(
+                  name: category.name,
+                  color: colorFromHex(category.color),
+                  onTap: onCategorySelected == null
+                      ? null
+                      : () => onCategorySelected(category.id),
+                ),
+          ],
+          imageUrls: images,
+          onFirstMediaFrame: onFirstMediaFrame,
+          imageMetadata: <GfTopicImageMetadata>[
+            for (final TopicImageMetadataPayload metadata
+                in topic.imageMetadata ?? const <TopicImageMetadataPayload>[])
+              GfTopicImageMetadata(
+                url: resolveApiAssetUrl(metadata.url),
+                width: metadata.width,
+                height: metadata.height,
+                variants: <GfTopicImageVariant>[
+                  for (final TopicImageVariantPayload variant
+                      in metadata.variants)
+                    GfTopicImageVariant(
+                      url: resolveApiAssetUrl(variant.url),
+                      width: variant.width,
+                      height: variant.height,
+                    ),
+                ],
+              ),
+          ],
+          activityText: timeAgo(
+            topic.activityText.isNotEmpty
+                ? topic.activityText
+                : topic.lastUpdateTime,
+            l10n: l10n,
+          ),
+          replyCount: topic.replyCount,
+          viewCount: topic.viewCount,
+          likeCount: topic.likeCount,
+          liked: topic.liked ?? false,
+          bookmarked: topic.bookmarked ?? false,
+          onLike: onLike,
+          onBookmark: onBookmark,
+          likeTooltip: l10n.topicLike,
+          bookmarkTooltip: l10n.topicBookmark,
+          bookmarkedTooltip: l10n.topicBookmarked,
+          pinned: topic.pinWeight > 0,
+          unseen: topic.unseen == true,
+          onTap: () async {
+            FeedTelemetry.instance.select(topic);
+            await context.push('/p/${topic.id}');
+            FeedTelemetry.instance.endDetail();
+            onReturn?.call();
+          },
+        ),
+      );
+    },
   );
-  });
 }
 
 /// For You reasons borrow the mark of the element that justifies them. Every

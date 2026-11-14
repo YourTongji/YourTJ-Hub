@@ -999,25 +999,29 @@ void main() {
       List<TopicPayload> topics, {
       GfTopicFeedMode mode = GfTopicFeedMode.list,
       _StickerCatalog? catalog,
+      Locale locale = const Locale('zh'),
     }) async {
       final library = StickerLibrary(catalog ?? _StickerCatalog([_smile]));
       addTearDown(library.dispose);
+      await library.load();
       await tester.pumpWidget(
-        ProviderScope(child: MaterialApp(
-          locale: const Locale('zh'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: GfTopicList(
-              loading: false,
-              topics: topics,
-              feedMode: mode,
-              stickerLibrary: library,
-              hasMore: false,
-              onLoadMore: () {},
+        ProviderScope(
+          child: MaterialApp(
+            locale: locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                loading: false,
+                topics: topics,
+                feedMode: mode,
+                stickerLibrary: library,
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
-        )),
+        ),
       );
       await tester.pumpAndSettle();
       return library;
@@ -1028,46 +1032,176 @@ void main() {
           parsePayload(homePayloadJson()),
         )!.topics.first.copyWith(title: title, description: description);
 
+    testWidgets(
+      'list excerpts use short labels for generated stickers and images',
+      (tester) async {
+        final String marketName = 'm_${List<String>.filled(40, "a").join()}';
+        final String personalName = 'u_${List<String>.filled(48, "b").join()}';
+        final topic =
+            topicWith(
+              'A [:sticker:$marketName:] [:sticker:$personalName:] '
+              '[:sticker:smile:] [:sticker:smile:]',
+            ).copyWith(
+              images: ['/image-one.webp', '/image-two.webp'],
+              firstImageUrl: '/image-one.webp',
+            );
+        await pumpFeed(
+          tester,
+          [topic],
+          catalog: _StickerCatalog([
+            StickerItemPayload(name: marketName, url: '/sticker-market.webp'),
+            StickerItemPayload(
+              name: personalName,
+              url: '/sticker-personal.webp',
+            ),
+            _smile,
+          ]),
+        );
+
+        expect(find.textContaining('[图片] A [表情] [smile]'), findsOneWidget);
+        expect(
+          find.textContaining('m_${List<String>.filled(40, "a").join()}'),
+          findsNothing,
+        );
+        expect(
+          find.textContaining('u_${List<String>.filled(48, "b").join()}'),
+          findsNothing,
+        );
+        expect(find.textContaining('[:sticker:'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'untitled image-only list entries use the existing image metadata',
+      (tester) async {
+        final topic = topicWith(
+          '',
+          title: '',
+        ).copyWith(images: ['/image-only.webp']);
+        await pumpFeed(tester, [topic]);
+
+        expect(find.text('[图片]'), findsOneWidget);
+        expect(find.text('无标题'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'image marker survives a leading sticker named like the image label',
+      (tester) async {
+        // 可读官方名保留为 [名字]：名为「图片」的贴纸居首时，图片占位仍要前置，
+        // 不能被误判为重复标记而吞掉。
+        final topic = topicWith(
+          '[:sticker:图片:] 正文',
+        ).copyWith(images: ['/image-named-sticker.webp']);
+        await pumpFeed(
+          tester,
+          [topic],
+          catalog: _StickerCatalog([
+            StickerItemPayload(name: '图片', url: '/sticker-image.webp'),
+          ]),
+        );
+
+        expect(find.text('[图片] [图片] 正文'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'sticker-only generated-name excerpts use a short placeholder',
+      (tester) async {
+        final String personalName = 'u_${List<String>.filled(48, "c").join()}';
+        await pumpFeed(
+          tester,
+          [topicWith('[:sticker:$personalName:]')],
+          catalog: _StickerCatalog([
+            StickerItemPayload(name: personalName, url: '/personal.webp'),
+          ]),
+        );
+
+        expect(find.text('[表情]'), findsOneWidget);
+        expect(find.textContaining(personalName), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'unknown sticker tokens stay omitted from mixed list excerpts',
+      (tester) async {
+        await pumpFeed(tester, [
+          topicWith('Readable [:sticker:unknown:] text'),
+        ], catalog: _StickerCatalog([_smile]));
+
+        expect(find.textContaining('Readable text'), findsOneWidget);
+        expect(find.textContaining('[:sticker:'), findsNothing);
+      },
+    );
+
+    testWidgets('image and generated sticker labels use all four locales', (
+      tester,
+    ) async {
+      final String marketName = 'm_${List<String>.filled(40, "d").join()}';
+      final topic = topicWith(
+        'A [:sticker:$marketName:] [:sticker:smile:]',
+      ).copyWith(firstImageUrl: '/old-topic-image.webp');
+      final catalog = _StickerCatalog([
+        StickerItemPayload(name: marketName, url: '/market.webp'),
+        _smile,
+      ]);
+      const cases = <(Locale, String)>[
+        (Locale('zh'), '[图片] A [表情] [smile]'),
+        (Locale('en'), '[Image] A [Sticker] [smile]'),
+        (Locale('ja'), '[画像] A [ステッカー] [smile]'),
+        (Locale('de'), '[Bild] A [Sticker] [smile]'),
+      ];
+
+      for (final (locale, expected) in cases) {
+        await pumpFeed(tester, [topic], catalog: catalog, locale: locale);
+        expect(find.textContaining(expected), findsOneWidget);
+        expect(find.textContaining(marketName), findsNothing);
+        expect(find.textContaining('[:sticker:'), findsNothing);
+      }
+    });
+
     testWidgets('pinned strip renders an untitled pinned moment sticker', (
-    tester,
-  ) async {
-    final library = StickerLibrary(_StickerCatalog([_smile]));
-    addTearDown(library.dispose);
-    final topic = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!
-        .topics
-        .first
-        .copyWith(id: 7, title: '', description: '置顶 [:sticker:smile:]');
-    await tester.pumpWidget(
-      ProviderScope(child: MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        theme: gfThemeData(Brightness.light),
-        home: Scaffold(
-          body: GfTopicList(
-            collapsePinned: true,
-            loading: false,
-            topics: [topic.copyWith(pinWeight: 1)],
-            stickerLibrary: library,
-            hasMore: false,
-            onLoadMore: () {},
+      tester,
+    ) async {
+      final library = StickerLibrary(_StickerCatalog([_smile]));
+      addTearDown(library.dispose);
+      final topic = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!
+          .topics
+          .first
+          .copyWith(id: 7, title: '', description: '置顶 [:sticker:smile:]');
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: gfThemeData(Brightness.light),
+            home: Scaffold(
+              body: GfTopicList(
+                collapsePinned: true,
+                loading: false,
+                topics: [topic.copyWith(pinWeight: 1)],
+                stickerLibrary: library,
+                hasMore: false,
+                onLoadMore: () {},
+              ),
+            ),
           ),
         ),
-      )),
-    );
-    await tester.pumpAndSettle();
-    // 置顶条是小字视图：贴纸显示 [名字]，不发图片。
-    expect(find.byType(StickerImage), findsNothing);
-    expect(find.textContaining('[smile]'), findsOneWidget);
-    expect(
-      _richTexts(tester).where((text) => text.contains('[:sticker:')),
-      isEmpty,
-    );
-  });
+      );
+      await tester.pumpAndSettle();
+      // 置顶条是小字视图：贴纸显示 [名字]，不发图片。
+      expect(find.byType(StickerImage), findsNothing);
+      expect(find.textContaining('[smile]'), findsOneWidget);
+      expect(
+        _richTexts(tester).where((text) => text.contains('[:sticker:')),
+        isEmpty,
+      );
+    });
 
     testWidgets('list row renders a resolved token as a text label', (
-        tester,
-      ) async {
+      tester,
+    ) async {
       await pumpFeed(tester, [topicWith('正文 [:sticker:smile:] 结尾')]);
 
       // 列表行是小字视图：贴纸显示 [名字] 文本，不渲染图片。
@@ -1077,7 +1211,10 @@ void main() {
         _richTexts(tester).where((text) => text.contains('[:sticker:')),
         isEmpty,
       );
-      expect(_richTexts(tester).where((text) => text.contains('正文')), hasLength(1));
+      expect(
+        _richTexts(tester).where((text) => text.contains('正文')),
+        hasLength(1),
+      );
     });
 
     testWidgets('a token-looking string in a real title stays literal', (
@@ -1092,33 +1229,36 @@ void main() {
       expect(find.textContaining('[:sticker:smile:] 字面标题'), findsOneWidget);
     });
 
-    testWidgets('an untitled topic whose excerpt is all-unknown tokens falls back to the no-title label', (
-      tester,
-    ) async {
-      final catalog = _StickerCatalog(const <StickerItemPayload>[]);
-      await pumpFeed(
-        tester,
-        [topicWith('[:sticker:ghost:]', title: '')],
-        catalog: catalog,
-      );
+    testWidgets(
+      'an untitled topic whose excerpt is all-unknown tokens falls back to the no-title label',
+      (tester) async {
+        final catalog = _StickerCatalog(const <StickerItemPayload>[]);
+        await pumpFeed(tester, [
+          topicWith('[:sticker:ghost:]', title: ''),
+        ], catalog: catalog);
 
-      // token 全部被省略后标题槽不留白：回退到本地化"无标题"占位。
-      expect(find.text('无标题'), findsOneWidget);
-      expect(
-        _richTexts(tester).where((text) => text.contains('[:sticker:')),
-        isEmpty,
-      );
-    });
+        // token 全部被省略后标题槽不留白：回退到本地化"无标题"占位。
+        expect(find.text('无标题'), findsOneWidget);
+        expect(
+          _richTexts(tester).where((text) => text.contains('[:sticker:')),
+          isEmpty,
+        );
+      },
+    );
 
     testWidgets('card renders the token inline at the body sticker scale', (
       tester,
     ) async {
-      await pumpFeed(
-        tester,
-        [topicWith('正文 [:sticker:smile:]')],
-        mode: GfTopicFeedMode.card,
-      );
+      await pumpFeed(tester, [
+        topicWith('正文 [:sticker:smile:]').copyWith(
+          images: ['/card-image-one.webp', '/card-image-two.webp'],
+          firstImageUrl: '/card-image-one.webp',
+        ),
+      ], mode: GfTopicFeedMode.card);
 
+      final card = tester.widget<GfTopicCard>(find.byType(GfTopicCard));
+      expect(card.imageUrls, hasLength(2));
+      expect(find.byType(StickerImage), findsOneWidget);
       expect(
         tester.getSize(find.byType(StickerImage)).height,
         moreOrLessEquals(17 * StickerImage.inlineScale),
@@ -1130,38 +1270,32 @@ void main() {
     });
 
     // 无标题瞬间的卡片：摘要落在标题位，同样是卡片大字视图——贴纸渲染图片，不出 [名字]/原文。
-    testWidgets('an untitled moment card renders its excerpt sticker as an image', (
-      tester,
-    ) async {
-      await pumpFeed(
-        tester,
-        [topicWith('瞬间 [:sticker:smile:]', title: '')],
-        mode: GfTopicFeedMode.card,
-      );
+    testWidgets(
+      'an untitled moment card renders its excerpt sticker as an image',
+      (tester) async {
+        await pumpFeed(tester, [
+          topicWith('瞬间 [:sticker:smile:]', title: ''),
+        ], mode: GfTopicFeedMode.card);
 
-      expect(find.byType(StickerImage), findsOneWidget);
-      expect(
-        tester.getSize(find.byType(StickerImage)).height,
-        moreOrLessEquals(17 * StickerImage.inlineScale),
-      );
-      expect(find.textContaining('[smile]'), findsNothing);
-      final List<String> texts = _richTexts(tester).toList();
-      expect(texts.where((text) => text.contains('[:sticker:')), isEmpty);
-      // 只出现一次：标题位承载摘要，描述位不重复。
-      expect(texts.where((text) => text.contains('瞬间')), hasLength(1));
-    });
+        expect(find.byType(StickerImage), findsOneWidget);
+        expect(
+          tester.getSize(find.byType(StickerImage)).height,
+          moreOrLessEquals(17 * StickerImage.inlineScale),
+        );
+        expect(find.textContaining('[smile]'), findsNothing);
+        final List<String> texts = _richTexts(tester).toList();
+        expect(texts.where((text) => text.contains('[:sticker:')), isEmpty);
+        // 只出现一次：标题位承载摘要，描述位不重复。
+        expect(texts.where((text) => text.contains('瞬间')), hasLength(1));
+      },
+    );
 
     testWidgets('an untitled pending moment card keeps the review prefix', (
       tester,
     ) async {
-      await pumpFeed(
-        tester,
-        [
-          topicWith('瞬间 [:sticker:smile:]', title: '')
-              .copyWith(processStatus: 2),
-        ],
-        mode: GfTopicFeedMode.card,
-      );
+      await pumpFeed(tester, [
+        topicWith('瞬间 [:sticker:smile:]', title: '').copyWith(processStatus: 2),
+      ], mode: GfTopicFeedMode.card);
 
       expect(find.byType(StickerImage), findsOneWidget);
       expect(
@@ -1170,32 +1304,29 @@ void main() {
       );
     });
 
-    testWidgets('an untitled card whose excerpt is all-unknown tokens shows the no-title label', (
-      tester,
-    ) async {
-      await pumpFeed(
-        tester,
-        [topicWith('[:sticker:ghost:]', title: '')],
-        mode: GfTopicFeedMode.card,
-        catalog: _StickerCatalog(const <StickerItemPayload>[]),
-      );
+    testWidgets(
+      'an untitled card whose excerpt is all-unknown tokens shows the no-title label',
+      (tester) async {
+        await pumpFeed(
+          tester,
+          [topicWith('[:sticker:ghost:]', title: '')],
+          mode: GfTopicFeedMode.card,
+          catalog: _StickerCatalog(const <StickerItemPayload>[]),
+        );
 
-      expect(find.text('无标题'), findsOneWidget);
-      expect(find.byType(StickerImage), findsNothing);
-    });
+        expect(find.text('无标题'), findsOneWidget);
+        expect(find.byType(StickerImage), findsNothing);
+      },
+    );
 
     testWidgets('unknown and disabled tokens disappear instead of leaking', (
       tester,
     ) async {
       final catalog = _StickerCatalog(const <StickerItemPayload>[]);
-      await pumpFeed(
-        tester,
-        [
-          topicWith('第一条 [:sticker:ghost:]'),
-          topicWith('第二条 [:sticker:hidden:]', title: '另一个标题'),
-        ],
-        catalog: catalog,
-      );
+      await pumpFeed(tester, [
+        topicWith('第一条 [:sticker:ghost:]'),
+        topicWith('第二条 [:sticker:hidden:]', title: '另一个标题'),
+      ], catalog: catalog);
 
       expect(find.byType(StickerImage), findsNothing);
       expect(
@@ -1232,9 +1363,7 @@ void main() {
 
       expect(find.byType(StickerImage), findsNothing);
       final Text description = tester.widget<Text>(
-        find.byWidgetPredicate(
-          (Widget w) => w is Text && w.data == '普通摘要',
-        ),
+        find.byWidgetPredicate((Widget w) => w is Text && w.data == '普通摘要'),
       );
       expect(description.style?.fontSize, 13);
       expect(description.maxLines, 1);
@@ -1244,9 +1373,7 @@ void main() {
     testWidgets('an untitled moment renders its excerpt token in the title', (
       tester,
     ) async {
-      await pumpFeed(tester, [
-        topicWith('瞬间 [:sticker:smile:]', title: ''),
-      ]);
+      await pumpFeed(tester, [topicWith('瞬间 [:sticker:smile:]', title: '')]);
 
       // 列表行小字视图：标题位里的贴纸同样是 [名字] 文本，不发图片。
       expect(find.byType(StickerImage), findsNothing);
@@ -1257,8 +1384,7 @@ void main() {
         find.descendant(
           of: row,
           matching: find.byWidgetPredicate(
-            (Widget w) =>
-                w is Text && w.style?.fontSize == 15,
+            (Widget w) => w is Text && w.style?.fontSize == 15,
           ),
         ),
         findsOneWidget,
@@ -1282,19 +1408,21 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        ProviderScope(child: MaterialApp(
-          locale: const Locale('zh'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: GfTopicList(
-              loading: false,
-              topics: [topicWith('正文 [:sticker:smile:]')],
-              hasMore: false,
-              onLoadMore: () {},
+        ProviderScope(
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: GfTopicList(
+                loading: false,
+                topics: [topicWith('正文 [:sticker:smile:]')],
+                hasMore: false,
+                onLoadMore: () {},
+              ),
             ),
           ),
-        )),
+        ),
       );
       await tester.pumpAndSettle();
 

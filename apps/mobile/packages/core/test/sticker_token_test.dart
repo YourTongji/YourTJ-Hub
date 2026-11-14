@@ -190,4 +190,38 @@ void main() {
       );
     });
   });
+
+  group('stickerLabelText', () {
+    test(
+      'localizes generated names, keeps official names, and collapses repeats',
+      () {
+        final marketName = 'm_${List<String>.filled(40, 'a').join()}';
+        final personalName = 'u_${List<String>.filled(48, 'b').join()}';
+        final result = stickerLabelText(
+          'A [:sticker:$marketName:] [:sticker:$personalName:] '
+          '[:sticker:unknown:] [:sticker:$marketName:] '
+          '[:sticker:smile:] [:sticker:smile:] [:sticker:unknown:]',
+          <String, String>{
+            marketName: '/market.png',
+            personalName: '/personal.png',
+            'smile': '/smile.png',
+          },
+          labelForName: (name) =>
+              name.startsWith('m_') || name.startsWith('u_') ? '贴纸' : name,
+        );
+
+        expect(result, 'A [贴纸] [smile]');
+      },
+    );
+
+    test('text and an unknown token do not hide a later visible repeat', () {
+      expect(
+        stickerLabelText(
+          '[:sticker:smile:] 正文 [:sticker:unknown:] [:sticker:smile:]',
+          const <String, String>{'smile': '/smile.png'},
+        ),
+        '[smile] 正文 [smile]',
+      );
+    });
+  });
 }
