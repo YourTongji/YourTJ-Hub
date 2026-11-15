@@ -98,6 +98,7 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
   bool _bookmarkBusy = false;
   int _bookmarkVersion = 0;
   int _detailSeq = 0;
+  int _relatedSeq = 0;
   late final int _sessionEpoch;
 
   // 课评列表。
@@ -204,16 +205,25 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
   }
 
   Future<void> _loadRelated() async {
+    final int seq = ++_relatedSeq;
     final int epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _related = const AsyncValue.loading());
     try {
       final CourseRelatedResult result = await _repository.related(
         widget.courseId,
       );
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!mounted ||
+          seq != _relatedSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() => _related = AsyncValue.data(result));
     } catch (e, st) {
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!mounted ||
+          seq != _relatedSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() => _related = AsyncValue.error(e, st));
     }
   }

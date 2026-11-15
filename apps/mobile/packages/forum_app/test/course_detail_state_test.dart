@@ -29,6 +29,7 @@ class _Courses extends FakeCourseRepository {
   Completer<void>? pendingBookmark;
   final details = <int>[];
   final relatedCalls = <int>[];
+  final relatedPending = <Completer<CourseRelatedResult>>[];
   final requests = <_ReviewRequest>[];
   final bookmarks = <(int, bool)>[];
 
@@ -43,6 +44,9 @@ class _Courses extends FakeCourseRepository {
   @override
   Future<CourseRelatedResult> related(int courseId) {
     relatedCalls.add(courseId);
+    if (relatedPending.isNotEmpty) {
+      return relatedPending.removeAt(0).future;
+    }
     return super.related(courseId);
   }
 
@@ -119,6 +123,21 @@ ReviewListResult _reviews(int base, {String? cursor, int offeringId = 901}) =>
       total: cursor == null ? 10 : 20,
       nextCursor: cursor,
     );
+
+CourseRelatedResult _related(String name) => CourseRelatedResult(
+  teacherOtherCourses: [
+    RelatedCourseItem(
+      id: 7,
+      primaryCode: 'REL7',
+      name: name,
+      department: '测试学院',
+      ratingAvg: 0,
+      ratingCount: 0,
+      reviewCount: 0,
+    ),
+  ],
+  sameCourseOtherTeachers: const [],
+);
 
 void main() {
   late _Courses courses;
@@ -587,5 +606,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('收藏'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsNothing);
+  });
+
+  testWidgets('stale related refresh cannot overwrite a newer result', (
+    tester,
+  ) async {
+    await pumpDetail(tester);
+    final refreshIndicator = tester.widget<AppRefreshIndicator>(
+      find.byType(AppRefreshIndicator),
+    );
+    // Two overlapping refreshes: the first related response arrives late and
+    // must not replace the newer one.
+    final staleRelated = Completer<CourseRelatedResult>();
+    final freshRelated = Completer<CourseRelatedResult>();
+    courses.relatedPending.addAll([staleRelated, freshRelated]);
+    final firstRefresh = refreshIndicator.onRefresh();
+    await tester.pump();
+    final secondRefresh = refreshIndicator.onRefresh();
+    await tester.pump();
+    courses.requests[courses.requests.length - 2].result.complete(
+      _reviews(300),
+    );
+    courses.requests.last.result.complete(_reviews(400));
+    freshRelated.complete(_related('新课'));
+    await tester.pump();
+    staleRelated.complete(_related('旧课'));
+    await tester.pump();
+    await firstRefresh;
+    await secondRefresh;
+    await tester.pumpAndSettle();
+    expect(find.text('新课'), findsOneWidget);
+    expect(find.text('旧课'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }
