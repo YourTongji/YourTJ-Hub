@@ -48,7 +48,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 	"github.com/gin-gonic/gin"
 )
@@ -431,6 +435,15 @@ func TestHeadContractDynamicRoutesAreGetOnly(t *testing.T) {
 	// File download route (GET registered): a missing file answers 404 for
 	// both methods — GET from the file controller, HEAD from NoRoute — so
 	// status stays stable while the body never reaches the wire.
+	// GET first checks read references in the main database, then looks up
+	// the file in the separate file database. Ensure both schemas exist so
+	// this test also exercises the missing-file response when run alone.
+	if err := dbconnect.Connect().AutoMigrate(&fileUsage.Entity{}); err != nil {
+		t.Fatalf("migrate file usages for HEAD contract: %v", err)
+	}
+	if err := db4fileconnect.Connect().AutoMigrate(&filedata.Entity{}); err != nil {
+		t.Fatalf("migrate file data for HEAD contract: %v", err)
+	}
 	missingFile := "/file/img/definitely-not-a-real-file-411.png"
 	getFile := headContractRequest(t, client, http.MethodGet, srv.URL+missingFile, "")
 	_ = getFile.Body.Close()
