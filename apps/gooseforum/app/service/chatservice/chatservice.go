@@ -3,6 +3,7 @@ package chatservice
 import (
 	"context"
 	"errors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice/view"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/decorationservice"
 	"regexp"
 	"slices"
@@ -10,7 +11,7 @@ import (
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imConversations"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
@@ -35,11 +36,11 @@ const (
 )
 
 type MessageCursorResult struct {
-	List          []*vo.MessageVo `json:"list"`
-	HasMoreBefore bool            `json:"hasMoreBefore"`
-	HasMoreAfter  bool            `json:"hasMoreAfter"`
-	NextBeforeId  uint64          `json:"nextBeforeId"`
-	LatestId      uint64          `json:"latestId"`
+	List          []*view.MessageVo `json:"list"`
+	HasMoreBefore bool              `json:"hasMoreBefore"`
+	HasMoreAfter  bool              `json:"hasMoreAfter"`
+	NextBeforeId  uint64            `json:"nextBeforeId"`
+	LatestId      uint64            `json:"latestId"`
 }
 
 // SendMessage creates or updates a direct conversation and stores a message.
@@ -240,10 +241,10 @@ func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, cont
 }
 
 // GetChatList returns the current user's conversations.
-func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
+func GetChatList(userId uint64) ([]*view.ChatItemVo, error) {
 	configs := imUserChatConfigs.GetUserConfigs(userId)
 	if len(configs) == 0 {
-		return []*vo.ChatItemVo{}, nil
+		return []*view.ChatItemVo{}, nil
 	}
 
 	peerIds := lo.Map(configs, func(cfg imUserChatConfigs.Entity, _ int) uint64 {
@@ -257,11 +258,11 @@ func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
 	peerDecorations := decorationservice.EffectiveBatch(context.Background(), peerIds)
 	convs := imConversations.GetMapByIds(convIds)
 
-	list := lo.Map(configs, func(cfg imUserChatConfigs.Entity, _ int) *vo.ChatItemVo {
+	list := lo.Map(configs, func(cfg imUserChatConfigs.Entity, _ int) *view.ChatItemVo {
 		peer := peers[cfg.PeerId]
 		conv := convs[cfg.ConvId]
 
-		chatItem := &vo.ChatItemVo{
+		chatItem := &view.ChatItemVo{
 			Id:          cfg.Id,
 			PeerId:      cfg.PeerId,
 			UnreadCount: cfg.UnreadCount,
@@ -345,8 +346,8 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int, aro
 		}
 	}
 
-	list := lo.Map(msgs, func(m messages.Entity, _ int) *vo.MessageVo {
-		return &vo.MessageVo{
+	list := lo.Map(msgs, func(m messages.Entity, _ int) *view.MessageVo {
+		return &view.MessageVo{
 			Id:               m.Id,
 			SenderId:         m.SenderId,
 			Content:          messages.DisplayContent(m.Content, m.MsgType),

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-10-19
+> Last verified: 2026-11-12
 
 ## Identity model
 
@@ -147,6 +147,12 @@ credentials from account security after password reauthentication and TOTP when 
 sign-in requires user verification and issues the ordinary forum session; email/password recovery
 remains available. Device acceptance, including Android OEM credential-provider behavior, has not
 been completed.
+
+The mobile login page distinguishes a disabled or unsupported passkey option from a failed
+availability check. A failed server/device probe shows a localized retry hint; retrying checks only
+that option and does not disable password or other sign-in methods. Successful negative probes keep
+the passkey button hidden without an error. Retries are serialized and late results after leaving
+the page are ignored.
 
 On Android, Google, GitHub and Tongji use one RFC 8252 external-system-browser path. The app builds
 the authorization request itself with PKCE S256, independent `state` and `nonce`, and the provider
@@ -444,6 +450,24 @@ social counts and badges, and moderator access rules beyond today's public profi
   recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
   services and operations documentation.
 
+### Activation-token purpose boundary
+
+`Current`: email activation uses its own HMAC-SHA256-derived signing key and the
+`email-activation` audience. The parser requires HS256, an expiration time, a
+nonzero account ID and a nonblank target email. Session, TOTP challenge,
+password-reset and moderation credentials cannot serve as email proof. The
+handler still matches the current or fresh nonempty staged address and applies
+the existing conditional update; verifying the current address cancels a staged
+switch. Activation does not issue a session, change passwords or remove freezes.
+
+Legacy shared-key activation links are rejected without a compatibility fallback,
+including links already delivered or queued before this token format was enabled.
+Owners must sign in through their known site address and explicitly request a new
+link from email settings. No signing-key rotation, configuration change or database
+migration is needed. The queue checks only signature-validated expiry: legacy
+links fail signature validation, retain the ordinary delivery/retry path and can
+still arrive as unusable links. There is no automatic queue purge or renewal.
+
 ### Account email content and recovery
 
 `Current`: the existing activation, password-reset, completed-email-change and pending-email-change
@@ -545,7 +569,9 @@ URL configuration before asking owners to resend; see [deployment](../operations
 - `Partial`: external model execution/daily scheduling and Synergy Clarus/Holos processing depend on
   the operator's runner. The [runtime tutorial](../../examples/agent-runtime/README.md) supplies durable
   intake, daily keys and remote MCP configuration; live Synergy and production receivers need external
-  acceptance. OAuth/session/scopes for Agents remain `Planned`. The
+  acceptance. OAuth/session/scopes for Agents remain `Planned`. The discovery documents
+  `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource` are not
+  published. The MCP server card describes the existing static Bearer endpoint only. The
   [Agent runbook](../operations/agents.md) owns activation, limits, secrets and recovery.
 
 ## Credential transport & CSRF boundary

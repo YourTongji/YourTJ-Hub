@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-16
+> Last verified: 2026-11-12
 
 ## Content and publishing
 
@@ -36,8 +36,66 @@ Web、SSR 与 Flutter 的列表和详情均不展示标题（普通列表与首�
 本地恢复副本按账号、内容类型与编辑对象隔离，保留七天；无法确定归属的旧数据不恢复。
 输入防抖暂存，离开前刷新存储，清空输入后删除副本；上传中的图片也触发离开保护。
 `Current`：Web 编辑工具栏会按实际容器宽度和字数统计宽度，把放不下的操作移入“更多”菜单。320px 窄屏下仍可访问所有操作与字数统计；移动端预设不再假定主行一定放得下。收纳保留原按钮节点及其事件，不改变正文、撤销历史或提交内容；链接浮层的输入框在窄屏内换行，避免右侧字段被裁切；行内浮层使用不透明面板，避免正文透入输入区域。
+`Current`：Web 编辑器按场景提供三套工具栏，图标统一为同一套线性图标，按“标题／格式／结构／插入／历史”分组。
+长文（文章发布页）主行为标题、加粗／斜体／删除线／行内代码／链接、列表／有序列表／任务／引用、
+图片／表情／贴纸／表格／代码块／公式块、撤销／重做，再接导入、全屏与「更多」；不再显示开发者工具、导出、
+主题切换与录音。短文（提问、瞬间、快捷发布）与回复（含课程评价）以图片、表情、贴纸开头，低频结构操作
+收纳到「更多」或不提供。「更多」菜单与站点下拉菜单同一样式：每行图标＋完整名称，桌面端在右侧弱化显示
+快捷键（触控屏隐藏），用细线分组（长文为插入｜段落｜编辑模式｜预览与帮助）；编辑模式与回复里的标题是
+就地展开的单选组（当前模式带对勾，标题为 H1–H6 一排），不再弹出二级浮层；暂不可用的项（如光标不在列表时的
+缩进）降低透明度保留原位。窄屏放不下的主行按钮按原顺序收进菜单顶部；菜单在下方放不下时向上展开。
+编辑区边框、焦点环、悬停面与提示气泡使用站点设计令牌；编辑区正文与发布后阅读共用同一组阅读档位，
+编辑器自带的预览模式同样把贴纸 token 显示为图片。
+
+`Current`：Web 编辑器在所见即所得与即时渲染模式下提供浮动格式条与图片工具条。选中文字后，选区上方
+（触屏在下方，放不下时翻转）出现文本样式（正文／H1–H3）、加粗、斜体、删除线、行内代码、链接与引用，按钮
+只列出该编辑器工具栏里已有的操作，代码块与公式里不出现；单击正文图片会选中图片，显示主色选中框、左右拖动
+手柄与工具条（原始、33%、50%、75%、100% 宽度，替代文字，查看大图，删除），拖动手柄时显示吸附后的百分比，
+Backspace／Delete 删除、Esc 取消选中，双击图片直接预览。改动进入撤销栈。浮层挂在所在对话框（或页面）
+上，层级高于顶栏与吸顶工具栏（全屏编辑时高于全屏编辑器）、低于全局遮罩，横向不越出视口，滚出编辑区时隐藏；
+图片只露出一部分时，选中框裁到编辑区可见范围（扣除顶栏、吸顶工具栏与外层滚动容器），手柄移到露出部分中间；格式条或图片工具条出现时，
+编辑器自带的块浮层（引用、列表、表格、代码块、链接）暂时让位。块浮层使用同一浮层表面与按钮尺寸，窄屏输入框
+为 16px 以免 iOS 聚焦放大。
+`Current`：图片相对宽度（[MADR 0131](../decisions/0131-relative-image-width.md)）：图片地址末尾的
+`#w=<预设>`（25／33／50／66／75／100）让图片按正文宽度的百分比显示，窄屏上不小于 160px，且不再套用高度
+上限；只含图片的段落里相邻的指定宽度图片并排成居中的一行，放不下时换行。编辑区与发布后的阅读页按同一规则
+排版；不认识该规则的客户端仍按原尺寸显示。图片大图查看器支持滚轮／双指以指针处为中心缩放
+（1–4 倍）、放大后拖动平移、单击在适应屏幕与 2 倍间切换，`+`／`-`／`0` 键同样可用。
+`Partial`：App 阅读只在只含图片的段落里按指定宽度排版（并排、换行、不套高度上限）；图文混排段落里的
+指定宽度图片仍按普通行内图片显示。App 编辑器暂不提供宽度调节，只保留载入时已有的宽度标记。
+
+`Current`：阅读排版按内容类型分档：提问与回复 15px／行高 1.75，瞬间 16px，文章 17px／行高 1.85；
+段距、标题字号、块间距与图片高度上限（普通 360px，文章 640px 且不超过 80% 视口高度）随档位变化。
+引用使用左侧细线、不用斜体，图片带 1px 低透明描边；链接沿用主题色、无下划线，编辑区与之一致。
+这些规则只在 Web 前端样式中生效，不改变存储的 Markdown 与服务端渲染缓存，存量内容无需重新渲染即按新档位显示。
+
+`Current`：连续空行按写作时的样子显示（[MADR 0133](../decisions/0133-visible-blank-lines.md)）。编辑器里每多按一次 Enter
+留下的空段落，发布后是一行空白：高一行、沿用所在档位的段距，与编辑区里的空段等高；服务端、Web 预览（含编辑器
+自带预览）与 App 阅读使用同一规则，每处最多显示 3 行，多出的空行仍保存在原文中。重新打开草稿或已发布内容时，
+Web 编辑器的所见即所得、即时渲染与源码模式都保留这些空段，不再在二次编辑后丢失。规则只作用于段落、标题、图片、
+引用等顶层块之间；代码块、公式、同一列表的列表项之间与缩进续行保持 Markdown 原有含义。存储的 Markdown 不变，
+渲染版本升至 10，存量内容在下次访问时按新规则重新渲染；课程评价正文在渲染前仍合并连续空行。
+`Planned`：段内换行（Shift+Enter）与 Markdown 硬换行在 Web 编辑器中的往返保真（#1630 ED-01），目前 Shift+Enter
+不会生成换行。
+
+`Current`：Web 发布页工具栏提供「导入 Markdown」：选择或拖入一个本地 `.md`／`.markdown`／`.txt` 文件
+（最大 2 MiB），也可以选择或拖入文档所在的文件夹（含子文件夹；文件夹里有多份文档时先选择一份，同时有
+`.md` 与 `.txt` 时优先 Markdown）。导入器读取 front matter 的 `title` 或首个一级标题作为标题
+（仅在标题为空时填入，可关闭），把 HTML `<img>`、引用式图片与 Obsidian 图片嵌入 `![[…]]` 转换为 Markdown
+图片，去掉 HTML 注释，代码块内的内容保持原样。本地图片先按文档所在目录解析相对路径（含 `../`），再取
+唯一的最长路径后缀匹配；同名候选不唯一时不猜测。仍缺少的本地图片可补选（或拖入）文件夹或图片文件，
+一次性重新匹配并上传。网络图片由浏览器下载后，与本地图片、内嵌 data URL 图片一起经过与手动上传相同的
+校验、压缩与上传流程，审核链路不变；站内已有图片保持原地址。目标站点不允许跨域读取、文件不是图片
+或缺少本地文件时，可重试或手动选择替换图片；已上传的图片显示缩略图与匹配到的文件路径，可替换、不使用
+（导入时按未上传处理）、恢复，替换后可还原为替换前的上传。仍未解决或不使用的网络图片保留为普通链接，
+本地图片保留替代文字。被替换、不使用或取消导入而未进入正文的上传不立即删除，按上述未引用文件规则仅上传者
+可见并在 7 天后回收。发布页提交的 `images` 只在存在正文之外的独立图集时携带（图集优先、合计不超过
+服务端上限 9 张），否则由服务端从正文提取，图片较多的长文不会因图集上限被拒。
+正文为空时直接填入，已有正文时可选择插入到光标处或替换全文。服务端不代为抓取外部图片。
 
 `Current`：Web 快捷发布在离页、路由跳转和关闭确认前直接读取编辑器当前正文，再判断未保存状态和写入本机恢复稿，不等待编辑器的防抖回调。刚输入的尾字会纳入恢复稿；完整清空也会清除对应恢复稿，不让旧正文在下次打开时复活。保存服务端草稿与发布仍由用户明确触发。
+
+`Current`：Web 回复在页面离开、组件卸载和切换到楼层编辑前读取编辑器当前正文，保存按账号和主题隔离的本机恢复稿；取消楼层编辑会恢复切换前的完整回复。楼层编辑内容不会覆盖新回复恢复稿，切换账号或主题不会读取上一上下文的编辑器。
 
 移动端写作恢复与草稿规则见[移动端体验](mobile-experience.md)。
 
@@ -48,6 +106,7 @@ Web、SSR 与 Flutter 的列表和详情均不展示标题（普通列表与首�
 `Current`：Web 草稿箱显示最近 100 条服务端草稿，每条草稿分别提供「继续编辑」和「删除」操作。
 删除前确认草稿标题及影响；确认后使用现有作者删除流程将草稿移入「最近删除」，可在 30 天内恢复。
 删除成功后更新列表；达到 100 条窗口上限时重新读取服务端列表，补入后续草稿。
+普通删除在当前页立即显示成功提示，不留到之后刷新；需要重载补齐窗口时只排队一次提示，由重载后的页面消费。失败仍在确认框中显示错误并保留草稿供重试。
 Flutter 的本机恢复草稿与云端草稿删除入口和保留行为见[移动端体验](mobile-experience.md)。
 
 ## Private message permissions
@@ -82,6 +141,10 @@ Naming, yearly lock, quota, privacy, governance and retention are owned by
 their separate rules.
 
 ## Feed and reading
+
+`Current`：本人收藏列表混合展示主题和回复收藏。Web 与 Flutter 分页以收藏的 `(type, id)`
+组合识别条目：不同类型即使数字 ID 相同也同时保留，同一类型同号的重复条目不重复展示。
+Web 收藏列表的渲染 key 使用同一组合身份；保持服务端返回顺序和分页游标，不改动收藏记录。
 
 排序、推荐兼容、分页、质量统计和隐私的当前行为见[信息流排序](feed-ranking.md)。
 
@@ -123,7 +186,7 @@ Web 首页与分类页的最新回复排序将置顶话题收纳为紧凑标题�
 列表与卡片的正文摘要（`topics.excerpt`）保留正文里的 Markdown 转义与实体解码后的最终字符，
 并保留 `[:sticker:name:]` 贴纸 token，长度截断不会切开一个 token。展示按字号分两档：卡片与悬停预览
 把可解析的 token 渲染成图片（App 无标题瞬间的摘要占卡片标题位，同属卡片档）；列表行、置顶条、爬虫/无 JS 的 SSR 列表这类小字视图显示为 `[名字]` 文本，
-不渲染图片。两档都不回退字面量：未知、停用贴纸在预览里省略；个人 `u_*` 贴纸在 Web/App
+不渲染图片。App 列表行和置顶条将生成的 `m_*`、`u_*` 贴纸名换成本地化 `[表情]`/`[Sticker]` 短占位，保留可读官方贴纸名称；相邻重复贴纸占位折叠为一个。若帖子含图片，App 列表在摘要前加一个本地化 `[图片]`/`[Image]` 占位，依据已有 `images` 或 `firstImageUrl` 元数据，因此历史摘要无需重写或数据迁移；若旧记录同时缺少两种图片元数据，文本摘要本身不含图片信息，客户端无法推断图片。卡片模式继续渲染图片和贴纸，Web 展示规则不变。两档都不回退字面量：未知、停用贴纸在预览里省略；个人 `u_*` 贴纸在 Web/App
 客户端预览与帖内正文一致展开（resolve 接口只查启用状态），仅在 SSR 爬虫列表省略——公开可索引的
 HTML 不嵌入个人对象存储的图片链接。纯文本落点
 （通知、点赞/收藏预览、我的内容与已删内容列表、草稿列表、后台话题列表、版主审核队列、Agent 话题列表、
@@ -220,6 +283,18 @@ Web 通知链接优先 `/p/post/{topicId}/{postNo}`，无楼层号时保留历�
 仅发送改动字段，旧客户端保存样式不会重置分类；保存失败保留原值并可重试。
 账号存储与客户端边界见[决策 0118](../decisions/0118-account-unread-display.md)。
 
+`Current`：本地通知与私信的已读结果分别优先于此前发起的轮询，不影响另一未读域更新。
+通知仅在服务端确认单条或全部已读后推进版本，乐观行状态与列表、页面快照不推进该版本。
+通知列表保留未筛选总数，导航角标独立刷新服务端的分类筛选计数，不用列表总数覆盖角标。
+已读确认前发起的列表不能恢复旧未读行，失效后自动重新加载；单条已读确认或失败时，若页面已换用更新的列表或同账号新 payload（含被用户钉住的分类跳过列表替换的情形），也重新加载行状态与总数。
+单条已读失败只回滚自身实际扣减的数量，并按服务端的 ID 倒序恢复未读行位置；
+已有更新的已读结果或列表快照时重新加载列表，避免回滚其他操作。
+已读等待期间落地的轮询快照（含更早发起、在已读提交后才返回的轮询）可能已包含该次已读，
+确认后按服务端结果重新对账，不重复递减计数。
+通知列表和已读异步结果按账号代际隔离，退出后重新登录同一账号也会丢弃旧结果；
+账号切换时复位页面的加载状态。页面导航的未读快照仍由 AppShell 同步到角标，后续轮询可以显示新未读，
+缓存计数与合并后的显示状态一致。
+
 `Current`：账号级 Push 分为私信、提及和回复、赞、关注动态、系统与审核五组，Web/App/Android 通道共用同一措辞。
 提及、回复、私信默认开；赞、关注、订阅及 Wiki 默认静默；系统默认只提醒审核通过/拒绝，
 显式开启系统组才包含徽章、候审及普通系统事件。修改只保存变动的组，保留其他组的默认值。
@@ -246,7 +321,9 @@ Flutter 的课评与 Wiki 正文走服务端 HTML 渲染，该路径同样无下
 
 `Current`：Web／Flutter 将独占段落的 HTTP(S) URL 渲染为最多五张预览卡片，普通链接、代码、表格和
 图片地址不转换。站内元数据本地读取；第三方请求经过有界 SSRF 防护。校园网域名仅从配置生成卡片，
-不访问私网；失败保留原链接。外链确认显示域名与完整 URL，已识别的风险不继承会话信任，
+不访问私网；失败保留原链接。第三方预览每个解析器最多保留 32 个不同 URL 的共享工作，
+过载立即降级；每项工作共享覆盖排队、抓取及解析的 6 秒预算，最后一个等待者取消时终止，
+单个等待者取消不影响仍在等待的其他请求。调用方取消或整体预算耗尽的结果不写入缓存。外链确认显示域名与完整 URL，已识别的风险不继承会话信任，
 Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课评正文。
 
 `Current`：独占段落的 B 站公开视频与 Apple Music 歌曲／专辑链接显示平台卡片，标出资源类型、
@@ -292,7 +369,7 @@ canonical、prev/next 与 `og:`／`twitter:`／`article:` meta 视页面是否�
 片段只由服务器写入 HTML `<head>`，不进入内嵌 `goose-payload` 或 `X-Goose-Page` 页面 JSON；
 Web 与 Flutter 的页面数据模型不承载这段 HTML，管理端站点设置的读写契约保持不变。
 
-`Current`：阅读渲染支持 Mermaid、KaTeX、`\(...\)`、`\[...\]` 与常见数学环境。
+`Current`：阅读渲染支持 Mermaid、KaTeX、`\(...\)`、`\[...\]` 与常见数学环境；App 按同一套分隔符渲染公式（见移动端体验文档）。
 `Planned`：Vditor 对替代数学分隔符的所见即所得预览；保存及阅读不受此编辑器限制影响。
 
 `Current`：官方表情目录、管理员 CRUD／zip 导入及个人 token 渲染可用；Flutter 提供最近／我的／官方
@@ -407,6 +484,24 @@ HTTP 通知发送失败后复用数据库任务队列有限重试：每次检查
 耗时上限约束，截断明确标记。Agent API 与 MCP 的认证、写入开关和未实现唤醒链路见
 [身份规范](identity-and-access.md)与[契约与数据](../architecture/contracts-and-data.md)。
 
+`Current`：`robots.txt` 在既有 `User-agent: *` 组声明
+`Content-Signal: search=yes, ai-input=yes, ai-train=no`。允许搜索索引和作为模型输入，不允许训练。
+Allow、Sitemap 与 Disallow 保持不变。取舍见[决策 0130](../decisions/0130-community-content-signals.md)。
+
+`Current`：首页在 `Accept` 明确把 `text/markdown` 的质量值标得高于 `text/html` 时返回 Markdown，
+`Content-Type` 为 `text/markdown`。索引开启时正文就是 llms.txt 索引；关闭时只返回站点标题与简介。
+未带该偏好、质量值相同，或 `text/*`、`*/*` 给出的有效质量值不低于 Markdown 的请求仍是 HTML。
+更具体的媒体类型优先。首页 Markdown 使用 `Cache-Control: private, no-store`，避免会话刷新写入的 `New-Token` 和 `access_token` 进入共享缓存。
+`for_you` 与 `following` 在偏好 Markdown 时不返回个性化信息流，而是同一份公开文档。
+`X-Goose-Page` 仍返回 JSON。
+索引开启时这次响应共用 `/llms.txt` 的限流配额；索引关闭时的短文档不占用该配额。
+HTML、Markdown 和首页 JSON 都带 RFC 8288 `Link`，`rel="describedby"` 指向 `/llms.txt` 与 `/llms-full.txt`。
+
+`Current`：`GET /.well-known/mcp/server-card.json` 按 SEP-1649 描述已经挂载的 `/mcp` streamable HTTP 服务。
+卡片 schema 版本是 `1.0`，`serverInfo.version` 是构建版本，`authentication.schemes` 只有 `bearer`。
+卡片不含凭证，也不声明 OAuth。
+`/.well-known/oauth-authorization-server` 与 `/.well-known/oauth-protected-resource` 不发布。
+
 ## Content contribution statistics
 
 `Current`：四个贡献统计查询共用 `admin.stats` 限流，缺省每账号 60 秒内 60 次，无共享 IP 配额。
@@ -459,3 +554,25 @@ minutes; subsequent reads enforce the current reference state. Errors, orphan up
 previews, untracked legacy images and ordinary topic images retain their existing no-store policy.
 The market-sticker cache policy is independent. See the
 [cache decision](../decisions/0125-public-avatar-cache.md).
+
+`Current`: reply windows filter other authors’ pending replies before applying their
+page limit, including initial topic windows and forward, reverse and anchored API
+windows. Authors retain their own pending replies; moderators retain their existing
+review visibility. Web and App can page across long hidden runs without receiving
+an empty nonterminal window or pending content. Deleted/removed placeholders keep
+their existing behavior; total/max floor numbers retain their existing semantics.
+
+## Aggregate search counts and pagination
+
+`Current`: Web topic search, including the topic section of “all”, paginates in
+10-result pages and preserves the query and scope in navigation. Counts remain search-index
+estimates; when current database visibility filters every topic on a page, previous/next
+navigation remains available so later visible topics can still be reached. The topic empty
+state describes only the current page and does not imply that other scopes have no results.
+Page inputs are clamped before offset multiplication to keep the offset plus page size within the server
+integer range. Other scopes use
+their existing single-page limit. Scope tabs show counts only for queried, successful
+indexes; unknown or failed counts are hidden. The “all” tab has no badge, and its
+page description sums topic, member, category and course counts only when every queried
+index succeeds. During partial failure or unavailable search, the description shows the
+query without a count; successful scope badges remain visible during partial failure.

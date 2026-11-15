@@ -18,7 +18,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/datastruct/message"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
@@ -56,20 +56,20 @@ func CheckDeleteRate(userID uint64, count int, force bool, password string) erro
 		string(contentDeleteEvent.EventDeleted), string(contentDeleteEvent.EventPrivacyDelete),
 	}, time.Now().Add(-deleteConfirmWindow))
 	if err != nil {
-		return component.NewMessageError(component.MessageOperationFailed, "删除频率检查失败", nil)
+		return message.NewMessageError(message.MessageOperationFailed, "删除频率检查失败", nil)
 	}
 	if recent+int64(count) <= deleteConfirmLimit {
 		return nil
 	}
 	if !force {
-		return component.NewMessageError(component.MessageContentBatchConfirmRequired, "短时间内删除过多，需要二次确认", component.MessageParams{"count": recent + int64(count)})
+		return message.NewMessageError(message.MessageContentBatchConfirmRequired, "短时间内删除过多，需要二次确认", message.MessageParams{"count": recent + int64(count)})
 	}
 	user, err := users.Get(userID)
 	if err != nil || user.Id == 0 {
-		return component.NewMessageError(component.MessageUserFetchFailed, "用户不存在", nil)
+		return message.NewMessageError(message.MessageUserFetchFailed, "用户不存在", nil)
 	}
 	if _, err := users.Verify(user.Username, password); err != nil {
-		return component.NewMessageError(component.MessageAuthInvalidCredentials, "密码错误", nil)
+		return message.NewMessageError(message.MessageAuthInvalidCredentials, "密码错误", nil)
 	}
 	return nil
 }
@@ -95,10 +95,10 @@ const (
 func DeleteTopicByUser(userID uint64, topicID uint64) error {
 	topic := topics.Get(topicID)
 	if topic.Id == 0 {
-		return component.NewMessageError(component.MessageTopicNotFound, "话题不存在", nil)
+		return message.NewMessageError(message.MessageTopicNotFound, "话题不存在", nil)
 	}
 	if topic.UserId != userID {
-		return component.NewMessageError(component.MessageTopicOwnerMismatch, "不能删除他人的话题", nil)
+		return message.NewMessageError(message.MessageTopicOwnerMismatch, "不能删除他人的话题", nil)
 	}
 	return DeleteTopicAs(topic, userID, topics.VisibilityUserDeleted, "")
 }
@@ -115,12 +115,12 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 	var activePosts []*posts.Entity
 	if !hasReplies {
 		if err := posts.ListByTopicID(topic.Id, &activePosts); err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除话题失败", message.MessageParams{"error": err.Error()})
 		}
 	}
 
 	if err := markTopicDeleted(topic.Id, visibility, operatorID, reason); err != nil {
-		return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
+		return message.NewMessageError(message.MessageContentDeleteFailed, "删除话题失败", message.MessageParams{"error": err.Error()})
 	}
 
 	// wiki 分站页面话题：同步清理 wiki_pages 及其修订，避免删除话题后残留
@@ -129,10 +129,10 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 		if page := wikiPages.GetByTopicIdUnscoped(topic.Id); page.Id != 0 {
 			pageID := page.Id
 			if err := wikiPageRevisions.DeleteByPage(page.Id); err != nil {
-				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
+				return message.NewMessageError(message.MessageContentDeleteFailed, "删除话题失败", message.MessageParams{"error": err.Error()})
 			}
 			if err := wikiPages.Delete(page.Id); err != nil {
-				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
+				return message.NewMessageError(message.MessageContentDeleteFailed, "删除话题失败", message.MessageParams{"error": err.Error()})
 			}
 			deleteWikiPageSearchIndex(pageID)
 			wikiservice.InvalidateTreeCache()
@@ -163,7 +163,7 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 		firstPost := posts.Get(topic.FirstPostId)
 		if firstPost.Id > 0 {
 			if err := posts.MarkDeletedKeepVisible(firstPost.Id, visibility, operatorID, cascadeReason); err != nil {
-				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题首帖失败", component.MessageParams{"error": err.Error()})
+				return message.NewMessageError(message.MessageContentDeleteFailed, "删除话题首帖失败", message.MessageParams{"error": err.Error()})
 			}
 			fileusageservice.HardenTargetFiles(postsTarget(firstPost.Id), time.Now().Add(RecoveryWindow))
 		}
@@ -241,17 +241,17 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		loaded, err := posts.GetUnscopedTx(tx, postID)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+			return message.NewMessageError(message.MessagePostNotFound, "回复不存在", nil)
 		}
 		if err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除回复失败", message.MessageParams{"error": err.Error()})
 		}
 		if loaded.PostNo <= 1 {
-			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+			return message.NewMessageError(message.MessagePostNotFound, "回复不存在", nil)
 		}
 		post = loaded
 		if post.UserId != userID {
-			return component.NewMessageError(component.MessageTopicOperationDenied, "不能删除他人的回复", nil)
+			return message.NewMessageError(message.MessageTopicOperationDenied, "不能删除他人的回复", nil)
 		}
 		// Content fences precede reward/user locks, matching event materialization.
 		// Holding the topic also keeps the child check consistent with new replies.
@@ -261,20 +261,20 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 
 		hasChildren, err := posts.HasChildrenTx(tx, postID)
 		if err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除回复失败", message.MessageParams{"error": err.Error()})
 		}
 		result.HasChildren = hasChildren
 		if post.VisibilityStatus != posts.VisibilityActive || post.RetentionStatus != posts.RetentionNormal {
 			if IsSelfDeletedRecoverableReply(post, userID) {
-				return component.NewMessageError(component.MessagePostAlreadyDeleted, "回复已删除，无需重复操作", nil)
+				return message.NewMessageError(message.MessagePostAlreadyDeleted, "回复已删除，无需重复操作", nil)
 			}
-			return component.NewMessageError(component.MessageTopicOperationDenied, "该回复已被处理", nil)
+			return message.NewMessageError(message.MessageTopicOperationDenied, "该回复已被处理", nil)
 		}
 
 		// Reward reversal and content deletion must commit or roll back together.
 		// ReversePostRewardTx is idempotent through the deletion tombstone key.
 		if err := pointservice.ReversePostRewardTx(tx, post.UserId, postID); err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除回复失败", message.MessageParams{"error": err.Error()})
 		}
 		if hasChildren {
 			err = posts.MarkUserDeletedKeepVisibleTx(tx, postID, userID, "")
@@ -282,11 +282,11 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 			err = posts.MarkUserDeletedTx(tx, postID, userID, "")
 		}
 		if err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除回复失败", message.MessageParams{"error": err.Error()})
 		}
 		// 作废待审状态：被删回复不应继续停留在管理审核队列（PRD R1）。
 		if err := posts.ResetPendingReviewTx(tx, postID); err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除回复失败", message.MessageParams{"error": err.Error()})
 		}
 		if err := agenteventservice.WithdrawContentTx(tx, post.TopicId, postID); err != nil {
 			return err
@@ -319,22 +319,22 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 // DeletePostAsModerator 管理员删除回复（治理删除），作者不可自行恢复。
 func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) error {
 	if strings.TrimSpace(reason) == "" {
-		return component.NewMessageError(component.MessageRequestInvalidParams, "管理员删除回复必须填写原因", nil)
+		return message.NewMessageError(message.MessageRequestInvalidParams, "管理员删除回复必须填写原因", nil)
 	}
 	var post posts.Entity
 	if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		loaded, err := posts.GetUnscopedTx(tx, postID)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+			return message.NewMessageError(message.MessagePostNotFound, "回复不存在", nil)
 		}
 		if err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除回复失败", message.MessageParams{"error": err.Error()})
 		}
 		post = loaded
 		// 首楼守卫：治理删除话题应走 admin/topics/delete，不允许通过回复删除端点
 		// 删除话题首楼（否则话题渲染/搜索索引/统计错乱，review H3）。
 		if post.PostNo <= 1 {
-			return component.NewMessageError(component.MessageRequestInvalidParams, "不能删除话题首楼，请使用话题删除", nil)
+			return message.NewMessageError(message.MessageRequestInvalidParams, "不能删除话题首楼，请使用话题删除", nil)
 		}
 		// 幂等：已 PURGED 或隐私擦除（ACCOUNT_ANONYMIZED）的内容不再处理。
 		if post.RetentionStatus == posts.RetentionPurged {
@@ -351,14 +351,14 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 		}
 		// Reward reversal and moderator deletion must commit or roll back together.
 		if err := pointservice.ReversePostRewardTx(tx, post.UserId, postID); err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除回复失败", message.MessageParams{"error": err.Error()})
 		}
 		if err := posts.MarkModeratorRemovedTx(tx, postID, moderatorID, reason); err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除回复失败", message.MessageParams{"error": err.Error()})
 		}
 		// 作废待审状态：被删回复不应继续停留在管理审核队列（PRD R1）。
 		if err := posts.ResetPendingReviewTx(tx, postID); err != nil {
-			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentDeleteFailed, "删除回复失败", message.MessageParams{"error": err.Error()})
 		}
 		if err := agenteventservice.WithdrawContentTx(tx, post.TopicId, postID); err != nil {
 			return err
@@ -393,13 +393,13 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 	case ContentTypeTopic:
 		topic := topics.UnscopedGet(contentID)
 		if topic.Id == 0 || topic.UserId != userID {
-			return component.NewMessageError(component.MessageTopicNotFound, "话题不存在", nil)
+			return message.NewMessageError(message.MessageTopicNotFound, "话题不存在", nil)
 		}
 		if err := checkRestorable(topic.VisibilityStatus, topic.RetentionStatus, topic.DeletedAt.Time); err != nil {
 			return err
 		}
 		if err := topics.Restore(contentID); err != nil {
-			return component.NewMessageError(component.MessageContentRestoreFailed, "恢复话题失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentRestoreFailed, "恢复话题失败", message.MessageParams{"error": err.Error()})
 		}
 		restoreTopicPosts(topic.Id, userID)
 		restoreWikiTopicPages(topic)
@@ -416,14 +416,14 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 	case ContentTypePost:
 		post := posts.UnscopedGet(contentID)
 		if post.Id == 0 || post.UserId != userID {
-			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+			return message.NewMessageError(message.MessagePostNotFound, "回复不存在", nil)
 		}
 		if post.PostNo <= 1 {
-			return component.NewMessageError(component.MessageContentNotRecoverable, "话题首楼不能单独恢复", nil)
+			return message.NewMessageError(message.MessageContentNotRecoverable, "话题首楼不能单独恢复", nil)
 		}
 		topic := topics.UnscopedGet(post.TopicId)
 		if topic.VisibilityStatus != topics.VisibilityActive || topic.RetentionStatus != topics.RetentionNormal {
-			return component.NewMessageError(component.MessageContentNotRecoverable, "话题仍处于删除状态，不能单独恢复首楼", nil)
+			return message.NewMessageError(message.MessageContentNotRecoverable, "话题仍处于删除状态，不能单独恢复首楼", nil)
 		}
 		// 墓碑态行 deleted_at 为空，以 updated_at 作为删除时刻的近似。
 		deletedAt := post.DeletedAt.Time
@@ -434,7 +434,7 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 			return err
 		}
 		if err := posts.Restore(contentID); err != nil {
-			return component.NewMessageError(component.MessageContentRestoreFailed, "恢复回复失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentRestoreFailed, "恢复回复失败", message.MessageParams{"error": err.Error()})
 		}
 		// 恢复回补创建奖励（先清除删除回滚墓碑，否则积分永久丢失）。
 		reapplyPostReward(post.UserId, post.Id)
@@ -453,22 +453,22 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 		recordEvent(contentDeleteEvent.EventRestored, ContentTypePost, post.Id, post.TopicId, userID)
 		return nil
 	default:
-		return component.NewMessageError(component.MessageRequestInvalidParams, "无效的内容类型", nil)
+		return message.NewMessageError(message.MessageRequestInvalidParams, "无效的内容类型", nil)
 	}
 }
 
 func checkRestorable(visibility string, retention string, deletedAt time.Time) error {
 	if visibility == topics.VisibilityModeratorRemoved {
-		return component.NewMessageError(component.MessageContentNotRecoverable, "该内容不可由作者恢复", nil)
+		return message.NewMessageError(message.MessageContentNotRecoverable, "该内容不可由作者恢复", nil)
 	}
 	if retention == topics.RetentionPurged {
-		return component.NewMessageError(component.MessageContentNotRecoverable, "该内容已永久删除", nil)
+		return message.NewMessageError(message.MessageContentNotRecoverable, "该内容已永久删除", nil)
 	}
 	if retention != topics.RetentionRecoverable {
-		return component.NewMessageError(component.MessageContentNotRecoverable, "该内容不在恢复期", nil)
+		return message.NewMessageError(message.MessageContentNotRecoverable, "该内容不在恢复期", nil)
 	}
 	if time.Since(deletedAt) > RecoveryWindow {
-		return component.NewMessageError(component.MessageContentRecoveryExpired, "已超出恢复窗口", nil)
+		return message.NewMessageError(message.MessageContentRecoveryExpired, "已超出恢复窗口", nil)
 	}
 	return nil
 }
@@ -548,13 +548,13 @@ func deleteWikiPageSearchIndex(pageID uint64) {
 func RestoreTopicAsModerator(moderatorID uint64, topicID uint64) error {
 	topic := topics.UnscopedGet(topicID)
 	if topic.Id == 0 {
-		return component.NewMessageError(component.MessageTopicNotFound, "话题不存在", nil)
+		return message.NewMessageError(message.MessageTopicNotFound, "话题不存在", nil)
 	}
 	if topic.VisibilityStatus != topics.VisibilityModeratorRemoved || topic.RetentionStatus != topics.RetentionRecoverable {
-		return component.NewMessageError(component.MessageContentNotRecoverable, "该话题不可由管理端恢复", nil)
+		return message.NewMessageError(message.MessageContentNotRecoverable, "该话题不可由管理端恢复", nil)
 	}
 	if err := topics.Restore(topicID); err != nil {
-		return component.NewMessageError(component.MessageContentRestoreFailed, "恢复话题失败", component.MessageParams{"error": err.Error()})
+		return message.NewMessageError(message.MessageContentRestoreFailed, "恢复话题失败", message.MessageParams{"error": err.Error()})
 	}
 	restoreModeratorRemovedTopicPosts(topic, moderatorID)
 	restoreWikiTopicPages(topic)
@@ -613,10 +613,10 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 	case ContentTypeTopic:
 		topic := topics.UnscopedGet(contentID)
 		if topic.Id == 0 || topic.UserId != userID {
-			return component.NewMessageError(component.MessageTopicNotFound, "话题不存在", nil)
+			return message.NewMessageError(message.MessageTopicNotFound, "话题不存在", nil)
 		}
 		if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
-			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
+			return message.NewMessageError(message.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
 		}
 		if err := checkPurgeable(topic.VisibilityStatus, topic.RetentionStatus); err != nil {
 			return err
@@ -625,7 +625,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 			if errors.Is(err, gorm.ErrRecordNotFound) && topic.RetentionStatus == topics.RetentionPurged {
 				return nil
 			}
-			return component.NewMessageError(component.MessageContentPurgeFailed, "永久删除失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentPurgeFailed, "永久删除失败", message.MessageParams{"error": err.Error()})
 		}
 		purgeTopicPosts(contentID, topic.UserId)
 		fileusageservice.RetireTargetFiles(topicsTarget(contentID))
@@ -643,10 +643,10 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 	case ContentTypePost:
 		post := posts.UnscopedGet(contentID)
 		if post.Id == 0 || post.UserId != userID {
-			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+			return message.NewMessageError(message.MessagePostNotFound, "回复不存在", nil)
 		}
 		if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
-			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
+			return message.NewMessageError(message.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
 		}
 		if err := checkPurgeable(post.VisibilityStatus, post.RetentionStatus); err != nil {
 			return err
@@ -655,7 +655,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 			if errors.Is(err, gorm.ErrRecordNotFound) && post.RetentionStatus == posts.RetentionPurged {
 				return nil
 			}
-			return component.NewMessageError(component.MessageContentPurgeFailed, "永久删除失败", component.MessageParams{"error": err.Error()})
+			return message.NewMessageError(message.MessageContentPurgeFailed, "永久删除失败", message.MessageParams{"error": err.Error()})
 		}
 		// 对 ACTIVE 话题的首楼不可达：checkPurgeable 要求先进入
 		// USER_DELETED+RECOVERABLE，而首楼受 DeletePostByUser 的 PostNo<=1
@@ -680,13 +680,13 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 		recordEvent(contentDeleteEvent.EventPermanentDelete, ContentTypePost, contentID, post.TopicId, userID)
 		return nil
 	default:
-		return component.NewMessageError(component.MessageRequestInvalidParams, "无效的内容类型", nil)
+		return message.NewMessageError(message.MessageRequestInvalidParams, "无效的内容类型", nil)
 	}
 }
 
 func checkPurgeable(visibility string, retention string) error {
 	if visibility != topics.VisibilityUserDeleted || retention != topics.RetentionRecoverable {
-		return component.NewMessageError(component.MessageContentNotRecoverable, "该内容不允许由作者永久删除", nil)
+		return message.NewMessageError(message.MessageContentNotRecoverable, "该内容不允许由作者永久删除", nil)
 	}
 	return nil
 }

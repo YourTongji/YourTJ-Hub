@@ -1,0 +1,324 @@
+/*
+ * 编辑器浮层（选区格式条、图片工具条与选中框），见 EditorSelectionToolbar / EditorImageToolbar。
+ * 浮层 position: fixed，挂在最近的对话框或 body 上，层级高于顶栏（z-50）与吸顶工具栏、
+ * 低于全局遮罩（z-80 起）；可见范围扣除顶栏、吸顶工具栏与会裁切的滚动容器；圆角与内侧按钮同心（外 = 内 + 4px 内边距）。
+ */
+@layer components {
+  .gf-editor-float {
+    position: fixed;
+    z-index: 75;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    max-width: calc(100vw - 1rem);
+    padding: 4px;
+    border-radius: calc(var(--gf-radius-field) + 4px);
+    color: var(--gf-color-base-content);
+    pointer-events: auto;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  /* 全屏编辑器（Vditor z-90）之上，仍低于大图查看器 */
+  body:has(.vditor--fullscreen) .gf-editor-image-frame {
+    z-index: 91;
+  }
+
+  body:has(.vditor--fullscreen) .gf-editor-float {
+    z-index: 92;
+  }
+
+  .gf-editor-float-button {
+    display: inline-flex;
+    height: 2rem;
+    min-width: 2rem;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    border-radius: var(--gf-radius-field);
+    color: color-mix(in oklch, var(--gf-color-base-content) 72%, transparent);
+    transition-property: background-color, color, scale;
+    transition-duration: 0.12s;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-editor-float-button:hover {
+    background: color-mix(in oklch, var(--gf-color-base-content) 7%, transparent);
+    color: var(--gf-color-base-content);
+  }
+
+  .gf-editor-float-button:active {
+    scale: 0.96;
+  }
+
+  .gf-editor-float-button:focus-visible,
+  .gf-editor-float-segment:focus-visible,
+  .gf-editor-float-menu-item:focus-visible {
+    outline: 2px solid color-mix(in oklch, var(--gf-color-primary) 60%, transparent);
+    outline-offset: -2px;
+  }
+
+  .gf-editor-float-button.is-active {
+    background: color-mix(in oklch, var(--gf-color-primary) 12%, transparent);
+    color: var(--gf-color-primary);
+  }
+
+  .gf-editor-float-button--text {
+    padding-inline: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  .gf-editor-float-button--primary {
+    background: var(--gf-color-primary);
+    color: var(--gf-color-primary-content);
+  }
+
+  .gf-editor-float-button--primary:hover {
+    background: color-mix(in oklch, var(--gf-color-primary) 88%, var(--gf-color-base-content));
+    color: var(--gf-color-primary-content);
+  }
+
+  .gf-editor-float-button--danger:hover {
+    background: color-mix(in oklch, var(--gf-color-error) 12%, transparent);
+    color: var(--gf-color-error);
+  }
+
+  .gf-editor-float-divider {
+    width: 1px;
+    height: 1.125rem;
+    flex: none;
+    margin-inline: 3px;
+    background: var(--gf-color-line);
+  }
+
+  /* 分段宽度切换：选中块是一枚滑动的底色，切换时平移而不是闪烁 */
+  .gf-editor-float-segments {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    padding: 2px;
+    border-radius: var(--gf-radius-field);
+    background: color-mix(in oklch, var(--gf-color-base-content) 5%, transparent);
+  }
+
+  .gf-editor-float-segment-indicator {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 0;
+    border-radius: calc(var(--gf-radius-field) - 2px);
+    background: var(--gf-color-base-100);
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--gf-color-base-content) 8%, transparent),
+      0 1px 2px oklch(0 0 0 / 0.08);
+    transition-property: transform, width;
+    transition-duration: 0.2s;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-editor-float-segment {
+    position: relative;
+    height: 1.75rem;
+    min-width: 2.25rem;
+    padding-inline: 0.375rem;
+    border-radius: calc(var(--gf-radius-field) - 2px);
+    color: color-mix(in oklch, var(--gf-color-base-content) 60%, transparent);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: color 0.12s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-editor-float-segment:hover:not(:disabled) {
+    color: var(--gf-color-base-content);
+  }
+
+  .gf-editor-float-segment[aria-pressed='true'] {
+    color: var(--gf-color-base-content);
+  }
+
+  .gf-editor-float-segment:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  /* 窄屏（≤ 400px）：收紧分段与间距，让图片工具条在 320px 宽的手机上也不越出视口 */
+  @media (max-width: 400px) {
+    .gf-editor-float {
+      gap: 0;
+    }
+
+    .gf-editor-float-segment {
+      min-width: 2rem;
+      padding-inline: 0.25rem;
+    }
+
+    .gf-editor-float-divider {
+      margin-inline: 2px;
+    }
+  }
+
+  .gf-editor-float-input {
+    width: min(16rem, calc(100vw - 7rem));
+    height: 2rem;
+    padding-inline: 0.625rem;
+    border: var(--gf-border) solid var(--gf-color-line);
+    border-radius: var(--gf-radius-field);
+    background: var(--gf-color-base-100);
+    color: var(--gf-color-base-content);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+
+  @media (min-width: 640px) {
+    .gf-editor-float-input {
+      font-size: 0.875rem;
+    }
+  }
+
+  .gf-editor-float-input:focus {
+    border-color: color-mix(in oklch, var(--gf-color-primary) 60%, var(--gf-color-line));
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--gf-color-primary) 14%, transparent);
+  }
+
+  /* 文本样式下拉：出现在格式条下方，选项按标题字号预览 */
+  .gf-editor-float-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: -4px;
+    z-index: 1;
+    display: flex;
+    min-width: 9.5rem;
+    flex-direction: column;
+    gap: 1px;
+    padding: 4px;
+    border-radius: calc(var(--gf-radius-field) + 4px);
+  }
+
+  .gf-editor-float-menu-item {
+    display: flex;
+    min-height: 2rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding-inline: 0.625rem;
+    border-radius: var(--gf-radius-field);
+    color: color-mix(in oklch, var(--gf-color-base-content) 82%, transparent);
+    font-size: 0.875rem;
+    text-align: start;
+    transition: background-color 0.12s;
+  }
+
+  .gf-editor-float-menu-item:hover {
+    background: color-mix(in oklch, var(--gf-color-base-content) 6%, transparent);
+  }
+
+  .gf-editor-float-menu-item--h1 { font-size: 1.0625rem; font-weight: 700; }
+  .gf-editor-float-menu-item--h2 { font-size: 0.9875rem; font-weight: 700; }
+  .gf-editor-float-menu-item--h3 { font-size: 0.9375rem; font-weight: 600; }
+
+  /* 图片选中框：主色描边与图片同圆角；左右手柄是胶囊形把手，热区比可见部分大 */
+  .gf-editor-image-frame {
+    position: fixed;
+    z-index: 74;
+    border-radius: 0.5rem;
+    box-shadow:
+      0 0 0 2px var(--gf-color-primary),
+      0 0 0 6px color-mix(in oklch, var(--gf-color-primary) 16%, transparent);
+    pointer-events: none;
+    animation: gf-editor-image-frame-in 0.16s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-editor-image-handle {
+    position: absolute;
+    top: var(--gf-frame-visible-middle, 50%);
+    width: 6px;
+    height: min(2.5rem, 40%);
+    min-height: 1.25rem;
+    translate: 0 -50%;
+    border-radius: 999px;
+    background: var(--gf-color-base-100);
+    box-shadow:
+      0 0 0 1.5px var(--gf-color-primary),
+      0 1px 3px oklch(0 0 0 / 0.18);
+    cursor: ew-resize;
+    pointer-events: auto;
+    touch-action: none;
+    transition: scale 0.12s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-editor-image-handle::after {
+    content: '';
+    position: absolute;
+    inset: -0.75rem -0.625rem;
+  }
+
+  .gf-editor-image-handle:hover,
+  .gf-editor-image-frame.is-dragging .gf-editor-image-handle {
+    scale: 1.15 1.08;
+    background: var(--gf-color-primary);
+  }
+
+  .gf-editor-image-handle--left { left: -3px; }
+  .gf-editor-image-handle--right { right: -3px; }
+
+  .gf-editor-image-badge {
+    position: absolute;
+    top: calc(var(--gf-frame-visible-top, 0px) + 0.5rem);
+    left: 50%;
+    translate: -50% 0;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--gf-color-neutral) 88%, transparent);
+    color: var(--gf-color-neutral-content);
+    font-size: 0.75rem;
+    font-weight: 600;
+    backdrop-filter: blur(6px);
+  }
+
+  .gf-editor-float-enter-active,
+  .gf-editor-float-leave-active {
+    transition-property: opacity, transform;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-editor-float-enter-active { transition-duration: 0.14s; }
+  .gf-editor-float-leave-active { transition-duration: 0.1s; }
+
+  .gf-editor-float-enter-from,
+  .gf-editor-float-leave-to {
+    opacity: 0;
+    transform: translateY(3px) scale(0.98);
+  }
+
+  .gf-editor-float[data-side='bottom'].gf-editor-float-enter-from,
+  .gf-editor-float[data-side='bottom'].gf-editor-float-leave-to {
+    transform: translateY(-3px) scale(0.98);
+  }
+
+  @keyframes gf-editor-image-frame-in {
+    from {
+      opacity: 0;
+      box-shadow:
+        0 0 0 2px var(--gf-color-primary),
+        0 0 0 0 color-mix(in oklch, var(--gf-color-primary) 16%, transparent);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gf-editor-float-enter-active,
+    .gf-editor-float-leave-active,
+    .gf-editor-float-segment-indicator,
+    .gf-editor-image-handle {
+      transition: none;
+    }
+
+    .gf-editor-image-frame {
+      animation: none;
+    }
+  }
+}

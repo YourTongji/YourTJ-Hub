@@ -16,6 +16,13 @@ class SelectTests(unittest.TestCase):
             self.assertFalse(plan["deploy"]["run"])
         self.assertTrue(all(v["run"] for v in select(["unknown/execute.sh"]).values()))
 
+    def test_mobile_contract_outputs_cannot_bypass_freshness_gate(self):
+        for name in ('openapi_models.dart', 'activation_status.dart', 'push_device.dart'):
+            with self.subTest(name=name):
+                plan = select(['apps/mobile/packages/core/lib/src/gen/' + name])
+                self.assertTrue(plan['mobile']['run'] and plan['contract']['run'])
+                self.assertFalse(plan['android']['run'] or plan['ios']['run'] or plan['deploy']['run'])
+
     def test_dev_deploy_workflow_change_rehearses_the_deployment(self):
         plan = select([".github/workflows/deploy-dev.yml"])
         for domain in ("automation", "backend", "frontend", "deploy"):
@@ -50,6 +57,13 @@ class SelectTests(unittest.TestCase):
     def test_service_changes_include_postgres_and_race(self):
         plan = select(["apps/gooseforum/app/service/test.go"])
         self.assertTrue(plan["backend"]["run"] and plan["postgres"]["run"] and plan["deploy"]["run"])
+
+    def test_minio_runner_and_integration_test_select_backend(self):
+        for path in ('apps/gooseforum/scripts/run-minio-upload-e2e.sh',
+                     'apps/gooseforum/app/http/routes/direct_upload_minio_test.go',
+                     '.github/workflows/ci-backend.yml'):
+            with self.subTest(path=path):
+                self.assertTrue(select([path])['backend']['run'])
 
     def test_metadata_does_not_deploy_or_build_native(self):
         plan = select(["releases/requests/mobile-1.0.15-15/ios.zh-Hans.txt"])

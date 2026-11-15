@@ -9,6 +9,7 @@ import de from '../src/locales/de'
 import type { CampusDataset, CampusDatasetKey, CampusStatus, LayoutPayload } from '@gooseforum/client'
 import { CampusError } from '../src/runtime/campus-api'
 import CampusPage from '../src/site/pages/CampusPage.vue'
+import EmptyState from '../src/site/components/EmptyState.vue'
 
 const api = vi.hoisted(() => ({ status: vi.fn(), dataset: vi.fn(), message: vi.fn(), confirm: vi.fn(), start: vi.fn(), exportCalendar: vi.fn() }))
 vi.mock('@/runtime/campus-api', async original => ({
@@ -21,8 +22,8 @@ const status: CampusStatus = { enabled: true, binding: { maskedId: '***01', revi
 function dataset(key: CampusDatasetKey): CampusDataset {
   return { key, status: 'ready', updatedAt: '2026-09-19T00:00:00Z', metrics: [], columns: [], rows: [], events: [], series: [] }
 }
-function setup(candidate: CampusStatus['candidate'] = null, userId = 42, revision = 'first', locale = 'zh') {
-  api.status.mockResolvedValue({ ...status, binding: {...status.binding!, revision}, candidate })
+function setup(candidate: CampusStatus['candidate'] = null, userId = 42, revision = 'first', locale = 'zh', needsAuthorization = false) {
+  api.status.mockResolvedValue({ ...status, binding: {...status.binding!, revision, needsAuthorization}, candidate })
   api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({ ...dataset(key),
     metrics: key === 'summary' ? [{ label: '综合 GPA', value: '3.72', unit: '' }] : key === 'profile' ? [{ label: '姓名', value: '测试同学', unit: '' }] : key === 'calendar' ? [{ label: '教学周', value: '3', unit: '周' }] : [],
     messages: key === 'messages' ? Array.from({ length: 7 }, (_, i) => ({ id: String(i + 1), title: `校园通知 ${i + 1}`, publisher: '学校', publishedAt: '2026-09-19T10:00:00+08:00' })) : undefined,
@@ -470,3 +471,142 @@ for (const lateResult of ['success', 'failure']) {
   } finally { wrapper.unmount(); vi.useRealTimers() }
  })
 }
+
+test('expired school authorization never presents unloaded datasets as loading', async () => {
+ const wrapper = setup(null, 42, 'first', 'zh', true)
+ try {
+  await flushPromises()
+  for (const tab of ['校园概览','我的课表','学业记录','校园消息']) {
+   await clickTab(wrapper,tab)
+   expect(wrapper.text()).not.toContain('正在读取')
+   expect(wrapper.findAll('.animate-spin')).toHaveLength(0)
+   expect(wrapper.text()).toContain('学校授权需要更新')
+  }
+  expect(api.dataset).not.toHaveBeenCalled()
+  expect(api.start).not.toHaveBeenCalled()
+ } finally { wrapper.unmount() }
+})
+
+test('expired authorization preserves cached records while marking every service as paused', async () => {
+ const wrapper = setup()
+ try {
+  await flushPromises()
+  await clickTab(wrapper, '学业记录')
+  expect(wrapper.text()).toContain('3.72')
+  await clickTab(wrapper, '连接状态')
+  expect(wrapper.findAll('.divide-y .gf-badge-info').length).toBeGreaterThan(0)
+  const reads = api.dataset.mock.calls.length
+  api.status.mockResolvedValue({ ...status, binding: { ...status.binding!, needsAuthorization: true } })
+  await wrapper.get('button[aria-label="刷新校园数据"]').trigger('click')
+  await flushPromises()
+  expect(wrapper.findAll('.divide-y .gf-badge-info')).toHaveLength(0)
+  const services = wrapper.findAll('.divide-y .gf-badge')
+  expect(services.length).toBeGreaterThan(0)
+  expect(services.every(b => b.text() === '需重新授权')).toBe(true)
+  expect(wrapper.text()).not.toContain('已连接')
+  await clickTab(wrapper, '学业记录')
+  expect(wrapper.text()).toContain('3.72')
+  expect(wrapper.text()).toContain('学校授权需要更新')
+  expect(api.dataset).toHaveBeenCalledTimes(reads)
+  expect(api.start).not.toHaveBeenCalled()
+ } finally { wrapper.unmount() }
+})
+
+
+test.each([0, 1, 2])('expired authorization hints follow locale changes on content tab %s without refetching', async index => {
+  const wrapper = setup(null, 42, 'first', 'zh', true)
+  try {
+    await flushPromises()
+    await wrapper.findAll('nav button')[index]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text().split(zh.campus.authorizationHint).length - 1).toBeGreaterThan(1)
+    for (const [locale, messages] of [['en', en], ['ja', ja], ['de', de], ['zh', zh]] as const) {
+      wrapper.vm.$i18n.locale = locale
+      await flushPromises()
+      expect(wrapper.text().split(messages.campus.authorizationHint).length - 1).toBeGreaterThan(1)
+      if (index === 1) {
+        const empty = wrapper.findAllComponents(EmptyState).find(item => item.props('title') === messages.campus.timetableUnavailable)!
+        expect(empty.text()).toContain(messages.campus.authorizationHint)
+        expect(wrapper.text()).not.toContain(messages.campus.schoolRetry)
+      }
+      for (const other of [zh, en, ja, de].filter(other => other !== messages)) {
+        expect(wrapper.text()).not.toContain(other.campus.authorizationHint)
+      }
+      expect(wrapper.findAll('.animate-spin')).toHaveLength(0)
+    }
+    expect(api.status).toHaveBeenCalledOnce()
+    expect(api.dataset).not.toHaveBeenCalled()
+    expect(api.start).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
+
+test('timetable authorization errors explain reauthorization instead of a school outage', async () => {
+  const wrapper = setup()
+  try {
+    await flushPromises()
+    api.dataset.mockRejectedValue(new CampusError('campus.authorizationRequired', 'School authorization expired'))
+    await clickTab(wrapper, '我的课表')
+    const empty = wrapper.findAllComponents(EmptyState).find(item => item.props('title') === zh.campus.timetableUnavailable)!
+    expect(empty.text()).toContain(zh.campus.authorizationHint)
+    expect(wrapper.text()).not.toContain(zh.campus.schoolRetry)
+    expect(wrapper.text()).not.toContain('School authorization expired')
+    expect(wrapper.findAll('.animate-spin')).toHaveLength(0)
+    expect(api.start).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
+
+test.each(['error', 'unavailable'])('timetable school retry guidance remains for ordinary %s responses', async result => {
+  const wrapper = setup()
+  try {
+    await flushPromises()
+    if (result === 'error') api.dataset.mockRejectedValue(new Error('School service offline'))
+    else api.dataset.mockResolvedValue({ ...dataset('timetable'), status: 'unavailable' })
+    await clickTab(wrapper, '我的课表')
+    const empty = wrapper.findAllComponents(EmptyState).find(item => item.props('title') === zh.campus.timetableUnavailable)!
+    expect(empty.text()).toContain(zh.campus.schoolRetry)
+    expect(wrapper.text()).not.toContain(zh.campus.authorizationHint)
+    if (result === 'error') expect(wrapper.text()).toContain('School service offline')
+    expect(api.start).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
+
+test('authorization errors discovered by a refresh preserve cached records', async () => {
+  const wrapper = setup()
+  const original = api.dataset.getMockImplementation()!
+  api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({
+    ...await original(key),
+    rows: key === 'grades' ? [['数学', '90']] : [],
+  }))
+  try {
+    await flushPromises()
+    await clickTab(wrapper, '学业记录')
+    expect(wrapper.text()).toContain('数学')
+    api.dataset.mockImplementation(async (key: CampusDatasetKey) => {
+      if (key === 'grades') throw new CampusError('campus.authorizationRequired', zh.campus.errorAuthorization)
+      return original(key)
+    })
+    await wrapper.get('button[aria-label="刷新校园数据"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain(zh.campus.authorizationHint)
+    expect(wrapper.text()).toContain('数学')
+    expect(wrapper.text()).not.toContain(zh.campus.errorAuthorization)
+  } finally { wrapper.unmount() }
+})
+
+test('authorization errors discovered by dataset requests follow locale changes', async () => {
+  const wrapper = setup()
+  try {
+    await flushPromises()
+    api.dataset.mockImplementation(async (key: CampusDatasetKey) => {
+      if (key === 'grades' || key === 'summary') throw new CampusError('campus.authorizationRequired', zh.campus.errorAuthorization)
+      return dataset(key)
+    })
+    await clickTab(wrapper, '学业记录')
+    expect(wrapper.text().split(zh.campus.authorizationHint).length - 1).toBeGreaterThan(1)
+    wrapper.vm.$i18n.locale = 'en'
+    await flushPromises()
+    expect(wrapper.text().split(en.campus.authorizationHint).length - 1).toBeGreaterThan(1)
+    expect(wrapper.text()).not.toContain(zh.campus.errorAuthorization)
+    expect(wrapper.text()).not.toContain(en.campus.errorAuthorization)
+  } finally { wrapper.unmount() }
+})

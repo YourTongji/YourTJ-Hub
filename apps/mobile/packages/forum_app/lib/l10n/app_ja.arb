@@ -1407,6 +1407,7 @@
   "notificationWikiTopic": "「{topic}」が更新されました",
   "authPasskey": "パスキーでログイン",
   "authPasskeyUnavailable": "この端末ではパスキーを利用できません。",
+  "authPasskeyAvailabilityFailed": "パスキーを利用できるか確認できませんでした。再試行するか、パスワードでログインしてください。",
   "authPasskeyFailed": "パスキーでログインできませんでした。再試行するか、パスワードをお使いください。",
   "authPasskeyCancelled": "パスキーが選択されていないか、利用できません。再試行するか、パスワードでログインしてください。",
   "settingsPasskeyTitle": "パスキー",

@@ -1275,7 +1275,7 @@ func TestValidateIssuer(t *testing.T) {
 // verifyIDToken 用持久 RSA 公钥验证 RS256 签名并返回 claims。
 func verifyIDToken(t *testing.T, idToken string) map[string]any {
 	t.Helper()
-	parsed, err := jose.ParseSigned(idToken, []jose.SignatureAlgorithm{jose.RS256})
+	parsed, err := jose.ParseSignedCompact(idToken, []jose.SignatureAlgorithm{jose.RS256})
 	if err != nil {
 		t.Fatalf("parse id_token: %v", err)
 	}

@@ -8,6 +8,8 @@ A postmortem is not a decision record ([docs/decisions/](../../docs/decisions/))
 
 Write one when a bug is **subtle** (the mechanism is non-obvious and a careful engineer would re-derive it the hard way), **systemic** (the reason it escaped is a gap in tests/tooling/conventions, not a one-off typo), and **costly to rediscover** (it cost real debugging time, and would cost it again).
 
+A confirmed regression that meets those three criteria uses this same five-section template. The files in this directory are the record; there is no separate regression database. An ordinary bug fix that is not subtle, systemic, and costly to rediscover does not require a postmortem.
+
 ## Format
 
 Every postmortem opens with an **Executive summary**: one short paragraph a busy reader can absorb in thirty seconds — what broke, the root cause in plain terms, why it escaped, and the durable lesson — before the detailed sections that follow:

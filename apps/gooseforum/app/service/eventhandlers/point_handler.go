@@ -8,6 +8,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
 )
 
+// Publication paths already commit rewards with content. These consumers remain
+// compatible with older queued events; the shared source keys prevent double pay.
 // handlePointTopicPublished 发帖获得积分
 func handlePointTopicPublished(ctx context.Context, event *TopicPublishedEvent) error {
 	topicID, userID, _ := event.Subject()

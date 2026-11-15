@@ -2065,6 +2065,7 @@
   },
   "authPasskey": "Sign in with a passkey",
   "authPasskeyUnavailable": "Passkeys are not available on this device.",
+  "authPasskeyAvailabilityFailed": "Could not check passkey availability. Retry or use your password.",
   "authPasskeyFailed": "Passkey sign-in failed. Try again or use your password.",
   "authPasskeyCancelled": "No passkey was selected or available. Try again or use your password.",
   "settingsPasskeyTitle": "Passkeys",

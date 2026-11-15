@@ -8,12 +8,13 @@ import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRo
 import { useI18n } from 'vue-i18n'
 import { BookOpen, Save, Search, X } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
-import { queueFlashMessage } from '@/runtime/flash-message'
+import { useFlashMessages } from '@/runtime/flash-message'
 import { deriveConflicts } from '@/site/utils/pkConflict'
 import { COURSE_STATUS, useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkStagedCourse } from '@/site/types/pk'
 
 const { t } = useI18n()
+const { push: flash } = useFlashMessages()
 const store = useScheduleStore()
 
 /** 周几 i18n key（与 locales schedule.weekdays.* 对齐）。 */
@@ -97,9 +98,9 @@ function saveTimetable() {
   try {
     store.saveSelectedCourses()
     store.solidify()
-    queueFlashMessage(t('schedule.saveSuccess'), 'success')
+    flash(t('schedule.saveSuccess'), 'success')
   } catch {
-    queueFlashMessage(t('schedule.saveFailed'), 'error')
+    flash(t('schedule.saveFailed'), 'error')
   }
 }
 

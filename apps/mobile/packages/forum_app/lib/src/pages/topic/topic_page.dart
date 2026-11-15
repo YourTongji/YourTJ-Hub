@@ -117,6 +117,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
   int _revealPostId = 0;
   int? _afterPostNo;
   bool _hasMorePosts = false;
+  bool _mainPostUnavailable = false;
+  bool _mainPostLoadedSeparately = false;
   CommentSort _sort = CommentSort.asc;
   bool _opScanning = false;
   // 构建时的列表控制器,用于把新回复滚入视野。
@@ -420,6 +422,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
     TopicDetailProps props, {
     required bool cached,
     int? postNo,
+    bool mainPostUnavailable = false,
+    bool mainPostLoadedSeparately = false,
   }) {
     setState(() {
       _fromCache = cached;
@@ -435,6 +439,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
       _viewerId = cached ? 0 : payload.layout.viewer.id;
       _posts.clear();
       _posts.addAll(props.postStream.posts);
+      _mainPostUnavailable = mainPostUnavailable;
+      _mainPostLoadedSeparately = mainPostLoadedSeparately;
       _replyTargets
         ..clear()
         ..addEntries(
@@ -540,10 +546,55 @@ class _TopicPageState extends ConsumerState<TopicPage>
           .read(pageRepositoryProvider)
           .topicDetail(topicId, postNo: defaultWindow ? null : postNo);
       if (!current()) return;
-      final props = parsePageProps<TopicDetailProps>(payload);
-      if (props == null) throw const FormatException('topic props');
+      final parsedProps = parsePageProps<TopicDetailProps>(payload);
+      if (parsedProps == null) throw const FormatException('topic props');
+      var props = parsedProps;
+      var mainPostUnavailable = false;
+      var mainPostLoadedSeparately = false;
+      final topic = props.topic;
+      if (!defaultWindow &&
+          _mainPost(props.postStream.posts) == null &&
+          !topic.authorDeleted &&
+          !topic.moderatorRemoved) {
+        try {
+          final firstPostWindow = await ref
+              .read(topicRepositoryProvider)
+              .getPostWindow(topicId: topicId, anchorPostNo: 1, limit: 1);
+          if (!current()) return;
+          final firstPost = _mainPost(firstPostWindow.posts);
+          if (firstPost == null) {
+            mainPostUnavailable = true;
+          } else {
+            mainPostLoadedSeparately = true;
+            props = props.copyWith(
+              postStream: props.postStream.copyWith(
+                posts: <PostPayload>[
+                  firstPost,
+                  ...props.postStream.posts.where(
+                    (post) => post.id != firstPost.id,
+                  ),
+                ],
+              ),
+            );
+          }
+        } catch (error) {
+          if (!current()) return;
+          if (revokesSnapshot(error)) rethrow;
+          // Keep the anchored reply window usable. The header displays a
+          // localized load failure instead of treating the excerpt as a post.
+          mainPostUnavailable = true;
+        }
+      }
+      if (!current()) return;
       networkShown = true;
-      _showPage(payload, props, cached: false, postNo: postNo);
+      _showPage(
+        payload,
+        props,
+        cached: false,
+        postNo: postNo,
+        mainPostUnavailable: mainPostUnavailable,
+        mainPostLoadedSeparately: mainPostLoadedSeparately,
+      );
       _recordPostReturnStates(props.postStream.posts);
       if (defaultWindow && _sort == CommentSort.desc && current()) {
         await _loadLatestReplies(generation, epoch);
@@ -620,6 +671,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
       final ids = _posts.map((post) => post.id).toSet();
       setState(() {
         _posts.addAll(window.posts.where((post) => ids.add(post.id)));
+        if (window.posts.any((post) => post.postNo == 1)) {
+          _mainPostLoadedSeparately = false;
+        }
         for (final target in window.replyTargets) {
           _replyTargets[target.id] = target;
         }
@@ -711,6 +765,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
       final mainPost = _mainPost(_posts);
       setState(() {
         final props = _page.valueOrNull;
+        if (window.posts.any((post) => post.postNo == 1)) {
+          _mainPostLoadedSeparately = false;
+        }
         _posts
           ..clear()
           ..addAll(<PostPayload>[
@@ -1987,6 +2044,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                   titleKey: _titleKey,
                   topic: props.topic,
                   mainPost: mainPost,
+                  mainPostUnavailable: _mainPostUnavailable,
                   isOwnTopic: props.permissions.isOwnTopic,
                 ),
                 const GfDivider(),
@@ -2019,15 +2077,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
                           // 正序从已加载的最早一楼重建窗口:_currentFloor 会被
                           // 尾窗改写成最后一楼,拿它作锚点只能取到锚点之后的
                           // 楼层。倒序仍取最新尾窗;锚点 ≤1 落回默认首窗。
-                          onRefresh: () => _load(
-                            silent: true,
-                            postNo:
-                                _sort == CommentSort.asc && _posts.isNotEmpty
-                                ? _posts
-                                      .map((PostPayload post) => post.postNo)
-                                      .reduce(math.min)
-                                : null,
-                          ),
+                          onRefresh: () =>
+                              _load(silent: true, postNo: _firstReplyPostNo),
                           child: CustomScrollView(
                             keyboardDismissBehavior:
                                 ScrollViewKeyboardDismissBehavior.onDrag,
@@ -2513,6 +2564,16 @@ class _TopicPageState extends ConsumerState<TopicPage>
     }
     return null;
   }
+
+  int? get _firstReplyPostNo {
+    if (_sort != CommentSort.asc) return null;
+    int? first;
+    for (final PostPayload post in _posts) {
+      if (_mainPostLoadedSeparately && post.postNo <= 1) continue;
+      if (first == null || post.postNo < first) first = post.postNo;
+    }
+    return first;
+  }
 }
 
 class _TopicHeader extends StatelessWidget {
@@ -2520,12 +2581,14 @@ class _TopicHeader extends StatelessWidget {
     required this.titleKey,
     required this.topic,
     required this.mainPost,
+    required this.mainPostUnavailable,
     required this.isOwnTopic,
   });
 
   final Key titleKey;
   final TopicDetailPayload topic;
   final PostPayload? mainPost;
+  final bool mainPostUnavailable;
   final bool isOwnTopic;
 
   @override
@@ -2673,6 +2736,9 @@ class _TopicHeader extends StatelessWidget {
               mentions: mainPost!.mentions,
               selectable: true,
             ),
+          ] else if (mainPostUnavailable) ...<Widget>[
+            const SizedBox(height: 12),
+            GfText(l10n.commonLoadFailed, style: readingBodyStyle(context)),
           ] else if (topic.description.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
             GfText(topic.description, style: readingBodyStyle(context)),

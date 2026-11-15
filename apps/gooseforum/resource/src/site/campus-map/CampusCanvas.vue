@@ -42,6 +42,7 @@ let map: maplibregl.Map | undefined
 let resize: ResizeObserver | undefined
 let frame = 0
 let alive = true
+let loaded = false
 const featured = [
   '同济大学图书馆',
   '三好坞餐厅',
@@ -105,9 +106,35 @@ function selectFeature(event: MapLayerMouseEvent) {
   if (feature?.id !== undefined && feature.properties?.campus === true)
     emit('select', String(feature.id))
 }
+function disposeMap() {
+  resize?.disconnect()
+  resize = undefined
+  cancelAnimationFrame(frame)
+  frame = 0
+  mapLabels.value = []
+  const current = map
+  map = undefined
+  try {
+    current?.remove()
+  } catch {
+    // MapLibre remove can throw when its constructor returned before creating a painter.
+  } finally {
+    // Construction can append DOM and then throw before map receives the instance.
+    host.value?.replaceChildren()
+    host.value?.classList.remove('maplibregl-map')
+  }
+}
+function failMap() {
+  disposeMap()
+  if (alive) emit('failure')
+}
 onMounted(() => {
   if (!host.value) return
   try {
+    // Detect unavailable WebGL2 before MapLibre can return a partially initialized map.
+    const probe = document.createElement('canvas').getContext('webgl2', { antialias: true })
+    if (!probe) { failMap(); return }
+    probe.getExtension('WEBGL_lose_context')?.loseContext()
     // A same-origin worker preserves the forum's script-src 'self' CSP.
     maplibregl.setWorkerUrl(workerUrl)
     map = new maplibregl.Map({
@@ -126,9 +153,11 @@ onMounted(() => {
       attributionControl: false,
       canvasContextAttributes: { antialias: true },
     })
+    if (!map.getCanvas().getContext('webgl2')) { failMap(); return }
     reset(0)
     map.on('load', () => {
-      if (!alive) return
+      if (!alive || !map) return
+      loaded = true
       for (const layer of selectableLayers) {
         map!.on('click', layer, selectFeature)
         map!.on('mouseenter', layer, () => {
@@ -143,8 +172,19 @@ onMounted(() => {
       updateLocation()
       emit('ready')
     })
-    map.on('error', () => {
-      if (alive) emit('failure')
+    map.on('error', (event) => {
+      if (!alive || !map) return
+      // MapLibre's sourceId also accompanies worker failures. Only known HTTP
+      // resource failures are safe to retain; unknown/style/renderer errors fail closed.
+      // https://github.com/maplibre/maplibre-gl-js/blob/v6.4.1/src/style/style.ts
+      if (
+        loaded &&
+        'sourceId' in event &&
+        typeof event.sourceId === 'string' &&
+        event.sourceId.length > 0 &&
+        event.error instanceof maplibregl.AJAXError
+      ) return
+      failMap()
     })
     map.on('move', queueLabels)
     let narrow = window.innerWidth < 700
@@ -160,7 +200,7 @@ onMounted(() => {
     })
     resize.observe(host.value)
   } catch {
-    emit('failure')
+    failMap()
   }
 })
 watch(() => props.selected, selectedChanged)
@@ -244,10 +284,7 @@ function north() {
 defineExpose({ reset, zoom, north, focusLocation })
 onBeforeUnmount(() => {
   alive = false
-  resize?.disconnect()
-  cancelAnimationFrame(frame)
-  map?.remove()
-  map = undefined
+  disposeMap()
 })
 </script>
 

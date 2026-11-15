@@ -1756,6 +1756,7 @@
   "notificationWikiTopic": "《{topic}》有更新",
   "authPasskey": "使用通行密钥登录",
   "authPasskeyUnavailable": "此设备暂不支持通行密钥。",
+  "authPasskeyAvailabilityFailed": "暂时无法检查通行密钥是否可用，请重试或使用密码登录。",
   "authPasskeyFailed": "通行密钥登录失败，请重试或使用密码登录。",
   "authPasskeyCancelled": "未选择或没有可用的通行密钥，请重试或使用密码登录。",
   "settingsPasskeyTitle": "通行密钥",

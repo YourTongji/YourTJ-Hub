@@ -21,9 +21,9 @@ type markdownCompatCase struct {
 }
 
 func TestMarkdownVersions(t *testing.T) {
-	if got := GetPostVersion(); got != 9 {
-		// Sticker provenance is renderer-owned rather than inferred from alt.
-		t.Fatalf("GetPostVersion() = %d, want 9", got)
+	if got := GetPostVersion(); got != 10 {
+		// Extra blank lines between blocks render as gf-blank-line spacers.
+		t.Fatalf("GetPostVersion() = %d, want 10", got)
 	}
 	if GetParser() == nil {
 		t.Fatal("GetParser() returned nil")
@@ -104,6 +104,20 @@ func TestNormalizePostHTMLUpdatesExistingAttributes(t *testing.T) {
 	}
 	if strings.Contains(html, `target="_self"`) || strings.Contains(html, `rel="next"`) || strings.Contains(html, `loading="eager"`) {
 		t.Fatalf("expected existing attributes to be replaced, got %s", html)
+	}
+}
+
+// 图片相对宽度（docs/decisions/0131-relative-image-width.md）只是地址里的 `#w=` 片段：
+// 渲染后原样留在 src 上供样式匹配，提取图片地址时也不丢。
+func TestPostMarkdownToHTMLKeepsImageWidthFragment(t *testing.T) {
+	html := PostMarkdownToHTML("![a](/file/img/a.png#w=50) ![b](/file/img/b.png#w=50)")
+	for _, want := range []string{`src="/file/img/a.png#w=50"`, `src="/file/img/b.png#w=50"`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("PostMarkdownToHTML() = %q, want it to contain %q", html, want)
+		}
+	}
+	if got := ExtractImageURLs("![a](/file/img/a.png#w=50)"); !slices.Equal(got, []string{"/file/img/a.png#w=50"}) {
+		t.Fatalf("ExtractImageURLs() = %v", got)
 	}
 }
 

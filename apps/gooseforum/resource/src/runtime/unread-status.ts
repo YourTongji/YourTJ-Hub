@@ -24,6 +24,10 @@ let ownerId = 0
 let ownerGeneration = 0
 let readGeneration = 0
 let preferenceRevision = 0
+let notificationRevision = 0
+let messageRevision = 0
+let notificationRequestSequence = 0
+let appliedNotificationSequence = 0
 let styleInitialized = false
 let inFlight: Promise<UnreadStatusPayload> | null = null
 let requestAbort: AbortController | undefined
@@ -119,9 +123,24 @@ async function refresh(force = false): Promise<UnreadStatusPayload> {
   if (!inFlight) {
     const captured = readGeneration
     const styleRevision = preferenceRevision
+    const capturedNotifications = notificationRevision
+    const capturedMessages = messageRevision
+    const notificationSequence = ++notificationRequestSequence
     const abort = requestAbort = new AbortController()
     const operation = fetchUnreadStatus(abort.signal).then(data => {
-      if (captured === readGeneration) applyUnread(data, { includeStyle: true, styleRevision })
+      if (captured === readGeneration) {
+        // Preserve only the domain changed since this poll began; the other domain can advance.
+        // Polls are serialized by inFlight and sequences are monotonic, so this poll's own
+        // sequence is never behind appliedNotificationSequence when its response arrives.
+        const next = { ...data }
+        if (capturedNotifications !== notificationRevision) Object.assign(next, {
+          notifications: notifications.value, notificationCount: notificationCount.value,
+          latestNotificationType: latestNotificationType.value, latestUnreadId: latestUnreadId.value,
+        })
+        else appliedNotificationSequence = notificationSequence
+        if (capturedMessages !== messageRevision) Object.assign(next, { messages: messages.value, messageCount: messageCount.value })
+        applyUnread(next, { includeStyle: true, styleRevision })
+      }
       return data
     })
     inFlight = operation
@@ -225,10 +244,43 @@ async function updatePreferences(change: { badgeStyle?: UnreadBadgeStyle; badgeC
     }
   }
 }
-function clearNotifications() {
+function captureNotificationRequest() {
+  return { ownerGeneration, revision: notificationRevision, sequence: ++notificationRequestSequence, applied: appliedNotificationSequence }
+}
+type NotificationRequest = ReturnType<typeof captureNotificationRequest>
+function isCurrentNotificationOwner(request: NotificationRequest) {
+  return ownerId !== 0 && request.ownerGeneration === ownerGeneration
+}
+function isCurrentNotificationRequest(request: NotificationRequest) {
+  return isCurrentNotificationOwner(request) && request.revision === notificationRevision
+}
+function applyNotificationCount(hasUnread: boolean, count?: number) {
+  applyUnread({ ...snapshot(), notifications: hasUnread, notificationCount: hasUnread ? countValue(count) : 0,
+    latestNotificationType: hasUnread ? latestNotificationType.value : '', latestUnreadId: hasUnread ? latestUnreadId.value : 0 })
+}
+function clearNotifications(request: NotificationRequest) {
+  if (!isCurrentNotificationOwner(request)) return
+  notificationRevision++
   applyUnread({ ...snapshot(), notifications: false, notificationCount: 0, latestNotificationType: '', latestUnreadId: 0 })
 }
+// Call only after a single read succeeds, using the owner captured before the request.
+function confirmNotificationRead(request: NotificationRequest) {
+  if (!isCurrentNotificationOwner(request)) return
+  notificationRevision++
+  if (appliedNotificationSequence !== request.applied || badgeCategories.value.length !== unreadBadgeCategories.length) {
+    // A poll applied while this read was pending may already include it, even if started earlier.
+    // Only the server classifies filtered badges: reconcile rather than subtract an excluded event.
+    const pending = inFlight
+    void Promise.resolve(pending).catch(() => undefined).then(() => {
+      if (isCurrentNotificationOwner(request)) return refresh(true)
+    }).catch(() => undefined)
+    return
+  }
+  const count = notificationCount.value === undefined ? undefined : Math.max(0, notificationCount.value - 1)
+  applyNotificationCount(count === undefined ? notifications.value : count > 0, count)
+}
 function clearMessages() {
+  messageRevision++
   applyUnread({ ...snapshot(), messages: false, messageCount: 0 })
 }
 export function useUnreadStatus() {
@@ -239,6 +291,7 @@ export function useUnreadStatus() {
     badgeStyle: readonly(badgeStyle), badgeStyleSaving: readonly(badgeStyleSaving), badgeStyleError: readonly(badgeStyleError),
     moderationReports: readonly(moderationReports), latestNotificationType: readonly(latestNotificationType),
     checked: readonly(checked), notificationMessage,
-    startPolling, stopPolling, refresh, applyUnread, updateBadgeStyle, updateBadgeCategories, clearNotifications, clearMessages,
+    startPolling, stopPolling, refresh, applyUnread, updateBadgeStyle, updateBadgeCategories, clearNotifications, confirmNotificationRead, clearMessages,
+    captureNotificationRequest, isCurrentNotificationOwner, isCurrentNotificationRequest,
   }
 }

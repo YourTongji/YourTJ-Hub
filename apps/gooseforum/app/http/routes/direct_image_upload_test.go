@@ -364,6 +364,18 @@ func TestDirectImageUploadDuplicateCompleteIdempotent(t *testing.T) {
 	if first.Code != http.StatusOK {
 		t.Fatalf("first complete status = %d, want 200: %s", first.Code, first.Body.String())
 	}
+	var completed struct {
+		Result struct {
+			Filename string `json:"filename"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &completed); err != nil {
+		t.Fatal(err)
+	}
+	if completed.Result.Filename == "" || completed.Result.Filename == name {
+		t.Fatal("complete did not return immutable final key")
+	}
+	body = mustMarshalJSON(t, map[string]string{"name": completed.Result.Filename})
 	second := serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/complete", body, token)
 	if second.Code != http.StatusOK {
 		t.Fatalf("duplicate complete status = %d, want 200 (idempotent): %s", second.Code, second.Body.String())
@@ -466,9 +478,10 @@ func TestDirectImageUploadCompleteSuccessRecordsOwnerUsage(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode complete response: %v", err)
 	}
-	if envelope.Result.Filename != name || envelope.Result.Size != int64(len(contractTinyPNG)) {
+	if envelope.Result.Filename == "" || envelope.Result.Filename == name || envelope.Result.Size != int64(len(contractTinyPNG)) {
 		t.Fatalf("complete result = %+v, want filename %q size %d", envelope.Result, name, len(contractTinyPNG))
 	}
+	name = envelope.Result.Filename
 	if !strings.Contains(envelope.Result.URL, name) {
 		t.Fatalf("complete url = %q, want it to contain %q", envelope.Result.URL, name)
 	}

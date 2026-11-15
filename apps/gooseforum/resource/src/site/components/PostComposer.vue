@@ -214,10 +214,18 @@ const loginHref = computed(() => {
   return currentPath ? `/login?redirect=${encodeURIComponent(currentPath)}` : '/login'
 })
 
+function syncValue() {
+  // Read before a lifecycle boundary; Vditor's input callback may still be pending.
+  const value = editor.value?.syncValue() ?? content.value
+  content.value = value
+  return value
+}
+
+defineExpose({ syncValue })
+
 function closeComposer() {
   if (composerBusy.value) return
-  // Read the editor before it unmounts; its input callback may still be pending.
-  content.value = editor.value?.syncValue() ?? content.value
+  syncValue()
   emit('update:open', false)
 }
 
@@ -282,7 +290,7 @@ async function uploadImageFiles(files: File[]) {
 
 function submit() {
   if (composerBusy.value) return
-  content.value = editor.value?.syncValue() ?? content.value
+  syncValue()
   emit('submit')
 }
 </script>

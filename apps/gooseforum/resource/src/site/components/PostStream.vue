@@ -28,7 +28,7 @@ import UserNickname from '@/site/components/UserNickname.vue'
 import PersonaTag from './PersonaTag.vue'
 import { authorURL, authorKey } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch, type ComponentPublicInstance } from 'vue'
 import { AlertTriangle, Ban, Bell, BookOpen, Bookmark, ChevronsUp, Clock, CornerDownLeft, Flag, Heart, HelpCircle, History, Loader2, PencilLine, RotateCcw, Share2, Sparkles, Trash2, X } from '@lucide/vue'
 import { showModerationBlocked } from '@/runtime/moderation-blocked'
 import { ApiResponseError, bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, sensitiveWordsFromError, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, type PostRevisionResult, pendingReviewMessage } from '@/runtime/api'
@@ -143,6 +143,23 @@ const targetPostBeforeEdit = ref(0)
 const identityBeforeEdit = ref<'member' | 'persona'>('member')
 let replyDraftOwner = props.viewer.id
 let replyDraftTopic = props.topicId
+let replyComposer: { syncValue(): string } | null = null
+let replyComposerOwner = 0
+let replyComposerTopic = 0
+function bindReplyComposer(instance: Element | ComponentPublicInstance | null) {
+  replyComposer = instance as { syncValue(): string } | null
+  replyComposerOwner = props.viewer.id
+  replyComposerTopic = props.topicId
+}
+// Only read the live document at boundaries, not from the reactive draft watcher:
+// a successful submit or draft restoration may intentionally replace the model.
+function snapshotReplyDraft() {
+  if (editingPostId.value || replyDraftOwner !== props.viewer.id || replyDraftTopic !== props.topicId) return
+  if (replyComposerOwner === replyDraftOwner && replyComposerTopic === replyDraftTopic) {
+    postContent.value = replyComposer?.syncValue?.() ?? postContent.value
+  }
+  stashReplyDraft()
+}
 function stashReplyDraft() {
   if (editingPostId.value || replyDraftOwner !== props.viewer.id || replyDraftTopic !== props.topicId) return
   writeReplyDraft(replyDraftOwner, replyDraftTopic, { content: postContent.value, identity: identity.value, targetPostId: targetPostId.value })
@@ -434,7 +451,7 @@ watch(
 )
 
 onMounted(() => {
-  window.addEventListener('pagehide', stashReplyDraft)
+  window.addEventListener('pagehide', snapshotReplyDraft)
   void nextTick(observePostLoader)
   void nextTick(collectPostElements)
   void nextTick(scheduleActivePostFromScroll)
@@ -483,8 +500,8 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  stashReplyDraft()
-  window.removeEventListener('pagehide', stashReplyDraft)
+  snapshotReplyDraft()
+  window.removeEventListener('pagehide', snapshotReplyDraft)
   postLoadObserver?.disconnect()
   window.removeEventListener('scroll', scheduleActivePostFromScroll)
   window.removeEventListener('scroll', schedulePostBottomLoadCheck)
@@ -1589,6 +1606,7 @@ function startEditPost(post: PostPayload) {
     return
   }
   if (!editingPostId.value) {
+    snapshotReplyDraft()
     postDraftBeforeEdit.value = postContent.value
     targetPostBeforeEdit.value = targetPostId.value
     identityBeforeEdit.value = identity.value
@@ -2579,6 +2597,8 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
   />
 
   <PostComposer :viewer="viewer"
+    :ref="bindReplyComposer"
+    :key="`${viewer.id}:${topicId}`"
     v-if="composerMounted"
     v-model="postContent"
     v-model:captcha-code="captchaCode"
@@ -3019,73 +3039,3 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
     </Transition>
   </Teleport>
 </template>
-
-<style scoped>
-/* Article styling: enhanced typography for long-form content */
-.gf-prose-article {
-  max-width: 100%;
-  font-size: 1.0625rem;
-  line-height: 1.8;
-}
-
-.gf-prose-article h1 {
-  font-size: 2rem;
-  margin-top: 2rem;
-  margin-bottom: 1rem;
-}
-
-.gf-prose-article h2 {
-  font-size: 1.75rem;
-  margin-top: 1.75rem;
-  margin-bottom: 0.875rem;
-}
-
-.gf-prose-article h3 {
-  font-size: 1.5rem;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.gf-prose-article p {
-  margin-bottom: 1.5rem;
-}
-
-.gf-prose-article img:not(.twemoji, [data-gf-sticker]) {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  border-radius: 0.5rem;
-  margin: 2rem auto;
-}
-
-.gf-prose-article pre {
-  font-size: 0.9375rem;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-}
-
-.gf-prose-article blockquote {
-  font-size: 1.125rem;
-  padding-left: 1.5rem;
-  border-left-width: 4px;
-  font-style: italic;
-}
-
-/* Thought styling: compact and lightweight */
-.gf-prose-thought {
-  font-size: 1rem;
-  line-height: 1.7;
-}
-
-.gf-prose-thought p {
-  margin-bottom: 1rem;
-}
-
-.gf-prose-thought img:not(.twemoji, [data-gf-sticker]) {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  border-radius: 0.375rem;
-  margin: 1rem auto;
-}
-</style>

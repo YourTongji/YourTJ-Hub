@@ -21,16 +21,27 @@ final _stickerMathPattern = RegExp(
 );
 
 /// 小字视图（列表行、置顶条）的纯文本贴纸文案：可解析的贴纸显示 `[名字]`，
-/// 未知/停用/个人贴纸省略；卡片与预览仍由 `buildStickerMessageSpan` 渲染图片。
-String stickerLabelText(String content, Map<String, String> urlByName) {
+/// 未知/停用贴纸省略；相邻的相同标签只保留一次。调用方可自定义贴纸标签；
+/// 卡片与预览仍由 `buildStickerMessageSpan` 渲染图片。
+String stickerLabelText(
+  String content,
+  Map<String, String> urlByName, {
+  String Function(String name)? labelForName,
+}) {
   if (!containsStickerToken(content)) return content;
   final buffer = StringBuffer();
   var cursor = 0;
+  String? previousStickerLabel;
   for (final match in stickerTokenPattern.allMatches(content)) {
-    buffer.write(content.substring(cursor, match.start));
+    final gap = content.substring(cursor, match.start);
+    buffer.write(gap);
+    if (gap.trim().isNotEmpty) previousStickerLabel = null;
     cursor = match.end;
-    if (urlByName[match.group(1)] case final String url when url.isNotEmpty) {
-      buffer.write('[${match.group(1)}]');
+    final name = match.group(1)!;
+    if (urlByName[name] case final String url when url.isNotEmpty) {
+      final label = labelForName?.call(name) ?? name;
+      if (previousStickerLabel != label) buffer.write('[$label]');
+      previousStickerLabel = label;
     }
   }
   buffer.write(content.substring(cursor));

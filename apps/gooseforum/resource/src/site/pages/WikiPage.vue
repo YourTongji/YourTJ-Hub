@@ -11,6 +11,7 @@ import { getMarkdownImagePreview } from '@/runtime/markdown-image-preview'
 import PostStream from '@/site/components/PostStream.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import WikiPageActions from '@/site/components/WikiPageActions.vue'
+import { useWikiPageInteractions, type WikiInteractionState } from '@/site/utils/wiki-page-interactions'
 import WikiToc from '@/site/components/WikiToc.vue'
 import type { LayoutPayload, WikiDetailProps } from '@gooseforum/client'
 
@@ -83,12 +84,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleHitKeydown)
 })
 
-const interactions = ref({
-  likeCount: page.props.page.likeCount,
-  isLiked: page.props.page.liked,
-  isBookmarked: page.props.page.bookmarked,
-  isWatched: page.props.page.watched,
-})
+const { interactions, pending, toggle } = useWikiPageInteractions(() => page.props.page)
 
 const emptyPostStream = {
   posts: [],
@@ -99,7 +95,7 @@ const emptyPostStream = {
   maxPostNo: 0,
 }
 
-function handleInteractionChange(state: { likeCount: number; isLiked: boolean; isBookmarked: boolean; isWatched: boolean }) {
+function handleInteractionChange(state: WikiInteractionState) {
   interactions.value = state
 }
 
@@ -150,7 +146,11 @@ function handleMarkdownImageClick(event: MouseEvent) {
                 <WikiPageActions
                   :page="page.props.page"
                   :can-edit="page.props.page.canEdit"
-                  @interaction-change="handleInteractionChange"
+                  :interactions="interactions"
+                  :pending="pending"
+                  @like="toggle('like')"
+                  @bookmark="toggle('bookmark')"
+                  @watch="toggle('watch')"
                 />
               </div>
               <div v-if="(page.props.page.toc || []).length" class="border-t border-line/70">
@@ -195,7 +195,11 @@ function handleMarkdownImageClick(event: MouseEvent) {
                 <WikiPageActions
                   :page="page.props.page"
                   :can-edit="page.props.page.canEdit"
-                  @interaction-change="handleInteractionChange"
+                  :interactions="interactions"
+                  :pending="pending"
+                  @like="toggle('like')"
+                  @bookmark="toggle('bookmark')"
+                  @watch="toggle('watch')"
                 />
               </div>
 

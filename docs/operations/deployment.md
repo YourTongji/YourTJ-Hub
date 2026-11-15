@@ -41,6 +41,25 @@
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
 
+### Single serving process check
+
+`Current`: one `main` process serves the production database and one `dev` process serves the
+development database. Their separate database names and storage directories are environment isolation,
+not a multi-replica deployment. The host reverse proxy has one upstream for each environment.
+
+After a deployment, inspect `docker compose ps main dev` in the deployment directory and the
+corresponding reverse-proxy upstreams. Each environment must have exactly one serving container and
+one upstream. Also account for manually started `serve` processes or other Compose projects before
+moving an instance to another host: this Compose inventory cannot detect them. Stop the previous
+serving process before routing traffic to its replacement. The application has no distributed
+singleton lock that would reject a second serving process automatically.
+
+Sharing PostgreSQL or S3 does not change this boundary. SSE fan-out, process-local caches, in-memory
+events and scheduled jobs require separate coordination before replicas can be supported; the
+`task_queue` lease only protects tasks using that queue. The current deployment uses the existing
+single-process recovery procedure. Any multi-process design needs measured workload evidence and
+verification of cross-process invalidation, job ownership, file access and rollback behavior.
+
 ### 服务器时区：必须无夏令时
 
 进程按容器/宿主机的系统时区（Go 的 `time.Local`）换算「自然日」。逐日口径不止一处依赖它：
@@ -1282,6 +1301,13 @@ owner to sign in through the known site address and explicitly resend from email
 delivered messages are not rewritten. Activation validity still starts at issuance and expires after
 24 hours even if the queue or provider delayed delivery; requesting another message does not extend
 an old token. Do not edit tokens or user activation data to compensate for URL configuration.
+
+Activation tokens require the dedicated purpose-bound format described in the
+[activation-token boundary](../product/identity-and-access.md#activation-token-purpose-boundary).
+When enabling this format, previously issued and queued shared-key activation links
+become unusable. Queued legacy messages are not purged or re-signed and may still be
+delivered; direct affected owners to sign in at the known site and resend from
+email settings. Do not restore shared-key parsing as a compatibility workaround.
 
 `Partial`: the existing URL selection is not an origin-health or deliverability check. Operators must
 verify their own host/configuration; this content recovery does not introduce a new URL validator,

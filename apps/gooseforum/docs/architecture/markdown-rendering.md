@@ -106,6 +106,24 @@ go test ./app/bundles/markdown2html
 cd resource && pnpm exec vitest run test/markdown-compat.test.ts
 ```
 
+Visible blank lines (`Current`, [MADR 0133](../../../../docs/decisions/0133-visible-blank-lines.md))
+are the one intentional departure from CommonMark: between top-level blocks,
+each blank line after the first in a run renders as
+`<p class="gf-blank-line" aria-hidden="true"></p>`, at most three per run. Go
+(`app/bundles/markdown2html/blank_lines.go`, `PostMarkdownToHTML` only),
+markdown-it (`resource/src/runtime/blank-lines.ts`) and Flutter
+(`core/lib/src/markdown/blank_lines.dart`) implement the same line rule and read
+`packages/api-contract/fixtures/markdown-blank-lines.json`.
+
+Relative image width (`Current`, [MADR 0131](../../../../docs/decisions/0131-relative-image-width.md))
+is a destination fragment, not syntax: `![a](/file/img/a.webp#w=50)`. The server
+keeps `src` verbatim and file usage tracking ignores the fragment; Web
+`resource/src/styles/prose.css` (and the editor copy in `VditorOfficial.vue`)
+sizes images with attribute selectors, and Flutter `GfMarkdownView` uses
+`sizedImageRow` from `core/lib/src/markdown/image_width.dart`. Presets, the
+160px minimum and editor snapping come from
+`packages/api-contract/fixtures/markdown-image-width.json`.
+
 ## Server Responsibilities
 
 Server rendering owns:
@@ -233,6 +251,11 @@ so alignment and matrix syntax keep their meaning. Supported environments are
 `cases`, `matrix`, `pmatrix`, `bmatrix`, `vmatrix`, and `Vmatrix`; `multline` is not
 supported by the bundled KaTeX and stays literal. The rendered HTML version is
 incremented so existing posts can be refreshed with the new delimiter protection.
+
+The Flutter app (`Current`) applies the same segment rule: Markdown bodies swap math for tokens before
+parsing and render them with `flutter_math_fork`; server HTML (Wiki, course reviews) wraps math found
+in text nodes outside `pre`/`code`/`script`/`style`/`textarea`. The shared
+`packages/api-contract/fixtures/markdown-math-segments.json` keeps Go, Web and Flutter on one rule.
 
 Vditor WYSIWYG preserves these alternate delimiters in emitted Markdown, but its
 inline preview still recognizes its native dollar syntax. Users who need a live

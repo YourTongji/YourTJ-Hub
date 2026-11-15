@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_card.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_widget/markdown_widget.dart';
@@ -19,6 +21,7 @@ import 'package:forum_app/src/link_navigation.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/reading_preferences.dart';
 import 'package:forum_app/src/widgets/rich_content/gf_code_block.dart';
+import 'package:forum_app/src/widgets/rich_content/gf_math.dart';
 import 'package:forum_app/src/widgets/rich_content/gf_table.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 
@@ -191,6 +194,227 @@ void main() {
       expect(box.left, greaterThanOrEqualTo(0));
       expect(box.right, lessThanOrEqualTo(320));
     }
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('extra blank lines render capped empty lines', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final library = StickerLibrary(_FakeStickerRepository());
+    addTearDown(library.dispose);
+    Future<double> gap(String data) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: _wrap(GfMarkdownView(key: ValueKey<String>(data), data: data)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('GFBLANKLINE'), findsNothing);
+      return tester.getTopLeft(find.text('乙')).dy -
+          tester.getBottomLeft(find.text('甲')).dy;
+    }
+
+    final double paragraph = await gap('甲\n\n乙');
+    final double oneLine = await gap('甲\n\n\n乙') - paragraph;
+    final double lineHeight = tester
+        .renderObject<RenderParagraph>(find.text('甲'))
+        .preferredLineHeight;
+    // One empty line is a body line plus the paragraph rhythm around it.
+    expect(oneLine, moreOrLessEquals(lineHeight + paragraph, epsilon: 1));
+    expect(
+      await gap('甲\n\n\n\n\n\n\n\n\n乙') - paragraph,
+      moreOrLessEquals(oneLine * maxRenderedBlankLines, epsilon: 1),
+    );
+    // Blank lines inside code stay literal code.
+    await gap('甲\n\n```\na\n\n\nb\n```\n\n乙');
+    expect(find.byType(GfCodeBlock), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('sized images drop the height cap that plain images keep', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final library = StickerLibrary(_FakeStickerRepository());
+    addTearDown(library.dispose);
+    // A 1:6 portrait image: at half the body width it is far taller than the
+    // min(360, 70vh) cap plain images keep.
+    final tall = MemoryImage(
+      Uint8List.fromList(img.encodePng(img.Image(width: 10, height: 60))),
+    );
+    Future<double> height(String data) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: GfMediaScope(
+            identity: 'tall-image-test',
+            factory:
+                (
+                  url, {
+                  int? width,
+                  int? height,
+                  Set<String>? allowedOrigins,
+                  ResizeImagePolicy policy = ResizeImagePolicy.exact,
+                }) => tall,
+            child: _wrap(
+              SingleChildScrollView(
+                child: GfMarkdownView(key: ValueKey<String>(data), data: data),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => precacheImage(tall, tester.element(find.byType(GfMarkdownView))),
+      );
+      await tester.pump();
+      await tester.pump();
+      return tester
+          .getSize(
+            find
+                .ancestor(
+                  of: find.byType(GfNetworkImage),
+                  matching: find.byType(Container),
+                )
+                .first,
+          )
+          .height;
+    }
+
+    expect(
+      await height('![a](https://img.test/a.png)'),
+      lessThanOrEqualTo(360),
+    );
+    final double sized = await height('![a](https://img.test/a.png#w=50)');
+    expect(sized, greaterThan(800));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('sized images follow their relative width and share a row', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final library = StickerLibrary(_FakeStickerRepository());
+    addTearDown(library.dispose);
+    Future<List<Rect>> images(String data) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: _wrap(GfMarkdownView(key: ValueKey<String>(data), data: data)),
+        ),
+      );
+      await tester.pump();
+      // The bordered frame around each image (ConstrainedBox > Container).
+      final frames = find.ancestor(
+        of: find.byType(GfNetworkImage),
+        matching: find.byType(Container),
+      );
+      return frames
+          .evaluate()
+          .map((e) => tester.getRect(find.byWidget(e.widget)))
+          .toList();
+    }
+
+    final pair = await images(
+      '![a](https://img.test/a.png#w=50) ![b](https://img.test/b.png#w=50)',
+    );
+    final double body = tester.getSize(find.byType(GfMarkdownView)).width;
+    expect(pair, hasLength(2));
+    // Two halves sit on one line with an 8px gutter, like the web flex row.
+    expect(pair[0].top, pair[1].top);
+    expect(pair[0].width, moreOrLessEquals(body / 2 - 8, epsilon: 0.5));
+    expect(pair[1].left - pair[0].right, moreOrLessEquals(8, epsilon: 0.5));
+
+    // A lone quarter-width image never drops below the readable minimum.
+    final quarter = await images('![a](https://img.test/a.png#w=25)');
+    expect(quarter.single.width, imageMinRenderedWidth);
+    expect(quarter.single.center.dx, moreOrLessEquals(body / 2, epsilon: 0.5));
+
+    // Without a width fragment the image keeps the original inline layout.
+    await images('![a](https://img.test/a.png)');
+    expect(find.byType(Wrap), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('math renders like the web instead of raw delimiters', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final library = StickerLibrary(_FakeStickerRepository());
+    addTearDown(library.dispose);
+    Future<void> show(String data) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: _wrap(GfMarkdownView(key: ValueKey<String>(data), data: data)),
+        ),
+      );
+      await tester.pump();
+    }
+
+    String plain() => tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((r) => r.text.toPlainText(includePlaceholders: false))
+        .join('\n');
+
+    // Inline math sits in the sentence; underscores and asterisks stay TeX.
+    await show(r'速度 $v_1 * t_2$ 与 \(x^2\) 之和');
+    expect(find.byType(Math), findsNWidgets(2));
+    expect(plain(), contains('速度 '));
+    expect(plain(), isNot(contains(r'$')));
+    expect(plain(), isNot(contains('GFMATH')));
+
+    // Display math fills its own line, environments KaTeX knows still render.
+    await show(
+      'before\n\n\$\$\\frac{a}{b}\$\$\n\n'
+      r'\begin{align}a&=b\\c&=d\end{align}'
+      '\n\nafter',
+    );
+    expect(find.byType(Math), findsNWidgets(2));
+    final double body = tester.getSize(find.byType(GfMarkdownView)).width;
+    expect(
+      tester.getSize(find.byType(GfMath).first).width,
+      moreOrLessEquals(body, epsilon: 0.5),
+    );
+    expect(plain(), isNot(contains(r'\begin')));
+
+    // Code keeps the literal source; prices are not math.
+    await show('`\$x\$` costs \$5 and \$10\n\n```\n\$\$y\$\$\n```');
+    expect(find.byType(Math), findsNothing);
+    expect(plain(), contains(r'$x$'));
+    expect(plain(), contains(r'costs $5 and $10'));
+    expect(find.textContaining(r'$$y$$', findRichText: true), findsOneWidget);
+
+    // A fence info string that looks like math stays the author's text.
+    await show('```\$x\$\ncode\n```');
+    expect(
+      tester.widget<GfCodeBlock>(find.byType(GfCodeBlock)).language,
+      r'$x$',
+    );
+    expect(plain(), isNot(contains('GFMATH')));
+
+    // Math inside a table cell lays out with the table's natural widths.
+    await show('| a | b |\n|---|---|\n| \$x^2\$ | \$\\sqrt{y}\$ |');
+    expect(find.byType(Math), findsNWidgets(2));
+
+    // Unsupported TeX falls back to the original text instead of disappearing.
+    await show(r'bad $\frac{a}$ end');
+    expect(
+      find.textContaining(r'$\frac{a}$', findRichText: true),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));

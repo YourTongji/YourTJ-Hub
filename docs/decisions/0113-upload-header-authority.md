@@ -59,9 +59,15 @@ storage. `upload.image.invalidContent` now means exactly "the bytes are not a
 usable image"; an extension conflict is no longer an error.
 
 Storage naming follows the detected type. Multipart, admin and avatar uploads
-use their generated UUID key with the canonical extension. A direct-upload
-conflict copies to a fresh UUID key in the same directory, using the canonical
-extension; the response is the authority for the final name.
+use their generated UUID key with the canonical extension. Every direct upload
+publishes a fresh UUID key in the same directory: a type conflict uses the
+canonical extension, while a matching declaration keeps equivalent spellings
+such as `.jpeg`. The response is the authority for the final name.
+
+For a pending upload, completion reads a snapshot bounded by the declared size plus one
+byte and requires its length to equal the declared size. Header validation and
+publication use those same bytes. Even a matching type needs a new key because
+the client's original presigned POST can still overwrite the temporary key.
 
 Before writing the copy, reserve a `copying` file metadata row. Publication is a
 single file-database transaction: consume the original `pending` row into
@@ -70,6 +76,14 @@ consumed only once. Each attempt owns a different key, so a losing attempt canno
 overwrite or delete the winner's object. The copy keeps the source creation time
 when published. `copying` and `cleanup` rows are excluded from user upload counts,
 so normalization does not charge a second upload, including across midnight.
+
+The publication transaction also stores the original init name in the final
+row's indexed `direct_upload_source_name` column. The owner can repeat complete
+with either name and recover the same result after a lost response, even after
+the temporary row is cleaned up. Only complete uses this mapping; ordinary image
+reads do not resolve the writable source name. Deleting the final file removes
+the result. Existing ready rows keep the column's empty default and do not gain
+an inferred mapping.
 
 After publication, attempt to delete the old object but retain its cleanup row
 until the upload expiry cutoff: an already issued presigned POST can still write
@@ -97,13 +111,15 @@ type by construction, so the header and the bytes cannot disagree.
 - Good: one rule for all exits, expressed once in `imagepolicy`; the stored name
   still fully determines the served type; dangerous extensions and non-image
   bytes stay rejected.
-- Bad: the direct-upload complete may download the object a second time, but only
-  on an extension conflict (the matching case keeps the header-only read); a
-  client that re-completes with the old pending name after a rename gets
-  `page.notFound`, so it must use the returned name (the Web client already does);
-  each conflicting attempt needs an additional tracked copy row and a file-db
-  transaction. Failed operations can retain temporary objects until the cleanup
-  worker retries; no new table or column is required.
+- Good: direct-upload recovery does not depend on receiving the first success
+  response, and replaying the original upload policy cannot change the published
+  bytes.
+- Bad: publishing a pending direct upload reads the full size-bounded snapshot
+  and writes a copy, increasing bandwidth and concurrent memory use. Each attempt
+  needs a tracked copy row and a file-db transaction. Recovery adds an indexed
+  column through the file database's AutoMigrate; no new table is needed, but
+  historical ready rows have no original-name mapping. Failed operations can
+  retain temporary objects until the cleanup worker retries.
 
 ### bytes authoritative, keep the declared name (rejected)
 

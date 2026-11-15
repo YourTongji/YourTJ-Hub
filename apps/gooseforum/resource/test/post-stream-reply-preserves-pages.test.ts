@@ -240,3 +240,16 @@ describe('PostStream 回复后保留已加载分页（issue #717 回归）', () 
   })
 
 })
+
+test('visible floor gaps advance to later replies without requesting the hidden run again', async () => {
+ getPostWindowMock.mockReset()
+ getPostWindowMock.mockResolvedValue({ posts:[makePost(62)], hasBefore:true, hasAfter:false, beforePostNo:62, afterPostNo:62, total:62, maxPostNo:62 })
+ const wrapper = await mountStream({ posts:[makePost(1)], hasBefore:false, hasAfter:true, total:62, maxPostNo:62 })
+ try {
+  await wrapper.findAll('button').find(button => button.text() === i18n.global.t('topic.loadMoreReplies'))!.trigger('click')
+  await flushPromises()
+  expect(loadedPostNos(wrapper)).toContain(62)
+  expect(loadedPostNos(wrapper)).not.toContain(2)
+  expect(getPostWindowMock).toHaveBeenCalledTimes(1)
+ } finally { wrapper.unmount() }
+})

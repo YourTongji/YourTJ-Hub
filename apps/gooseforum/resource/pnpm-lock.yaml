@@ -80,8 +80,8 @@ importers:
         specifier: ^11.17.2
         version: 11.17.2
       node-forge:
-        specifier: ^1.4.1
-        version: 1.4.1
+        specifier: ^1.4.3
+        version: 1.4.3
       prosemirror-commands:
         specifier: ^1.7.1
         version: 1.7.2
@@ -1749,8 +1749,8 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  node-forge@1.4.1:
-    resolution: {integrity: sha512-w5/MfWaeMrpR/5ba6fZyAUTLSuE6aYz7H/3cYrqwZEmf5eQS3IaaLgJt4MBv7HglGFWmV22K8h4U18RJQmw/ow==}
+  node-forge@1.4.3:
+    resolution: {integrity: sha512-P6wzfh6t70avmV8FrVEAd/36sOPJQ+hkaJVX1Laap9J/77m7M0eyozDvc8SwnDf4P7MP94gwbAAo0rg3YVXT+g==}
     engines: {node: '>= 6.13.0'}
 
   nopt@6.0.0:
@@ -3948,7 +3948,7 @@ snapshots:
 
   nanoid@3.3.18: {}
 
-  node-forge@1.4.1: {}
+  node-forge@1.4.3: {}
 
   nopt@6.0.0:
     dependencies:

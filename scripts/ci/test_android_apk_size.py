@@ -29,18 +29,18 @@ class AndroidApkSizeTests(unittest.TestCase):
                                    '--baseline', str(baseline_path)],
                                   capture_output=True, text=True, timeout=10)
 
-    def metadata(self, size=48833689):
+    def metadata(self, size=50310187):
         return {'gitSha': 'a' * 40, 'flutterVersion': '3.44.9',
                 'buildMode': 'release', 'targetPlatform': 'android-arm64',
                 'androidBuildConfigSha256': '6e17addbb2b096550e2a63d012d13e5bbed432960cd5d999886601a11c268afe',
                 'apkBytes': size}
 
     def test_recorded_baseline_and_exact_three_percent_boundary(self):
-        for size in (48833689, 50298699):
+        for size in (50310187, 51819492):
             with self.subTest(size=size):
                 result = self.check(self.metadata(size))
                 self.assertEqual(result.returncode, 0, result.stderr)
-        result = self.check(self.metadata(50298700))
+        result = self.check(self.metadata(51819493))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('exceeds', result.stderr)
 
@@ -116,7 +116,7 @@ class AndroidApkSizeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             report = Path(temporary) / 'mobile-release-size/build-metadata.json'
             report.parent.mkdir()
-            report.write_text(json.dumps(self.metadata(50298700)))
+            report.write_text(json.dumps(self.metadata(51819493)))
             result = subprocess.run(['bash', '-euo', 'pipefail', '-c', script], cwd=ROOT,
                                     env=os.environ | {'RUNNER_TEMP': temporary},
                                     capture_output=True, text=True, timeout=10)

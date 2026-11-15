@@ -102,6 +102,8 @@ Web admin/API/Web and Flutter export: `Current`。站点管理权限用户可在
 
 access token 到期前按需刷新；学校返回 401 时最多再刷新一次。刷新无效保留身份占用，页面提示重新授权。短暂网络故障不解除身份。刷新具有进程内互斥及数据库租约，解绑/换绑使用版本条件，已过时的数据请求不能恢复连接或返回原身份数据。
 
+Web 授权需更新时保留当前页面已有数据，并通过授权横幅说明同步暂停；连接状态的所有服务标为“需重新授权”，不再把缓存的 ready 数据显示为“已连接”。更新授权前不发起新的数据读取。
+
 消息正文权限不足时提供更新授权入口，原绑定保持不变。消息详情先核对消息属于当前用户的学校列表；正文转换为纯文本和明确的外部链接，不执行学校 HTML，也不自动加载正文图片。关闭弹窗或身份变化会清空正文并取消请求。
 
 Web 校园数据仍只在请求与客户端内存中处理，不进入 localStorage、公开 SSR payload、搜索索引、论坛帖子或遥测。校园文档禁用 Umami 统计/回放和自定义脚本；进出校园页强制整页加载，以卸载原页面脚本。学校回调即使遇到会话失效、账号不可写、限流或配置关闭也跳转到无授权参数的校园 URL，不交换被拒绝请求中的授权码。所有校园 API 使用 `private, no-store`；Web 离页清理内存请求与数据。
@@ -128,3 +130,11 @@ Flutter 离开校园标签或进入后台（paused/hidden）时卸载校园数�
 - [登录与集成决策](../decisions/0032-tongji-login-and-registration.md)
 - [受控 API 契约](../../packages/api-contract/paths/campus.yaml)
 - [OneTJ 接口实现](https://github.com/oierxjn/OneTJ/blob/e43099a046e522be16e0a19bc1c2a6288d1532c7/lib/services/tongji.dart)
+
+`Current`: when a retained campus binding needs school authorization, unloaded
+Web datasets show an unavailable state with the authorization explanation instead
+of a loading indicator. The authorization explanation follows interface language changes
+without fetching private data again. The timetable empty state explains reauthorization
+rather than suggesting a school outage; ordinary service failures retain their retry guidance.
+Existing in-memory data and its sync timestamp remain
+visible; no automatic authorization or extra dataset request is started.
