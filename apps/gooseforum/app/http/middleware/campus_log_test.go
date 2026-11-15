@@ -14,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestCallbackQueriesAreExcludedFromAllAccessLogs(t *testing.T) {
+func TestRequestDiagnosticsMinimizeUserInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousAccessLog := preferences.GetBool("server.accessLog", false)
 	t.Cleanup(func() { preferences.Set("server.accessLog", previousAccessLog) })
