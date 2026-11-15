@@ -2196,6 +2196,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get courseCopyReviewsLoadFailed => '评价加载失败，请稍后重试。';
 
   @override
+  String get courseCopyReviewsLoadMore => '滚动加载更多评价';
+
+  @override
   String get courseCopyAuthorAnonymousLabel => '匿名同学';
 
   @override

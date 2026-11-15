@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -86,6 +87,7 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _reviewsSectionKey = GlobalKey();
+  final GlobalKey _reviewsLoadMoreKey = GlobalKey();
   final GlobalKey _targetReviewKey = GlobalKey();
   bool _reviewRevealed = false;
 
@@ -142,9 +144,33 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    if (_scrollController.position.extentAfter < _loadMoreThreshold) {
+    if (_reviewsLoadMoreApproaching) {
       _loadMoreReviews();
     }
+  }
+
+  // 分页触发以课评区底部（load-more footer）相对视口的位置为准，而非整页
+  // extentAfter：课评区下方还挂着开课记录/相关课程/沿革，用整页剩余距离会
+  // 要求滚到整页最底才加载。footer 进入视口底部上方阈值内即预取下一页。
+  bool get _reviewsLoadMoreApproaching {
+    final BuildContext? footerContext = _reviewsLoadMoreKey.currentContext;
+    if (footerContext == null) return false;
+    final RenderObject? footerObject = footerContext.findRenderObject();
+    if (footerObject is! RenderBox || !footerObject.hasSize) return false;
+    final ScrollPosition position = _scrollController.position;
+    final RenderAbstractViewport? viewport = RenderAbstractViewport.maybeOf(
+      footerObject,
+    );
+    if (viewport == null) return false;
+    // footer 顶部对齐视口底部所需的滚动偏移；与当前偏移之差即 footer 距视口
+    // 底部的距离。以此判断进入预取阈值，不受课评区下方相关课程等内容影响。
+    final double revealOffset = viewport.getOffsetToReveal(
+      footerObject,
+      1.0,
+      axis: Axis.vertical,
+    ).offset;
+    final double distanceToBottom = revealOffset - position.pixels;
+    return distanceToBottom <= _loadMoreThreshold;
   }
 
   void _goBack() {
@@ -1010,12 +1036,13 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
       if (_reviewsLoaded && _nextCursor.isNotEmpty)
         SliverToBoxAdapter(
           child: Padding(
+            key: _reviewsLoadMoreKey,
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Center(
               child: _loadingMore
                   ? const GfLoadingIndicator(small: true)
                   : GfText(
-                      copy.relatedEmpty,
+                      copy.reviewsLoadMore,
                       style: GfTheme.typographyOf(context).caption.copyWith(
                         color: colors.baseContent.withValues(alpha: 0.35),
                       ),

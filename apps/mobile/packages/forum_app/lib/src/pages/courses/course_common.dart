@@ -117,6 +117,7 @@ class CourseCopy {
   String get reviewDeleted => l10n.courseCopyReviewDeleted;
   String get operationFailed => l10n.courseCopyOperationFailed;
   String get reviewsLoadFailed => l10n.courseCopyReviewsLoadFailed;
+  String get reviewsLoadMore => l10n.courseCopyReviewsLoadMore;
   String get authorAnonymousLabel => l10n.courseCopyAuthorAnonymousLabel;
   String get authorLegacyLabel => l10n.courseCopyAuthorLegacyLabel;
 

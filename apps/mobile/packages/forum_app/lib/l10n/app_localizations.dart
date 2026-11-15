@@ -4182,6 +4182,12 @@ abstract class AppLocalizations {
   /// **'Failed to load reviews. Please try again later.'**
   String get courseCopyReviewsLoadFailed;
 
+  /// No description provided for @courseCopyReviewsLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Scroll to load more reviews'**
+  String get courseCopyReviewsLoadMore;
+
   /// No description provided for @courseCopyAuthorAnonymousLabel.
   ///
   /// In en, this message translates to:

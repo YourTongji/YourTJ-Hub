@@ -1186,6 +1186,7 @@
   "courseCopyReviewDeleted": "Review deleted",
   "courseCopyOperationFailed": "Operation failed. Please try again later.",
   "courseCopyReviewsLoadFailed": "Failed to load reviews. Please try again later.",
+  "courseCopyReviewsLoadMore": "Scroll to load more reviews",
   "courseCopyAuthorAnonymousLabel": "Anonymous",
   "courseCopyAuthorLegacyLabel": "Legacy anonymous review",
   "courseCopyRelatedTeacherCoursesTitle": "Other courses by the same teachers",

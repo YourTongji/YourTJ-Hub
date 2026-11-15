@@ -2255,6 +2255,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to load reviews. Please try again later.';
 
   @override
+  String get courseCopyReviewsLoadMore => 'Scroll to load more reviews';
+
+  @override
   String get courseCopyAuthorAnonymousLabel => 'Anonymous';
 
   @override

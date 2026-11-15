@@ -25,6 +25,7 @@ class _Courses extends FakeCourseRepository {
   _Courses(super.client);
 
   bool? serverBookmarked = false;
+  bool longRelated = false;
   Completer<CourseDetailPayload>? pendingDetail;
   Completer<void>? pendingBookmark;
   final details = <int>[];
@@ -46,6 +47,23 @@ class _Courses extends FakeCourseRepository {
     relatedCalls.add(courseId);
     if (relatedPending.isNotEmpty) {
       return relatedPending.removeAt(0).future;
+    }
+    if (longRelated) {
+      return Future.value(CourseRelatedResult(
+        teacherOtherCourses: [
+          for (var i = 0; i < 30; i++)
+            RelatedCourseItem(
+              id: 900 + i,
+              primaryCode: 'REL$i',
+              name: '相关课程 $i',
+              department: '测试学院',
+              ratingAvg: 4,
+              ratingCount: 1,
+              reviewCount: 1,
+            ),
+        ],
+        sameCourseOtherTeachers: const [],
+      ));
     }
     return super.related(courseId);
   }
@@ -147,8 +165,10 @@ void main() {
   Future<void> pumpDetail(
     WidgetTester tester, {
     bool bookmarked = false,
+    Size physicalSize = const Size(1100, 800),
+    bool longRelated = false,
   }) async {
-    tester.view.physicalSize = const Size(1100, 800);
+    tester.view.physicalSize = physicalSize;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -159,7 +179,9 @@ void main() {
       tokenStorage: storage,
       baseUrl: 'http://fake.local',
     );
-    courses = _Courses(client)..serverBookmarked = bookmarked;
+    courses = _Courses(client)
+      ..serverBookmarked = bookmarked
+      ..longRelated = longRelated;
     courseId = ValueNotifier(42);
     addTearDown(courseId.dispose);
     container = ProviderContainer(
@@ -204,6 +226,55 @@ void main() {
     controller.jumpTo(controller.position.maxScrollExtent);
     await tester.pump();
   }
+
+  testWidgets('load-more triggers at the review footer, not the page bottom', (
+    tester,
+  ) async {
+    // Long trailing related-courses section, as on a real detail page.
+    await pumpDetail(
+      tester,
+      physicalSize: const Size(400, 800),
+      longRelated: true,
+    );
+    // Only the first page is loaded; a next cursor exists.
+    expect(courses.requests, hasLength(1));
+    final controller = tester
+        .widget<CustomScrollView>(find.byType(CustomScrollView))
+        .controller!;
+    // Scroll just past the review footer (well before the page bottom, which
+    // the long related-courses section pushes far below). The footer must
+    // trigger the next page on its own, without reaching the page bottom.
+    controller.jumpTo(1600);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      controller.position.extentAfter,
+      greaterThan(400),
+      reason: 'page must extend well past the review footer for this regression',
+    );
+    // Reaching the review footer must request the next page.
+    expect(courses.requests, hasLength(2));
+    expect(courses.requests.last.cursor, 'all-next');
+    courses.requests.last.result.complete(_reviews(300));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('idle load-more footer invites scrolling, not an empty state', (
+    tester,
+  ) async {
+    // A tall viewport builds the footer during initial layout (no scroll), so
+    // the load-more trigger never fires and the idle hint stays on screen.
+    await pumpDetail(tester, physicalSize: const Size(400, 3000));
+    expect(courses.requests, hasLength(1));
+    // A next cursor exists and no page is loading: the footer must read as a
+    // load-more affordance, never the related-course empty-state string.
+    expect(
+      find.textContaining('滚动加载更多评价', findRichText: true),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   Future<void> selectOffering(WidgetTester tester) async {
     final offering = find.descendant(
