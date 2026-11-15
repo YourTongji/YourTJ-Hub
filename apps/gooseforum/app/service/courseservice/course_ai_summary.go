@@ -80,18 +80,14 @@ const (
 )
 
 // 限流常量（service 内第二/三层限流，先于 LLM 调用消耗）。
+// 全局配额的 key/窗口/默认上限由 aiservice 统一持有（issue #1284 #35），
+// 与校历 AI 解析共享同一窗口。
 const (
-	aiSummaryGlobalWindow    = time.Minute
 	aiSummaryCourseLimit     = 1 // 单课 10 分钟 1 次生成
 	aiSummaryCourseWindow    = 10 * time.Minute
-	aiSummaryGlobalKey       = "ai.summary.global"
 	aiSummaryCourseKeyPrefix = "ai.summary.course:"
 	aiSummaryTimeout         = 30 * time.Second
 )
-
-// aiSummaryGlobalLimit 全局每分钟生成上限；0 表示用默认值（成本护栏，
-// 实际值可经 pageConfig aiSummarySettings.globalPerMinute 热调整）。
-const aiSummaryGlobalLimit = 5
 
 // promptVersion 当前 prompt 版本；变更需同步升级（存库用于追溯生成时使用的版本）。
 const promptVersion = "v1"
@@ -263,11 +259,8 @@ func GetAiSummaryContext(ctx context.Context, courseId uint64, refresh bool) (Ai
 		return AiSummaryResult{}, &AiSummaryRateLimitError{RetryAfter: aiSummaryCourseWindow}
 	}
 
-	globalLimit := aiCfg.GlobalPerMinute
-	if globalLimit <= 0 {
-		globalLimit = aiSummaryGlobalLimit
-	}
-	if ok, retryAfter, _ := store.Allow(aiSummaryGlobalKey, globalLimit, aiSummaryGlobalWindow); !ok {
+	globalLimit := aiservice.ResolveGlobalPerMinute(aiCfg.GlobalPerMinute)
+	if ok, retryAfter, _ := store.Allow(aiservice.GlobalGenerationKey, globalLimit, aiservice.GlobalGenerationWindow); !ok {
 		// 全局配额满：有缓存则回退缓存，无缓存返回错误（控制器映射 429）。
 		if cached := course.GetCourseAiSummary(courseId); cached.CourseId > 0 && cached.SummaryJson != "" {
 			if payload, err := decodeAiSummaryPayload(cached.SummaryJson); err == nil {

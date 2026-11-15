@@ -178,8 +178,21 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "anonymous_governance_blocked"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Migrator().DropColumn(&topics.Entity{}, "persona_uid"); err != nil {
-		t.Fatal(err)
+	// issue #1284 A1（补齐 topics 半边）：与 posts 同一口径——删掉 dev 新增列
+	// 模拟旧库，插入存量行，升级后断言行与标题/摘要仍在、新列按默认值补齐。
+	for _, legacyMissingTopicColumn := range []string{
+		"persona_uid", "agent_replies_disabled", "agent_comment_disabled",
+		"last_public_reply_at", "rank_due_at", "rank_score", "daily_score",
+		"rank_engaged", "rank_components", "rank_source", "rank_ready",
+		"rank_params_hash", "rank_scored_at", "first_public_at", "first_public_estimated",
+	} {
+		if err := db.Migrator().DropColumn(&topics.Entity{}, legacyMissingTopicColumn); err != nil {
+			t.Fatalf("drop legacy-missing topics.%s: %v", legacyMissingTopicColumn, err)
+		}
+	}
+	if err := db.Exec(`INSERT INTO topics (id, title, category_id, user_id, excerpt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+		1301, "legacy topic title", "[]", 1, "legacy topic excerpt").Error; err != nil {
+		t.Fatalf("insert legacy topic: %v", err)
 	}
 	// The current model includes actor_type, but a true legacy users table did
 	// not. Remove it before the upgrade so this test exercises column addition.
@@ -356,6 +369,49 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if contentType != "text" {
 		t.Errorf("posts.content data type after upgrade = %q, want text", contentType)
+	}
+	// issue #1284 A1（topics 半边）：存量 topics 行必须存活且标题/摘要未变，
+	// 新增的匿名/排序/Agent 列按默认值补齐。
+	var legacyTopic struct {
+		Title                string
+		Excerpt              string
+		PersonaUid           string
+		RankScore            int64
+		DailyScore           int64
+		RankSource           string
+		AgentRepliesDisabled bool
+		AgentCommentDisabled bool
+	}
+	if err := db.Table("topics").Select("title, excerpt, persona_uid, rank_score, daily_score, rank_source, agent_replies_disabled, agent_comment_disabled").
+		Where("id = ?", 1301).Take(&legacyTopic).Error; err != nil {
+		t.Fatalf("legacy topic missing after upgrade: %v", err)
+	}
+	if legacyTopic.Title != "legacy topic title" || legacyTopic.Excerpt != "legacy topic excerpt" {
+		t.Errorf("legacy topic content after upgrade = (%q, %q), want it preserved", legacyTopic.Title, legacyTopic.Excerpt)
+	}
+	if legacyTopic.PersonaUid != "" || legacyTopic.RankScore != 0 || legacyTopic.DailyScore != 0 || legacyTopic.RankSource != "" ||
+		legacyTopic.AgentRepliesDisabled || legacyTopic.AgentCommentDisabled {
+		t.Errorf("legacy topic new columns = %+v, want zero defaults", legacyTopic)
+	}
+	for _, column := range []string{
+		"persona_uid", "agent_replies_disabled", "agent_comment_disabled",
+		"last_public_reply_at", "rank_due_at", "rank_score", "daily_score",
+		"rank_engaged", "rank_components", "rank_source", "rank_ready",
+		"rank_params_hash", "rank_scored_at", "first_public_at", "first_public_estimated",
+	} {
+		if !db.Migrator().HasColumn(&topics.Entity{}, column) {
+			t.Errorf("topics.%s column missing after upgrade migration", column)
+		}
+	}
+	// 标题列必须保持 varchar(512)：整表重建或方言专属类型会在这里暴露。
+	var titleType string
+	var titleLength int
+	if err := db.Raw(`SELECT data_type, character_maximum_length FROM information_schema.columns WHERE table_name = 'topics' AND column_name = 'title'`).
+		Row().Scan(&titleType, &titleLength); err != nil {
+		t.Fatalf("read topics.title data type: %v", err)
+	}
+	if titleType != "character varying" || titleLength != 512 {
+		t.Errorf("topics.title type after upgrade = %q(%d), want character varying(512)", titleType, titleLength)
 	}
 }
 
