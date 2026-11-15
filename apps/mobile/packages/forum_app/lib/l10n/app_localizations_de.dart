@@ -2286,10 +2286,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bewertungen konnten nicht geladen werden. Versuche es später erneut.';
 
   @override
-  String get courseCopyReviewsLoadMore =>
-      'Scrollen, um weitere Bewertungen zu laden';
-
-  @override
   String get courseCopyAuthorAnonymousLabel => 'Anonym';
 
   @override

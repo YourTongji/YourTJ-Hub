@@ -167,6 +167,7 @@ void main() {
     bool bookmarked = false,
     Size physicalSize = const Size(1100, 800),
     bool longRelated = false,
+    bool settle = true,
   }) async {
     tester.view.physicalSize = physicalSize;
     tester.view.devicePixelRatio = 1;
@@ -215,7 +216,12 @@ void main() {
     await tester.pump();
     expect(courses.requests, hasLength(1));
     courses.requests.single.result.complete(_reviews(100, cursor: 'all-next'));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump();
+    }
   }
 
   Future<void> scrollToEnd(WidgetTester tester) async {
@@ -258,19 +264,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('idle load-more footer shows no copy (auto-load, no idle hint)', (
+  testWidgets('tall viewport auto-loads next page post-frame, no idle copy', (
     tester,
   ) async {
-    // A tall viewport builds the list during initial layout (no scroll), so
-    // the load-more trigger never fires and no idle hint is shown.
-    await pumpDetail(tester, physicalSize: const Size(400, 3000));
-    expect(courses.requests, hasLength(1));
-    // Final design: no idle copy. While idle (not loading, no error) the
-    // footer renders nothing; only loading / error states are visible.
+    // Content shorter than the viewport cannot scroll, so the scroll listener
+    // never fires; the post-frame check must still prefetch the next page.
+    await pumpDetail(
+      tester,
+      physicalSize: const Size(400, 3000),
+      settle: false,
+    );
+    // The post-frame auto-load has already requested page 2.
+    expect(courses.requests, hasLength(2));
+    expect(courses.requests.last.cursor, 'all-next');
+    // No idle copy while loading / after load.
     expect(
       find.textContaining('滚动加载更多评价', findRichText: true),
       findsNothing,
     );
+    courses.requests.last.result.complete(_reviews(300));
+    await tester.pumpAndSettle();
     expect(find.textContaining('加载更多', findRichText: true), findsNothing);
     expect(tester.takeException(), isNull);
   });

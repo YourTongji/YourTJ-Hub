@@ -747,7 +747,6 @@
   "courseCopyReviewDeleted": "Bewertung gelöscht",
   "courseCopyOperationFailed": "Vorgang fehlgeschlagen. Versuche es später erneut.",
   "courseCopyReviewsLoadFailed": "Bewertungen konnten nicht geladen werden. Versuche es später erneut.",
-  "courseCopyReviewsLoadMore": "Scrollen, um weitere Bewertungen zu laden",
   "courseCopyAuthorAnonymousLabel": "Anonym",
   "courseCopyAuthorLegacyLabel": "Historische anonyme Bewertung",
   "courseCopyRelatedTeacherCoursesTitle": "Weitere Kurse derselben Dozenten",

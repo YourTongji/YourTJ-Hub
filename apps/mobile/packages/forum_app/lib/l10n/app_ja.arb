@@ -747,7 +747,6 @@
   "courseCopyReviewDeleted": "レビューを削除しました",
   "courseCopyOperationFailed": "操作に失敗しました。あとでもう一度お試しください。",
   "courseCopyReviewsLoadFailed": "評価の読み込みに失敗しました。あとでもう一度お試しください。",
-  "courseCopyReviewsLoadMore": "スクロールして評価をさらに読み込む",
   "courseCopyAuthorAnonymousLabel": "匿名",
   "courseCopyAuthorLegacyLabel": "過去の匿名評価",
   "courseCopyRelatedTeacherCoursesTitle": "同じ先生の他の授業",

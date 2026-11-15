@@ -34,9 +34,10 @@ import '../../widgets/share/share_image_preview.dart';
 ///
 /// [focusOfferingId] 对应 web `?offeringId=` 聚焦语义：仅展示该教学班的课评。
 ///
-/// 页面纵向堆叠（对齐 web 移动端 DOM 顺序）：头部信息 → 评分分布卡 → AI 总结
-/// → 课评列表（cursor 分页 + 写评/编辑/删除/有用）+ 浮动写评 → 开课记录
-/// → 相关课程 + 课程沿革。收藏按钮在 AppBar（乐观切换 + 失败回滚）。
+/// 窄屏纵向堆叠：头部信息 → 评分分布卡 → AI 总结 → 「课程信息」可展开卡片
+/// （开课班级/相关课程/课程沿革，默认折叠）→ 课评列表（cursor 分页，滚动接近
+/// 底部自动加载 + 写评/编辑/删除/有用）。宽屏时课程信息置于侧栏。收藏按钮在
+/// 底部操作栏（乐观切换 + 失败回滚 + 单飞）。
 class CourseDetailPage extends ConsumerWidget {
   const CourseDetailPage({
     super.key,
@@ -86,7 +87,6 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _reviewsSectionKey = GlobalKey();
-  final GlobalKey _reviewsLoadMoreKey = GlobalKey();
   final GlobalKey _targetReviewKey = GlobalKey();
   bool _reviewRevealed = false;
 
@@ -155,11 +155,21 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
   // viewportDimension，与懒加载 sliver 是否已构建无关）推算列表底部，接近即
   // 预取下一页；不依赖 footer 的 GlobalKey 是否已挂载。
   bool get _reviewsLoadMoreApproaching {
+    if (!_scrollController.hasClients) return false;
     final ScrollPosition position = _scrollController.position;
     final double contentHeight =
         position.maxScrollExtent + position.viewportDimension;
     final double viewportBottom = position.pixels + position.viewportDimension;
     return contentHeight - viewportBottom <= _loadMoreThreshold;
+  }
+
+  // 首屏/刷新落地后补评估一次：内容短于视口时页面不可滚动、滚动监听不会
+  // 触发，需在布局完成后主动预取，避免高视口下分页停滞。
+  void _maybeAutoLoadAfterLayout() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_reviewsLoadMoreApproaching) _loadMoreReviews();
+    });
   }
 
   void _goBack() {
@@ -298,6 +308,7 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _revealTargetReview(),
       );
+      _maybeAutoLoadAfterLayout();
     } catch (e) {
       if (!mounted ||
           seq != _reviewsSeq ||
@@ -1060,12 +1071,10 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
             );
           }, childCount: _reviews.length * 2 - 1),
         ),
-      // 容器始终挂载（保持 key 供滚动触发器测量）；闲置时内部渲染空，
-      // 仅加载中/失败时显示内容，无闲置文案。
+      // 闲置时渲染空（无闲置文案）；仅加载中/失败时显示内容。
       if (_reviewsLoaded && _nextCursor.isNotEmpty)
         SliverToBoxAdapter(
           child: Padding(
-            key: _reviewsLoadMoreKey,
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Center(
               child: _loadingMore
@@ -2765,7 +2774,7 @@ class _CourseInfoCard extends StatelessWidget {
                       ),
                       child: Center(
                         child: GfSymbol(
-                          'layers',
+                          'layers-filled',
                           size: 18,
                           color: colors.primary,
                         ),

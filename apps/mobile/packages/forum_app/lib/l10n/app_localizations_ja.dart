@@ -2207,9 +2207,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get courseCopyReviewsLoadFailed => '評価の読み込みに失敗しました。あとでもう一度お試しください。';
 
   @override
-  String get courseCopyReviewsLoadMore => 'スクロールして評価をさらに読み込む';
-
-  @override
   String get courseCopyAuthorAnonymousLabel => '匿名';
 
   @override

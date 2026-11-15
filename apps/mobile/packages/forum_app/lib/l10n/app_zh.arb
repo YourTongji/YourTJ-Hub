@@ -1096,7 +1096,6 @@
   "courseCopyReviewDeleted": "评价已删除",
   "courseCopyOperationFailed": "操作失败，请稍后重试。",
   "courseCopyReviewsLoadFailed": "评价加载失败，请稍后重试。",
-  "courseCopyReviewsLoadMore": "滚动加载更多评价",
   "courseCopyAuthorAnonymousLabel": "匿名同学",
   "courseCopyAuthorLegacyLabel": "历史匿名评价",
   "courseCopyRelatedTeacherCoursesTitle": "同教师其他课程",
