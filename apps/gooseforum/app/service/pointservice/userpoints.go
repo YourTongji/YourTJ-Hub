@@ -62,12 +62,37 @@ func ReversePostReward(userId, postID uint64) error {
 		fmt.Sprintf("post-deleted:%d", postID), fmt.Sprintf("post:%d", postID))
 }
 
-// ClearPostDeletedTombstone 恢复内容时清除删除回滚墓碑（post-deleted:ID）。
-// applyPointsTx 对 PointsActionPostCreated 会因已存在删除墓碑而跳过加分，
-// 恢复路径必须先清除墓碑才能回补创建奖励，否则"删除→恢复"积分永久丢失。
-func ClearPostDeletedTombstone(postID uint64) error {
-	return db.Connect().Where("source_key = ?", fmt.Sprintf("post-deleted:%d", postID)).
-		Delete(&pointsRecord.Entity{}).Error
+// RestorePostRewardTx undoes the recorded reversal, not a new publication
+// reward. The caller must already hold the restored post's write lock.
+func RestorePostRewardTx(tx *gorm.DB, userID, postID uint64) error {
+	lock := clause.Locking{Strength: "UPDATE"}
+	var participant struct{ ID uint64 }
+	if err := tx.Table("users").Clauses(lock).Select("id").Where("id = ?", userID).Take(&participant).Error; err != nil {
+		return err
+	}
+	var reversal pointsRecord.Entity
+	if err := tx.Clauses(lock).Where("source_key = ?", fmt.Sprintf("post-deleted:%d", postID)).Take(&reversal).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if reversal.UserId != userID || reversal.Action != PointsActionPostDeleted.Code() || reversal.PointsChange > 0 {
+		return fmt.Errorf("invalid reward reversal for restored post %d", postID)
+	}
+	if reversal.PointsChange < 0 {
+		// Deletion does not create a missing wallet; restoration likewise leaves
+		// that legacy row absent rather than projecting a partial balance.
+		if err := tx.Table("user_points").Where("user_id = ?", userID).
+			Update("current_points", gorm.Expr("current_points - ?", reversal.PointsChange)).Error; err != nil {
+			return err
+		}
+		if err := tx.Table("users").Where("id = ?", userID).
+			Update("prestige", gorm.Expr("prestige - ?", reversal.PointsChange)).Error; err != nil {
+			return err
+		}
+	}
+	return tx.Delete(&reversal).Error
 }
 
 func applyPoints(userId uint64, points int64, action PointsAction, sourceKey, originalSourceKey string) error {

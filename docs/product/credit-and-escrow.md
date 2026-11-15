@@ -3,7 +3,7 @@
 > Doc type: product spec
 >
 > Status: Active (implementation `Partial`: forum-local publication rewards are `Current`, while historical
-> reward recovery and atomic restoration rewards remain `Partial`; the XP ledger and
+> reward recovery remains `Partial`; the XP ledger and
 > controlled single-date daily-base service/CLI are `Current`, while scheduled settlement and event delivery are not
 > connected; cross-platform credit is `Planned`)
 >
@@ -57,12 +57,13 @@ Forum built-in OIDC Provider (numeric sub = users.id)
   and legacy approval. A ledger failure rolls back publication; a retry uses the same source key.
   Pending/rejected content, bot authors, and wiki first posts do not earn these rewards. Anonymous
   replies credit their numeric owning account. Reply deletion reverses its reward in the delete
-  transaction, and migration v14 reconstructs missing legacy balance rows.
+  transaction. An author restoring a recoverable reply reverses the recorded debit in the restore
+  transaction; restoration does not grant a new first-publication reward. Migration v14 reconstructs
+  missing legacy balance rows.
 - **Legacy reward recovery remains `Partial`**: event handlers remain compatible with queued events
   and deduplicate against the same source keys. New publication does not depend on their delivery,
-  but no job reconstructs rewards lost before transactional publication, and content restoration
-  still uses its existing separate reward calls. This change does not provide a historical
-  reconciliation or atomic restoration guarantee. See the [transaction decision](../decisions/0132-transactional-publication-points.md).
+  but no job reconstructs rewards lost before transactional publication or repairs historical
+  restoration discrepancies. See the [transaction decision](../decisions/0132-transactional-publication-points.md).
 - **Forum XP end-to-end delivery is `Partial`**: `xp_balances` is a projection of the append-only `xp_entries` ledger;
   versioned reward rules track per-event, per-rule daily, and optional per-user daily positive XP limits
   on Asia/Shanghai dates from event time. XP levels are derived from the current balance and account eligibility. The

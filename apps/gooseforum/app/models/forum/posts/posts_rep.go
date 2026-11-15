@@ -330,24 +330,29 @@ func SoftDeleteByIDs(ids []uint64, deletedBy uint64, reason string, visibility s
 // Restore 恢复回复：清除软删标记并回到正常生命周期。
 func Restore(id uint64) error {
 	return db.Connect().Transaction(func(tx *gorm.DB) error {
-		result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
-			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-			Updates(map[string]any{
-				"deleted_at":        gorm.Expr("NULL"),
-				"visibility_status": VisibilityActive,
-				"retention_status":  RetentionNormal,
-				"deleted_by":        0,
-				"delete_reason":     "",
-			})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return gorm.ErrRecordNotFound
-		}
-		return markPostProjectionTx(tx, id)
+		return RestoreTx(tx, id)
 	})
+}
+
+// RestoreTx restores a post and its projection inside the caller's transaction.
+func RestoreTx(tx *gorm.DB, id uint64) error {
+	result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+		Updates(map[string]any{
+			"deleted_at":        gorm.Expr("NULL"),
+			"visibility_status": VisibilityActive,
+			"retention_status":  RetentionNormal,
+			"deleted_by":        0,
+			"delete_reason":     "",
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return markPostProjectionTx(tx, id)
 }
 
 // MarkPurged 标记回复为已永久删除（不再可恢复，仅审计可查）。
