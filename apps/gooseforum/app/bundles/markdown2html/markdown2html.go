@@ -340,6 +340,7 @@ func ExtractMentions(content string) []string {
 }
 
 // ExtractPreview converts Markdown into compact readable text for notifications and activity lists.
+// When the readable preview exceeds maxLength, it reserves one rune for a single trailing ellipsis.
 func ExtractPreview(content string, maxLength int) string {
 	if maxLength <= 0 {
 		return ""
@@ -378,7 +379,10 @@ func ExtractPreview(content string, maxLength int) string {
 	preview := strings.Join(strings.Fields(builder.String()), " ")
 	runes := []rune(preview)
 	if len(runes) > maxLength {
-		preview = string(runes[:maxLength])
+		preview = strings.TrimRight(string(runes[:maxLength-1]), " ")
+		if !strings.HasSuffix(preview, "…") && !strings.HasSuffix(preview, "...") {
+			preview += "…"
+		}
 	}
 	return preview
 }

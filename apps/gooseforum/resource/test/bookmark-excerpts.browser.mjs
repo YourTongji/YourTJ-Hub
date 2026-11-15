@@ -32,7 +32,7 @@ after(async () => {
     checkoutSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     prHeadSha: process.env.BOOKMARK_EXCERPT_PR_HEAD_SHA || null,
     browser: 'Chromium', browserVersion, captures,
-    scope: 'Real UserPage/AppShell/CSS with synthetic bookmarks and initialized memory routing. No live account/backend; activity is a retained render branch, not current server navigation. Screenshots require visual review.',
+    scope: 'Real UserPage/AppShell/CSS with synthetic bookmarks carrying the server max-160 ellipsis output and initialized memory routing. No live account/backend; activity is a retained render branch, not current server navigation. Screenshots require visual review.',
   }, null, 2))
 })
 
@@ -59,12 +59,17 @@ for (const section of ['bookmarks', 'activity']) for (const width of [320, 1280]
       })
       capture.long = await measure(longRow.locator('.line-clamp-2'))
       capture.short = await measure(shortRow.locator('.line-clamp-2'))
+      const excerptText = (await longRow.locator('.line-clamp-2').textContent()).trim()
+      capture.excerptRunes = Array.from(excerptText).length
+      capture.excerptEndsWithSingleEllipsis = /[^…]…$/.test(excerptText)
       if (evidence) {
         capture.file = `${section}-${theme}-${width}.png`
         await page.screenshot({ path: resolve(evidence, capture.file), fullPage: true })
       }
 
       assert.equal(await page.locator('html').getAttribute('data-theme'), `gf-${theme}`)
+      assert.equal(capture.excerptRunes, 160, 'bookmark preview matches the server max-160 output')
+      assert.equal(capture.excerptEndsWithSingleEllipsis, true, 'bookmark preview ends with one server ellipsis')
       assert.equal(await page.locator('button.fixed[aria-haspopup="true"]').count(), 0, 'profile fixture must not render the home publish FAB')
       if (width === 320) {
         assert.ok(capture.long.scrollHeight > capture.long.lineHeight * 2 + 1, 'narrow fixture must contain more than two natural lines')
