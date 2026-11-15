@@ -1333,6 +1333,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get courseShareThisReview => 'This review';
 
   @override
+  String get courseDetailInfo => 'Course info';
+
+  @override
   String get courseDetailOfferings => 'Classes';
 
   @override

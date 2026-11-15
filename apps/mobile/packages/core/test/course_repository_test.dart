@@ -85,6 +85,18 @@ void main() {
     );
   });
 
+  test('detail preserves true, false and legacy unknown bookmark states', () async {
+    for (final bookmarked in <bool?>[true, false, null]) {
+      dio.httpClientAdapter = MockAdapter((request) async {
+        final detail = Map<String, dynamic>.from(_resultFor(request) as Map);
+        if (bookmarked != null) detail['bookmarked'] = bookmarked;
+        return ResponseData(200, {'code': 0, 'result': detail});
+      });
+      final detail = await repository().detail(42);
+      expect(detail.toJson()['bookmarked'], bookmarked);
+    }
+  });
+
   test('updateReview sends a PATCH body, not a POST', () async {
     await repository().updateReview(
       7,
