@@ -1315,6 +1315,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get courseShareThisReview => 'このレビュー';
 
   @override
+  String get courseDetailInfo => 'コース情報';
+
+  @override
   String get courseDetailOfferings => 'クラス';
 
   @override

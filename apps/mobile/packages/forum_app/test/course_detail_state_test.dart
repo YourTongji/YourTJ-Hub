@@ -223,7 +223,17 @@ void main() {
         .widget<CustomScrollView>(find.byType(CustomScrollView))
         .controller!;
     controller.jumpTo(0);
-    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pump();
+    // The course-info card now sits above the reviews, so the page is taller.
+    // Step down in chunks so the lazy review footer is built and its
+    // approaching-trigger fires, rather than a single jump that skips it.
+    for (var i = 0; i < 60; i++) {
+      final double max = controller.position.maxScrollExtent;
+      final double next = (controller.offset + 300).clamp(0.0, max);
+      controller.jumpTo(next);
+      await tester.pump();
+      if (next >= max) break;
+    }
     await tester.pump();
   }
 
@@ -238,21 +248,9 @@ void main() {
     );
     // Only the first page is loaded; a next cursor exists.
     expect(courses.requests, hasLength(1));
-    final controller = tester
-        .widget<CustomScrollView>(find.byType(CustomScrollView))
-        .controller!;
-    // Scroll just past the review footer (well before the page bottom, which
-    // the long related-courses section pushes far below). The footer must
-    // trigger the next page on its own, without reaching the page bottom.
-    controller.jumpTo(1600);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(
-      controller.position.extentAfter,
-      greaterThan(400),
-      reason: 'page must extend well past the review footer for this regression',
-    );
-    // Reaching the review footer must request the next page.
+    // Scrolling down to the review footer must request the next page on its
+    // own (auto-load), without any tap.
+    await scrollToEnd(tester);
     expect(courses.requests, hasLength(2));
     expect(courses.requests.last.cursor, 'all-next');
     courses.requests.last.result.complete(_reviews(300));
@@ -260,19 +258,72 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('idle load-more footer invites scrolling, not an empty state', (
+  testWidgets('idle load-more footer shows no copy (auto-load, no idle hint)', (
     tester,
   ) async {
-    // A tall viewport builds the footer during initial layout (no scroll), so
-    // the load-more trigger never fires and the idle hint stays on screen.
+    // A tall viewport builds the list during initial layout (no scroll), so
+    // the load-more trigger never fires and no idle hint is shown.
     await pumpDetail(tester, physicalSize: const Size(400, 3000));
     expect(courses.requests, hasLength(1));
-    // A next cursor exists and no page is loading: the footer must read as a
-    // load-more affordance, never the related-course empty-state string.
+    // Final design: no idle copy. While idle (not loading, no error) the
+    // footer renders nothing; only loading / error states are visible.
     expect(
       find.textContaining('滚动加载更多评价', findRichText: true),
-      findsOneWidget,
+      findsNothing,
     );
+    expect(find.textContaining('加载更多', findRichText: true), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('load-more failure shows retry and scrolling does not auto-retry', (
+    tester,
+  ) async {
+    await pumpDetail(tester, physicalSize: const Size(400, 800));
+    final controller = tester
+        .widget<CustomScrollView>(find.byType(CustomScrollView))
+        .controller!;
+    // Trigger a page-2 load that fails.
+    await scrollToEnd(tester);
+    expect(courses.requests, hasLength(2));
+    courses.requests.last.result.completeError(
+      const ApiException(fallbackMessage: 'page failed'),
+    );
+    await tester.pump();
+    // Error state shows a retry affordance, not silent.
+    expect(find.text('重试'), findsOneWidget);
+    final count = courses.requests.length;
+    // Scrolling again while errored must NOT auto-retry (canonical gate).
+    controller.jumpTo(0);
+    await tester.pump();
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pump();
+    expect(courses.requests, hasLength(count));
+    // Explicit retry clears the error and loads the next page.
+    await tester.ensureVisible(find.text('重试'));
+    await tester.pump();
+    await tester.tap(find.text('重试'));
+    await tester.pump();
+    expect(courses.requests, hasLength(count + 1));
+    courses.requests.last.result.complete(_reviews(300));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('course info card collapses by default and expands on tap', (
+    tester,
+  ) async {
+    await pumpDetail(tester, physicalSize: const Size(400, 800));
+    // Collapsed: summary header visible, offerings rows not built.
+    expect(find.text('课程信息'), findsOneWidget);
+    expect(find.text('01班'), findsNothing);
+    // Expand: offerings rows appear.
+    await tester.tap(find.text('课程信息'));
+    await tester.pumpAndSettle();
+    expect(find.text('01班'), findsWidgets);
+    // Collapse again.
+    await tester.tap(find.text('课程信息'));
+    await tester.pumpAndSettle();
+    expect(find.text('01班'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -458,7 +509,11 @@ void main() {
       );
       await tester.pump();
       final count = courses.requests.length;
-      await scrollToEnd(tester);
+      // Error gates auto-load; only an explicit retry reloads the page.
+      await tester.ensureVisible(find.text('重试'));
+      await tester.pump();
+      await tester.tap(find.text('重试'));
+      await tester.pump();
       expect(courses.requests, hasLength(count + 1));
       expect(courses.requests.last.cursor, 'all-new-next');
       courses.requests.last.result.complete(_reviews(400));

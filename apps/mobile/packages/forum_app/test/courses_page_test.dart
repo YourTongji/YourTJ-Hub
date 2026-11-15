@@ -1996,6 +1996,9 @@ void main() {
             findsOneWidget,
           );
 
+          // 课程信息卡片默认折叠，先展开使教学班行可见。
+          await tester.tap(find.text('课程信息'));
+          await tester.pumpAndSettle();
           // 写入仍 pending 时触发一次完整列表重载：服务端尚未提交，这次响应
           // 是旧快照（有用 0），不能覆盖本地乐观态。
           final Finder offering = find.text('01班 · 10000101');
@@ -2665,6 +2668,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      // 课程信息卡片默认折叠，先展开使相关课程/沿革可见。
+      await tester.tap(find.text('课程信息'));
+      await tester.pumpAndSettle();
       final list = find.byType(CustomScrollView).first;
       await tester.drag(list, const Offset(0, -6000));
       await tester.pumpAndSettle();
@@ -2761,6 +2767,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      // 课程信息卡片默认折叠，先展开再点添加到选课排课。
+      await tester.tap(find.text('课程信息'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('添加到选课排课').first);
       await tester.tap(find.text('添加到选课排课').first);
       await tester.pumpAndSettle();
@@ -2782,6 +2791,10 @@ void main() {
         reviewPayloads: _reviewPayloads(),
       );
       await pumpDetail(tester, course);
+
+      // 课程信息卡片默认折叠，先展开以断言内部区块。
+      await tester.tap(find.text('课程信息'));
+      await tester.pumpAndSettle();
 
       // 头部：名称/课号/别名/原名标注。
       expect(find.text('高等数学(A)上'), findsWidgets);
@@ -2913,6 +2926,11 @@ void main() {
 
       expect(course.reviewCalls.first.offeringId, isNull);
 
+      // 课程信息卡片默认折叠，先展开再点教学班。
+      await tester.tap(find.text('课程信息'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('02班'));
+      await tester.pump();
       await tester.tap(find.text('02班'));
       await tester.pumpAndSettle();
 

@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -109,6 +108,8 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
   bool _reviewsLoading = false;
   bool _reviewsLoaded = false;
   bool _loadingMore = false;
+  Object? _loadMoreError;
+  bool _infoExpanded = false;
   int _reviewTotal = 0;
   int? _reviewsOfferingId;
   Object? _reviewsError;
@@ -149,28 +150,16 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
     }
   }
 
-  // 分页触发以课评区底部（load-more footer）相对视口的位置为准，而非整页
-  // extentAfter：课评区下方还挂着开课记录/相关课程/沿革，用整页剩余距离会
-  // 要求滚到整页最底才加载。footer 进入视口底部上方阈值内即预取下一页。
+  // 分页触发以课评列表底部相对视口的位置为准。课程信息卡片已上移到课评之
+  // 前，课评是滚动视图的最后一个内容块，因此用内容总高度（maxScrollExtent +
+  // viewportDimension，与懒加载 sliver 是否已构建无关）推算列表底部，接近即
+  // 预取下一页；不依赖 footer 的 GlobalKey 是否已挂载。
   bool get _reviewsLoadMoreApproaching {
-    final BuildContext? footerContext = _reviewsLoadMoreKey.currentContext;
-    if (footerContext == null) return false;
-    final RenderObject? footerObject = footerContext.findRenderObject();
-    if (footerObject is! RenderBox || !footerObject.hasSize) return false;
     final ScrollPosition position = _scrollController.position;
-    final RenderAbstractViewport? viewport = RenderAbstractViewport.maybeOf(
-      footerObject,
-    );
-    if (viewport == null) return false;
-    // footer 顶部对齐视口底部所需的滚动偏移；与当前偏移之差即 footer 距视口
-    // 底部的距离。以此判断进入预取阈值，不受课评区下方相关课程等内容影响。
-    final double revealOffset = viewport.getOffsetToReveal(
-      footerObject,
-      1.0,
-      axis: Axis.vertical,
-    ).offset;
-    final double distanceToBottom = revealOffset - position.pixels;
-    return distanceToBottom <= _loadMoreThreshold;
+    final double contentHeight =
+        position.maxScrollExtent + position.viewportDimension;
+    final double viewportBottom = position.pixels + position.viewportDimension;
+    return contentHeight - viewportBottom <= _loadMoreThreshold;
   }
 
   void _goBack() {
@@ -266,6 +255,7 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
       // New list generation owns its own pagination lock. Old finally blocks
       // remain fenced so they cannot unlock a newer request.
       _loadingMore = false;
+      _loadMoreError = null;
       _reviewsError = null;
       if (_reviewsOfferingId != offeringId) {
         // Keep hidden rows while loading so in-flight reaction writes can
@@ -369,6 +359,7 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
     if (_loadingMore ||
         _reviewsLoading ||
         _reviewsError != null ||
+        _loadMoreError != null ||
         _nextCursor.isEmpty ||
         !_reviewsLoaded) {
       return;
@@ -406,8 +397,15 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
       });
-    } catch (_) {
-      // 加载更多失败静默，滚动可再次触发。
+    } catch (e) {
+      // 失败不静默：footer 显示「点击重试」；错误态对自动加载是终端的，
+      // 滚动不再重试，仅显式重试可恢复（与 GfListFooter 语义一致）。
+      if (!mounted ||
+          seq != _reviewsSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      setState(() => _loadMoreError = e);
     } finally {
       if (mounted &&
           seq == _reviewsSeq &&
@@ -415,6 +413,12 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
         setState(() => _loadingMore = false);
       }
     }
+  }
+
+  /// 显式重试：清除错误后重新加载下一页。
+  void _retryLoadMore() {
+    setState(() => _loadMoreError = null);
+    _loadMoreReviews();
   }
 
   CourseCopy _copy() => CourseCopy(AppLocalizations.of(context));
@@ -876,11 +880,34 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
                           SliverToBoxAdapter(
                             child: wide ? const SizedBox.shrink() : summary,
                           ),
+                          if (!wide)
+                            SliverToBoxAdapter(
+                              child: _CourseInfoCard(
+                                expanded: _infoExpanded,
+                                onToggle: () => setState(
+                                  () => _infoExpanded = !_infoExpanded,
+                                ),
+                                detail: detail,
+                                related: _related,
+                                activeOfferingId: _activeOfferingId,
+                                onFocusOffering: _focusOffering,
+                                onPlan: (offering) => context.push(
+                                  Uri(
+                                    path: '/schedule',
+                                    queryParameters: {
+                                      'course': detail.primaryCode,
+                                      'name': detail.name,
+                                      'term': offering.termCode,
+                                      'class': offering.classCode!,
+                                    },
+                                  ).toString(),
+                                ),
+                                onOpenCourse: (id) =>
+                                    context.pushReplacement('/courses/$id'),
+                                copy: copy,
+                              ),
+                            ),
                           ..._buildReviewsSlivers(l10n, copy, detail),
-                          const SliverToBoxAdapter(child: GfDivider()),
-                          SliverToBoxAdapter(
-                            child: wide ? const SizedBox.shrink() : offerings,
-                          ),
                           const SliverToBoxAdapter(child: SizedBox(height: 24)),
                         ],
                       ),
@@ -1033,6 +1060,8 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
             );
           }, childCount: _reviews.length * 2 - 1),
         ),
+      // 容器始终挂载（保持 key 供滚动触发器测量）；闲置时内部渲染空，
+      // 仅加载中/失败时显示内容，无闲置文案。
       if (_reviewsLoaded && _nextCursor.isNotEmpty)
         SliverToBoxAdapter(
           child: Padding(
@@ -1041,12 +1070,25 @@ class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
             child: Center(
               child: _loadingMore
                   ? const GfLoadingIndicator(small: true)
-                  : GfText(
-                      copy.reviewsLoadMore,
-                      style: GfTheme.typographyOf(context).caption.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.35),
-                      ),
-                    ),
+                  : _loadMoreError != null
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GfText(
+                          l10n.courseCopyReviewsLoadFailed,
+                          style: GfTheme.typographyOf(context).caption.copyWith(
+                            color: colors.error,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        GfButton(
+                          label: l10n.commonRetry,
+                          variant: GfButtonVariant.ghost,
+                          onPressed: _retryLoadMore,
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
         ),
@@ -2646,6 +2688,141 @@ class _ReviewActionBar extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---- 课程信息折叠卡片 ----
+
+/// 把原本沉在课评下方的开课班级/相关课程/课程沿革收进一张可展开卡片，
+/// 上移到评分区与课评之间。折叠态仅一行摘要；展开后课评列表仍在其下，
+/// 可继续滚动自动加载而不推挤任何内容。
+class _CourseInfoCard extends StatelessWidget {
+  const _CourseInfoCard({
+    required this.expanded,
+    required this.onToggle,
+    required this.detail,
+    required this.related,
+    required this.activeOfferingId,
+    required this.onFocusOffering,
+    required this.onPlan,
+    required this.onOpenCourse,
+    required this.copy,
+  });
+
+  final bool expanded;
+  final VoidCallback onToggle;
+  final CourseDetailPayload detail;
+  final AsyncValue<CourseRelatedResult> related;
+  final int? activeOfferingId;
+  final ValueChanged<int> onFocusOffering;
+  final ValueChanged<CourseOfferingPayload> onPlan;
+  final ValueChanged<int> onOpenCourse;
+  final CourseCopy copy;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final int offeringCount = detail.offerings?.length ?? 0;
+    final CourseRelatedResult? rel = related.valueOrNull;
+    final int relatedCount =
+        (rel?.teacherOtherCourses.length ?? 0) +
+        (rel?.sameCourseOtherTeachers.length ?? 0);
+    final int lineageCount = rel?.lineage?.length ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.base100,
+          borderRadius: BorderRadius.circular(GfRadius.lg),
+          border: Border.all(color: colors.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(GfRadius.sm),
+                      ),
+                      child: Center(
+                        child: GfSymbol(
+                          'layers',
+                          size: 18,
+                          color: colors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          GfText(
+                            l10n.courseDetailInfo,
+                            style: type.small.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          GfText(
+                            '${l10n.courseDetailOfferings} $offeringCount · '
+                            '${l10n.courseDetailRelated} $relatedCount · '
+                            '${l10n.courseDetailLineage} $lineageCount',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GfSymbol(
+                      expanded ? 'chevron-up' : 'chevron-down',
+                      size: 18,
+                      color: colors.textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (expanded) ...[
+              const GfDivider(),
+              _OfferingsSection(
+                offerings: detail.offerings ?? const <CourseOfferingPayload>[],
+                activeOfferingId: activeOfferingId,
+                onFocusOffering: onFocusOffering,
+                onPlan: onPlan,
+                copy: copy,
+              ),
+              const GfDivider(),
+              _RelatedSection(
+                related: related,
+                courseId: detail.id,
+                onOpenCourse: onOpenCourse,
+                copy: copy,
+              ),
+            ],
+          ],
         ),
       ),
     );
