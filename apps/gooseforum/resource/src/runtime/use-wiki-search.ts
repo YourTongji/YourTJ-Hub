@@ -56,9 +56,12 @@ export async function searchWikiPages(query: string, signal?: AbortSignal): Prom
     headers: { Accept: 'application/json' },
     signal,
   })
-  const data = (await response.json().catch(() => undefined)) as { result?: WikiSearchResponse } | undefined
-  const result = data?.result ?? { query, total: 0, items: [] as WikiSearchItem[] }
-  return result
+  // Transport/protocol failures are not successful searches with zero matches.
+  // Let the panel's existing error state distinguish them from an empty result.
+  if (!response.ok) throw new Error(`Wiki search failed: HTTP ${response.status}`)
+  const data = (await response.json()) as { result?: WikiSearchResponse } | null
+  if (!data?.result) throw new Error('Wiki search response is missing its result')
+  return data.result
 }
 
 /**
