@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func executeBackfillImages(t *testing.T) (string, error) {
@@ -119,5 +121,75 @@ func TestBackfillImagesPartialSaveFailure(t *testing.T) {
 	}
 	if attempts != before {
 		t.Fatal("unchanged images must not be saved again")
+	}
+}
+
+func TestBackfillImagesFirstPostReadFailure(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&topics.Entity{}, &posts.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	const valid, broken, missing uint64 = 9200000000011, 9200000000012, 9200000000013
+	ids := []uint64{valid, broken, missing}
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id IN ?", ids).Delete(&posts.Entity{})
+		conn.Unscoped().Where("id IN ?", ids).Delete(&topics.Entity{})
+	})
+	for _, id := range ids {
+		topic := topics.Entity{Id: id, FirstPostId: id, Status: 1, ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityActive}
+		if err := conn.Create(&topic).Error; err != nil {
+			t.Fatal(err)
+		}
+		post := posts.Entity{Id: id, TopicId: id, PostNo: 1, Content: "![example](https://example.com/image.png)", ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityActive}
+		if err := conn.Create(&post).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	failRead := true
+	const callback = "test:backfill_images_first_post_read"
+	if err := conn.Callback().Query().Before("gorm:query").Register(callback, func(tx *gorm.DB) {
+		if tx.Statement.Table != "posts" {
+			return
+		}
+		where, _ := tx.Statement.Clauses["WHERE"].Expression.(clause.Where)
+		for _, expr := range where.Exprs {
+			in, ok := expr.(clause.IN)
+			if !ok {
+				continue
+			}
+			switch {
+			case failRead && slices.Contains(in.Values, any(broken)):
+				_ = tx.AddError(errors.New("injected first-post query failure"))
+			case slices.Contains(in.Values, any(missing)):
+				// The first post disappeared after the public topic scan.
+				_ = tx.AddError(gorm.ErrRecordNotFound)
+			}
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Callback().Query().Remove(callback); err != nil {
+			t.Error(err)
+		}
+	})
+	output, err := executeBackfillImages(t)
+	if err == nil {
+		t.Fatalf("first-post read failure must fail the command, output=%q", output)
+	}
+	if !strings.Contains(output, "read first post failed topic 9200000000012") ||
+		strings.Contains(output, "9200000000013") || strings.Contains(output, "backfilled image_urls") {
+		t.Fatalf("wrong diagnostics for unreadable and missing posts: %q", output)
+	}
+	var saved topics.Entity
+	if err := conn.First(&saved, valid).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.ImageUrls) != 1 {
+		t.Fatalf("other topic was not processed: %#v", saved.ImageUrls)
+	}
+	failRead = false
+	if _, err := executeBackfillImages(t); err != nil {
+		t.Fatalf("retry must succeed while the genuinely missing post is skipped: %v", err)
 	}
 }
