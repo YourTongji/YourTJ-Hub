@@ -210,6 +210,9 @@ class ScheduleWidgetBridge {
       HomeWidget.cancelScheduledWidgetUpdates(
         qualifiedAndroidName: _todayReceiver,
       ),
+      HomeWidget.cancelScheduledWidgetUpdates(
+        qualifiedAndroidName: _timelineReceiver,
+      ),
     ]);
     await _reload();
   }

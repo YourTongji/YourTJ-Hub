@@ -458,6 +458,25 @@ void main() {
     }
   });
 
+  test('Android clear cancels every receiver that _write schedules', () {
+    final bridge = read('lib/src/campus_widget/schedule_widget_bridge.dart');
+    final clearStart = bridge.indexOf('Future<void> _clear(String state)');
+    expect(clearStart, isNonNegative);
+    final cancel = bridge.substring(
+      clearStart,
+      bridge.indexOf('await _reload();', clearStart),
+    );
+
+    expect(cancel, contains('HomeWidget.cancelScheduledWidgetUpdates('));
+    for (final receiver in [
+      '_nextReceiver',
+      '_todayReceiver',
+      '_timelineReceiver',
+    ]) {
+      expect(cancel, contains('qualifiedAndroidName: $receiver'));
+    }
+  });
+
   test('iOS WidgetKit target, App Group and timeline are fully configured', () {
     final project = read('ios/Runner.xcodeproj/project.pbxproj');
     final source =
