@@ -118,8 +118,8 @@ patches, independently of removable labels. Generated fixes remain draft PRs for
 The trusted [validation entry](../../.github/oryn/validate.mjs) is installed outside the candidate
 checkout and mounted read-only in Oryn's credential-free bubblewrap sandbox. It compares the working
 tree with the job's exact base SHA, including staged and untracked changes. Every repair runs governance
-checks, then affected Go vet/test/build, PostgreSQL migration/model tests, Vue typecheck/test/i18n/build,
-API contract checks or Flutter analysis/tests. Unknown executable paths select all domains. Linux
+checks, then affected Go vet/test/build, PostgreSQL migration/model tests, Vue
+typecheck/test/i18n/line-clamp/build, API contract checks or Flutter analysis/tests. Unknown executable paths select all domains. Linux
 runners install Go, Node/pnpm and Flutter before repair execution; PostgreSQL uses a disposable local
 service. Flutter's writable SDK cache lives in the temporary validation home. Validation failures or
 budget exhaustion prevent patch publication; browser layout tests and other full CI suites remain

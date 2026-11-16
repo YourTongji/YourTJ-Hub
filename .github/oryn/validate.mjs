@@ -53,7 +53,7 @@ function main() {
   }
   if (scope === 'frontend') {
     install(frontend);
-    for (const task of ['typecheck', 'test', 'check:i18n', 'build']) run('pnpm', [task], frontend);
+    for (const task of ['typecheck', 'test', 'check:i18n', 'check:line-clamp', 'build']) run('pnpm', [task], frontend);
   }
   if (scope === 'contract') {
     install(contract);
