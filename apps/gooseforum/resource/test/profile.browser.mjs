@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
+import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
 
@@ -22,6 +24,31 @@ after(async () => {
   await browser?.close()
   await server?.close()
 })
+
+for (const theme of ['light', 'dark']) for (const width of [320, 1280]) {
+  test(`anonymous reply preview shows the server ellipsis at ${width}px in ${theme}`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme: theme })
+    const evidence = process.env.YOURTJ_BOOKMARK_EXCERPT_EVIDENCE_DIR
+    try {
+      await page.route('**/api/forum/unread-status', route => route.fulfill({
+        json: { code: 0, result: { notifications: false, messages: false } },
+      }))
+      await page.goto(`${origin}/assets/test/fixtures/browser/profile.html?tab=replies&long-preview=1&theme=${theme}`)
+      const excerpt = page.locator('article a[href="/p/99/2"] p')
+      await excerpt.waitFor()
+      const text = await excerpt.textContent()
+      assert.equal(Array.from(text).length, 200, 'anonymous preview uses the server max-200 result')
+      assert.match(text, /[^…]…$/, 'anonymous preview ends with one visible ellipsis')
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'anonymous preview must not overflow horizontally')
+      if (evidence) {
+        await mkdir(evidence, { recursive: true })
+        await page.screenshot({ path: resolve(evidence, `anonymous-profile-${theme}-${width}.png`), fullPage: true })
+      }
+    } finally {
+      await page.close()
+    }
+  })
+}
 
 for (const width of [320, 1280]) {
   for (const hidden of [false, true]) {
