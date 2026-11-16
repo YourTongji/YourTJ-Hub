@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
 )
 
 func init() {
@@ -30,8 +32,13 @@ func runBackfillImages(cmd *cobra.Command, args []string) error {
 		if topic == nil || topic.Id == 0 {
 			continue
 		}
-		firstPost := posts.Get(topic.FirstPostId)
-		if firstPost.Id == 0 {
+		firstPost, err := posts.GetWithContext(cmd.Context(), topic.FirstPostId)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			continue
+		}
+		if err != nil {
+			failed++
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "read first post failed topic %d: %v\n", topic.Id, err)
 			continue
 		}
 		images := markdown2html.ExtractImageURLs(firstPost.Content)
@@ -49,9 +56,10 @@ func runBackfillImages(cmd *cobra.Command, args []string) error {
 		}
 		updated++
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "backfilled image_urls for %d/%d topics\n", updated, len(all))
 	if failed > 0 {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "image backfill incomplete: updated %d/%d topics, failed %d\n", updated, len(all), failed)
 		return fmt.Errorf("image backfill failed for %d/%d topics", failed, len(all))
 	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "backfilled image_urls for %d/%d topics\n", updated, len(all))
 	return nil
 }
