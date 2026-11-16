@@ -50,6 +50,40 @@ describe('findLineClampConflicts（AC-1：#1688 旧类串必须报错）', () =>
     expect(findings[0].relPath).toBe('src/site/components/Fixture.vue')
     expect(findings[0].line).toBe(2)
   })
+
+  it('important 修饰符：display 带 important 而 clamp 不带 → 确定缺陷，报错', () => {
+    // v4 后缀与 v3 前缀两种写法；important 确定性覆盖，与源序无关。
+    expect(findLineClampConflicts('block! line-clamp-2')).toHaveLength(1)
+    expect(findLineClampConflicts('!block line-clamp-2')).toHaveLength(1)
+    // 双方同带 important → 回到源序竞争，报错。
+    expect(findLineClampConflicts('line-clamp-2! block!')).toHaveLength(1)
+    expect(findLineClampConflicts('!line-clamp-2 !block')).toHaveLength(1)
+  })
+
+  it('命名变体与容器查询：同前缀冲突报错（group-hover/item、@md、@lg/name）', () => {
+    const named = findLineClampConflicts('group-hover/item:line-clamp-2 group-hover/item:flex')
+    expect(named).toHaveLength(1)
+    expect(named[0].prefix).toBe('group-hover/item:')
+    const container = findLineClampConflicts('@md:line-clamp-2 @md:block')
+    expect(container).toHaveLength(1)
+    expect(container[0].prefix).toBe('@md:')
+    expect(findLineClampConflicts('@lg/name:line-clamp-2 @lg/name:flex')).toHaveLength(1)
+    expect(findLineClampConflicts('peer-checked/name:line-clamp-1 peer-checked/name:inline-flex')).toHaveLength(1)
+  })
+
+  it('单引号外层绑定属性：真实冲突分支报错', () => {
+    const text = `<div :class='cond ? "x" : "block line-clamp-2"'></div>`
+    const findings = scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])
+    expect(findings).toHaveLength(1)
+    expect(findings[0].displays).toEqual(['block'])
+  })
+
+  it('文本节点撇号不影响相邻元素真实冲突的检出', () => {
+    const text = `<p>don't</p>\n<p class="block line-clamp-2">x</p>\n<p>can't</p>`
+    const findings = scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(2)
+  })
 })
 
 describe('findLineClampConflicts（AC-4：合法写法零误报）', () => {
@@ -104,6 +138,30 @@ describe('findLineClampConflicts（AC-4：合法写法零误报）', () => {
     expect(findLineClampConflicts('line-clamp-2 inline-block')).toHaveLength(1)
     expect(findLineClampConflicts('line-clamp-2 inline-flex')).toHaveLength(1)
     expect(findLineClampConflicts('line-clamp-2 text-sm inline-decoration')).toEqual([])
+  })
+
+  it('important 修饰符：clamp 带 important 而 display 不带 → clamp 必胜，合法', () => {
+    expect(findLineClampConflicts('line-clamp-2! block')).toEqual([])
+    expect(findLineClampConflicts('!line-clamp-2 block')).toEqual([])
+    expect(findLineClampConflicts('!line-clamp-2 block!')).toHaveLength(1) // display 也带 → 源序竞争
+  })
+
+  it('命名变体前缀不同不报：group-hover/item 与裸 group-hover 是不同前缀', () => {
+    expect(findLineClampConflicts('group-hover/item:line-clamp-2 group-hover:flex')).toEqual([])
+  })
+
+  it('文本节点撇号不产生跨元素假串（don\'t … can\'t 形态）', () => {
+    // 两个撇号若被当作字符串定界符，会把中间两个元素的合法类串拼成假串。
+    const text = `<p>don't</p>\n<p class="line-clamp-2">x</p>\n<div class="flex">y</div>\n<p>can't</p>`
+    expect(scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])).toEqual([])
+    // 文本里直接提到类名也不判定。
+    const prose = `<p>don't use block line-clamp-2 together can't</p>`
+    expect(scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text: prose }])).toEqual([])
+  })
+
+  it('单引号外层绑定的互斥分支不误报', () => {
+    const text = `<div :class='cond ? "block" : "line-clamp-2"'></div>`
+    expect(scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])).toEqual([])
   })
 })
 

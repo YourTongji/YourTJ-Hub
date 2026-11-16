@@ -159,65 +159,96 @@ function findStringEnd(text, open, end) {
   return end
 }
 
-// 提取 class 语境的候选串。单遍扫描、同层配对：
-// - `:attr="expr"` / `v-bind:attr="expr"` 是绑定表达式：外层双引号只圈定表达式边界，
-//   内部单引号/反引号字面量才是候选串（三元互斥分支各自成串，AC-4）。
-//   表达式整体消费，内部引号绝不与后续 HTML 伪配对（UserCard.vue :style 形态）。
-// - `class="..."` 静态属性与其他双引号串按字面量整串收集。
-// - 单引号串是 JS 字面量，内部引号字符属于内容（如 [&_svg:not([class*='text-'])]），不下钻。
+// 提取 class 语境的候选串。单遍扫描、同层配对，并跟踪「是否在 HTML 标签内」：
+// - 标签内（< 与 > 之间）：`:attr="expr"` / `v-bind:attr='expr'` 绑定表达式外层引号
+//   只圈定边界，内部异种引号/反引号字面量才是候选串（三元互斥分支各自成串，AC-4）；
+//   `class="..."` 静态属性与其他属性值按字面量整串收集。
+// - 标签外（模板文本节点）：撇号是自然语言（don't / can't），不是字符串定界符，
+//   整体跳过到下一个 '<'，防止两个撇号伪配对出跨元素假串（误报方向）。
+// - script/style 块是 JS/CSS 语境：整块按代码扫描（引号正常配对），不受标签态影响。
 // - 文本插值 {{...}} 是 JS 表达式，整体跳过（其中 t('a.b') 的引号不参与配对）。
+// 已知边界：文本节点中裸露的 '<'（如 "a < b"）会提前进入标签态，属粗扫描可接受
+// 漂移；Vue 模板要求转义裸 '<'，实际源码不出现。
 function extractStringLiterals(text) {
   const out = []
   const n = text.length
   // 回看窗口可能从长属性名中间截断（如多行 :style 对象），故不锚定冒号起点：
   // 只要紧邻开引号前是「标识符尾巴 = 」即按绑定表达式处理。
-  // class= 不含冒号也不会误入（其前是字母而非冒号）——用冒号存在性区分。
   const bindingAttr = /:[A-Za-z0-9_.\-[\]]*\s*=\s*$/
-  let i = 0
-  while (i < n) {
-    const c = text[i]
-    if (c === '{' && text[i + 1] === '{') {
-      let depth = 1
-      let j = i + 2
-      let quote = null
-      while (j < n && depth > 0) {
+  const collectQuoted = (open, close, isBinding) => {
+    if (isBinding) {
+      let j = open + 1
+      while (j < close) {
         const d = text[j]
         if (d === '\\') { j += 2; continue }
-        if (quote) {
-          if (d === quote) quote = null
-        } else if (d === "'" || d === '"' || d === '`') quote = d
-        else if (d === '{') depth++
-        else if (d === '}') depth--
+        if ((d === "'" || d === '"' || d === '`') && d !== text[open]) {
+          const innerClose = findStringEnd(text, j, close)
+          out.push({ value: text.slice(j + 1, innerClose), offset: j })
+          j = innerClose + 1
+          continue
+        }
         j++
       }
-      i = j
+    } else {
+      out.push({ value: text.slice(open + 1, close), offset: open })
+    }
+  }
+  // script/style 块内是代码语境：找到块尾，整块按引号正常扫描。
+  const codeBlockEnd = (start) => {
+    const m = /^<(script|style)\b/i.exec(text.slice(start, start + 8))
+    if (!m) return -1
+    const closeRe = new RegExp(`</${m[1]}\\s*>`, 'i')
+    const rest = text.slice(start)
+    const cm = closeRe.exec(rest)
+    return cm ? start + cm.index : n
+  }
+  let i = 0
+  let inTag = false
+  while (i < n) {
+    const c = text[i]
+    if (!inTag && c === '<') {
+      const blockEnd = codeBlockEnd(i)
+      if (blockEnd !== -1) {
+        // script/style：块内按代码语境扫描（引号配对），块尾后回到文本态。
+        i = scanCode(text, i + 1, blockEnd, out, bindingAttr, collectQuoted, findStringEnd)
+        continue
+      }
+      inTag = true
+      i++
       continue
     }
-    if (c === '"') {
-      const close = findStringEnd(text, i, n)
-      const before = text.slice(Math.max(0, i - 120), i)
-      if (bindingAttr.test(before)) {
-        // 绑定表达式：只收集内部嵌套字面量，外层不判定。
-        let j = i + 1
-        while (j < close) {
+    if (inTag && c === '>') {
+      inTag = false
+      i++
+      continue
+    }
+    if (!inTag) {
+      // 文本节点：跳过 {{...}} 与裸引号，直到下一个 '<'。
+      if (c === '{' && text[i + 1] === '{') {
+        let depth = 1
+        let j = i + 2
+        let quote = null
+        while (j < n && depth > 0) {
           const d = text[j]
-          if (d === "'" || d === '`') {
-            const innerClose = findStringEnd(text, j, close)
-            out.push({ value: text.slice(j + 1, innerClose), offset: j })
-            j = innerClose + 1
-            continue
-          }
+          if (d === '\\') { j += 2; continue }
+          if (quote) {
+            if (d === quote) quote = null
+          } else if (d === "'" || d === '"' || d === '`') quote = d
+          else if (d === '{') depth++
+          else if (d === '}') depth--
           j++
         }
-      } else {
-        out.push({ value: text.slice(i + 1, close), offset: i })
+        i = j
+        continue
       }
-      i = close + 1
+      i++
       continue
     }
-    if (c === "'" || c === '`') {
+    // 标签内：属性值引号。
+    if (c === '"' || c === "'" || c === '`') {
       const close = findStringEnd(text, i, n)
-      out.push({ value: text.slice(i + 1, close), offset: i })
+      const before = text.slice(Math.max(0, i - 120), i)
+      collectQuoted(i, close, (c === '"' || c === "'") && bindingAttr.test(before))
       i = close + 1
       continue
     }
@@ -226,11 +257,29 @@ function extractStringLiterals(text) {
   return out
 }
 
+// script/style 块内的代码语境扫描：引号正常配对收集，{{ }} 不适用。
+function scanCode(text, start, end, out, bindingAttr, collectQuoted, findStringEnd) {
+  let i = start
+  while (i < end) {
+    const c = text[i]
+    if (c === '"' || c === "'" || c === '`') {
+      const close = findStringEnd(text, i, end)
+      const before = text.slice(Math.max(0, i - 120), i)
+      collectQuoted(i, close, (c === '"' || c === "'") && bindingAttr.test(before))
+      i = close + 1
+      continue
+    }
+    i++
+  }
+  return end
+}
+
 // ---- 变体前缀切分 ----
 // 变体链逐段消费：裸段（sm、hover、*、dark…）可带 arbitrary 括号尾巴
 // （data-[slot=select-value]、[&_svg:not([class*='text-'])]），每段后跟 ':'。
 // 返回 [完整变体前缀, 工具类名]；#1677 B 形态要求前缀逐字相同才判冲突。
-const bareVariantSegment = /^[A-Za-z0-9_*-]+$/
+// 裸变体段含命名变体（group-hover/item、peer-checked/name）与容器查询（@md、@lg/name）。
+const bareVariantSegment = /^[A-Za-z0-9_*\-/@]+$/
 function splitVariant(token) {
   let i = 0
   let prefixEnd = 0
@@ -265,26 +314,45 @@ function splitVariant(token) {
 
 const clampUtility = /^line-clamp-(?:\d+|none|\[[^\]]+\])$/
 
+// important 修饰符（v3 前缀 !block / v4 后缀 block!）：带 important 的声明确定性
+// 覆盖不带的，与源序无关。clamp 带 important 而 display 不带 → clamp 必胜，合法；
+// display 带 important 而 clamp 不带 → clamp 必败，确定缺陷；双方同带 → 回到源序竞争。
+function stripImportant(utility) {
+  if (utility.startsWith('!')) return { name: utility.slice(1), important: true }
+  if (utility.endsWith('!')) return { name: utility.slice(0, -1), important: true }
+  return { name: utility, important: false }
+}
+
 // 对单个 class token 串判定冲突：按完整变体前缀分组，组内同时出现
-// line-clamp-* 与裸 display 类即冲突。返回 [{ prefix, clamps, displays }]。
+// line-clamp-* 与裸 display 类、且 important 层级不构成 clamp 必胜时冲突。
+// 返回 [{ prefix, clamps, displays }]。
 export function findLineClampConflicts(classString) {
   const groups = new Map()
   for (const token of classString.split(/\s+/)) {
     if (!token || token.includes('${')) continue // 模板插值不是静态类名
     const [prefix, utility] = splitVariant(token)
-    const isClamp = clampUtility.test(utility)
-    const isDisplay = displayUtilities.has(utility)
+    const { name, important } = stripImportant(utility)
+    const isClamp = clampUtility.test(name)
+    const isDisplay = displayUtilities.has(name)
     if (!isClamp && !isDisplay) continue
     if (!groups.has(prefix)) groups.set(prefix, { clamps: [], displays: [] })
     const g = groups.get(prefix)
-    if (isClamp && !g.clamps.includes(utility)) g.clamps.push(utility)
-    if (isDisplay && !g.displays.includes(utility)) g.displays.push(utility)
+    const entry = { utility, important }
+    if (isClamp && !g.clamps.some((c) => c.utility === utility)) g.clamps.push(entry)
+    if (isDisplay && !g.displays.some((d) => d.utility === utility)) g.displays.push(entry)
   }
   const conflicts = []
   for (const [prefix, g] of groups) {
-    if (g.clamps.length > 0 && g.displays.length > 0) {
-      conflicts.push({ prefix, clamps: g.clamps, displays: g.displays })
-    }
+    if (g.clamps.length === 0 || g.displays.length === 0) continue
+    // clamp 全部带 important 且 display 全部不带 → clamp 确定性获胜，不报。
+    const clampAlwaysWins =
+      g.clamps.every((c) => c.important) && g.displays.every((d) => !d.important)
+    if (clampAlwaysWins) continue
+    conflicts.push({
+      prefix,
+      clamps: g.clamps.map((c) => c.utility),
+      displays: g.displays.map((d) => d.utility),
+    })
   }
   return conflicts
 }
