@@ -164,6 +164,9 @@ func TestTakeUpTo64Chars(t *testing.T) {
 		long.WriteString("鹅")
 	}
 	got := TakeUpTo64Chars(long.String())
+	if want := strings.Repeat("鹅", 63) + "…"; got != want {
+		t.Fatalf("TakeUpTo64Chars() = %q, want %q", got, want)
+	}
 	if len([]rune(got)) != 64 {
 		t.Fatalf("TakeUpTo64Chars() length = %d, want 64", len([]rune(got)))
 	}

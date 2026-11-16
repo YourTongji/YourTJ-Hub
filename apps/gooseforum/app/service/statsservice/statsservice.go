@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/datastruct/message"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contributionstats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -482,10 +482,10 @@ func parseDateRange(startDate, endDate string) (time.Time, time.Time, error) {
 	}
 	// 跨度按自然日含首尾计算；超限时随错误回传上限，界面与文档可直接展示（R9）。
 	if days := int(end.Sub(start).Hours()/24) + 1; days > MaxRangeDays {
-		return time.Time{}, time.Time{}, component.NewMessageError(
-			component.MessageRequestInvalidParams,
+		return time.Time{}, time.Time{}, message.NewMessageError(
+			message.MessageRequestInvalidParams,
 			"请求参数验证失败",
-			component.MessageParams{"field": "endDate", "maxRangeDays": MaxRangeDays},
+			message.MessageParams{"field": "endDate", "maxRangeDays": MaxRangeDays},
 		)
 	}
 	return start, end.AddDate(0, 0, 1), nil
@@ -602,13 +602,13 @@ func timezoneName() string {
 }
 
 func invalidParams(field string) error {
-	return component.NewMessageError(
-		component.MessageRequestInvalidParams,
+	return message.NewMessageError(
+		message.MessageRequestInvalidParams,
 		"请求参数验证失败",
-		component.MessageParams{"field": field},
+		message.MessageParams{"field": field},
 	)
 }
 
 func userNotFound() error {
-	return component.NewMessageError(component.MessageUserNotFound, "用户不存在", nil)
+	return message.NewMessageError(message.MessageUserNotFound, "用户不存在", nil)
 }

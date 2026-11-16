@@ -34,10 +34,11 @@ import '../../widgets/share/share_image_preview.dart';
 ///
 /// [focusOfferingId] 对应 web `?offeringId=` 聚焦语义：仅展示该教学班的课评。
 ///
-/// 页面纵向堆叠（对齐 web 移动端 DOM 顺序）：头部信息 → 评分分布卡 → AI 总结
-/// → 课评列表（cursor 分页 + 写评/编辑/删除/有用）+ 浮动写评 → 开课记录
-/// → 相关课程 + 课程沿革。收藏按钮在 AppBar（乐观切换 + 失败回滚）。
-class CourseDetailPage extends ConsumerStatefulWidget {
+/// 窄屏纵向堆叠：头部信息 → 评分分布卡 → AI 总结 → 「课程信息」可展开卡片
+/// （开课班级/相关课程/课程沿革，默认折叠）→ 课评列表（cursor 分页，滚动接近
+/// 底部自动加载 + 写评/编辑/删除/有用）。宽屏时课程信息置于侧栏。收藏按钮在
+/// 底部操作栏（乐观切换 + 失败回滚 + 单飞）。
+class CourseDetailPage extends ConsumerWidget {
   const CourseDetailPage({
     super.key,
     required this.courseId,
@@ -50,10 +51,38 @@ class CourseDetailPage extends ConsumerStatefulWidget {
   final int? focusReviewId;
 
   @override
-  ConsumerState<CourseDetailPage> createState() => _CourseDetailPageState();
+  Widget build(BuildContext context, WidgetRef ref) => _CourseDetailContent(
+    key: ValueKey((
+      ref.watch(offlineCacheEpochProvider),
+      ref.watch(apiClientProvider).baseUrl,
+      courseId,
+      focusOfferingId,
+      focusReviewId,
+    )),
+    courseId: courseId,
+    focusOfferingId: focusOfferingId,
+    focusReviewId: focusReviewId,
+  );
 }
 
-class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
+// Private viewer state and pending reads/writes belong to one route/session.
+class _CourseDetailContent extends ConsumerStatefulWidget {
+  const _CourseDetailContent({
+    super.key,
+    required this.courseId,
+    this.focusOfferingId,
+    this.focusReviewId,
+  });
+
+  final int courseId;
+  final int? focusOfferingId;
+  final int? focusReviewId;
+
+  @override
+  ConsumerState<_CourseDetailContent> createState() => _CourseDetailPageState();
+}
+
+class _CourseDetailPageState extends ConsumerState<_CourseDetailContent> {
   static const double _loadMoreThreshold = 400;
 
   final ScrollController _scrollController = ScrollController();
@@ -65,7 +94,13 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   AsyncValue<CourseRelatedResult> _related = const AsyncValue.loading();
 
   // 收藏（乐观切换）。
-  bool _bookmarked = false;
+  // null means an old server did not send authoritative state; never guess false.
+  bool? _bookmarked;
+  bool _bookmarkBusy = false;
+  int _bookmarkVersion = 0;
+  int _detailSeq = 0;
+  int _relatedSeq = 0;
+  late final int _sessionEpoch;
 
   // 课评列表。
   List<ReviewPayload> _reviews = <ReviewPayload>[];
@@ -73,7 +108,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   bool _reviewsLoading = false;
   bool _reviewsLoaded = false;
   bool _loadingMore = false;
+  Object? _loadMoreError;
+  bool _infoExpanded = false;
   int _reviewTotal = 0;
+  int? _reviewsOfferingId;
+  Object? _reviewsError;
   // 写操作代际守卫：写成功后自增，使 in-flight 列表响应失效。
   int _reviewsSeq = 0;
   final Set<int> _reviewReactionBusy = <int>{};
@@ -93,6 +132,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   @override
   void initState() {
     super.initState();
+    _sessionEpoch = ref.read(offlineCacheEpochProvider);
     _load();
     _scrollController.addListener(_onScroll);
   }
@@ -105,9 +145,31 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    if (_scrollController.position.extentAfter < _loadMoreThreshold) {
+    if (_reviewsLoadMoreApproaching) {
       _loadMoreReviews();
     }
+  }
+
+  // 分页触发以课评列表底部相对视口的位置为准。课程信息卡片已上移到课评之
+  // 前，课评是滚动视图的最后一个内容块，因此用内容总高度（maxScrollExtent +
+  // viewportDimension，与懒加载 sliver 是否已构建无关）推算列表底部，接近即
+  // 预取下一页；不依赖 footer 的 GlobalKey 是否已挂载。
+  bool get _reviewsLoadMoreApproaching {
+    if (!_scrollController.hasClients) return false;
+    final ScrollPosition position = _scrollController.position;
+    final double contentHeight =
+        position.maxScrollExtent + position.viewportDimension;
+    final double viewportBottom = position.pixels + position.viewportDimension;
+    return contentHeight - viewportBottom <= _loadMoreThreshold;
+  }
+
+  // 首屏/刷新落地后补评估一次：内容短于视口时页面不可滚动、滚动监听不会
+  // 触发，需在布局完成后主动预取，避免高视口下分页停滞。
+  void _maybeAutoLoadAfterLayout() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_reviewsLoadMoreApproaching) _loadMoreReviews();
+    });
   }
 
   void _goBack() {
@@ -120,21 +182,39 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 
   Future<void> _load() async {
+    if (!_activeSession) return;
+    final int seq = ++_detailSeq;
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final int bookmarkVersion = _bookmarkVersion;
+    final bool bookmarkBusy = _bookmarkBusy;
     setState(() => _detail = const AsyncValue.loading());
     try {
       final CourseDetailPayload detail = await _repository.detail(
         widget.courseId,
       );
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!_activeSession ||
+          seq != _detailSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() {
         _detail = AsyncValue.data(detail);
+        // A refresh overlapping a mutation must not restore its stale snapshot.
+        if (!bookmarkBusy &&
+            !_bookmarkBusy &&
+            bookmarkVersion == _bookmarkVersion) {
+          _bookmarked = detail.bookmarked;
+        }
         _validateInitialFocus(detail);
       });
       _loadRelated();
       _loadReviews();
     } catch (e, st) {
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!_activeSession ||
+          seq != _detailSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() => _detail = AsyncValue.error(e, st));
     }
   }
@@ -150,16 +230,25 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 
   Future<void> _loadRelated() async {
+    final int seq = ++_relatedSeq;
     final int epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _related = const AsyncValue.loading());
     try {
       final CourseRelatedResult result = await _repository.related(
         widget.courseId,
       );
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!mounted ||
+          seq != _relatedSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() => _related = AsyncValue.data(result));
     } catch (e, st) {
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!mounted ||
+          seq != _relatedSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() => _related = AsyncValue.error(e, st));
     }
   }
@@ -167,18 +256,31 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   Future<void> _loadReviews() async {
     final int seq = ++_reviewsSeq;
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final int? offeringId = _activeOfferingId;
     final Map<int, int> reactionVersions = Map<int, int>.of(
       _reviewReactionVersion,
     );
     final Set<int> reactionBusy = Set<int>.of(_reviewReactionBusy);
     setState(() {
+      // New list generation owns its own pagination lock. Old finally blocks
+      // remain fenced so they cannot unlock a newer request.
+      _loadingMore = false;
+      _loadMoreError = null;
+      _reviewsError = null;
+      if (_reviewsOfferingId != offeringId) {
+        // Keep hidden rows while loading so in-flight reaction writes can
+        // settle and merge into matching rows in the new filter. Never reuse
+        // the old filter's cursor.
+        _nextCursor = '';
+        _reviewTotal = 0;
+      }
       _reviewsLoading = true;
       _reviewsLoaded = false;
     });
     try {
       final ReviewListResult result = await _repository.reviews(
         widget.courseId,
-        offeringId: _activeOfferingId,
+        offeringId: offeringId,
       );
       if (!mounted ||
           seq != _reviewsSeq ||
@@ -199,19 +301,28 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         _prioritizeEditableReviews();
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
+        _reviewsOfferingId = offeringId;
         _reviewsLoading = false;
         _reviewsLoaded = true;
       });
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _revealTargetReview(),
       );
-    } catch (_) {
-      if (!mounted || seq != _reviewsSeq) return;
+      _maybeAutoLoadAfterLayout();
+    } catch (e) {
+      if (!mounted ||
+          seq != _reviewsSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() {
         _reviewsLoading = false;
-        _reviewsLoaded = true;
+        // Hide rows from another filter, but retain them for pending reaction
+        // writes and the retry's merge. No old cursor can be used while failed.
+        _reviewsLoaded =
+            _reviewsOfferingId == offeringId && _reviews.isNotEmpty;
+        _reviewsError = e;
       });
-      _toast(_copy().reviewsLoadFailed, error: true);
     }
   }
 
@@ -258,6 +369,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   Future<void> _loadMoreReviews() async {
     if (_loadingMore ||
         _reviewsLoading ||
+        _reviewsError != null ||
+        _loadMoreError != null ||
         _nextCursor.isEmpty ||
         !_reviewsLoaded) {
       return;
@@ -295,8 +408,15 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
       });
-    } catch (_) {
-      // 加载更多失败静默，滚动可再次触发。
+    } catch (e) {
+      // 失败不静默：footer 显示「点击重试」；错误态对自动加载是终端的，
+      // 滚动不再重试，仅显式重试可恢复（与 GfListFooter 语义一致）。
+      if (!mounted ||
+          seq != _reviewsSeq ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      setState(() => _loadMoreError = e);
     } finally {
       if (mounted &&
           seq == _reviewsSeq &&
@@ -304,6 +424,12 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         setState(() => _loadingMore = false);
       }
     }
+  }
+
+  /// 显式重试：清除错误后重新加载下一页。
+  void _retryLoadMore() {
+    setState(() => _loadMoreError = null);
+    _loadMoreReviews();
   }
 
   CourseCopy _copy() => CourseCopy(AppLocalizations.of(context));
@@ -329,17 +455,34 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
 
   // ---- 收藏 ----
 
+  bool get _activeSession =>
+      mounted && _sessionEpoch == ref.read(offlineCacheEpochProvider);
+
   Future<void> _toggleBookmark() async {
-    final bool target = !_bookmarked;
-    setState(() => _bookmarked = target);
+    final bool? previous = _bookmarked;
+    if (!_activeSession || _bookmarkBusy || previous == null) return;
+    final bool target = !previous;
+    final int version = ++_bookmarkVersion;
+    final repository = _repository;
+    setState(() {
+      _bookmarked = target;
+      _bookmarkBusy = true;
+    });
     try {
-      await _repository.bookmark(courseId: widget.courseId, bookmarked: target);
+      await repository.bookmark(courseId: widget.courseId, bookmarked: target);
     } catch (e) {
       // 401 由全局会话失效处理（跳登录），此处仅回滚本地态不打扰用户。
-      if (!mounted) return;
-      setState(() => _bookmarked = !target);
+      if (!_activeSession || version != _bookmarkVersion) return;
+      setState(() => _bookmarked = previous);
       if (!_isUnauthorized(e)) {
         _toast(_copy().operationFailed, error: true);
+      }
+    } finally {
+      if (_activeSession && version == _bookmarkVersion) {
+        setState(() {
+          _bookmarkBusy = false;
+          _bookmarkVersion += 1;
+        });
       }
     }
   }
@@ -393,6 +536,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     if (_activeOfferingId == null || created.offeringId == _activeOfferingId) {
       _reviewsSeq += 1;
       setState(() {
+        _loadingMore = false;
         _reviews = <ReviewPayload>[created, ..._reviews];
         _reviewTotal += 1;
       });
@@ -739,10 +883,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                   ),
                   Expanded(
                     child: AppRefreshIndicator(
-                      onRefresh: () async {
-                        await _load();
-                        await _loadRelated();
-                      },
+                      onRefresh: _load,
                       child: CustomScrollView(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -750,11 +891,34 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                           SliverToBoxAdapter(
                             child: wide ? const SizedBox.shrink() : summary,
                           ),
+                          if (!wide)
+                            SliverToBoxAdapter(
+                              child: _CourseInfoCard(
+                                expanded: _infoExpanded,
+                                onToggle: () => setState(
+                                  () => _infoExpanded = !_infoExpanded,
+                                ),
+                                detail: detail,
+                                related: _related,
+                                activeOfferingId: _activeOfferingId,
+                                onFocusOffering: _focusOffering,
+                                onPlan: (offering) => context.push(
+                                  Uri(
+                                    path: '/schedule',
+                                    queryParameters: {
+                                      'course': detail.primaryCode,
+                                      'name': detail.name,
+                                      'term': offering.termCode,
+                                      'class': offering.classCode!,
+                                    },
+                                  ).toString(),
+                                ),
+                                onOpenCourse: (id) =>
+                                    context.pushReplacement('/courses/$id'),
+                                copy: copy,
+                              ),
+                            ),
                           ..._buildReviewsSlivers(l10n, copy, detail),
-                          const SliverToBoxAdapter(child: GfDivider()),
-                          SliverToBoxAdapter(
-                            child: wide ? const SizedBox.shrink() : offerings,
-                          ),
                           const SliverToBoxAdapter(child: SizedBox(height: 24)),
                         ],
                       ),
@@ -774,16 +938,22 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               child: Row(
                 children: [
                   IconButton(
-                    tooltip: _bookmarked
+                    tooltip: _bookmarked == null
+                        ? l10n.commonRetry
+                        : _bookmarked!
                         ? l10n.courseBookmarked
                         : l10n.courseBookmark,
                     icon: GfSymbol(
-                      'bookmark',
-                      color: _bookmarked
+                      _bookmarked == null ? 'refresh-cw' : 'bookmark',
+                      color: _bookmarked == true
                           ? GfTheme.colorsOf(context).primary
                           : null,
                     ),
-                    onPressed: _toggleBookmark,
+                    onPressed: _bookmarkBusy
+                        ? null
+                        : _bookmarked == null
+                        ? _load
+                        : _toggleBookmark,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -851,6 +1021,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: GfLoadingIndicator()),
               )
+            else if (_reviewsError != null)
+              GfErrorRetry(
+                message: copy.reviewsLoadFailed,
+                onRetry: _loadReviews,
+              )
             else if (_reviewsLoaded && _reviews.isEmpty)
               GfEmpty(symbol: 'square-pen', message: l10n.reviewsEmpty),
           ],
@@ -896,6 +1071,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
             );
           }, childCount: _reviews.length * 2 - 1),
         ),
+      // 闲置时渲染空（无闲置文案）；仅加载中/失败时显示内容。
       if (_reviewsLoaded && _nextCursor.isNotEmpty)
         SliverToBoxAdapter(
           child: Padding(
@@ -903,12 +1079,25 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
             child: Center(
               child: _loadingMore
                   ? const GfLoadingIndicator(small: true)
-                  : GfText(
-                      copy.relatedEmpty,
-                      style: GfTheme.typographyOf(context).caption.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.35),
-                      ),
-                    ),
+                  : _loadMoreError != null
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GfText(
+                          l10n.courseCopyReviewsLoadFailed,
+                          style: GfTheme.typographyOf(context).caption.copyWith(
+                            color: colors.error,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        GfButton(
+                          label: l10n.commonRetry,
+                          variant: GfButtonVariant.ghost,
+                          onPressed: _retryLoadMore,
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
         ),
@@ -2508,6 +2697,141 @@ class _ReviewActionBar extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---- 课程信息折叠卡片 ----
+
+/// 把原本沉在课评下方的开课班级/相关课程/课程沿革收进一张可展开卡片，
+/// 上移到评分区与课评之间。折叠态仅一行摘要；展开后课评列表仍在其下，
+/// 可继续滚动自动加载而不推挤任何内容。
+class _CourseInfoCard extends StatelessWidget {
+  const _CourseInfoCard({
+    required this.expanded,
+    required this.onToggle,
+    required this.detail,
+    required this.related,
+    required this.activeOfferingId,
+    required this.onFocusOffering,
+    required this.onPlan,
+    required this.onOpenCourse,
+    required this.copy,
+  });
+
+  final bool expanded;
+  final VoidCallback onToggle;
+  final CourseDetailPayload detail;
+  final AsyncValue<CourseRelatedResult> related;
+  final int? activeOfferingId;
+  final ValueChanged<int> onFocusOffering;
+  final ValueChanged<CourseOfferingPayload> onPlan;
+  final ValueChanged<int> onOpenCourse;
+  final CourseCopy copy;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final int offeringCount = detail.offerings?.length ?? 0;
+    final CourseRelatedResult? rel = related.valueOrNull;
+    final int relatedCount =
+        (rel?.teacherOtherCourses.length ?? 0) +
+        (rel?.sameCourseOtherTeachers.length ?? 0);
+    final int lineageCount = rel?.lineage?.length ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.base100,
+          borderRadius: BorderRadius.circular(GfRadius.lg),
+          border: Border.all(color: colors.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(GfRadius.sm),
+                      ),
+                      child: Center(
+                        child: GfSymbol(
+                          'layers-filled',
+                          size: 18,
+                          color: colors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          GfText(
+                            l10n.courseDetailInfo,
+                            style: type.small.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          GfText(
+                            '${l10n.courseDetailOfferings} $offeringCount · '
+                            '${l10n.courseDetailRelated} $relatedCount · '
+                            '${l10n.courseDetailLineage} $lineageCount',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GfSymbol(
+                      expanded ? 'chevron-up' : 'chevron-down',
+                      size: 18,
+                      color: colors.textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (expanded) ...[
+              const GfDivider(),
+              _OfferingsSection(
+                offerings: detail.offerings ?? const <CourseOfferingPayload>[],
+                activeOfferingId: activeOfferingId,
+                onFocusOffering: onFocusOffering,
+                onPlan: onPlan,
+                copy: copy,
+              ),
+              const GfDivider(),
+              _RelatedSection(
+                related: related,
+                courseId: detail.id,
+                onOpenCourse: onOpenCourse,
+                copy: copy,
+              ),
+            ],
+          ],
         ),
       ),
     );

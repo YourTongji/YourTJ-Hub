@@ -488,3 +488,29 @@ func TestBuildTopicTruncatesByBytes(t *testing.T) {
 		t.Fatalf("truncated topic output not bounded")
 	}
 }
+
+func TestBuildHomeMarkdownReusesIndexWhenEnabled(t *testing.T) {
+	fixture := setupLLMSProjectionFixture(t)
+	host := "https://forum.example.test"
+
+	setLLMSSettings(t, fixture.conn, pageConfig.LLMSConfig{})
+	home, err := BuildHomeMarkdown(host)
+	if err != nil {
+		t.Fatalf("disabled BuildHomeMarkdown() err=%v", err)
+	}
+	assertContains(t, home, "# ")
+	assertNotContains(t, home, "## Topics")
+
+	setLLMSSettings(t, fixture.conn, pageConfig.LLMSConfig{Enabled: true})
+	home, err = BuildHomeMarkdown(host)
+	if err != nil {
+		t.Fatalf("enabled BuildHomeMarkdown() err=%v", err)
+	}
+	index, err := BuildIndex(host)
+	if err != nil {
+		t.Fatalf("BuildIndex() err=%v", err)
+	}
+	if home != index {
+		t.Fatalf("enabled homepage markdown differs from the llms index")
+	}
+}

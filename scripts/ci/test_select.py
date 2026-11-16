@@ -16,6 +16,13 @@ class SelectTests(unittest.TestCase):
             self.assertFalse(plan["deploy"]["run"])
         self.assertTrue(all(v["run"] for v in select(["unknown/execute.sh"]).values()))
 
+    def test_mobile_contract_outputs_cannot_bypass_freshness_gate(self):
+        for name in ('openapi_models.dart', 'activation_status.dart', 'push_device.dart'):
+            with self.subTest(name=name):
+                plan = select(['apps/mobile/packages/core/lib/src/gen/' + name])
+                self.assertTrue(plan['mobile']['run'] and plan['contract']['run'])
+                self.assertFalse(plan['android']['run'] or plan['ios']['run'] or plan['deploy']['run'])
+
     def test_dev_deploy_workflow_change_rehearses_the_deployment(self):
         plan = select([".github/workflows/deploy-dev.yml"])
         for domain in ("automation", "backend", "frontend", "deploy"):

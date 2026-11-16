@@ -9,7 +9,11 @@ const props = defineProps<SelectValueProps>()
   <SelectValue
     data-slot="select-value"
     v-bind="props"
+    v-slot="{ selectedLabel }"
   >
-    <slot />
+    <!-- Keep truncation on a block child while the value root stays flex for its contents. -->
+    <span class="block min-w-0 flex-1 truncate">
+      <slot>{{ selectedLabel.length ? selectedLabel.join(', ') : props.placeholder }}</slot>
+    </span>
   </SelectValue>
 </template>

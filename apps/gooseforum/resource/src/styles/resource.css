@@ -9,6 +9,7 @@
 @import "./code-highlighting.css";
 @import "./code-copy.css";
 @import "./components.css";
+@import "./editor-float.css";
 @import "./patterns.css";
 @import "./utilities.css";
 @source "../site/**/*.{ts,vue}";

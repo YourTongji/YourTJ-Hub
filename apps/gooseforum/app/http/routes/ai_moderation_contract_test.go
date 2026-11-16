@@ -131,7 +131,7 @@ func setupAIModerationContractTest(t *testing.T, mutate func(*pageConfig.AiModer
 	return conn, router, stub
 }
 
-// saveContractImage 写入一张就绪 PNG（每次内容不同），返回 /file/img 地址与对象名。
+// saveContractImage 写入一张就绪 PNG，返回 /file/img 地址与唯一对象名。
 func saveContractImage(t *testing.T, ownerID uint64) (string, string) {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, 3, 3))
@@ -141,7 +141,7 @@ func saveContractImage(t *testing.T, ownerID uint64) (string, string) {
 	if err := png.Encode(&buf, img); err != nil {
 		t.Fatal(err)
 	}
-	name := fmt.Sprintf("2026/10/01/ai-contract-%d.png", time.Now().UnixNano())
+	name := fmt.Sprintf("2026/10/01/ai-contract-%d.png", contractTestID())
 	if _, err := filedata.SaveFile(ownerID, name, "image/png", buf.Bytes()); err != nil {
 		t.Fatal(err)
 	}
@@ -636,6 +636,12 @@ func TestAsyncReplyCountersAndManualRevisionFence(t *testing.T) {
 }
 
 func TestAsyncCandidatePrivacyAndCompletePublication(t *testing.T) {
+	// A second run must distinguish its fixtures from the first run's published content.
+	t.Run("first", testAsyncCandidatePrivacyAndCompletePublication)
+	t.Run("repeat", testAsyncCandidatePrivacyAndCompletePublication)
+}
+
+func testAsyncCandidatePrivacyAndCompletePublication(t *testing.T) {
 	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
 	router.GET("/", middleware.JWTAuth, forum.Home)
 	router.GET("/p/post/:id", middleware.JWTAuth, forum.TopicDetail)
@@ -646,8 +652,9 @@ func TestAsyncCandidatePrivacyAndCompletePublication(t *testing.T) {
 	topicID, postID := contractTestID(), contractTestID()
 	createContractPublishedTopic(t, conn, topicID, postID, author.Id)
 	imageURL, _ := saveContractImage(t, author.Id)
-	candidate := "private-candidate-body-that-must-not-leak"
-	body := mustReviewJSON(t, map[string]any{"topicId": topicID, "title": "private-candidate-title", "content": candidate, "images": []string{imageURL}, "categoryId": []uint64{1}, "topicStatus": 1, "contentType": 2})
+	candidate := fmt.Sprintf("private-candidate-body-%d", postID)
+	title := fmt.Sprintf("private-candidate-title-%d", topicID)
+	body := mustReviewJSON(t, map[string]any{"topicId": topicID, "title": title, "content": candidate, "images": []string{imageURL}, "categoryId": []uint64{1}, "topicStatus": 1, "contentType": 2})
 	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), token)); e.Code != 0 {
 		t.Fatalf("submit: %+v", e)
 	}
@@ -668,7 +675,7 @@ func TestAsyncCandidatePrivacyAndCompletePublication(t *testing.T) {
 	}
 	for _, path := range []string{"/", fmt.Sprintf("/p/post/%d", topicID), fmt.Sprintf("/api/forum/posts/window?topicId=%d", topicID)} {
 		own := page(path, token)
-		if !strings.Contains(own, candidate) && !strings.Contains(own, "private-candidate-title") {
+		if !strings.Contains(own, candidate) && !strings.Contains(own, title) {
 			t.Fatalf("owner missing candidate: %s", path)
 		}
 		if live := posts.Get(postID); live.Content != "Topic first post content" || live.ProcessStatus != posts.ProcessStatusNormal {
@@ -677,7 +684,7 @@ func TestAsyncCandidatePrivacyAndCompletePublication(t *testing.T) {
 		// Read after the author to catch accidental mutation of shared cached entries.
 		for _, session := range []string{"", contractSessionToken(t, stranger)} {
 			public := page(path, session)
-			if strings.Contains(public, candidate) || strings.Contains(public, "private-candidate-title") || strings.Contains(public, imageURL) {
+			if strings.Contains(public, candidate) || strings.Contains(public, title) || strings.Contains(public, imageURL) {
 				t.Fatalf("candidate leaked via %s", path)
 			}
 		}
@@ -689,7 +696,7 @@ func TestAsyncCandidatePrivacyAndCompletePublication(t *testing.T) {
 	rev := posts.Get(postID).LatestRevisionId
 	runSubmission(t, conn, rev)
 	published, first := topics.Get(topicID), posts.Get(postID)
-	if published.Title != "private-candidate-title" || len(published.CategoryIds) != 1 || published.CategoryIds[0] != 1 || len(published.ImageUrls) != 1 || published.ImageUrls[0] != imageURL || first.Content != candidate || first.ContentType != 2 {
+	if published.Title != title || len(published.CategoryIds) != 1 || published.CategoryIds[0] != 1 || len(published.ImageUrls) != 1 || published.ImageUrls[0] != imageURL || first.Content != candidate || first.ContentType != 2 {
 		t.Fatalf("partial publication: %+v / %+v", published, first)
 	}
 	if getImage(router, imageURL, "").Code != 200 {

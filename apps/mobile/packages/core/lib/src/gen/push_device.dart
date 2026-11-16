@@ -1,8 +1,12 @@
 /// 原生推送设备注册契约镜像（push/device/register|unregister、push/config.native）。
 ///
-/// 手写维护；与后端契约一致：platform 取值 "ios"|"android"，
+/// 注册/注销请求由 OpenAPI 生成；其余响应保留手写兼容解析。
+/// platform 取值 "ios"|"android"，
 /// token 为 APNs 令牌或 JPush/FCM 注册标识（全局唯一索引）。
 library;
+
+export 'openapi_models.dart'
+    show RegisterPushDeviceInput, UnregisterPushDeviceInput;
 
 /// GET push/config 响应中的原生通道门控。
 class NativePushConfig {
@@ -25,35 +29,6 @@ class NativePushConfig {
         fcmEnabled: json['fcmEnabled'] as bool? ?? false,
         jpushEnabled: json['jpushEnabled'] as bool? ?? false,
       );
-}
-
-/// POST push/device/register 请求体。
-class RegisterPushDeviceInput {
-  const RegisterPushDeviceInput({
-    required this.platform,
-    required this.token,
-    this.provider,
-  });
-
-  /// "ios" | "android"。
-  final String platform;
-  final String? provider;
-  final String token;
-
-  Map<String, dynamic> toJson() => {
-    'platform': platform,
-    'token': token,
-    if (provider != null) 'provider': provider,
-  };
-}
-
-/// POST push/device/unregister 请求体。
-class UnregisterPushDeviceInput {
-  const UnregisterPushDeviceInput({required this.token});
-
-  final String token;
-
-  Map<String, dynamic> toJson() => {'token': token};
 }
 
 /// GET push/config 响应（web push + native 门控；native 由后端未配置时省略）。

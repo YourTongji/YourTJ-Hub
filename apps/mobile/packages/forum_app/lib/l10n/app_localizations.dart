@@ -2508,6 +2508,12 @@ abstract class AppLocalizations {
   /// **'This review'**
   String get courseShareThisReview;
 
+  /// No description provided for @courseDetailInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Course info'**
+  String get courseDetailInfo;
+
   /// No description provided for @courseDetailOfferings.
   ///
   /// In en, this message translates to:

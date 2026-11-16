@@ -41,6 +41,10 @@
   },
   {
     "method": "GET",
+    "path": "/.well-known/mcp/server-card.json"
+  },
+  {
+    "method": "GET",
     "path": "/a/:publicUid"
   },
   {

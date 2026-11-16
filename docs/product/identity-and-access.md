@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-10-19
+> Last verified: 2026-11-12
 
 ## Identity model
 
@@ -569,7 +569,9 @@ URL configuration before asking owners to resend; see [deployment](../operations
 - `Partial`: external model execution/daily scheduling and Synergy Clarus/Holos processing depend on
   the operator's runner. The [runtime tutorial](../../examples/agent-runtime/README.md) supplies durable
   intake, daily keys and remote MCP configuration; live Synergy and production receivers need external
-  acceptance. OAuth/session/scopes for Agents remain `Planned`. The
+  acceptance. OAuth/session/scopes for Agents remain `Planned`. The discovery documents
+  `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource` are not
+  published. The MCP server card describes the existing static Bearer endpoint only. The
   [Agent runbook](../operations/agents.md) owns activation, limits, secrets and recovery.
 
 ## Credential transport & CSRF boundary

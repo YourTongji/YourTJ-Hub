@@ -39,7 +39,7 @@ type notificationRecipient struct {
 	hasDirectMention bool
 }
 
-// TakeUpTo64Chars 按字符数截取字符串，最多取 64 个字符
+// TakeUpTo64Chars 按字符数生成最多 64 个 Unicode 码点的纯文本预览，截断时末尾保留省略号。
 func TakeUpTo64Chars(s string) string {
 	return markdown2html.ExtractPreview(s, 64)
 }

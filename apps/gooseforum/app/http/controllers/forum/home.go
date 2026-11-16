@@ -17,6 +17,11 @@ import (
 )
 
 func Home(c *gin.Context) {
+	setHomepageAgentLinks(c)
+	if ServesHomeMarkdown(c) {
+		renderHomeMarkdown(c)
+		return
+	}
 	c.Set("feed.contentAt", time.Now())
 	sort := personalizeDefault(c, c.Query("sort"))
 	if sort == "" {

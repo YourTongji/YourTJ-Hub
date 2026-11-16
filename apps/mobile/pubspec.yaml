@@ -10,7 +10,8 @@ workspace:
   - packages/ui_kit
   - packages/ui_kit/example
 dependency_overrides:
-  # Keep Runner on iOS 13; the Widget Extension separately requires iOS 14.
+  # Runner and Widget Extension share the iOS 15 minimum (decision 0109);
+  # this copy carries the local patches listed in its README.
   home_widget:
     path: third_party/home_widget
 melos:

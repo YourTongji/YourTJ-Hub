@@ -12,6 +12,14 @@ const notifications = ['Pending', 'Approved', 'Rejected'].map((state, index) => 
   topic: { id: 42, title: state === 'Rejected' ? '校******论' : '校园生活中的一次讨论', url: state === 'Rejected' ? '/settings?tab=content' : '/p/post/42/1' },
   payload: { templateKey: `notifications.templates.review${state}`, actorId: 0, topicId: 42, postNo: 1, topicTitle: state === 'Rejected' ? '校******论' : '校园生活中的一次讨论', templateParams: {}, metadata: { followerName: '' } },
 })) as NotificationPayload[]
+if (params.has('preview')) {
+  notifications.unshift({
+    id: 20, eventType: 'post_reply', isRead: false, createdAt: '2026-11-01T09:00:00Z', title: '',
+    content: `${'M'.repeat(12)}${'i'.repeat(51)}…`, actor: { id: 2, username: 'Alice' },
+    topic: { id: 42, title: 'Campus', url: '/p/post/42/2' },
+    payload: { actorId: 2, topicId: 42, topicTitle: 'Campus', hasDirectMention: false },
+  })
+}
 if (params.has('taxonomy')) {
   notifications.unshift({ id: 10, eventType: 'post_reply', isRead: false, createdAt: '2026-10-12T01:00:00Z', title: '', content: '', actor: { id: 2, username: 'Alice' }, topic: { id: 42, title: 'Campus', url: '/p/post/42/2' }, payload: { actorId: 2, topicId: 42, topicTitle: 'Campus', hasDirectMention: true } })
 }

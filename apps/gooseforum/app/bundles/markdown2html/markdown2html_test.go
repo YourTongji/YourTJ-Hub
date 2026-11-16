@@ -21,9 +21,9 @@ type markdownCompatCase struct {
 }
 
 func TestMarkdownVersions(t *testing.T) {
-	if got := GetPostVersion(); got != 9 {
-		// Sticker provenance is renderer-owned rather than inferred from alt.
-		t.Fatalf("GetPostVersion() = %d, want 9", got)
+	if got := GetPostVersion(); got != 10 {
+		// Extra blank lines between blocks render as gf-blank-line spacers.
+		t.Fatalf("GetPostVersion() = %d, want 10", got)
 	}
 	if GetParser() == nil {
 		t.Fatal("GetParser() returned nil")
@@ -104,6 +104,20 @@ func TestNormalizePostHTMLUpdatesExistingAttributes(t *testing.T) {
 	}
 	if strings.Contains(html, `target="_self"`) || strings.Contains(html, `rel="next"`) || strings.Contains(html, `loading="eager"`) {
 		t.Fatalf("expected existing attributes to be replaced, got %s", html)
+	}
+}
+
+// 图片相对宽度（docs/decisions/0131-relative-image-width.md）只是地址里的 `#w=` 片段：
+// 渲染后原样留在 src 上供样式匹配，提取图片地址时也不丢。
+func TestPostMarkdownToHTMLKeepsImageWidthFragment(t *testing.T) {
+	html := PostMarkdownToHTML("![a](/file/img/a.png#w=50) ![b](/file/img/b.png#w=50)")
+	for _, want := range []string{`src="/file/img/a.png#w=50"`, `src="/file/img/b.png#w=50"`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("PostMarkdownToHTML() = %q, want it to contain %q", html, want)
+		}
+	}
+	if got := ExtractImageURLs("![a](/file/img/a.png#w=50)"); !slices.Equal(got, []string{"/file/img/a.png#w=50"}) {
+		t.Fatalf("ExtractImageURLs() = %v", got)
 	}
 }
 
@@ -293,8 +307,47 @@ func TestExtractPreviewUsesImageFallbackAndTruncatesRunes(t *testing.T) {
 	if got := ExtractPreview("![](/file/image.png)", 64); got != "[图片]" {
 		t.Fatalf("image preview = %q, want [图片]", got)
 	}
-	if got := ExtractPreview(strings.Repeat("鹅", 65), 64); len([]rune(got)) != 64 {
+	got := ExtractPreview(strings.Repeat("鹅", 65), 64)
+	if want := strings.Repeat("鹅", 63) + "…"; got != want {
+		t.Fatalf("preview = %q, want %q", got, want)
+	}
+	if len([]rune(got)) != 64 {
 		t.Fatalf("preview rune count = %d, want 64", len([]rune(got)))
+	}
+}
+
+func TestExtractPreviewTruncatesWithOneEllipsisWithinLimit(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		maxLength int
+		want      string
+	}{
+		{name: "below limit", content: "短内容", maxLength: 5, want: "短内容"},
+		{name: "exact limit", content: "五个字符整好", maxLength: 6, want: "五个字符整好"},
+		{name: "over limit", content: "abcdef", maxLength: 5, want: "abcd…"},
+		{name: "Chinese", content: "甲乙丙丁戊", maxLength: 4, want: "甲乙丙…"},
+		{name: "multibyte and emoji", content: "甲🙂乙丙丁", maxLength: 4, want: "甲🙂乙…"},
+		{name: "Markdown and entity", content: "**甲** &amp; 文本", maxLength: 4, want: "甲 &…"},
+		{name: "sticker token is stripped before truncation", content: "甲 [:sticker:Atari哭哭:] 乙丙丁", maxLength: 4, want: "甲 乙…"},
+		{name: "natural Unicode ellipsis is preserved", content: "自然文本…", maxLength: 20, want: "自然文本…"},
+		{name: "natural ASCII ellipsis is normalized and preserved", content: "natural...", maxLength: 20, want: "natural…"},
+		{name: "cut already ends in ellipsis", content: "甲乙…" + strings.Repeat("丙", 8), maxLength: 4, want: "甲乙…"},
+		{name: "one character limit", content: "很长的内容", maxLength: 1, want: "…"},
+		{name: "empty input", content: "", maxLength: 5, want: ""},
+		{name: "zero limit keeps current empty result", content: "内容", maxLength: 0, want: ""},
+		{name: "negative limit keeps current empty result", content: "内容", maxLength: -1, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ExtractPreview(tt.content, tt.maxLength)
+			if got != tt.want {
+				t.Fatalf("ExtractPreview() = %q, want %q", got, tt.want)
+			}
+			if tt.maxLength > 0 && len([]rune(got)) > tt.maxLength {
+				t.Fatalf("preview rune count = %d, exceeds maxLength %d", len([]rune(got)), tt.maxLength)
+			}
+		})
 	}
 }
 

@@ -243,7 +243,7 @@ func (s *Service) getServer(*http.Request) *mcp.Server {
 // surfaces it to the MCP client instead.
 func (s *Service) buildServer(writes bool) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "yourtj-hub",
+		Name:    mcpServerName,
 		Version: buildinfo.Get().Version,
 	}, nil)
 

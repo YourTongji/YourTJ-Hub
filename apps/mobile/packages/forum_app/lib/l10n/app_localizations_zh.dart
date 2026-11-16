@@ -1312,6 +1312,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get courseShareThisReview => '本条评分';
 
   @override
+  String get courseDetailInfo => '课程信息';
+
+  @override
   String get courseDetailOfferings => '开课班级';
 
   @override

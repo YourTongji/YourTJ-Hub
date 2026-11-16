@@ -81,6 +81,8 @@ scalable. The supported topology and operator checks are in
 | `app/bundles` | Utilities (connect/eventbus/jwtopt/i18n/captcha/logging/cache ...) |
 | `app/models` | GORM models + migrations (app/migration) |
 | `app/service` | Business logic (users/topics/mail/oauth/theme/wikiservice ...) |
+| `app/datastruct/message` | Transport-independent business error codes, parameters and errors |
+| `app/http/mcp` | MCP protocol adapter, authentication and tool registration; reused by HTTP and stdio entry points |
 | `app/http/controllers/api` | JSON API (auth/topic/user/admin/chat/notification/file ...) |
 | `app/http/controllers/forum` | Page rendering (GoHTML three-mode: payload + render + SEO) |
 | `app/http/middleware` | JWT auth, access log, maintenance mode, unified security response headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`; page CSP on HTML routes, issue #407), rate limiting (per-action, IP+user, 429 + Retry-After) ... |
@@ -88,6 +90,12 @@ scalable. The supported topology and operator checks are in
 
 **Boundary rules**
 - Business logic in `service`; data access in `models`/repository layer; HTTP in `http/controllers`.
+- Service packages do not import `app/http`: account and chat result types belong to their owning
+  services, and business message codes belong to `app/datastruct/message`. Existing HTTP DTO names
+  are type aliases, preserving their wire format. `app/architecture` checks the service import
+  boundary. MCP is a transport adapter under `app/http/mcp`; it currently reuses the legacy REST/page
+  controller entry points for content operations. That controller orchestration remains a shared
+  transport dependency, not an independently extracted business service.
 - Cross-domain access (e.g. forum→notifications) goes through the owner's public service API; no
   foreign SQL.
 - Frontend output only via `resource/static/dist` (go:embed). For OpenAPI-covered operations, consume
@@ -245,9 +253,10 @@ status checks succeed. See the [status specification](../product/server-status.m
 
 ### Points
 
-`Current`: the forum owns a local idempotent reward ledger. `Partial`: reward delivery still uses
-in-memory events without durable reconciliation. `Planned`: credit is a separate OIDC client and
-settlement ledger; the forum would call its merchant distribution API. See the
+`Current`: local topic/reply publication rewards commit in the content transaction, including
+approval and draft publication; source keys deduplicate legacy event replay. `Partial`: historical
+reward reconciliation and atomic content-restoration rewards remain incomplete. `Planned`: credit is
+a separate OIDC client and settlement ledger; the forum would call its merchant distribution API. See the
 [points specification](../product/credit-and-escrow.md).
 
 ## Consistency principles
@@ -261,7 +270,8 @@ settlement ledger; the forum would call its merchant distribution API. See the
   changes require measurements from the target PostgreSQL deployment (CPU, concurrency, p95 latency,
   and memory) before changing defaults.
 - For OpenAPI-covered operations, contract changes ship in the same PR: Go behavior/struct →
-  `openapi.yaml` → generated TypeScript output → fixture tests. Dart generation remains Planned.
+  `openapi.yaml` → generated TypeScript output → fixture tests. Dart generation is `Partial`: selected
+  wire models are generated from the same schemas; remaining mirrors retain explicit manual ownership.
 
 ## Private campus connection
 

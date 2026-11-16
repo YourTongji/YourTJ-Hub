@@ -119,6 +119,8 @@ func PostMarkdownToHTMLWithMentions(markdown string, targets map[string]uint64) 
 	if len(targets) == 0 || !strings.Contains(markdown, "@") {
 		return PostMarkdownToHTML(markdown)
 	}
+	marker := blankLineMarker(markdown)
+	markdown = markBlankLines(markdown, marker, MaxRenderedBlankLines)
 	protected, placeholders := protectMathSegments(markdown)
 	var rewritten strings.Builder
 	cursor := 0
@@ -162,7 +164,7 @@ func PostMarkdownToHTMLWithMentions(markdown string, targets map[string]uint64) 
 	if err := md.Renderer().Render(&buf, source, doc); err != nil {
 		slog.Error("render mention markdown failed", "err", err)
 	}
-	return normalizePostHTML(restoreMathSegments(buf.String(), placeholders))
+	return normalizePostHTML(replaceBlankLineMarkers(restoreMathSegments(buf.String(), placeholders), marker))
 }
 
 // MentionToken identifies accepted source text using UTF-16 offsets, matching

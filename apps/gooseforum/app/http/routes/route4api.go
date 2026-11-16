@@ -16,6 +16,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
@@ -89,7 +90,7 @@ func viewRoute(ginApp *gin.Engine) {
 		slog.Info("view gzip disabled")
 	}
 
-	viewRouteApp.GET("/", forum.Home)
+	viewRouteApp.GET("/", homeMarkdownRateLimit, forum.Home)
 	viewRouteApp.GET("/p/post/:id", forum.TopicDetail)
 	viewRouteApp.GET("/p/post/:id/:postNo", forum.TopicDetail)
 	viewRouteApp.GET("/topics/:id", forum.TopicDetail)
@@ -134,8 +135,27 @@ func viewRoute(ginApp *gin.Engine) {
 	ginApp.GET("/site-theme.css", forum.SiteThemeCSS)
 }
 
+// homeMarkdownRateLimit applies the llms.index quota to markdown-negotiated
+// homepage requests while the index is enabled, so Accept negotiation cannot
+// bypass /llms.txt. The header-only body served while the index is disabled
+// does not consume the quota.
+//
+// This is a regular chain middleware: RateLimit's c.Next() advances to the
+// page handler and its abort stops the chain before rendering, so the quota
+// check does not depend on handler position. The enabled flag is re-read per
+// request from the 5s config cache; a panel toggle racing a request can
+// mischarge at most that one request, self-healing on the next cache refresh.
+func homeMarkdownRateLimit(c *gin.Context) {
+	if forum.ServesHomeMarkdown(c) && hotdataserve.GetPostingSettingsConfigCache().LLMS.Enabled {
+		middleware.RateLimit(middleware.RateLimitLLMSIndex)(c)
+		return
+	}
+	c.Next()
+}
+
 func siteInfoRoute(ginApp *gin.Engine) {
 	ginApp.GET("/robots.txt", controllers.RenderRobotsTxt)
+	registerMCPServerCard(ginApp)
 	ginApp.GET("/sitemap.xml", controllers.RenderSitemapXml)
 	ginApp.GET("/rss.xml", controllers.RenderRss)
 	// LLMS 公开入口是派生文本投影：full 冷缓存全量重建、不同 {id}.md 会打穿 topic 级缓存，
@@ -333,7 +353,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
-	forumApi.GET("courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseDetailJSON))
+	forumApi.GET("courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), middleware.JWTAuth, UpUriQueryReq(forum.CourseDetailJSON))
 	// 课程评价列表：公开可读，可选 JWT 仅用于 viewer 状态，不要求登录。
 	forumApi.GET("courses/:courseId/reviews", middleware.RateLimit(middleware.RateLimitCourseCatalog), middleware.JWTAuth, UpUriQueryReq(forum.ListCourseReviews))
 	// 相关课程：同教师其他课 + 同课程其他教师（公开只读，与课程目录共用限流配额）。

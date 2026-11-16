@@ -867,7 +867,7 @@ function safeProfileUrl(value?: string) {
                   <span class="mt-0.5 block truncate text-sm font-semibold text-base-content">{{ topicDisplayLabel(bookmark.id, bookmark.title, bookmark.excerpt) }}</span>
                   <span
                     v-if="bookmark.type === 'post' && bookmark.excerpt"
-                    class="mt-0.5 line-clamp-2 block text-xs leading-5 text-base-content/55"
+                    class="mt-0.5 line-clamp-2 text-xs leading-5 text-base-content/55"
                   >
                     {{ bookmark.excerpt }}
                   </span>
@@ -925,7 +925,7 @@ function safeProfileUrl(value?: string) {
                 <span class="mt-0.5 block truncate text-sm font-semibold text-base-content">{{ bookmark.title }}</span>
                 <span
                   v-if="bookmark.type === 'post' && bookmark.excerpt"
-                  class="mt-0.5 line-clamp-2 block text-xs leading-5 text-base-content/55"
+                  class="mt-0.5 line-clamp-2 text-xs leading-5 text-base-content/55"
                 >
                   {{ bookmark.excerpt }}
                 </span>

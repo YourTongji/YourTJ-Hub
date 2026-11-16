@@ -69,6 +69,7 @@ for (const theme of ['gf-light', 'gf-dark']) {
           }),
           photo: photo && {
             borderWidth: getComputedStyle(photo).borderWidth,
+            outlineWidth: getComputedStyle(photo).outlineWidth,
             borderRadius: getComputedStyle(photo).borderRadius,
             cursor: getComputedStyle(photo).cursor,
           },
@@ -93,7 +94,9 @@ for (const theme of ['gf-light', 'gf-dark']) {
         assert.notEqual(image.cursor, 'zoom-in')
       }
       assert.equal(rendered.mixedParagraphAlignment, 'start')
-      assert.equal(rendered.photo.borderWidth, '1px')
+      // 图片用 1px 低透明外描边（outline）代替带色相的边框，见 prose.css
+      assert.equal(rendered.photo.borderWidth, '0px')
+      assert.equal(rendered.photo.outlineWidth, '1px')
       assert.equal(rendered.photo.borderRadius, '8px')
       assert.equal(rendered.photo.cursor, 'zoom-in')
 

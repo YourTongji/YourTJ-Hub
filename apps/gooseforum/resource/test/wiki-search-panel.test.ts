@@ -44,6 +44,7 @@ describe('WikiSearchPanel grouped result navigation', () => {
 
   async function search(items = interleavedResults) {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
       json: async () => ({ result: { query: '选课', total: items.length, items } }),
     }))
     mountPanel()
@@ -199,5 +200,40 @@ describe('WikiSearchPanel Dialog 可访问性', () => {
     await flushPromises()
 
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+  })
+})
+
+describe('WikiSearchPanel search failures', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  })
+
+  test.each([
+    ['HTTP 503', () => new Response('<html>Service unavailable</html>', { status: 503 })],
+    ['HTTP 429', () => Response.json({ message: 'rate limited' }, { status: 429 })],
+    ['invalid JSON', () => new Response('not JSON')],
+    ['missing result', () => Response.json({})],
+    ['backend unavailable', () => Response.json({ result: { query: '选课', total: 0, items: [], searchUnavailable: true } })],
+  ])('%s shows unavailable rather than no results', async (_name, response) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response()))
+    mountPanel()
+    await flushPromises()
+    const input = new DOMWrapper(document.querySelector<HTMLInputElement>('[role="combobox"]')!)
+    await input.setValue('选课')
+    await vi.advanceTimersByTimeAsync(120)
+    await flushPromises()
+    expect(document.body.textContent).toContain(i18n.global.t('wikiSearch.unavailable'))
+    expect(document.body.textContent).not.toContain(i18n.global.t('wikiSearch.emptyTitle'))
+    expect(document.querySelectorAll('[role="option"]')).toHaveLength(0)
+
+    // A later successful query must leave the error state and remain a true empty result.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
+      result: { query: '课程', total: 0, items: [] },
+    })))
+    await input.setValue('课程')
+    await vi.advanceTimersByTimeAsync(120)
+    await flushPromises()
+    expect(document.body.textContent).toContain(i18n.global.t('wikiSearch.emptyTitle'))
+    expect(document.body.textContent).not.toContain(i18n.global.t('wikiSearch.unavailable'))
   })
 })

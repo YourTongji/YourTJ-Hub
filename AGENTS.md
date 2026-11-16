@@ -46,7 +46,8 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   current route-by-route inventory. The [contract architecture](docs/architecture/contracts-and-data.md#contract-status)
   owns coverage semantics and remaining protocol/generation gaps; route coverage does not mean
   that every product capability or client-generation pipeline is complete.
-- Points: forum-local ledger mechanics are `Current`, durable reward delivery is `Partial`;
+- Points: forum-local publication rewards commit with content (`Current`); historical reward
+  recovery and atomic content-restoration rewards remain `Partial`;
   cross-platform credit settlement is `Planned`. See `docs/product/credit-and-escrow.md`.
 
 ## 2. Repository layout & boundary rules
@@ -95,7 +96,9 @@ docs/        Docs center (product/architecture/development/operations)
   `openapi.yaml` → generated TypeScript output → fixture contract tests. Until the pipeline fully
   covers an operation, contract changes must also update the mobile Dart mirrors in
   `apps/mobile/packages/core/lib/src/gen/` (same PR) and web TS types
-  (`resource/packages/client/src/contracts/`) in the same commit. Dart generation remains Planned.
+  (`resource/packages/client/src/contracts/`) in the same commit. Dart generation is `Partial`: the
+  selected DTOs in `packages/api-contract/dart-models.json` are generated via `pnpm generate:dart`;
+  unlisted Dart mirrors remain hand-maintained.
   Route coverage is gated: every route from `RegisterByGin` (snapshot
   `packages/api-contract/fixtures/routes-snapshot.json`, regenerate with
   `YOURTJ_UPDATE_ROUTES_SNAPSHOT=1 go test ./app/http/routes/ -run TestRoutesSnapshot`) must be an

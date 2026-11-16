@@ -231,8 +231,9 @@ describe('移动视图下 Vditor 编辑器工具栏架构与交互规范', () =>
     const slimList = (slimWrapper.vm as any).resolveToolbar()
     const slimNames = slimList.map((item: any) => (typeof item === 'string' ? item : item.name))
     // 标题左一（对齐官方默认工具栏与移动端 slim），其余保持 compact 主行顺序
+    // （issue #1630：回复以表情/图片为先，compact 主行以「插入」组开头）
     expect(slimNames[0]).toBe('headings')
-    expect(slimNames[1]).toBe('bold')
+    expect(slimNames.slice(1, 4)).toEqual(['emoji', 'upload', '|'])
     const slimMore = slimList.find((item: any) => typeof item === 'object' && item.name === 'more')
     expect(slimMore.toolbar).not.toContain('headings')
     expect(slimMore.toolbar).toContain('table')
@@ -245,7 +246,7 @@ describe('移动视图下 Vditor 编辑器工具栏架构与交互规范', () =>
     })
     const compactList = (compactWrapper.vm as any).resolveToolbar()
     const compactNames = compactList.map((item: any) => (typeof item === 'string' ? item : item.name))
-    expect(compactNames[0]).toBe('bold')
+    expect(compactNames[0]).toBe('emoji')
     const compactMore = compactList.find((item: any) => typeof item === 'object' && item.name === 'more')
     expect(compactMore.toolbar).toContain('headings')
     compactWrapper.unmount()

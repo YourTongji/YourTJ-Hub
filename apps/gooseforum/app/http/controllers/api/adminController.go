@@ -65,6 +65,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
@@ -2727,6 +2728,21 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 					return err
 				}
 			}
+			if params.Approve && !hasPriorPublic {
+				previouslyPublished := false
+				if !usePublicationBaseline {
+					var err error
+					previouslyPublished, err = userActivities.HasRecordTx(tx, userActivities.ActionPost, userActivities.SubjectTopic, topic.Id)
+					if err != nil {
+						return err
+					}
+				}
+				if !previouslyPublished {
+					if err := pointservice.RewardPublicationTx(tx, topic.Id, topic.FirstPostId); err != nil {
+						return err
+					}
+				}
+			}
 			return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 		}); err != nil {
 			if errors.Is(err, publicationservice.ErrUnavailable) {
@@ -2812,6 +2828,21 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			} else {
 				if err := agenteventservice.WithdrawContentTx(tx, post.TopicId, post.Id); err != nil {
 					return err
+				}
+			}
+			if params.Approve && !hasPriorPublic {
+				previouslyPublished := false
+				if !usePublicationBaseline {
+					var err error
+					previouslyPublished, err = userActivities.HasRecordTx(tx, userActivities.ActionComment, userActivities.SubjectPost, post.Id)
+					if err != nil {
+						return err
+					}
+				}
+				if !previouslyPublished {
+					if err := pointservice.RewardPublicationTx(tx, topicEntity.Id, post.Id); err != nil {
+						return err
+					}
 				}
 			}
 			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
