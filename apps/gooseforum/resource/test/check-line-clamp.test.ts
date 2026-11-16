@@ -163,6 +163,43 @@ describe('findLineClampConflicts（AC-4：合法写法零误报）', () => {
     const text = `<div :class='cond ? "block" : "line-clamp-2"'></div>`
     expect(scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])).toEqual([])
   })
+
+  it('非 class 属性值不判定：title/aria-label/data-* 提到类名不误报', () => {
+    const text = [
+      `<div title="use block line-clamp-2 together" aria-label="block line-clamp-2" data-hint="flex line-clamp-1">`,
+      `  <p class="line-clamp-2">x</p>`,
+      `</div>`,
+    ].join('\n')
+    expect(scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])).toEqual([])
+  })
+
+  it(':style 等非 class 绑定表达式不判定', () => {
+    const text = `<div :style="{ content: 'block line-clamp-2' }"><p class="line-clamp-2">x</p></div>`
+    expect(scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])).toEqual([])
+  })
+})
+
+describe('class 类属性与 .ts 覆盖面', () => {
+  it('*-class 属性（img-class、enter-active-class）参与判定', () => {
+    const img = `<UserAvatar img-class="block line-clamp-2" />`
+    expect(scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text: img }])).toHaveLength(1)
+    const transition = `<Transition enter-active-class="flex line-clamp-1"><p>x</p></Transition>`
+    expect(scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text: transition }])).toHaveLength(1)
+  })
+
+  it('.ts 纯代码文件：普通字符串字面量参与判定', () => {
+    const ts = `export const cls = 'block line-clamp-2'\nexport const ok = 'line-clamp-2 text-sm'\n`
+    const findings = scanLineClampConflicts([{ relPath: 'src/site/utils/fixture.ts', text: ts }])
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(1)
+  })
+
+  it('.vue 的 script 块内类串参与判定', () => {
+    const vue = `<script setup lang="ts">\nconst cls = 'block line-clamp-2'\n</script>\n<template><p :class="cls">x</p></template>`
+    const findings = scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text: vue }])
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(2)
+  })
 })
 
 describe('scanLineClampConflicts（AC-2：当前 src 全量零冲突）', () => {

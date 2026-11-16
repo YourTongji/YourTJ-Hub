@@ -159,22 +159,24 @@ function findStringEnd(text, open, end) {
   return end
 }
 
-// 提取 class 语境的候选串。单遍扫描、同层配对，并跟踪「是否在 HTML 标签内」：
-// - 标签内（< 与 > 之间）：`:attr="expr"` / `v-bind:attr='expr'` 绑定表达式外层引号
-//   只圈定边界，内部异种引号/反引号字面量才是候选串（三元互斥分支各自成串，AC-4）；
-//   `class="..."` 静态属性与其他属性值按字面量整串收集。
+// 提取 class 语境的候选串。.vue 走模板感知扫描，.ts 走纯代码扫描：
+// - 标签内（< 与 > 之间）只收集 class 类属性（class / *-class，如 img-class、
+//   enter-active-class）：`:class="expr"` 绑定外层引号只圈定边界，内部异种引号/
+//   反引号字面量才是候选串（三元互斥分支各自成串，AC-4）；静态 class 整串收集。
+//   title/aria-label/data-* 等自然语言属性值不判定（误报面收窄）。
 // - 标签外（模板文本节点）：撇号是自然语言（don't / can't），不是字符串定界符，
 //   整体跳过到下一个 '<'，防止两个撇号伪配对出跨元素假串（误报方向）。
-// - script/style 块是 JS/CSS 语境：整块按代码扫描（引号正常配对），不受标签态影响。
+// - script/style 块与 .ts 文件是 JS 语境：引号正常配对、全部字面量收集，
+//   不受标签态影响（.ts 无模板文本，纯代码扫描保证覆盖面）。
 // - 文本插值 {{...}} 是 JS 表达式，整体跳过（其中 t('a.b') 的引号不参与配对）。
 // 已知边界：文本节点中裸露的 '<'（如 "a < b"）会提前进入标签态，属粗扫描可接受
 // 漂移；Vue 模板要求转义裸 '<'，实际源码不出现。
-function extractStringLiterals(text) {
+// class / *-class（img-class、enter-active-class、leave-to-class 等多段前缀均覆盖）。
+const classAttr = /(?:^|[\s<])(?:[A-Za-z0-9_]+-)*class\s*=\s*$/
+const bindingClassAttr = /(?:^|[\s<])(?::|v-bind:)(?:[A-Za-z0-9_]+-)*class\s*=\s*$/
+function extractStringLiterals(text, { codeOnly = false } = {}) {
   const out = []
   const n = text.length
-  // 回看窗口可能从长属性名中间截断（如多行 :style 对象），故不锚定冒号起点：
-  // 只要紧邻开引号前是「标识符尾巴 = 」即按绑定表达式处理。
-  const bindingAttr = /:[A-Za-z0-9_.\-[\]]*\s*=\s*$/
   const collectQuoted = (open, close, isBinding) => {
     if (isBinding) {
       let j = open + 1
@@ -206,23 +208,23 @@ function extractStringLiterals(text) {
   let inTag = false
   while (i < n) {
     const c = text[i]
-    if (!inTag && c === '<') {
+    if (!codeOnly && !inTag && c === '<') {
       const blockEnd = codeBlockEnd(i)
       if (blockEnd !== -1) {
         // script/style：块内按代码语境扫描（引号配对），块尾后回到文本态。
-        i = scanCode(text, i + 1, blockEnd, out, bindingAttr, collectQuoted, findStringEnd)
+        i = scanCode(text, i + 1, blockEnd, out, collectQuoted)
         continue
       }
       inTag = true
       i++
       continue
     }
-    if (inTag && c === '>') {
+    if (!codeOnly && inTag && c === '>') {
       inTag = false
       i++
       continue
     }
-    if (!inTag) {
+    if (!codeOnly && !inTag) {
       // 文本节点：跳过 {{...}} 与裸引号，直到下一个 '<'。
       if (c === '{' && text[i + 1] === '{') {
         let depth = 1
@@ -244,11 +246,17 @@ function extractStringLiterals(text) {
       i++
       continue
     }
-    // 标签内：属性值引号。
+    // 标签内：只收集 class 类属性值；代码语境（script/style/.ts）收集全部字面量。
     if (c === '"' || c === "'" || c === '`') {
       const close = findStringEnd(text, i, n)
-      const before = text.slice(Math.max(0, i - 120), i)
-      collectQuoted(i, close, (c === '"' || c === "'") && bindingAttr.test(before))
+      if (codeOnly) {
+        collectQuoted(i, close, false)
+      } else {
+        const before = text.slice(Math.max(0, i - 120), i)
+        if (c !== '`' && bindingClassAttr.test(before)) collectQuoted(i, close, true)
+        else if (classAttr.test(before)) collectQuoted(i, close, false)
+        // 其余属性值（title/aria-label/:style 等）整体跳过，不判定。
+      }
       i = close + 1
       continue
     }
@@ -257,15 +265,14 @@ function extractStringLiterals(text) {
   return out
 }
 
-// script/style 块内的代码语境扫描：引号正常配对收集，{{ }} 不适用。
-function scanCode(text, start, end, out, bindingAttr, collectQuoted, findStringEnd) {
+// script/style 块内的代码语境扫描：引号正常配对收集全部字面量，{{ }} 不适用。
+function scanCode(text, start, end, out, collectQuoted) {
   let i = start
   while (i < end) {
     const c = text[i]
     if (c === '"' || c === "'" || c === '`') {
       const close = findStringEnd(text, i, end)
-      const before = text.slice(Math.max(0, i - 120), i)
-      collectQuoted(i, close, (c === '"' || c === "'") && bindingAttr.test(before))
+      collectQuoted(i, close, false)
       i = close + 1
       continue
     }
@@ -363,7 +370,9 @@ export function scanLineClampConflicts(files, allowlist = lineClampAllowlist) {
   for (const { relPath, text } of files) {
     if (allowlist.has(relPath)) continue
     const masked = maskComments(text)
-    for (const { value, offset } of extractStringLiterals(masked)) {
+    // .ts 是纯代码文件（无模板文本），全部字面量参与判定；.vue 走模板感知扫描。
+    const codeOnly = relPath.endsWith('.ts')
+    for (const { value, offset } of extractStringLiterals(masked, { codeOnly })) {
       if (!value.includes('line-clamp-')) continue
       for (const conflict of findLineClampConflicts(value)) {
         const line = masked.slice(0, offset).split('\n').length

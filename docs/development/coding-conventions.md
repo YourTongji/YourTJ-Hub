@@ -21,11 +21,17 @@ specificity 按源序覆盖，行数截断会静默失效（缺陷链 #1639/#164
 
 该约定由静态门禁 `apps/gooseforum/resource/scripts/check-line-clamp.mjs` 机械执行
 （`pnpm check:line-clamp`，已并入 `pnpm check`，随 lefthook pre-push 与 CI 前端门禁运行）：
-逐串扫描 `src/**` 的 `.vue`/`.ts` 引号内 class 串（含 `:class` 三元/条件分支的字面量，
-双引号与单引号外层绑定均支持），同一串内 clamp 与裸 display 类共存、且**完整变体前缀
-逐字相同**才报错并给出文件/行号。变体前缀含命名变体（`group-hover/item`）与容器查询
-（`@md`、`@lg/name`）。前缀不同不报（如 `sm:line-clamp-2` + 裸 `block`，断点下 clamp
-源序靠后获胜，属合法写法）；条件分支互斥的类串逐串隔离，不产生误报。
+逐串扫描 `resource/src/**` 的 `.vue`/`.ts` 引号内 class 串，同一串内 clamp 与裸 display
+类共存、且**完整变体前缀逐字相同**才报错并给出文件/行号。收集范围按语境区分：
+
+- `.vue` 模板：只收集 class 类属性（`class` / `*-class`，如 `img-class`、`enter-active-class`）；
+  `:class` 绑定（双引号或单引号外层）下钻内部字面量，三元/条件分支各自成串；
+  `title`/`aria-label`/`data-*`/`:style` 等非 class 属性值不判定；
+- `.vue` 的 script/style 块与 `.ts` 文件：纯代码语境，全部字符串字面量参与判定。
+
+变体前缀含命名变体（`group-hover/item`）与容器查询（`@md`、`@lg/name`）。前缀不同不报
+（如 `sm:line-clamp-2` + 裸 `block`，断点下 clamp 源序靠后获胜，属合法写法）；条件分支
+互斥的类串逐串隔离，不产生误报。
 
 important 修饰符（v3 前缀 `!block` / v4 后缀 `block!`）参与判定：带 important 的声明
 确定性覆盖不带的，与源序无关——clamp 带 important 而 display 不带 → clamp 必胜，合法不报；
