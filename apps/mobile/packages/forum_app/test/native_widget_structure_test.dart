@@ -477,6 +477,23 @@ void main() {
     }
   });
 
+  test('Android timeline receiver never clobbers the bridge update schedule', () {
+    final timeline = widgetSource('CourseTimelineWidget.kt');
+    final receiver = timeline.substring(
+      timeline.indexOf('class CourseTimelineWidgetReceiver'),
+    );
+
+    // HomeWidgetScheduler.schedule replaces the whole stored table. The
+    // receiver must not re-arm a midnight-only alarm on plugin/alarm-driven
+    // onUpdate, or the bridge's +1ms stale switch is dropped immediately.
+    expect(receiver, isNot(contains('nextShanghaiMidnight')));
+    expect(
+      receiver,
+      contains('HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET'),
+    );
+    expect(receiver, contains('projection.nextUpdateAt('));
+  });
+
   test('iOS WidgetKit target, App Group and timeline are fully configured', () {
     final project = read('ios/Runner.xcodeproj/project.pbxproj');
     final source =

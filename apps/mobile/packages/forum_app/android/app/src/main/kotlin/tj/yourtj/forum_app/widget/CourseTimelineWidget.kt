@@ -2,6 +2,7 @@ package tj.yourtj.forum_app.widget
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -367,12 +368,20 @@ class CourseTimelineWidgetReceiver : HomeWidgetGlanceWidgetReceiver<CourseTimeli
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        scheduleNextDay(context)
+        scheduleNextUpdate(context)
     }
 
-    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        super.onUpdate(context, appWidgetManager, appWidgetIds)
-        scheduleNextDay(context)
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        // Plugin- and alarm-driven updates carry the bridge's full schedule
+        // (including the stale switch). HomeWidgetScheduler.schedule replaces
+        // the whole stored table, so re-arming on those broadcasts would drop
+        // that schedule. Only system-driven updates (e.g. reboot) re-arm.
+        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE &&
+            !intent.getBooleanExtra(HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET, false)
+        ) {
+            scheduleNextUpdate(context)
+        }
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
@@ -387,7 +396,11 @@ class CourseTimelineWidgetReceiver : HomeWidgetGlanceWidgetReceiver<CourseTimeli
         HomeWidgetScheduler.cancel(context, javaClass.name)
     }
 
-    private fun scheduleNextDay(context: Context) {
-        HomeWidgetScheduler.schedule(context, javaClass.name, listOf(nextShanghaiMidnight(Date()).time))
+    private fun scheduleNextUpdate(context: Context) {
+        val projection = ScheduleProjection.parse(
+            HomeWidgetPlugin.getData(context).getString(PROJECTION_KEY, null),
+        ) ?: return
+        val nextUpdate = projection.nextUpdateAt(Date()) ?: return
+        HomeWidgetScheduler.schedule(context, javaClass.name, listOf(nextUpdate.time))
     }
 }
