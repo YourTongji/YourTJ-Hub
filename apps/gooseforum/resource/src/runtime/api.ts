@@ -2374,6 +2374,7 @@ export interface CourseMergeResult {
 }
 
 export interface AdminCourseDetailItem {
+  bookmarked: boolean
   id: number
   primaryCode: string
   name: string

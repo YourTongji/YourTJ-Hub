@@ -1346,6 +1346,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get courseShareThisReview => 'Diese Bewertung';
 
   @override
+  String get courseDetailInfo => 'Kursinfo';
+
+  @override
   String get courseDetailOfferings => 'Lehrveranstaltungen';
 
   @override

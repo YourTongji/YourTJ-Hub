@@ -131,7 +131,7 @@ func setupAIModerationContractTest(t *testing.T, mutate func(*pageConfig.AiModer
 	return conn, router, stub
 }
 
-// saveContractImage 写入一张就绪 PNG（每次内容不同），返回 /file/img 地址与对象名。
+// saveContractImage 写入一张就绪 PNG，返回 /file/img 地址与唯一对象名。
 func saveContractImage(t *testing.T, ownerID uint64) (string, string) {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, 3, 3))
@@ -141,7 +141,7 @@ func saveContractImage(t *testing.T, ownerID uint64) (string, string) {
 	if err := png.Encode(&buf, img); err != nil {
 		t.Fatal(err)
 	}
-	name := fmt.Sprintf("2026/10/01/ai-contract-%d.png", time.Now().UnixNano())
+	name := fmt.Sprintf("2026/10/01/ai-contract-%d.png", contractTestID())
 	if _, err := filedata.SaveFile(ownerID, name, "image/png", buf.Bytes()); err != nil {
 		t.Fatal(err)
 	}

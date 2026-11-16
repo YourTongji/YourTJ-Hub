@@ -352,7 +352,8 @@ Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课�
 `Current`：站点设置「外部资源链接 / Meta 标签」只接受能放进页面 `<head>` 的元素
 （`meta`、`link`、`script`、`style`、`noscript` 等），其余内容在保存和渲染时被同一套净化剥离
 （`app/bundles/headmarkup`）：`<!DOCTYPE>`、`<html>`、`<head>`、`<body>` 等文档结构标签、body 内容与
-游离文本不进入页面；页面外壳为每页输出的文档元数据也被忽略——`<title>`、charset（含
+游离文本不进入页面；导航控制元素同样被剥离——`<base>`（改写整页相对 URL 解析基准）与
+`http-equiv="refresh"` 的 meta（自动跳转）；页面外壳为每页输出的文档元数据也被忽略——`<title>`、charset（含
 `http-equiv="content-type"` 写法）、viewport、description、robots、color-scheme、theme-color 与
 `og:`／`twitter:`／`article:` 前缀的 meta，以及 `rel` 含 canonical／prev／next／manifest／icon／
 apple-touch-icon token（HTML 中 `rel` 是 token 集合，`rel="canonical alternate"`、`rel="shortcut icon"`

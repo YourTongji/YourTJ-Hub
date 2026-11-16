@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
@@ -46,11 +45,8 @@ func Parse(ctx context.Context, req ParseRequest) (Draft, error) {
 	if !cfg.Enabled() {
 		return Draft{}, ErrAIUnavailable
 	}
-	limit := settings.GlobalPerMinute
-	if limit <= 0 {
-		limit = 5
-	}
-	if ok, _, _ := ratelimit.Default().Allow("ai.summary.global", limit, time.Minute); !ok {
+	limit := aiservice.ResolveGlobalPerMinute(settings.GlobalPerMinute)
+	if ok, _, _ := ratelimit.Default().Allow(aiservice.GlobalGenerationKey, limit, aiservice.GlobalGenerationWindow); !ok {
 		return Draft{}, ErrLimited
 	}
 	ctx, cancel := context.WithTimeout(ctx, llmprovider.DefaultTimeout)

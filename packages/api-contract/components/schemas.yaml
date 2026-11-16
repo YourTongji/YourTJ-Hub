@@ -1624,8 +1624,11 @@ OfferingSummary:
 
 CourseDetail:
   type: object
-  required: [id, primaryCode, name, department, creditX10]
+  required: [id, primaryCode, name, department, creditX10, bookmarked]
   properties:
+    bookmarked:
+      type: boolean
+      description: Current authenticated user bookmark state; false for visitors. Read on every request, never shared between users.
     id:
       type: integer
       format: uint64

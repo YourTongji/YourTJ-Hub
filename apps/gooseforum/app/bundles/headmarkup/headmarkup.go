@@ -5,10 +5,11 @@
 // The field was rendered verbatim into the shell's <head>, so an administrator
 // pasting a whole <head>…</head> block produced a nested <head> plus duplicate
 // viewport/title/description tags. Sanitize keeps the field's real content
-// (custom meta/link/script/style/noscript) and strips only document structure
-// and the document metadata the shell emits per page: <title>, the charset
-// (including http-equiv=content-type), the viewport/description/robots/
-// color-scheme/theme-color metas, og:/twitter:/article:-prefixed metas, and the
+// (custom meta/link/script/style/noscript) and strips only document structure,
+// navigation control (<base>, http-equiv=refresh) and the document metadata the
+// shell emits per page: <title>, the charset (including http-equiv=content-type),
+// the viewport/description/robots/color-scheme/theme-color metas,
+// og:/twitter:/article:-prefixed metas, and the
 // canonical/prev/next/manifest/icon/apple-touch-icon links (matched by rel
 // token).
 //
@@ -27,7 +28,8 @@ import (
 // Sanitize returns the subset of raw that is valid inside the shell's <head>:
 // the parser consumes <!DOCTYPE>/<html>/<head>/<body> and their children are
 // reached through the head element, so body subtrees and loose text are
-// dropped, while the document metadata the shell renders per page (<title>, the
+// dropped, navigation control (<base>, http-equiv=refresh) is stripped, and the
+// document metadata the shell renders per page (<title>, the
 // charset/viewport/description/robots/color-scheme/theme-color metas, og:/
 // twitter:/article:-prefixed metas and the canonical/prev/next/manifest/icon
 // links) is removed to keep those tags unique per page.
@@ -84,6 +86,10 @@ func shellOwned(node *html.Node) bool {
 		return true
 	case atom.Title:
 		return true
+	case atom.Base:
+		// issue #1284 #27：<base> 改写整页相对 URL 的解析基准，属导航控制
+		// 而非 head 内容；即使 CSP base-uri 兜底也不应经由本字段进入页面。
+		return true
 	case atom.Meta:
 		return shellOwnedMeta(node)
 	case atom.Link:
@@ -95,15 +101,17 @@ func shellOwned(node *html.Node) bool {
 // shellOwnedMeta matches the shell's charset/viewport/description/robots/
 // color-scheme/theme-color metas and the og:/twitter:/article:-prefixed entries
 // it emits for a page. The parser lower-cases attribute names but not values.
-// An http-equiv=content-type declaration duplicates the shell's <meta charset>,
-// but other policies (CSP, refresh, …) pass through.
+// An http-equiv=content-type declaration duplicates the shell's <meta charset>;
+// http-equiv=refresh turns the page into an automatic redirect (issue #1284
+// #27), so both are stripped. Other policies (CSP, …) pass through.
 func shellOwnedMeta(node *html.Node) bool {
 	for _, attr := range node.Attr {
 		switch attr.Key {
 		case "charset":
 			return true
 		case "http-equiv":
-			if strings.EqualFold(strings.TrimSpace(attr.Val), "content-type") {
+			switch strings.ToLower(strings.TrimSpace(attr.Val)) {
+			case "content-type", "refresh":
 				return true
 			}
 		case "name", "property":
