@@ -3423,8 +3423,8 @@ export default {
       confirmKeepAction: '保持',
     },
     account: {
-      title: 'パスワード',
-      description: 'アカウントの安全を守るため、定期的にパスワードを変更してください。',
+      title: 'アカウント管理',
+      description: 'パスワードの変更やアカウントの削除ができます。',
       currentPassword: '現在のパスワード',
       passwordHint: '6文字以上。',
       changePassword: 'パスワードを変更',

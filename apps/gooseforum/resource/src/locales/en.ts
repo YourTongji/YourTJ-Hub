@@ -3401,8 +3401,8 @@ export default {
       confirmKeepAction: 'Keep',
     },
     account: {
-      title: 'Password',
-      description: 'Change your password regularly to keep your account secure.',
+      title: 'Account management',
+      description: 'Change your password or close your account.',
       currentPassword: 'Current password',
       passwordHint: 'At least 6 characters.',
       changePassword: 'Change password',

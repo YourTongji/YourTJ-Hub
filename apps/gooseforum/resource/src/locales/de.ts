@@ -3423,8 +3423,8 @@ export default {
       confirmKeepAction: 'Beibehalten',
     },
     account: {
-      title: 'Passwort',
-      description: 'Ändere dein Passwort regelmäßig, um dein Konto zu schützen.',
+      title: 'Kontoverwaltung',
+      description: 'Ändere dein Passwort oder schließe dein Konto.',
       currentPassword: 'Aktuelles Passwort',
       passwordHint: 'Mindestens 6 Zeichen.',
       changePassword: 'Passwort ändern',

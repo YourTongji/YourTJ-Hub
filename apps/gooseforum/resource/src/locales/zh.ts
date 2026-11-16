@@ -3403,8 +3403,8 @@ export default {
       confirmKeepAction: '保留',
     },
     account: {
-      title: '密码',
-      description: '定期修改你的密码以保护账号安全。',
+      title: '账号管理',
+      description: '修改密码或注销账号。',
       currentPassword: '当前密码',
       passwordHint: '至少 6 个字符。',
       changePassword: '修改密码',
