@@ -1,11 +1,11 @@
 {
-  "gitSha": "403418de5172cbf1adeadda3ecce127dfaf6efb5",
+  "gitSha": "84603a856549fc3f2acdc82c9840f4e9b8ff2d56",
   "flutterVersion": "3.44.9",
   "buildMode": "release",
   "targetPlatform": "android-arm64",
-  "androidBuildConfigSha256": "6e17addbb2b096550e2a63d012d13e5bbed432960cd5d999886601a11c268afe",
-  "apkBytes": 50310187,
-  "sourceRun": "https://github.com/YourTongji/YourTJ-Hub/actions/runs/43261001549",
-  "sourceArtifactId": 13964731783,
-  "sourceArtifactSha256": "48843671b1dbb1acac3c8d4a4061018e69fab2f6693d1f11fe60490df46fca0e"
+  "androidBuildConfigSha256": "315e372e3d1bc2cc8610e2b090df18742784daf01dc6ebb7e6d42090be1d28fe",
+  "apkBytes": 50326571,
+  "sourceRun": "https://github.com/YourTongji/YourTJ-Hub/actions/runs/43813476962",
+  "sourceArtifactId": 14201567730,
+  "sourceArtifactSha256": "3148bd5efcdac719ab874545e3abaf307f4813e4a7efda554069306f412468e4"
 }
