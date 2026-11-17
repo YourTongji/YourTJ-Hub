@@ -3861,7 +3861,7 @@ export default {
         needsLetterNumber: '密码必须包含字母和数字',
         invalidFormat: '密码格式错误',
         oldInvalid: '原密码错误',
-        oauthRequired: '此账号由第三方登录创建且未设置密码，请先在「设置 → 账号安全」中设置密码。',
+        oauthRequired: '此账号由第三方登录创建且未设置密码，请先在「设置 → 账号管理」中设置密码。',
         setNotAllowed: '当前账号不满足设置密码条件（已有可用密码或无第三方绑定），请使用修改密码',
         updateFailed: '更新密码失败',
         updateSuccess: '密码修改成功',

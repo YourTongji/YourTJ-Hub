@@ -3858,7 +3858,7 @@ export default {
         needsLetterNumber: 'Das Passwort muss sowohl Buchstaben als auch Zahlen enthalten',
         invalidFormat: 'Ungültiges Passwortformat',
         oldInvalid: 'Das aktuelle Passwort ist nicht korrekt',
-        oauthRequired: 'Dieses Konto wurde über einen Drittanbieter erstellt und hat noch kein Passwort. Lege zuerst unter Einstellungen → Kontosicherheit eines fest.',
+        oauthRequired: 'Dieses Konto wurde über einen Drittanbieter erstellt und hat noch kein Passwort. Lege zuerst unter Einstellungen → Kontoverwaltung eines fest.',
         setNotAllowed: 'Dieses Konto erfüllt die Voraussetzungen nicht (ein Passwort existiert bereits oder es besteht keine Drittanbieter-Verknüpfung). Bitte ändere das Passwort stattdessen.',
         updateFailed: 'Aktualisieren des Passworts fehlgeschlagen',
         updateSuccess: 'Passwort erfolgreich geändert',

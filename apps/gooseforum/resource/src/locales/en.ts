@@ -3859,7 +3859,7 @@ export default {
         needsLetterNumber: 'Password must contain both letters and numbers',
         invalidFormat: 'Invalid password format',
         oldInvalid: 'Current password is incorrect',
-        oauthRequired: 'This account was created via a third-party provider and has no password yet. Set one first under Settings → Account security.',
+        oauthRequired: 'This account was created via a third-party provider and has no password yet. Set one first under Settings → Account management.',
         setNotAllowed: 'This account does not qualify for password setup (a usable password already exists or there is no third-party binding). Use change password instead.',
         updateFailed: 'Failed to update password',
         updateSuccess: 'Password changed successfully',
