@@ -376,14 +376,20 @@ class NextClassWidgetReceiver : HomeWidgetGlanceWidgetReceiver<NextClassWidget>(
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        // Plugin- and alarm-driven updates already carry the bridge's full
-        // schedule; the alarm receiver advances it after broadcasting. Only
-        // system-driven updates (e.g. reboot) must re-arm the stored table,
-        // non-destructively — never replace it.
-        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE &&
-            !intent.getBooleanExtra(HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET, false)
-        ) {
+        if (intent.action != AppWidgetManager.ACTION_APPWIDGET_UPDATE) return
+        if (!intent.getBooleanExtra(HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET, false)) {
+            // System-driven update (e.g. reboot): re-arm the stored table
+            // without replacing it.
             HomeWidgetScheduler.pruneAndArmNext(context, javaClass.name, catchUp = false)
         }
+        // The countdown display changes between course boundaries. Merge the
+        // next display boundary into the bridge's stored schedule so the
+        // alarm chain keeps walking; never replace the table (that would
+        // drop the bridge's +1ms stale switch).
+        val projection = ScheduleProjection.parse(
+            HomeWidgetPlugin.getData(context).getString(PROJECTION_KEY, null),
+        ) ?: return
+        val nextUpdate = projection.nextUpdateAt(Date()) ?: return
+        HomeWidgetScheduler.mergeAndArmNext(context, javaClass.name, listOf(nextUpdate.time))
     }
 }

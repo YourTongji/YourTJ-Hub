@@ -46,9 +46,11 @@ internal data class ScheduleProjection(
     val generatedAt: Date,
     private val days: List<ScheduleDay>,
 ) {
-    /// Whether [instant] lies beyond this projection's validity window.
-    /// Answers "can this projection still be used at that instant", not
-    /// "has that course expired".
+    /**
+     * Whether [instant] lies beyond this projection's validity window.
+     * Answers "can this projection still be used at that instant", not
+     * "has that course expired".
+     */
     fun isBeyondValidity(instant: Date): Boolean =
         instant.time > generatedAt.time + STALE_AFTER_MS
 

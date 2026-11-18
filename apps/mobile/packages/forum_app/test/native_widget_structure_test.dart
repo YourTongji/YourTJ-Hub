@@ -492,7 +492,6 @@ void main() {
       );
       expect(receiver, isNot(contains('HomeWidgetScheduler.schedule(')));
       expect(receiver, isNot(contains('nextShanghaiMidnight')));
-      expect(receiver, isNot(contains('ScheduleProjection.parse')));
       expect(
         receiver,
         contains('HomeWidgetScheduler.pruneAndArmNext('),
@@ -504,6 +503,22 @@ void main() {
         reason: name,
       );
     }
+    // The timeline has no countdown: its receiver must not merge extra times.
+    final timeline = widgetSource('CourseTimelineWidget.kt');
+    final timelineReceiver = timeline.substring(
+      timeline.indexOf('class CourseTimelineWidgetReceiver'),
+    );
+    expect(timelineReceiver, isNot(contains('ScheduleProjection.parse')));
+    expect(timelineReceiver, isNot(contains('mergeAndArmNext')));
+    // NextClass shows a countdown whose display changes between course
+    // boundaries; it merges those boundaries non-destructively so the alarm
+    // chain keeps walking without dropping the bridge's stale switch.
+    final nextClass = widgetSource('NextClassWidget.kt');
+    final nextReceiver = nextClass.substring(
+      nextClass.indexOf('class NextClassWidgetReceiver'),
+    );
+    expect(nextReceiver, contains('projection.nextUpdateAt('));
+    expect(nextReceiver, contains('HomeWidgetScheduler.mergeAndArmNext('));
   });
 
   test('iOS WidgetKit target, App Group and timeline are fully configured', () {
