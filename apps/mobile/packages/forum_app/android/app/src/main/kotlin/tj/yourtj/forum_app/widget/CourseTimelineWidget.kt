@@ -366,21 +366,21 @@ class ToggleCourseTimelineDayAction : ActionCallback {
 class CourseTimelineWidgetReceiver : HomeWidgetGlanceWidgetReceiver<CourseTimelineWidget>() {
     override val glanceAppWidget = CourseTimelineWidget()
 
-    override fun onEnabled(context: Context) {
-        super.onEnabled(context)
-        scheduleNextUpdate(context)
-    }
+    // onEnabled needs no override: the base receiver already advances the
+    // bridge's stored schedule via pruneAndArmNext. Scheduling a fresh table
+    // here would replace the bridge's full schedule (including the +1ms
+    // stale switch) with a single entry.
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        // Plugin- and alarm-driven updates carry the bridge's full schedule
-        // (including the stale switch). HomeWidgetScheduler.schedule replaces
-        // the whole stored table, so re-arming on those broadcasts would drop
-        // that schedule. Only system-driven updates (e.g. reboot) re-arm.
+        // Plugin- and alarm-driven updates already carry the bridge's full
+        // schedule; the alarm receiver advances it after broadcasting. Only
+        // system-driven updates (e.g. reboot) must re-arm the stored table,
+        // non-destructively — never replace it.
         if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE &&
             !intent.getBooleanExtra(HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET, false)
         ) {
-            scheduleNextUpdate(context)
+            HomeWidgetScheduler.pruneAndArmNext(context, javaClass.name, catchUp = false)
         }
     }
 
@@ -394,13 +394,5 @@ class CourseTimelineWidgetReceiver : HomeWidgetGlanceWidgetReceiver<CourseTimeli
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         HomeWidgetScheduler.cancel(context, javaClass.name)
-    }
-
-    private fun scheduleNextUpdate(context: Context) {
-        val projection = ScheduleProjection.parse(
-            HomeWidgetPlugin.getData(context).getString(PROJECTION_KEY, null),
-        ) ?: return
-        val nextUpdate = projection.nextUpdateAt(Date()) ?: return
-        HomeWidgetScheduler.schedule(context, javaClass.name, listOf(nextUpdate.time))
     }
 }

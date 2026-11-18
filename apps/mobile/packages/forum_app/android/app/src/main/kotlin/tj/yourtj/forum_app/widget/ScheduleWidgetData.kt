@@ -46,8 +46,13 @@ internal data class ScheduleProjection(
     val generatedAt: Date,
     private val days: List<ScheduleDay>,
 ) {
-    fun isStale(now: Date = Date()): Boolean =
-        now.time > generatedAt.time + STALE_AFTER_MS
+    /// Whether [instant] lies beyond this projection's validity window.
+    /// Answers "can this projection still be used at that instant", not
+    /// "has that course expired".
+    fun isBeyondValidity(instant: Date): Boolean =
+        instant.time > generatedAt.time + STALE_AFTER_MS
+
+    fun isStale(now: Date = Date()): Boolean = isBeyondValidity(now)
 
     fun dayFor(value: Date = Date()): ScheduleDay? = dayOn(schoolDate(value), value)
 
@@ -102,7 +107,7 @@ internal data class ScheduleProjection(
         val nextCourseChange = days.asSequence()
             .flatMap { it.courses.asSequence() }
             .flatMap { sequenceOf(it.startAt, it.endAt) }
-            .filter { it.after(now) && !isStale(it) }
+            .filter { it.after(now) && !isBeyondValidity(it) }
             .minByOrNull { it.time }
         val midnight = nextShanghaiMidnight(now)
         val staleAt = Date(generatedAt.time + STALE_AFTER_MS + 1)

@@ -54,6 +54,16 @@ class ScheduleWidgetDataTest {
     }
 
     @Test
+    fun beyondValidityJudgesInstantsNotCourses() {
+        // The exact boundary instant is still within validity; +1ms is not.
+        assertEquals(false, projection.isBeyondValidity(staleAt))
+        assertEquals(true, projection.isBeyondValidity(Date(staleAt.time + 1)))
+        // A course starting after the window is beyond validity even though
+        // the course itself has not "expired".
+        assertEquals(true, projection.isBeyondValidity(course.startAt))
+    }
+
+    @Test
     fun freshProjectionRetainsDayReads() {
         val now = Date(staleAt.time - 60 * 60 * 1000)
 

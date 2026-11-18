@@ -317,7 +317,9 @@ void main() {
     expect(source, contains('generatedAt?.let(::updatedText)'));
     expect(source, contains('distanceText('));
     expect(data, contains('fun nextUpdateAt('));
-    expect(source, contains('HomeWidgetScheduler.schedule('));
+    // The receiver advances the bridge's stored schedule; it never replaces
+    // it (see 'Android receivers never clobber the bridge update schedule').
+    expect(source, contains('HomeWidgetScheduler.pruneAndArmNext('));
   });
 
   test('NextClass picker shares one full-canvas image across preview APIs', () {
@@ -477,21 +479,31 @@ void main() {
     }
   });
 
-  test('Android timeline receiver never clobbers the bridge update schedule', () {
-    final timeline = widgetSource('CourseTimelineWidget.kt');
-    final receiver = timeline.substring(
-      timeline.indexOf('class CourseTimelineWidgetReceiver'),
-    );
-
-    // HomeWidgetScheduler.schedule replaces the whole stored table. The
-    // receiver must not re-arm a midnight-only alarm on plugin/alarm-driven
-    // onUpdate, or the bridge's +1ms stale switch is dropped immediately.
-    expect(receiver, isNot(contains('nextShanghaiMidnight')));
-    expect(
-      receiver,
-      contains('HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET'),
-    );
-    expect(receiver, contains('projection.nextUpdateAt('));
+  test('Android receivers never clobber the bridge update schedule', () {
+    // HomeWidgetScheduler.schedule replaces the whole stored table. No
+    // schedule receiver may call it: the bridge owns the full table
+    // (including the +1ms stale switch), and the base receiver already
+    // advances it via pruneAndArmNext on onEnabled. Receivers only re-arm
+    // the stored table on system-driven updates (e.g. reboot).
+    for (final name in ['CourseTimelineWidget.kt', 'NextClassWidget.kt']) {
+      final source = widgetSource(name);
+      final receiver = source.substring(
+        source.indexOf(RegExp(r'class \w+WidgetReceiver')),
+      );
+      expect(receiver, isNot(contains('HomeWidgetScheduler.schedule(')));
+      expect(receiver, isNot(contains('nextShanghaiMidnight')));
+      expect(receiver, isNot(contains('ScheduleProjection.parse')));
+      expect(
+        receiver,
+        contains('HomeWidgetScheduler.pruneAndArmNext('),
+        reason: name,
+      );
+      expect(
+        receiver,
+        contains('HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET'),
+        reason: name,
+      );
+    }
   });
 
   test('iOS WidgetKit target, App Group and timeline are fully configured', () {
