@@ -121,28 +121,25 @@ function skipRegex(text, start, end) {
 
 // 从开引号找同层闭引号。模板字符串的 ${...} 插值区是代码语境：
 // 用 scanCodeRange 按代码规则消费（正则/字符串/注释正确跳过，正则内的
-// 花括号不干扰配平），并记录区间供递归收集。普通字符串直接找同种闭引号。
-// 返回 { close, unterminated, interpolations: [{start,end}] }。
-// scanCodeRange 由调用方注入（scanCode 声明在后，避免循环依赖）。
-function findStringEnd(text, open, end, scanCodeRange) {
+// 花括号不干扰配平）。插值区在配平的同时完成收集（collect 透传），
+// 不再记录区间供外层二次扫描——嵌套模板每层只扫一遍，避免指数级重复。
+// 返回 { close, unterminated }。scanCodeRange 由调用方注入。
+function findStringEnd(text, open, end, scanCodeRange, collect = true) {
   const q = text[open]
-  const interpolations = []
   let j = open + 1
   while (j < end) {
     const c = text[j]
     if (c === '\\') { j += 2; continue }
     if (q === '`' && c === '$' && text[j + 1] === '{') {
-      const exprStart = j + 2
-      const r = scanCodeRange(exprStart, end, true, false)
-      if (!r.closed) return { close: end, unterminated: true, interpolations }
-      interpolations.push({ start: exprStart, end: r.stopAt })
+      const r = scanCodeRange(j + 2, end, true, collect)
+      if (!r.closed) return { close: end, unterminated: true }
       j = r.stopAt + 1 // 跳过闭合 '}'
       continue
     }
-    if (c === q) return { close: j, unterminated: false, interpolations }
+    if (c === q) return { close: j, unterminated: false }
     j++
   }
-  return { close: end, unterminated: true, interpolations }
+  return { close: end, unterminated: true }
 }
 
 // 扫描产出：literals [{ value, offset }]（候选 class 串）、errors [{ offset, kind }]。
@@ -164,7 +161,6 @@ export function extractStringLiterals(text, { codeOnly = false } = {}) {
         const r = findStringEnd(text, j, close, scanCodeRange)
         if (r.unterminated) errors.push({ offset: j, kind: 'unterminated-string' })
         pushLiteral(j, r.close)
-        for (const interp of r.interpolations) scanCode(interp.start, interp.end)
         j = r.close + 1
         continue
       }
@@ -215,13 +211,11 @@ export function extractStringLiterals(text, { codeOnly = false } = {}) {
         continue
       }
       if (c === "'" || c === '"' || c === '`') {
-        const r = findStringEnd(text, i, end, scanCodeRange)
+        // 模板插值区在 findStringEnd 配平时同步收集（collect 透传），
+        // 外层只收集模板字面量整串一次；嵌套模板每层只扫一遍。
+        const r = findStringEnd(text, i, end, scanCodeRange, collect)
         if (r.unterminated) errors.push({ offset: i, kind: 'unterminated-string' })
         if (collect) pushLiteral(i, r.close)
-        // 模板插值区是代码语境：其中的正则/字符串按代码规则递归扫描
-        // （如 `"${s.replace(/"/g, '""')}"` 的正则含引号，不是定界符）。
-        // 配平扫描不重复收集（外层已收集整条模板字面量）。
-        for (const interp of r.interpolations) scanCodeRange(interp.start, interp.end, false, collect)
         i = r.close + 1
         continue
       }

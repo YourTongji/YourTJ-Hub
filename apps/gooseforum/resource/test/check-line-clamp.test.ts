@@ -257,6 +257,15 @@ describe('正则字面量不吞文件（审查 finding 1）', () => {
     const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
     expect(findings).toHaveLength(1)
   })
+
+  it('深层嵌套模板线性完成（30 层不挂死，插值区只扫一遍）', () => {
+    const ts = `const a = ${'`x${'.repeat(30)}1${'}`'.repeat(30)}\nexport const C = 'flex line-clamp-2'\n`
+    const start = Date.now()
+    const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+    expect(Date.now() - start).toBeLessThan(2000)
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(2)
+  })
 })
 
 describe('注释屏蔽与文本态（审查 finding 2/3）', () => {
