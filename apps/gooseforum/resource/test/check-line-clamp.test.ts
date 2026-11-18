@@ -213,3 +213,125 @@ describe('scanLineClampConflicts（AC-2：当前 src 全量零冲突）', () => 
     expect(scanLineClampConflicts(files)).toEqual([])
   })
 })
+
+// ---- PR #1693 维护者审查（WALKERKILLER，head 609eb602b）八条发现的复现回归 ----
+
+describe('正则字面量不吞文件（审查 finding 1）', () => {
+  it('含引号的正则之后的类串仍被扫描', () => {
+    const ts = `const t = (x) => x.replace(/'/g, '')\nexport const C = 'flex line-clamp-2'\n`
+    const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(2)
+  })
+
+  it('现网六种正则形态之后的类串均被扫描（markdown-import/appearance-settings/mention/wiki/blank-lines/pkExport）', () => {
+    const regexes = [
+      `/^(['"])(.*)\\1$/`,
+      `/["']/g`,
+      `/[/\\\\:*?"<>|]/`,
+      `/^[=+\\-@\\t\\r]/`,
+      `/\\n{3,}/g`,
+      `/@(\\w+)/g`,
+    ]
+    for (const re of regexes) {
+      const ts = `const re = ${re}\nexport const C = 'flex line-clamp-2'\n`
+      const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+      expect(findings, `regex ${re}`).toHaveLength(1)
+    }
+  })
+
+  it('模板插值内含引号的正则不破坏配平（appearance-settings/pkExport 真实形态）', () => {
+    const ts = [
+      'function q(name: string): string {',
+      '  return `"${name.replace(/["\']/g, \'\')}"`',
+      '}',
+      `export const C = 'flex line-clamp-2'`,
+    ].join('\n')
+    const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(4)
+  })
+
+  it('除号不误判为正则：a / b 之后的类串仍被扫描', () => {
+    const ts = `const half = total / 2\nexport const C = 'flex line-clamp-2'\n`
+    const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+    expect(findings).toHaveLength(1)
+  })
+})
+
+describe('注释屏蔽与文本态（审查 finding 2/3）', () => {
+  it('撇号奇数时 HTML 注释内的旧冲突串不误报', () => {
+    const text = [
+      `<p>Don't truncate</p>`,
+      `<!-- <p class="flex line-clamp-2">old</p> -->`,
+      `<p class="line-clamp-2">new</p>`,
+    ].join('\n')
+    expect(scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])).toEqual([])
+  })
+
+  it('文本裸 < 不吞掉后续真实冲突', () => {
+    const text = [
+      `<p>余额 < 10 元，don't panic</p>`,
+      `<div class="flex line-clamp-2">REAL CONFLICT</div>`,
+    ].join('\n')
+    const findings = scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(2)
+  })
+
+  it('未闭合字面量 fail loud（scan-error），不静默吞文件', () => {
+    const ts = `export const broken = 'unterminated\nexport const C = 'flex line-clamp-2'\n`
+    const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+    expect(findings.some((f) => f.kind === 'scan-error')).toBe(true)
+  })
+})
+
+describe('跨断点 display 覆盖（审查 finding 4：超集规则）', () => {
+  it('无变体 clamp + 断点 display → 报错（桌面端截断失效）', () => {
+    expect(findLineClampConflicts('line-clamp-2 sm:block')).toHaveLength(1)
+    expect(findLineClampConflicts('line-clamp-2 sm:flex')).toHaveLength(1)
+    expect(findLineClampConflicts('line-clamp-2 md:grid lg:hidden')).toHaveLength(2)
+  })
+
+  it('状态变体超集同样报错：hover:flex 覆盖基础 clamp', () => {
+    expect(findLineClampConflicts('line-clamp-2 hover:flex')).toHaveLength(1)
+    expect(findLineClampConflicts('sm:line-clamp-2 sm:hover:block')).toHaveLength(1)
+  })
+
+  it('反方向合法：clamp 变体链更长不报（sm:line-clamp-2 + 裸 block）', () => {
+    expect(findLineClampConflicts('sm:line-clamp-2 block')).toEqual([])
+    expect(findLineClampConflicts('sm:hover:line-clamp-2 sm:block')).toEqual([])
+  })
+
+  it('不相关变体链不报：sm:line-clamp-2 + md:block 语境不相交', () => {
+    expect(findLineClampConflicts('sm:line-clamp-2 md:block')).toEqual([])
+  })
+
+  it('important 豁免超集：clamp 带 important 确定性获胜', () => {
+    expect(findLineClampConflicts('line-clamp-2! sm:block')).toEqual([])
+    expect(findLineClampConflicts('line-clamp-2 sm:block!')).toHaveLength(1)
+  })
+})
+
+describe('data-*/aria-* 排除与行号定位（审查 finding 5/8）', () => {
+  it('data-class / :data-class 不是 class 列表，不判定', () => {
+    expect(scanLineClampConflicts([{ relPath: 'F.vue', text: `<div data-class="flex line-clamp-2"></div>` }])).toEqual([])
+    expect(scanLineClampConflicts([{ relPath: 'F.vue', text: `<div :data-class="'flex line-clamp-2'"></div>` }])).toEqual([])
+    expect(scanLineClampConflicts([{ relPath: 'F.vue', text: `<div aria-class="flex line-clamp-2"></div>` }])).toEqual([])
+  })
+
+  it('多行 class 串行号定位到冲突 token 而非开引号', () => {
+    const text = `<p class="mt-1.5\n  line-clamp-2\n  flex\n  text-xs">x</p>`
+    const findings = scanLineClampConflicts([{ relPath: 'src/site/components/Fixture.vue', text }])
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(3) // flex 在第 3 行，不是开引号的第 1 行
+  })
+})
+
+describe('arbitrary 变体 / 修饰（oryn-mini finding）', () => {
+  it('data-[state=open]/open: 同前缀冲突报错', () => {
+    const conflicts = findLineClampConflicts('data-[state=open]/open:line-clamp-2 data-[state=open]/open:flex')
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0].prefix).toBe('data-[state=open]/open:')
+  })
+})

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-11-16
+> Last verified: 2026-11-18
 
 本文档收录代码级约定；仓库级硬约束与边界规则见根 `AGENTS.md`。
 
@@ -21,23 +21,35 @@ specificity 按源序覆盖，行数截断会静默失效（缺陷链 #1639/#164
 
 该约定由静态门禁 `apps/gooseforum/resource/scripts/check-line-clamp.mjs` 机械执行
 （`pnpm check:line-clamp`，已并入 `pnpm check`，随 lefthook pre-push 与 CI 前端门禁运行）：
-逐串扫描 `resource/src/**` 的 `.vue`/`.ts` 引号内 class 串，同一串内 clamp 与裸 display
-类共存、且**完整变体前缀逐字相同**才报错并给出文件/行号。收集范围按语境区分：
+单遍语境扫描 `resource/src/**` 的 `.vue`/`.ts` 引号内 class 串，报错并给出文件与
+**冲突 token 所在行号**（多行 class 串不指偏）。收集范围按语境区分：
 
-- `.vue` 模板：只收集 class 类属性（`class` / `*-class`，如 `img-class`、`enter-active-class`）；
-  `:class` 绑定（双引号或单引号外层）下钻内部字面量，三元/条件分支各自成串；
-  `title`/`aria-label`/`data-*`/`:style` 等非 class 属性值不判定；
-- `.vue` 的 script/style 块与 `.ts` 文件：纯代码语境，全部字符串字面量参与判定。
+- `.vue` 模板：只收集 class 类属性（`class` / `*-class`，如 `img-class`、`enter-active-class`；
+  `data-*`/`aria-*` 前缀排除）；`:class` 绑定（双引号或单引号外层）下钻内部字面量，
+  三元/条件分支各自成串；`title`/`aria-label`/`data-*`/`:style` 等非 class 属性值不判定；
+- `.vue` 的 script/style 块与 `.ts` 文件：纯代码语境，全部字符串/模板字面量参与判定；
+  正则字面量整体跳过（其中引号不是定界符），模板 `${ }` 插值区按代码语境递归扫描。
 
-变体前缀含命名变体（`group-hover/item`）与容器查询（`@md`、`@lg/name`）。前缀不同不报
-（如 `sm:line-clamp-2` + 裸 `block`，断点下 clamp 源序靠后获胜，属合法写法）；条件分支
-互斥的类串逐串隔离，不产生误报。
+判定规则（同一 class 串内，clamp 与裸 display 类共存时）：
+
+1. **同前缀**：完整变体前缀逐字相同 → 源序竞争，报错。变体前缀含命名变体
+   （`group-hover/item`）、容器查询（`@md`、`@lg/name`）与 arbitrary 段 `/` 修饰
+   （`data-[state=open]/open:`）。
+2. **超集**：display 的变体链段集合 ⊇ clamp 的变体链段集合（含「无变体 clamp +
+   断点/状态变体 display」，如 `line-clamp-2 sm:block`）→ display 在 clamp 生效的
+   全部语境额外激活，`@media`/状态规则源序靠后覆盖 clamp，报错。
+3. **反方向合法**：clamp 变体链更长（`sm:line-clamp-2` + 裸 `block`）→ clamp 在更窄
+   语境源序靠后获胜，不报；不相关变体链（`sm:line-clamp-2` + `md:block`）语境不相交，不报。
 
 important 修饰符（v3 前缀 `!block` / v4 后缀 `block!`）参与判定：带 important 的声明
-确定性覆盖不带的，与源序无关——clamp 带 important 而 display 不带 → clamp 必胜，合法不报；
-display 带而 clamp 不带 → 确定缺陷，报错；双方同带 → 回到源序竞争，报错。
+确定性覆盖不带的，与源序无关——clamp 带 important 而 display 不带 → clamp 必胜，合法不报
+（同前缀与超集两种形态均豁免）；display 带而 clamp 不带 → 确定缺陷，报错；双方同带 →
+回到源序竞争，报错。
 
-注释、文本节点（含英文撇号 don't/can't）、`{{ }}` 文本插值与模板 `${ }` 插值不参与判定。
+注释（HTML/块/行）、文本节点（含英文撇号 don't/can't）、`{{ }}` 文本插值不参与判定；
+注释屏蔽与字符串提取共用同一语境状态机，撇号奇偶不影响注释识别。未闭合的字符串/模板
+字面量是**结构错误，fail loud**（exit 1 并报位置），不静默跳过文件剩余部分。
+文件遍历跳过符号链接、单文件上限 2 MB（CI/pre-push 可信入口加固）。
 确需豁免时走脚本内 `lineClampAllowlist` 文件级清单（沿 `audit-site-colors.mjs` 惯例），
 每项在 PR 中说明理由并同步更新测试中的空清单断言，不放宽规则。
 
@@ -47,13 +59,15 @@ display 带而 clamp 不带 → 确定缺陷，报错；双方同带 → 回到�
 - **`:class` 对象/数组语法**：`{'line-clamp-2': true, 'block': true}` 或 `['line-clamp-2', 'block']`
   各键/项独立成串，不合并判定同元素多键同时生效的冲突；
 - **跨组件传导**：父组件 `*:…:flex` 变体打子组件根、子组件根自带 clamp，单文件视角不可见；
-- 扫描范围不含 `resource/templates` gohtml 模板（当前无 line-clamp 用法）。
+- 扫描范围不含 `resource/templates` gohtml 模板与 `resource/packages/client` 工作区
+  （当前均无 line-clamp 用法）。
 
-粗扫描不做完整词法分析：极端形态（未配平引号、文本节点裸露 `<` 等）可能漏报，
-方向保守；发现误报走豁免清单并修正扫描器，不放宽判定规则。
+粗扫描不做完整词法分析：极端形态可能漏报，方向保守；发现误报走豁免清单并修正扫描器，
+不放宽判定规则。
 
 回归测试见 `apps/gooseforum/resource/test/check-line-clamp.test.ts`（#1688 修复前两条
-真实旧类串先红后绿 + 合法写法负例 + 当前 `src` 全量零误报断言）。
+真实旧类串先红后绿 + 合法写法负例 + 当前 `src` 全量零误报断言 + PR #1693 两轮审查
+发现的复现用例：正则字面量、注释撇号、文本裸 `<`、超集判定、data-class 排除、token 行号）。
 
 ## TODO 标记
 

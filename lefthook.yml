@@ -22,5 +22,5 @@ pre-push:
       run: scripts/hooks/check-golangci.sh
     - name: frontend typecheck
       run: cd apps/gooseforum/resource && pnpm typecheck
-    - name: frontend i18n gate
+    - name: frontend static gates (i18n + line-clamp)
       run: cd apps/gooseforum/resource && pnpm check
