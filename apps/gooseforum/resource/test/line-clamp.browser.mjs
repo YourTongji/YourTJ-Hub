@@ -7,6 +7,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
+import { assertNoLineClampViolations } from './helpers/line-clamp-assert.mjs'
 
 // The fixtures mount the production Vue components, while styles are loaded
 // from the current commit's production build (including Tailwind's CSS order).
@@ -59,12 +60,38 @@ after(async () => {
       surface,
       files.map(path => path.replace(`${distRoot}/`, '')),
     ])),
-    expectedCases: 8,
+    expectedCases: 9,
     captures,
     scope: 'Real ScheduleTimeGrid and AdminSelect Vue components with synthetic data, served by Vite and styled with this commit\'s production site/admin CSS. Not a live account or backend test. Review all screenshots for visual evidence.',
   }
   await writeFile(resolve(evidence, 'receipt.json'), JSON.stringify(receipt, null, 2))
   await writeFile(resolve(evidence, 'index.html'), `<!doctype html><html lang="zh"><meta charset="utf-8"><title>Line clamp browser evidence</title><style>body{font:14px system-ui;margin:24px;background:#eceff2;color:#19212a}section{display:flex;flex-wrap:wrap;gap:20px}figure{margin:0;max-width:620px}img{width:100%;border:1px solid #657181}figcaption{margin:8px 0}</style><h1>Line clamp browser evidence</h1><p>Chromium ${browserVersion}; checkout ${receipt.checkoutSha}; real components and built CSS with synthetic data.</p><section>${captures.map(c => `<figure><figcaption>${c.surface} · ${c.theme} · ${c.width}px · ${c.result}</figcaption><a href="${c.file}"><img src="${c.file}" alt="${c.file}" loading="lazy"></a></figure>`).join('')}</section></html>`)
+})
+
+// 通用断言自证（issue #1692）：probe 呈现面含一个静态门禁盲区形态（跨属性拆分，
+// 运行时合并成 line-clamp-2 + block）与两个合法形态。断言必须恰好抓到盲区元素、
+// 不碰合法元素——证明 computed-style 裁决覆盖静态扫描的边界且零误报。
+test('generic assertion: catches cross-attribute split, ignores legal clamps', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, colorScheme: 'light' })
+  await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort())
+  try {
+    await page.goto(`${origin}/assets/test/fixtures/browser/line-clamp.html?surface=probe&theme=light`)
+    await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', null, { timeout: 10000 })
+    for (const path of stylesheetFiles.schedule) await page.addStyleTag({ path })
+    const { collectLineClampViolations } = await import('./helpers/line-clamp-assert.mjs')
+    const violations = await collectLineClampViolations(page)
+    assert.equal(violations.length, 1, `exactly the split-attribute probe violates: ${JSON.stringify(violations)}`)
+    assert.equal(violations[0].text, '跨属性拆分探针')
+    assert.equal(violations[0].display, 'block') // display 被 block 覆盖 → 截断失效
+    assert.equal(violations[0].expected, '2')
+    // 合法 clamp 与 line-clamp-none 不在违例中。
+    const legal = await page.locator('#probe-legal').evaluate(el => getComputedStyle(el).display)
+    assert.ok(legal === '-webkit-box' || legal === 'flow-root', `legal clamp keeps truncation display: ${legal}`)
+    const none = await page.locator('#probe-none').evaluate(el => getComputedStyle(el).display)
+    assert.equal(none, 'block') // line-clamp-none 显式取消截断，不判定
+  } finally {
+    await page.close()
+  }
 })
 
 for (const surface of ['schedule', 'select']) for (const width of [320, 1280]) for (const theme of ['light', 'dark']) {
@@ -200,6 +227,9 @@ for (const surface of ['schedule', 'select']) for (const width of [320, 1280]) f
         capture.directShortValue = await measure(directValueText)
         assert.equal(capture.directShortValue.text, '短选项')
       }
+      // 通用 computed-style 裁决：整页扫描所有 line-clamp 元素（含本套件未逐条
+      // 断言的元素），级联/变体/跨组件形态由浏览器最终裁决（issue #1692）。
+      capture.clampViolations = await assertNoLineClampViolations(page, { assert })
       assert.deepEqual(errors, [])
       capture.result = 'passed'
     } catch (error) {

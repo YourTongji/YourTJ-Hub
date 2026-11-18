@@ -3,6 +3,7 @@ import { after, before, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
+import { assertNoLineClampViolations } from './helpers/line-clamp-assert.mjs'
 
 /**
  * LinkPreviewCard 的真实布局回归。
@@ -229,6 +230,9 @@ for (const theme of ['dark', 'light']) {
         assert.equal(platform.host.text, 'www.bilibili.com', 'platform card must keep the real host')
         assert.equal(state.cases.dedup.author, null, 'generic cards must not render an author row')
 
+        // 通用 computed-style 截断裁决（issue #1692）：本卡片正是 #1639 缺陷现场，
+        // 整页扫描所有 line-clamp 元素，级联结果由浏览器最终裁决。
+        await assertNoLineClampViolations(page, { assert })
         if (process.env.LINK_PREVIEW_CARD_SCREENSHOT) {
           await page.screenshot({ path: `${process.env.LINK_PREVIEW_CARD_SCREENSHOT}-${theme}-${width}.png`, fullPage: true })
         }

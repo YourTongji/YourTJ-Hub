@@ -65,6 +65,18 @@ important 修饰符（v3 前缀 `!block` / v4 后缀 `block!`）参与判定：�
 粗扫描不做完整词法分析：极端形态可能漏报，方向保守；发现误报走豁免清单并修正扫描器，
 不放宽判定规则。
 
+**通用浏览器断言（完备性兜底）**：静态门禁只覆盖源码可见形态；真实级联结果由
+`apps/gooseforum/resource/test/helpers/line-clamp-assert.mjs` 在浏览器里以 computed
+style 最终裁决——元素携带 `line-clamp-N` 类时 computed display 必须是截断形态
+（`-webkit-box`，或新版 Chromium 序列化的 `flow-root`），否则截断已失效。important、
+变体、源序、跨组件传导、运行时拼接类名全部已被浏览器算完，按构造覆盖静态门禁的
+全部边界（跨属性拆分、对象/数组语法、可叠加变体组合等）。浏览器套件在页面断言完成后
+调用 `assertNoLineClampViolations(page, { assert })` 即整页生效；覆盖范围 = 套件渲染到
+的页面与状态，未渲染分支不在范围内，与静态门禁互补。已接入：`line-clamp.browser.mjs`
+（含自证用例：跨属性拆分盲区必须被抓、合法 clamp 与 line-clamp-none 零误报）、
+`link-preview-card.browser.mjs`、`bookmark-excerpts.browser.mjs`（两处历史缺陷现场）；
+其余含 line-clamp 组件的套件按同一模式逐步接入。
+
 回归测试见 `apps/gooseforum/resource/test/check-line-clamp.test.ts`（#1688 修复前两条
 真实旧类串先红后绿 + 合法写法负例 + 当前 `src` 全量零误报断言 + PR #1693 两轮审查
 发现的复现用例：正则字面量、注释撇号、文本裸 `<`、超集判定、data-class 排除、token 行号）。

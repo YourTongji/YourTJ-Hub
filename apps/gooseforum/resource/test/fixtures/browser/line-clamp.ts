@@ -8,7 +8,8 @@ import { createBrowserApp } from './create-app'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
 
 const params = new URLSearchParams(location.search)
-const surface = params.get('surface') === 'select' ? 'select' : 'schedule'
+const requestedSurface = params.get('surface')
+const surface = requestedSurface === 'select' ? 'select' : requestedSurface === 'probe' ? 'probe' : 'schedule'
 const theme = params.get('theme') === 'dark' ? 'dark' : 'light'
 const viewportIsMobile = window.matchMedia('(max-width: 767px)').matches
 document.documentElement.dataset.theme = `gf-${theme}`
@@ -80,6 +81,18 @@ const app = createBrowserApp({
               showCourseCodes: true,
             }),
           ]),
+        ])
+      : null,
+    surface === 'probe'
+      ? h('section', { id: 'probe-panel' }, [
+          h('h2', '通用断言自证'),
+          // 静态门禁盲区①：跨属性拆分（静态 class 与动态 class 分写，运行时合并成
+          // "line-clamp-2 block"）——源码逐串扫描不合并多属性，浏览器裁决必须抓到。
+          h('p', { id: 'probe-split', class: ['line-clamp-2', 'block'] }, '跨属性拆分探针'),
+          // 静态门禁盲区②：可叠加变体组合（dark:clamp + hover:block 由运行时状态裁决）。
+          h('p', { id: 'probe-legal', class: 'line-clamp-2 text-sm' }, '合法截断探针'),
+          // line-clamp-none 是显式取消截断，不应被断言误报。
+          h('p', { id: 'probe-none', class: 'line-clamp-none block' }, '显式取消截断探针'),
         ])
       : null,
     surface === 'select'
