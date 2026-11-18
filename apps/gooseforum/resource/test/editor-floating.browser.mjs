@@ -171,7 +171,9 @@ test('floating bars inside a transformed dialog stay attached to their anchor', 
     await assertOnTop(page, selectionBar)
     const [barBox, lineBox] = await Promise.all([bar.boundingBox(), paragraph.boundingBox()])
     const gap = barBox.y >= lineBox.y ? barBox.y - (lineBox.y + lineBox.height) : lineBox.y - (barBox.y + barBox.height)
-    assert.ok(gap >= 0 && gap < 40, `bar sits next to the selection, gap ${gap}`)
+    // Sub-pixel tolerance: transformed-dialog boundingBox rounding can report a
+    // ~0.6px overlap while the bar visually hugs the selection (CI flake, PR #1693).
+    assert.ok(gap >= -1 && gap < 40, `bar sits next to the selection, gap ${gap}`)
 
     await editable.locator('img').first().click()
     await page.locator(imageBar).waitFor({ state: 'visible' })
