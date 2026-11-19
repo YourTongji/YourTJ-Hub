@@ -44,6 +44,8 @@ android_package_name = "tj.yourtj.forum_app"
 # SHA-256 signing-certificate fingerprints, colon-separated or compact hex.
 # Include every supported signing certificate, such as debug and Play signing.
 android_sha256_cert_fingerprints = []
+# HarmonyAppProvision app-identifier; enable only after verifying the signed app.
+harmony_app_identifier = ""
 
 [db]
 migration = "on"

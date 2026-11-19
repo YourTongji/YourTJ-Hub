@@ -5,6 +5,7 @@ import { AbilityConstant, Want } from '@kit.AbilityKit';
 import ScheduleWidgetPlugin from '../widget/ScheduleWidgetPlugin';
 import SecureStoragePlugin from '../storage/SecureStoragePlugin';
 import OidcCallbackPlugin from '../auth/OidcCallbackPlugin';
+import PasskeyPlugin from '../auth/PasskeyPlugin';
 import AccountReturnPlugin from '../auth/AccountReturnPlugin';
 import PushPlugin from '../system/PushPlugin';
 import GalleryPlugin from '../system/GalleryPlugin';
@@ -60,6 +61,7 @@ export default class EntryAbility extends FlutterAbility {
     super.configureFlutterEngine(flutterEngine)
     GeneratedPluginRegistrant.registerWith(flutterEngine)
     flutterEngine.getPlugins()?.add(new SecureStoragePlugin());
+    flutterEngine.getPlugins()?.add(new PasskeyPlugin(this.context));
     flutterEngine.getPlugins()?.add(this.accountReturn);
     flutterEngine.getPlugins()?.add(new ConnectivityPlugin());
     flutterEngine.getPlugins()?.add(new ClipboardPlugin(this.context));

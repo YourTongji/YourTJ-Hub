@@ -10,6 +10,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../auth/passkey_error_message.dart';
+import '../auth/harmony_passkeys.dart';
 
 class PasskeySettingsPage extends ConsumerStatefulWidget {
   const PasskeySettingsPage({super.key});
@@ -222,7 +223,9 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
     try {
       final authenticator = PasskeyAuthenticator();
       final availability = authenticator.getAvailability();
-      final canAuthenticate = kIsWeb
+      final canAuthenticate = HarmonyPasskeys.isPlatform
+          ? await HarmonyPasskeys.isAvailable()
+          : kIsWeb
           ? (await availability.web()).hasPasskeySupport
           : switch (defaultTargetPlatform) {
               TargetPlatform.android =>
@@ -237,13 +240,15 @@ class _PasskeySettingsPageState extends ConsumerState<PasskeySettingsPage> {
       final auth = ref.read(authRepositoryProvider);
       final proof = await _proof(input.password, input.totpCode);
       final begin = await auth.beginPasskeyRegistration(proof: proof);
-      final credential = await authenticator.register(
-        _registrationRequest(begin.publicKey),
-      );
+      final credential = HarmonyPasskeys.isPlatform
+          ? await HarmonyPasskeys.register(begin.publicKey)
+          : (await authenticator.register(
+              _registrationRequest(begin.publicKey),
+            )).toJson();
       await auth.finishPasskeyRegistration(
         ceremonyId: begin.ceremonyId,
         name: input.name,
-        credential: credential.toJson(),
+        credential: credential,
       );
       await _load();
       if (mounted) showGfToast(context, l10n.settingsPasskeyAdded);

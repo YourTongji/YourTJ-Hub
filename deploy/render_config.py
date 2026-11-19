@@ -3,7 +3,7 @@
 
 模板占位符 {{TOKEN}} 的值来源：
   - 实例差异（非敏感）: deploy/instances/<env>.json 提供 SERVER_URL / OIDC_ISSUER / TRUSTED_PROXIES、
-    feed 开关，以及 passkey relying-party 身份（PASSKEY_*，论坛会公开渲染成两份 well-known
+    feed 开关，以及 passkey relying-party 身份（PASSKEY_*，论坛会公开渲染成平台 well-known
     关联文档，因此不是 secret，随 PR 评审）;
   - 敏感值: 同名环境变量（GitHub Actions 里由 Environments secrets 注入）。
 
@@ -47,7 +47,7 @@ INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINT
                    # well-known association documents), so it is reviewed in instances JSON.
                    "PASSKEY_ENABLED", "PASSKEY_RP_ID", "PASSKEY_DISPLAY_NAME", "PASSKEY_WEB_ORIGINS",
                    "PASSKEY_APPLE_TEAM_ID", "PASSKEY_IOS_BUNDLE_ID", "PASSKEY_ANDROID_PACKAGE_NAME",
-                   "PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS"}
+                   "PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS", "PASSKEY_HARMONY_APP_IDENTIFIER"}
 
 # 全部环境都允许为空的 token（可选功能，未配置即关闭）。
 BASE_OPTIONAL_TOKENS = {
@@ -222,6 +222,7 @@ def build_values(env, instance, environ, tokens, allow_empty):
         "PASSKEY_APPLE_TEAM_ID": str(passkeys.get("apple_team_id", "")),
         "PASSKEY_IOS_BUNDLE_ID": str(passkeys.get("ios_bundle_id", "tj.yourtj.forumApp")),
         "PASSKEY_ANDROID_PACKAGE_NAME": str(passkeys.get("android_package_name", "tj.yourtj.forum_app")),
+        "PASSKEY_HARMONY_APP_IDENTIFIER": str(passkeys.get("harmony_app_identifier", "")),
         "PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS": [
             str(f) for f in passkeys.get("android_sha256_cert_fingerprints", [])
         ],

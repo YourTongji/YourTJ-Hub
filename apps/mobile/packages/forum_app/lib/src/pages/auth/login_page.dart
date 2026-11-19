@@ -28,6 +28,7 @@ import 'android_oidc_coordinator.dart';
 import 'login_captcha_handoff.dart';
 import 'passkey_error_message.dart';
 import 'passkey_availability.dart';
+import 'harmony_passkeys.dart';
 import 'sign_in_methods_sheet.dart';
 
 /// 登录页模式。
@@ -628,6 +629,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
   Future<bool> _passkeyAvailableOnDevice() {
     final probe = widget.passkeyAvailability;
     if (probe != null) return probe();
+    if (HarmonyPasskeys.isPlatform) return HarmonyPasskeys.isAvailable();
     final availability = PasskeyAuthenticator().getAvailability();
     return resolvePasskeyAvailability(
       isWeb: kIsWeb,
@@ -696,10 +698,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
             )
             .toList(growable: false),
       );
-      final assertion = await authenticator.authenticate(request);
+      final credential = HarmonyPasskeys.isPlatform
+          ? await HarmonyPasskeys.authenticate(options)
+          : (await authenticator.authenticate(request)).toJson();
       await repository.finishPasskeyLogin(
         ceremonyId: begin.ceremonyId,
-        credential: assertion.toJson(),
+        credential: credential,
       );
       if (mounted) await _finishAuthentication();
     } catch (error) {

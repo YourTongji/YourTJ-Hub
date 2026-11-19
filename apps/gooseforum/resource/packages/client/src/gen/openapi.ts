@@ -968,6 +968,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/.well-known/applinking.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the configured HarmonyOS App Linking association */
+        get: operations["getHarmonyAppLinkingAssociation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/passkey/login/begin": {
         parameters: {
             query?: never;
@@ -15886,6 +15903,13 @@ export interface components {
                 sha256_cert_fingerprints: string[];
             };
         }[];
+        HarmonyAssociationResponse: {
+            applinking: {
+                apps: {
+                    appIdentifier: string;
+                }[];
+            };
+        };
         /** @description WebAuthn options serialized by the relying-party implementation. */
         PasskeyWebAuthnOptions: {
             [key: string]: unknown;
@@ -19174,6 +19198,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AndroidAssociationResponse"];
+                };
+            };
+        };
+    };
+    getHarmonyAppLinkingAssociation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App Linking association for the explicitly configured appIdentifier. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarmonyAssociationResponse"];
+                };
+            };
+            /** @description No HarmonyOS application is associated with this deployment. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarmonyAssociationResponse"];
                 };
             };
         };

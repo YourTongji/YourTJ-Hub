@@ -5,6 +5,7 @@ import galleryTest from './Gallery.test';
 import clipboardTest from './Clipboard.test';
 import scheduleDataTest from './ScheduleData.test'
 import secureStoreTest from './SecureStore.test'
+import passkeyTest from './Passkey.test';
 
 export default function testsuite(context: common.UIAbilityContext) {
   scheduleFormStoreTest(context);
@@ -13,4 +14,5 @@ export default function testsuite(context: common.UIAbilityContext) {
   clipboardTest(context);
   scheduleDataTest();
   secureStoreTest(context);
+  passkeyTest(context);
 }

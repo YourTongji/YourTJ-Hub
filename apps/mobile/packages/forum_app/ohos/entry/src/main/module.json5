@@ -24,6 +24,15 @@
         "exported": true,
         "skills": [
           {
+            "domainVerify": true,
+            "entities": ["entity.system.browsable"],
+            "actions": ["ohos.want.action.viewData"],
+            "uris": [
+              { "scheme": "https", "host": "f.yourtj.de", "path": "/auth/passkey" },
+              { "scheme": "https", "host": "dev.yourtj.de", "path": "/auth/passkey" }
+            ]
+          },
+          {
             "entities": [
               "entity.system.home"
             ],

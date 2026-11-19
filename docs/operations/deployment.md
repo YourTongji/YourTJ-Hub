@@ -1124,8 +1124,11 @@ Password and Web social login remain separate from that switch.
 
 `Partial`: passkeys ship disabled on both instances until each one has verified domain association
 and production app signing identities. The forum itself is the WebAuthn relying party; it serves
-Apple's `/.well-known/apple-app-site-association` and Android's `/.well-known/assetlinks.json` from
-the configured values. Keep the RP ID and each HTTPS web origin within the instance hostname
+Apple's `/.well-known/apple-app-site-association`, Android's `/.well-known/assetlinks.json`, and
+HarmonyOS `/.well-known/applinking.json` from the configured values. HarmonyOS association is opt-in
+through `passkeys.harmony_app_identifier`; an empty value returns 404. Use the signed application's
+`app-identifier`, not its bundle name or an Android signing fingerprint. See
+[native HarmonyOS setup](../development/mobile-harmonyos.md#外部接入边界) for the AGC/domain verification requirements. Keep the RP ID and each HTTPS web origin within the instance hostname
 boundary. Main and dev use separate RP IDs/origins so their credentials remain isolated.
 
 Configure an instance in its `deploy/instances/<env>.json` entry, under `passkeys`. The renderer

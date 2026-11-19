@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-11-19
+> Last verified: 2026-11-20
 
 `Partial`：应用通过 Flutter OH 和 ArkTS UIAbility 构建原生 HarmonyOS HAP，复用现有
 Flutter 页面和设计系统。鸿蒙沿用手机端品牌启动层、减弱动态效果和存储就绪门控。
@@ -143,6 +143,33 @@ Passkey 必须先完成 AGC App Linking 开通、服务器域名关联、AGC 关
 见[华为通行密钥开发准备](https://developer.huawei.com/consumer/cn/doc/doccenter-capabilities/onlineauthentication-passwordless-auth-preparation)。
 不应为了使未配置的客户端通过验收而放宽服务端 WebAuthn origin 校验。
 Passkey、域名关联、正式签名及 AppGallery 发布不能由未签名 HAP 构建证明完成。
+
+`Partial`：登录和账号安全页已接入原生 `OnlineAuthenticationKit.fido2` 桥接，
+复用现有通行密钥界面、密码/TOTP 再认证和服务端挑战流程。API 20 以下或无 FIDO2
+系统能力时保持不可用；能力查询失败保留重试，不冒充“不支持”。同一原生实例只允许一个
+认证操作，用户取消、拒绝和超时复用现有安全提示，不向界面暴露系统诊断。
+接口及错误码以 [ArkTS FIDO2 API](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/onlineauthentication-passkey-api)
+和固定 SDK 声明为准。
+
+桥接将服务器的 Base64URL 字段转换成系统要求的字节数组，将响应中的 `clientDataJson`
+字段映射为 WebAuthn 的 `clientDataJSON`。转换只调整二进制编码，不解析或重写签名数据。
+单元测试覆盖断言、注册、取消、响应格式和空扩展；Hypium 覆盖原生解码及长度边界。
+
+网站 `/.well-known/applinking.json` 由论坛按实例配置提供。在
+`deploy/instances/<env>.json` 的 `passkeys` 对象中设置 `harmony_app_identifier`，
+渲染器会写入对应 TOML 字段。该值默认留空，端点返回 404；配置后仅关联指定应用。
+公开应用标识不是密钥，但填写前必须核对签名 profile 中的 `app-identifier`。
+生产实例已配置与发布 profile 一致的公开标识 `6917621118093079103`，dev 留空。
+网站关联文件须随正常部署生效，AGC App Linking 和关联域名仍须独立验证。
+
+原生模块已为 `f.yourtj.de` 和 `dev.yourtj.de` 声明 `domainVerify`，
+路径限定为 `/auth/passkey`，不接管普通论坛网页链接。系统能力查询成功不能证明域名验证通过。
+关联文件应使用已签名应用的 `appIdentifier`，不得用包名或 Android 证书指纹代替，见
+[App Linking 指南](https://developer.huawei.com/consumer/en/doc/HarmonyOS-Guides/app-linking-startup/)。
+必须在域名验证为 `success` 后，用签名包验证注册及登录，再决定真实 `origin` 是否需要
+显式增加到服务端允许列表。官方 ArkTS 接口没有调用方指定 `origin` 的参数，
+当前未扩展服务端来源白名单，也未改动生产认证配置。域名及签名身份准备好后，用
+`hdc shell hidumper -s AppDomainVerifyManager` 检查对应域名的验证结果。
 
 ## 原生 CI 与发布验收
 

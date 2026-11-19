@@ -37,7 +37,7 @@ jobs:
         working-directory: apps/mobile/packages/forum_app
         run: |
           flutter analyze --no-pub
-          flutter test --no-pub test/harmony_update_test.dart test/harmony_math_test.dart test/release_notes_test.dart test/visitor_analytics_test.dart test/campus_widget_test.dart test/native_widget_structure_test.dart
+          flutter test --no-pub test/harmony_update_test.dart test/harmony_math_test.dart test/harmony_passkeys_test.dart test/passkey_availability_test.dart test/passkey_error_message_test.dart test/release_notes_test.dart test/visitor_analytics_test.dart test/campus_widget_test.dart test/native_widget_structure_test.dart
       - name: Compile unsigned native Release and verify ABI
         env:
           TARGET_PLATFORM: ${{ matrix.target }}
