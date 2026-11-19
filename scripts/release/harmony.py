@@ -105,6 +105,9 @@ def main():
             require(group != os.environ.get('HARMONY_PRODUCTION_GROUP_ID') and os.environ.get('HARMONY_PRODUCTION_GROUP_ID'),
                     'Dev distribution requires a separate explicit internal group')
         client = Client(json.loads(os.environ['HARMONY_SERVICE_ACCOUNT_JSON']))
+        require(all(int(p['versionCode']) <= int(os.environ['MOBILE_BUILD_NUMBER'])
+                    for v in client.versions() for p in (v.get('packageList') or [])),
+                'A newer Harmony build exists; prepare a fresh RC instead of rebuilding or publishing this identity')
         details = publish_original(client, app, Path('.harmony-upload.json'), os.environ['SOURCE_SHA'], sha,
                                    group, Path(os.environ['HARMONY_NOTES_PATH']).read_text().strip(),
                                    share=os.environ.get('AUTOMATIC_DEV') != 'true')

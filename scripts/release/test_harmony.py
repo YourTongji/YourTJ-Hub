@@ -1,13 +1,14 @@
 """Harmony keeps shared identity, isolated groups and truthful approval facts."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 from zipfile import ZipFile
 
-from harmony import app_identity, configuration, publish_original, APP_ID, BUNDLE
+from harmony import app_identity, configuration, publish_original, APP_ID, BUNDLE, main
 from harmony_reconcile import availability, reconcile, import_initial_release
 from state import baselines
 from model import ReleaseError
@@ -28,6 +29,18 @@ class HarmonyTests(unittest.TestCase):
             'candidateId': 'mobile-1.0.19-108', 'tag': 'mobile-v1.0.19'}}
         remote.pages.side_effect = lambda endpoint: [archive, formal] if endpoint.startswith('deployments?') else [{'state': 'success'}]
         self.assertEqual(baselines(remote, ['harmony-apptest'], [])['harmony-apptest']['sourceSha'], 'b' * 40)
+
+    def test_newer_dev_build_blocks_old_rc_before_draft_or_upload(self):
+        client = Mock()
+        client.versions.return_value = [{'packageList': [{'versionCode': 109}]}]
+        env = {'HARMONY_APP_DIRECTORY': 'unused', 'MOBILE_VERSION': '1.0.19', 'MOBILE_BUILD_NUMBER': '108',
+               'HARMONY_TEST_GROUP_ID': 'a' * 32, 'HARMONY_SERVICE_ACCOUNT_JSON': '{}', 'AUTOMATIC_DEV': 'false'}
+        with patch.dict(os.environ, env), patch('sys.argv', ['harmony.py', 'publish']), patch('harmony.Client', return_value=client), patch('harmony.app_identity', return_value=(Path('original.app'), 'b' * 64)), patch('harmony.publish_original') as submit:
+            with self.assertRaisesRegex(ReleaseError, 'fresh RC'):
+                main()
+            submit.assert_not_called()
+            client.upload.assert_not_called()
+            client.request.assert_not_called()
 
     def test_original_digest_version_and_bundle_are_required(self):
         with tempfile.TemporaryDirectory() as temp:
