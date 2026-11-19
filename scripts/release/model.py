@@ -8,7 +8,8 @@ SCHEMA = 4
 NOTES_FORMAT_VERSION = 2
 REPOSITORY = "YourTongji/YourTJ-Hub"
 FILES = {"web": "web.zh-CN.md", "android": "android.zh-CN.md",
-         "ios-app-store": "ios.zh-Hans.txt", "ios-testflight": "testflight.en-US.txt"}
+         "ios-app-store": "ios.zh-Hans.txt", "ios-testflight": "testflight.en-US.txt",
+         "harmony-apptest": "harmony.zh-CN.md"}
 CHANGELOG = "changelog.json"
 SHA = re.compile(r"[0-9a-f]{40}")
 ID = re.compile(r"(?:web|mobile)-[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+)?(?:-store-[0-9]+)?")
@@ -69,7 +70,7 @@ def digest(value):
 
 
 def channels_for(scope, destination="testflight"):
-    require(scope in {"web", "android", "ios", "mobile"}, "Unknown release scope")
+    require(scope in {"web", "android", "ios", "harmonyos", "mobile"}, "Unknown release scope")
     require(destination in {"testflight", "app-store"}, "Unknown iOS destination")
     require(scope in {"ios", "mobile"} or destination == "testflight", "iOS destination requires an iOS scope")
     channels = ["web"] if scope == "web" else (["android"] if scope in {"android", "mobile"} else [])
@@ -77,6 +78,8 @@ def channels_for(scope, destination="testflight"):
         channels += ["ios-testflight"]
         if destination == "app-store":
             channels += ["ios-app-store"]
+    if scope in {"harmonyos", "mobile"}:
+        channels += ["harmony-apptest"]
     return channels
 
 
@@ -122,6 +125,8 @@ def _opposite_platform_token(platform, text):
         patterns = _APPLE_PRODUCT_TOKENS
     elif isinstance(platform, str) and platform.startswith("ios"):
         patterns = _ANDROID_PRODUCT_TOKENS
+    elif platform == "harmony-apptest":
+        patterns = _ANDROID_PRODUCT_TOKENS + _APPLE_PRODUCT_TOKENS
     else:
         return None
     return next((label for label, pattern in patterns if pattern.search(text)), None)
@@ -129,7 +134,7 @@ def _opposite_platform_token(platform, text):
 
 def validate_note_text(text, name, channel, draft=False, *, candidate_id=None):
     """Shared shape and store-channel isolation rules for candidate validation and publishers."""
-    require(text and "\x00" not in text and len(text) <= (4000 if channel.startswith("ios-") else 16000),
+    require(text and "\x00" not in text and len(text) <= (1024 if channel == "harmony-apptest" else 4000 if channel.startswith("ios-") else 16000),
             f"Empty or oversized note: {name}")
     require(draft or "[DRAFT:" not in text, f"Unfinished draft: {name}")
     if channel.startswith("ios-"):
@@ -250,6 +255,9 @@ def validate_candidate(manifest, folder, draft=False):
             for channel in channels:
                 require(render_changelog(changelog, channel).strip(),
                         f"{channel} has no reviewed changelog entry; users must not receive an update without notes")
+            if "harmony-apptest" in channels:
+                require(contents["harmony-apptest"].strip() == render_changelog(changelog, "harmony-apptest").strip(),
+                        "Harmony notes differ from the reviewed structured changelog; render them again")
             expected_android = render_changelog(changelog, "android")
             expected_ios = render_changelog(changelog, "ios-app-store")
             expected_testflight = render_changelog(changelog, "ios-testflight")
@@ -301,7 +309,7 @@ def validate_changelog(value, version, build_number, channels, draft=False, *, e
     notes_format_version(value)
     require(value["schemaVersion"] == 1 and value["version"] == version and value["buildNumber"] == build_number,
             "Structured changelog identity differs from release candidate")
-    allowed_platforms = {"android", "ios", "ios-testflight", "ios-app-store"}
+    allowed_platforms = {"android", "ios", "ios-testflight", "ios-app-store", "harmony-apptest"}
     supported = {p for channel in channels for p in ({"ios", channel} if channel.startswith("ios-") else {channel})}
     ids = set()
     for group in ("highlights", "breaking", "requiredActions"):

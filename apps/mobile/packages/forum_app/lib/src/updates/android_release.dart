@@ -21,6 +21,11 @@ const mobileReleaseNotesUrl = String.fromEnvironment(
 const githubReleaseNotesUrl =
     'https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-notes/releases.json';
 
+const harmonyReleaseNotesUrl =
+    'https://status.yourtj.de/mobile/releases-harmony.json';
+const githubHarmonyReleaseNotesUrl =
+    'https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-notes/releases-harmony.json';
+
 class AndroidRelease {
   const AndroidRelease({
     required this.version,
@@ -119,7 +124,7 @@ class AndroidRelease {
 }
 
 class AndroidReleaseClient {
-  AndroidReleaseClient({Dio? dio})
+  AndroidReleaseClient({Dio? dio, this.harmony = false})
     : _dio =
           dio ??
           Dio(
@@ -142,6 +147,11 @@ class AndroidReleaseClient {
     if (dio != null) _notesDio.httpClientAdapter = dio.httpClientAdapter;
   }
   // An isolated client: forum cookies, bearer tokens and user IDs never reach mirrors.
+  final bool harmony;
+  String get _historyUrl =>
+      harmony ? harmonyReleaseNotesUrl : mobileReleaseNotesUrl;
+  String get _githubHistoryUrl =>
+      harmony ? githubHarmonyReleaseNotesUrl : githubReleaseNotesUrl;
   final Dio _dio;
   final Dio _notesDio;
   final Map<String, ReleaseNoteCatalog> _notesByUrl = {};
@@ -199,10 +209,7 @@ class AndroidReleaseClient {
   }
 
   Future<ReleaseNoteCatalog?> loadHistory({bool refresh = true}) async {
-    final urls = [
-      Uri.tryParse(mobileReleaseNotesUrl),
-      Uri.tryParse(githubReleaseNotesUrl),
-    ];
+    final urls = [Uri.tryParse(_historyUrl), Uri.tryParse(_githubHistoryUrl)];
     for (final uri in urls) {
       if (uri == null ||
           uri.scheme != 'https' ||
@@ -223,8 +230,8 @@ class AndroidReleaseClient {
 
   Future<ReleaseNoteCatalog?> _loadNotes() async {
     _notesValidatedThisLoad.clear();
-    final configured = Uri.tryParse(mobileReleaseNotesUrl);
-    final urls = [configured, Uri.tryParse(githubReleaseNotesUrl)];
+    final configured = Uri.tryParse(_historyUrl);
+    final urls = [configured, Uri.tryParse(_githubHistoryUrl)];
     ReleaseNoteCatalog? lastCache;
     for (final uri in urls) {
       if (uri == null ||

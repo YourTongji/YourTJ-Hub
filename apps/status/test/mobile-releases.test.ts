@@ -43,3 +43,14 @@ it('limits redirect chains and methods', async () => {
   expect(result.status).toBe(503)
   expect((await serveMobileReleases(new Request('https://status.yourtj.de/mobile/releases.json', { method: 'POST' }))).status).toBe(405)
 })
+
+
+it('isolates HarmonyOS history on a fixed asset without changing legacy clients', async () => {
+  const fetcher = vi.fn<typeof fetch>().mockImplementation(async url => {
+    expect(String(url)).toBe('https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-notes/releases-harmony.json')
+    return asset()
+  })
+  const result = await serveMobileReleases(new Request('https://status.yourtj.de/mobile/releases-harmony.json'), fetcher)
+  expect(result.status).toBe(200)
+  expect(await result.json()).toEqual(JSON.parse(payload))
+})

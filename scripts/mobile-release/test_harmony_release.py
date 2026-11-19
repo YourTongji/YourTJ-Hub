@@ -142,6 +142,40 @@ class HarmonyReleaseTests(unittest.TestCase):
             posts = [call.args for call in client.request.call_args_list if call.args[0] == 'POST']
             self.assertEqual(posts, [('POST', '/api/publish/v2/test/app/version/submit', {'versionId': '123'})])
 
+    def test_uncertain_upload_never_uploads_twice(self):
+        with tempfile.TemporaryDirectory() as temp:
+            app = Path(temp) / 'original.app'
+            with ZipFile(app, 'w') as archive:
+                archive.writestr('pack.info', json.dumps({'summary': {'app': {'bundleName': harmony_api.BUNDLE}}}))
+            client = Mock()
+            client.invitation.return_value = {'state': 7}
+            client.upload.side_effect = ValueError('lost response')
+            receipt = Path(temp) / 'receipt.json'
+            with patch.dict('os.environ', {'GITHUB_RUN_ATTEMPT': '1'}):
+                with self.assertRaises(ValueError):
+                    publish_harmony.publish(client, app, '123', receipt, 'a' * 40)
+                self.assertEqual(json.loads(receipt.read_text())['phase'], 'uploading')
+                with self.assertRaisesRegex(ValueError, 'package identity'):
+                    publish_harmony.publish(client, app, '123', receipt, 'a' * 40)
+            client.upload.assert_called_once()
+            client.request.assert_not_called()
+
+    def test_uncertain_submission_reconciles_without_posting_again(self):
+        with tempfile.TemporaryDirectory() as temp:
+            app = Path(temp) / 'original.app'
+            with ZipFile(app, 'w') as archive:
+                archive.writestr('pack.info', json.dumps({'summary': {'app': {'bundleName': harmony_api.BUNDLE}}}))
+            receipt = Path(temp) / 'receipt.json'
+            receipt.write_text(json.dumps({'appId': harmony_api.APP_ID, 'versionId': '123',
+                'sha256': hashlib.sha256(app.read_bytes()).hexdigest(), 'sourceSha': 'a' * 40,
+                'packageId': '456', 'phase': 'submitting'}))
+            client = Mock()
+            client.invitation.return_value = {'state': 4}
+            publish_harmony.publish(client, app, '123', receipt, 'a' * 40)
+            self.assertEqual(json.loads(receipt.read_text())['phase'], 'submitted')
+            client.upload.assert_not_called()
+            client.request.assert_not_called()
+
     def test_app_container_is_signed_after_packing(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)

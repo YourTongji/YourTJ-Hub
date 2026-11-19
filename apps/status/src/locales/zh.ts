@@ -29,6 +29,7 @@ export default {
         "macos": "macOS",
         "ios": "iOS",
         "android": "Android",
+        "harmonyos": "HarmonyOS",
         "linux": "Linux",
         "chromeos": "ChromeOS",
         "chrome": "Chrome",

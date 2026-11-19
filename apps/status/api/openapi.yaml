@@ -28,6 +28,28 @@ paths:
         '304': {description: Catalog unchanged}
         '405': {description: GET required}
         '503': {description: Catalog source unavailable or invalid}
+  /mobile/releases-harmony.json:
+    get:
+      operationId: getHarmonyReleaseCatalog
+      summary: Read HarmonyOS AppTest release notes
+      description: >-
+        Returns a display-only catalog derived from reviewed release requests and successful
+        GitHub distribution receipts. This asset contains only HarmonyOS APP Test history;
+        the legacy Android/iOS catalog remains separate. Pending review is not availability.
+        Responses are cached and carry an ETag. The catalog contains no candidate evidence,
+        deployment payloads or credentials.
+      responses:
+        '200':
+          description: Receipt-backed release catalog
+          headers:
+            ETag: {schema: {type: string}}
+            Cache-Control: {schema: {type: string}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MobileReleaseCatalog'}
+        '304': {description: Catalog unchanged}
+        '405': {description: GET required}
+        '503': {description: Catalog source unavailable or invalid}
   /api/status:
     get:
       operationId: getStatus
@@ -102,7 +124,7 @@ components:
         version: {type: string, pattern: '^\d+\.\d+\.\d+$'}
         buildNumber: {type: integer, minimum: 1}
         displayBuild: {type: string, pattern: '^[0-9]{12}$', description: UTC+8 date and daily sequence; optional for historical releases}
-        channels: {type: array, items: {type: string, enum: [android, ios-app-store, ios-testflight]}, uniqueItems: true}
+        channels: {type: array, items: {type: string, enum: [android, ios-app-store, ios-testflight, harmony-apptest]}, uniqueItems: true}
         highlights: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
         breaking: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
         requiredActions: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
@@ -123,7 +145,7 @@ components:
         title: {type: string, minLength: 1, maxLength: 100}
         summary: {type: string, minLength: 1, maxLength: 400}
         kind: {type: string, enum: [feature, improvement, fix, security]}
-        platforms: {type: array, items: {type: string, enum: [android, ios-app-store, ios-testflight]}, uniqueItems: true}
+        platforms: {type: array, items: {type: string, enum: [android, ios-app-store, ios-testflight, harmony-apptest]}, uniqueItems: true}
     StatusDevicesSource:
       $ref: './components.yaml#/StatusDevicesSource'
     StatusDevices:

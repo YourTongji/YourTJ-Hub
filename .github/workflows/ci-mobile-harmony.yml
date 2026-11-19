@@ -1,0 +1,60 @@
+name: CI / native HarmonyOS
+on:
+  workflow_call:
+    inputs:
+      source: {type: string, default: ''}
+    secrets:
+      HARMONY_CLI_DOWNLOAD_URL:
+        required: false
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: ohos-arm64, abi: arm64-v8a}
+          - {target: ohos-x64, abi: x86_64}
+    env:
+      FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
+      PUB_HOSTED_URL: https://pub.dev
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-harmony-toolchain
+        with:
+          download_url: ${{ secrets.HARMONY_CLI_DOWNLOAD_URL }}
+      - name: Resolve locked mobile dependencies
+        working-directory: apps/mobile
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze and test with Flutter OH
+        working-directory: apps/mobile/packages/forum_app
+        run: |
+          flutter analyze --no-pub
+          flutter test --no-pub test/harmony_update_test.dart test/harmony_math_test.dart test/release_notes_test.dart test/visitor_analytics_test.dart test/campus_widget_test.dart test/native_widget_structure_test.dart
+      - name: Compile unsigned native Release and verify ABI
+        env:
+          TARGET_PLATFORM: ${{ matrix.target }}
+          TARGET_ABI: ${{ matrix.abi }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          define_text="$(MOBILE_ENVIRONMENT=dev MOBILE_PREVIEW=true SOURCE_SHA="$(git rev-parse HEAD)" python3 scripts/mobile-release/build_environment.py)"
+          mapfile -t defines <<< "$define_text"
+          cd apps/mobile/packages/forum_app
+          flutter build hap --release --no-pub --no-codesign --target-platform="$TARGET_PLATFORM" "${defines[@]}"
+          python3 ohos/test/check_hap_abi.py build/ohos/hap/entry-default-unsigned.hap --abi "$TARGET_ABI" --release
+      - name: Test native projection model
+        run: node --test apps/mobile/packages/forum_app/ohos/test/*.test.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: harmonyos-ci-${{ matrix.abi }}-${{ github.run_id }}
+          path: apps/mobile/packages/forum_app/build/ohos/hap/entry-default-unsigned.hap
+          retention-days: 7
+          if-no-files-found: error

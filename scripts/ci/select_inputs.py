@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-DOMAINS = ("docs", "govulncheck", "backend", "postgres", "frontend", "contract", "mobile", "android", "ios", "status", "automation", "release", "deploy")
+DOMAINS = ("docs", "govulncheck", "backend", "postgres", "frontend", "contract", "mobile", "android", "ios", "harmonyos", "status", "automation", "release", "deploy")
 
 
 def select(paths):
@@ -16,7 +16,7 @@ def select(paths):
         for domain in domains:
             selected.setdefault(domain, reason)
     for path in paths:
-        if path.startswith("releases/requests/"):
+        if path.startswith(("releases/requests/", "releases/history/")):
             add("release", reason=path)
             continue
         if path.endswith(".md") or path.startswith(("docs/", ".agents/", "research/")) or path in {"LICENSE", ".gitignore"}:
@@ -48,11 +48,15 @@ def select(paths):
                 add("automation", reason=path)
                 continue
             add("mobile", reason=path)
+            if '/ohos/' in path or '/lib/' in path or '/third_party/' in path:
+                add('harmonyos', reason=path)
             if path.startswith("apps/mobile/packages/core/lib/src/gen/"):
                 add("contract", reason=path)
             if "server_message" in path:
                 add("frontend", reason=path)
             shared_native = path.endswith(("pubspec.yaml", "pubspec.lock", "pubspec_overrides.yaml", "build.yaml", "release-config.json")) or any(x in path for x in ("/hooks/", "/hook/", "/scripts/"))
+            if shared_native:
+                add('harmonyos', reason=path)
             if shared_native or "/android/" in path:
                 add("android", "automation", reason=path)
             if shared_native or "/ios/" in path:
@@ -67,8 +71,10 @@ def select(paths):
                 add(*DOMAINS, reason=path)
             elif path.startswith(".github/workflows/ci-"):
                 name = path.split("ci-", 1)[1].split(".")[0]
-                mapping = {"backend": ["backend", "postgres"], "mobile-native": ["android", "ios"], "mobile": ["mobile"], "frontend": ["frontend"], "contract": ["contract"], "status": ["status"]}
+                mapping = {"backend": ["backend", "postgres"], "mobile-native": ["android", "ios"], "mobile-harmony": ["harmonyos"], "mobile": ["mobile"], "frontend": ["frontend"], "contract": ["contract"], "status": ["status"]}
                 add(*mapping.get(name, []), reason=path)
+            if 'harmony' in path or path == '.github/actions/setup-harmony-toolchain/action.yml':
+                add('harmonyos', reason=path)
             if path in {"scripts/ci/check_android_entrypoint.py", "scripts/ci/test_android_entrypoint.py"}:
                 add("android", reason=path)
             if path in {"scripts/ci/check_android_apk_size.py", "scripts/ci/test_android_apk_size.py", "scripts/ci/android_apk_size_baseline.json"}:

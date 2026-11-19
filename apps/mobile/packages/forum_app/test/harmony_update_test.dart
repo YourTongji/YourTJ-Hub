@@ -46,7 +46,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(supportsMobileUpdates, isTrue);
-        expect(supportsMobileReleaseNotes, isFalse);
+        expect(supportsMobileReleaseNotes, isTrue);
         expect(opened, isEmpty);
         host.currentState!.didChangeAppLifecycleState(
           AppLifecycleState.resumed,
@@ -55,7 +55,7 @@ void main() {
         expect(opened, isEmpty);
         final l10n = AppLocalizations.of(navigator.currentContext!);
         expect(find.text(l10n.updateCheck), findsOneWidget);
-        expect(find.text(l10n.releaseNotesHistory), findsNothing);
+        expect(find.text(l10n.releaseNotesHistory), findsOneWidget);
         await tester.tap(find.text(l10n.updateCheck));
         await tester.pumpAndSettle();
         expect(opened, [harmonyAppTestGroupUrl]);

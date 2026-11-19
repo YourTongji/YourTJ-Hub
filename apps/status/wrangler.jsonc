@@ -10,7 +10,8 @@
     "directory": "./dist",
     "run_worker_first": [
       "/api/*",
-      "/mobile/releases.json"
+      "/mobile/releases.json",
+      "/mobile/releases-harmony.json"
     ],
     "not_found_handling": "404-page"
   },

@@ -17,7 +17,9 @@ when it differs from the controller checkout. They never select a version or pro
   build ARM64 Release, and sign/verify both HAP and APP without passwords in argv or logs.
 - `harmony_api.py`, `publish_harmony.py`: fixed-application Service Account authentication, testing-only
   upload, legality polling, receipt-bound recovery and submission of an existing invitation draft.
-  The separate main-only APP Test workflow does not enter the Android/iOS production release controller.
+  `scripts/release/harmony.py` connects the same signed APP to the main-only RC/Confirm/Recover controller
+  and separate-group continuous dev delivery. `harmony_reconcile.py` checks actual Huawei approval before
+  adding availability and history; `releases-harmony.json` stays separate from legacy Android/iOS catalogs.
 
 Run `python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'` without production keys.
 On macOS the effective-signing test also requires `flutter pub get` in the selected source's forum_app.

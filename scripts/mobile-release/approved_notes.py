@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'release'))
 from model import FILES, validate_note_text
 
 CHANNELS = {'WEB_NOTES_PATH': 'web', 'ANDROID_NOTES_PATH': 'android',
-            'IOS_STORE_NOTES_PATH': 'ios-app-store', 'IOS_TESTFLIGHT_NOTES_PATH': 'ios-testflight'}
+            'IOS_STORE_NOTES_PATH': 'ios-app-store', 'IOS_TESTFLIGHT_NOTES_PATH': 'ios-testflight', 'HARMONY_NOTES_PATH': 'harmony-apptest'}
 
 
 def read_notes(variable):

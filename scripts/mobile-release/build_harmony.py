@@ -13,7 +13,7 @@ from build_environment import dart_defines
 from harmony_api import BUNDLE
 from sign_harmony import sign
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get('RELEASE_SOURCE_ROOT', Path(__file__).resolve().parents[2])).resolve()
 APP = ROOT / 'apps/mobile/packages/forum_app'
 
 
@@ -68,7 +68,7 @@ def main():
     if not number.isascii() or not number.isdecimal() or not 1 <= int(number) <= 2147483647:
         raise ValueError('Invalid Harmony version code')
     validate_profile(base64.b64decode(os.environ['HARMONY_PROFILE_BASE64'], validate=True))
-    defines = dart_defines('production', os.environ['SOURCE_SHA'], False)
+    defines = dart_defines(source=os.environ['SOURCE_SHA'])
     tools = Path(os.environ['DEVECO_SDK_HOME']) / 'default/openharmony/toolchains/lib'
     output_dir = ROOT / 'apps/mobile/build/release/harmonyos'
     output_dir.mkdir(parents=True, exist_ok=True)

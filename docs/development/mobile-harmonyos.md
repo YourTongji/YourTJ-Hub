@@ -143,3 +143,14 @@ Passkey 必须先完成 AGC App Linking 开通、服务器域名关联、AGC 关
 见[华为通行密钥开发准备](https://developer.huawei.com/consumer/cn/doc/doccenter-capabilities/onlineauthentication-passwordless-auth-preparation)。
 不应为了使未配置的客户端通过验收而放宽服务端 WebAuthn origin 校验。
 Passkey、域名关联、正式签名及 AppGallery 发布不能由未签名 HAP 构建证明完成。
+
+## 原生 CI 与发布验收
+
+`CI / native HarmonyOS` 对相关同仓库 PR 使用固定 Flutter OH 和经 SHA-256 校验的官方 SDK，
+分别编译 ARM64/x64 无签名 Release HAP，运行 Flutter 检查和原生投影模型测试，并核验各包 ABI。
+它不使用发布证书或服务账号；SDK 下载 Secret 缺失时明确失败，不能把未编译写成通过。
+共享 Flutter 改动同样触发鸿蒙检查。标准 Flutter 的测试不能代替此原生编译。
+
+该 CI 尚未运行系统模拟器或 Hypium 设备测试。SDK 编译、签名验签、模拟器交互和真机安装是
+不同证据；相机、真实推送、覆盖升级与 AppTest 自动更新仍需设备验收。
+统一 RC、dev、送审、恢复和历史目录的事实源见[移动发布流程](../operations/mobile-releases.md#harmonyos-app-test)。

@@ -1536,7 +1536,7 @@ and forwarding on Web, App and old clients; see [forum permissions](forum.md#pri
   without profile privacy keep every stream public. See
   [profile visibility](identity-and-access.md#profile-visibility).
 
-- `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS
+- `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS/HarmonyOS
   release builds against `https://f.yourtj.de`, with no settings switch or consent preference. Fresh
   installations and upgrades use the same policy, regardless of any legacy saved analytics choice.
   Page views go to the existing first-party Umami website. Debug/profile,

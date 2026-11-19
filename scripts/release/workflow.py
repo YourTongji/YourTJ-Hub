@@ -313,6 +313,8 @@ def main():
             build_required = web_recovery_needs_build(github, manifest, prior_details)
             if build_required:
                 build_run = os.environ['GITHUB_RUN_ID']
+        if channel == 'harmony-apptest':
+            prior_details.setdefault('receiptRunId', prior_details.get('runId', build_run))
         record(github, manifest, binding, channel, "in_progress", prior_details | {
             "buildRunId": build_run, "runId": os.environ["GITHUB_RUN_ID"], "availability": "executing",
             "cycleId": cycle['id'] if cycle else None})
@@ -322,6 +324,8 @@ def main():
             out.write("binary=" + str(prior_details.get("binarySha256", "")) + "\n")
             out.write("image=" + str(prior_details.get("image", "")) + "\n")
             out.write(f"build_run_id={build_run}\n")
+            out.write(f"receipt_run_id={prior_details.get('receiptRunId', prior_details.get('runId', build_run))}\n")
+            out.write(f"app_sha256={prior_details.get('appSha256', '')}\n")
             out.write(f"existing_build_id={manifest['existingRelease']['buildId'] if manifest['existingRelease'] else prior_details.get('buildId', '')}\n")
     elif args.command == "receipt":
         channel = os.environ["CHANNEL"]

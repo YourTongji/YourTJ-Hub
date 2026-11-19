@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -24,7 +25,7 @@ IDENTITY_KEYS = ('candidateId', 'sourceSha', 'product', 'version', 'buildNumber'
 
 
 def platform(channel):
-    return 'ios' if channel.startswith('ios-') else channel
+    return 'ios' if channel.startswith('ios-') else 'harmonyos' if channel == 'harmony-apptest' else channel
 
 
 def artifact_name(identity, name):
@@ -78,7 +79,7 @@ def read_record(github, run_id, manifest):
     require(result.get('platforms') and set(result['platforms']) == set(identity['platforms']),
             'RC platform record mismatch')
     for name, details in result['platforms'].items():
-        require(name in {'web', 'android', 'ios'} and details.get('buildRunId') == str(run_id)
+        require(name in {'web', 'android', 'ios', 'harmonyos'} and details.get('buildRunId') == str(run_id)
                 and details.get('artifact') == artifact_name(identity, name), 'RC artifact identity mismatch')
         reusable(result, name)
     return result
@@ -90,6 +91,9 @@ def reusable(record, channel):
     result = record['platforms'][name]
     if name == 'ios':
         require(result.get('buildId'), 'RC has no original Apple build ID')
+    elif name == 'harmonyos':
+        require(isinstance(result.get('appSha256'), str) and re.fullmatch(r'[0-9a-f]{64}', result['appSha256']),
+                'RC has no original signed Harmony APP digest')
     elif name == 'web':
         require(result.get('image') and result.get('binarySha256'), 'RC has no original image/binary')
     else:

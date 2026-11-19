@@ -79,6 +79,9 @@ def baselines(github, channels, tags, apple=None):
             current = max(published, key=lambda r: tuple(map(int, r["tag_name"][8:].split("."))), default=None)
             require(current is None or current["tag_name"] in by_tag, "Missing Android tag identity")
             result[channel] = {"tag": current["tag_name"], "sourceSha": by_tag[current["tag_name"]]["sourceSha"]} if current else {"tag": None, "sourceSha": None}
+        elif channel == "harmony-apptest":
+            current = successful_baseline(github, channel)
+            result[channel] = current or {"tag": None, "sourceSha": None}
         else:
             current = successful_baseline(github, "web")
             if current is None:
@@ -102,7 +105,7 @@ def record(github, manifest, binding, channel, state, details=None):
         payload['catalogBuildNumber'] = manifest['buildNumber']
     deployment = github.api("deployments", method="POST", data={"ref": manifest["sourceSha"],
         "environment": f"release-{channel}", "auto_merge": False, "required_contexts": [], "payload": payload,
-        "description": f"{manifest['candidateId']} / {channel}", "production_environment": channel != "ios-testflight"})
+        "description": f"{manifest['candidateId']} / {channel}", "production_environment": channel not in {"ios-testflight", "harmony-apptest"}})
     github.api(f"deployments/{deployment['id']}/statuses", method="POST", data={"state": state,
         "auto_inactive": False, "description": str((details or {}).get("availability", state))[:140]})
     return deployment["id"]

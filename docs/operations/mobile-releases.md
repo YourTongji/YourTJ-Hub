@@ -29,17 +29,22 @@ suites. The [release runbook](releases.md#production-rc) owns this behavior and 
 
 ## HarmonyOS APP Test
 
-`Partial`：原生鸿蒙通过独立的
-[Release / HarmonyOS APP Test](../../.github/workflows/release-harmony-test.yml) 手动分发。
-工作流仅从 `main` 运行，使用现有 `mobile-release` 受保护环境。它不调用正式上架接口，
-也不修改 Android、iOS 的 RC、Confirm 或公开下载目录。
+原生鸿蒙接入已有 `Release / RC` → Confirm → Recover，渠道名为 `harmony-apptest`。
+RC 的 `scope=harmonyos` 只构建鸿蒙；`mobile` 同时选择移动三端。它复用同一移动构建身份，
+生产 RC 使用正式地址、Release 模式并关闭预览标记。Confirm 复用原签名 APP，才创建邀请测试草稿、
+上传并送审；不会调用正式上架接口。旧 `Release / HarmonyOS APP Test entry` 仅提示新入口。
 应用身份和本地开发工具见[鸿蒙开发文档](../development/mobile-harmonyos.md)。
 
-先在华为控制台准备邀请测试草稿，填好品牌资料、隐私政策、审核信息、测试时间和测试用户。
-运行工作流时填写版本名称、递增版本号和草稿 ID。已有版本号会阻止重新构建。
-CI 构建生产地址的 ARM64 Release 包，并关闭应用内预览标记和状态条。
-手机、平板和 PC/2in1 共用该包；测试资格和有效期由 APP Test 管理。
-测试时间、用户和审核资料以控制台草稿为准，CI 只绑定本次软件包并提交邀请测试审核。
+工作流只从 `main` 控制面运行，签名和华为凭据仍在 `mobile-release` 受保护环境。
+草稿继承控制台现有分类、标签、品牌和审核资料；仅更新本次原包、已审核更新说明、测试时间和
+指定群组。测试开始时间取提交时刻，有效期 30 天；审核完成前不能安装。
+更新说明最多 1024 字，说明和继承的应用描述不得包含“同济大学”，超限或不符时停止送审。
+控制台须先准备有效审核资料，CI 不编造联系人或审核账号。
+
+`dev` 自动投递复用 dev 的构建身份与原包恢复，使用 dev 地址和预览配置。
+必须配置独立的内部 `HARMONY_DEV_TEST_GROUP_ID`，且不同于正式内测的 `HARMONY_TEST_GROUP_ID`；
+缺少或相同时停止，不能回退到正式群组。两者共享原生 bundle，不能像独立 Android Dev 包一样并存，
+加入两个群组的同一设备也可能覆盖安装，测试账号应分开。
 
 ### 群组分发与更新
 
@@ -51,7 +56,7 @@ AppTest 查看新版本；用户开启自动更新时，由 AppTest 自动升级
 见华为[邀请测试 FAQ](https://developer.huawei.com/consumer/cn/doc/App/agc-help-invite-test-faq-0000002363660365/)。
 
 从 AppGallery 邀请测试切换至 AppTest 后，应重新创建测试版本，不能直接复用切换前
-的旧草稿。创建草稿后再将其 ID 交给现有 CI；不要为迁移重建已使用过的版本号。
+的旧草稿。统一流程会创建新草稿并保存其 ID；不要为迁移重建已使用过的版本号。
 群组公开链接必须保持启用，并检查人数上限和版本绑定；链接可打开并不证明账号有资格
 或设备可以安装。AppTest 不支持未成年模式，见上述 FAQ。
 
@@ -64,9 +69,13 @@ AppTest 查看新版本；用户开启自动更新时，由 AppTest 自动升级
 `Partial`：旧版到新版的真实覆盖安装、用户数据保留和 AppTest 自动更新仍需真机验收。
 模拟器打开链接或本地构建成功不能证明这些流程通过。
 
+环境 Variables 需要 `HARMONY_TEST_GROUP_ID` 和独立的 `HARMONY_DEV_TEST_GROUP_ID`。
+仅正式群组启用公开分享；dev 内部群组应只允许测试账号访问。
+
 环境需要以下 Secrets：
 
 - `HARMONY_CLI_DOWNLOAD_URL`：官方 Linux x64 Command Line Tools `26.0.0.865` 下载链接。
+  PR 原生 CI 另需同名仓库级下载 Secret，经维护者明确批准后配置；fork PR 不接收 Secret，须在可信分支验证。
   签名查询参数也属于保密内容；下载器校验域名、版本和固定 SHA-256，并拒绝重定向。
 - `HARMONY_KEYSTORE_BASE64`、`HARMONY_KEYSTORE_PASSWORD`：PKCS12 和密码，密钥别名为 `yourtj-release`。
 - `HARMONY_CERTIFICATE_BASE64`、`HARMONY_PROFILE_BASE64`：发布证书链和同一原生包名的发布 Profile。
@@ -82,10 +91,23 @@ AppTest 查看新版本；用户开启自动更新时，由 AppTest 自动升级
 `--replace-pack-info false`，并检查内部 HAP 字节未变化；仅内部 HAP 验签通过不能证明 APP 可上传。
 软件包上传为“仅测试”，合法性检查成功后才绑定草稿并提交。审核提交成功不代表测试已获批或可安装。
 
-原始 APP 和校验和保留在运行产物 `harmony-app-<run ID>` 中，上传回执保存在
-`harmony-receipt-<run ID>`。发布步骤失败时选择 GitHub 的“重新运行失败的作业”，复用原包和回执。
-回执必须匹配原包 SHA-256、源码 SHA、应用和测试草稿；缺少上传回执或草稿状态改变时停止，
-先到华为控制台核对，不重新构建已分发的版本身份。产物保留 90 天；过期后须使用已安全归档的原包恢复。
+原始 APP 和校验和保存在 `harmonyos-<version>-<number>`，dev 为
+`preview-harmonyos-<version>-<number>`，保存 90 天；原包过期后停止恢复，不能重建已分发身份。
+上传意图和非秘密回执保存在 `harmony-upload-<attempt>`。Recover 选择 `harmony-apptest`，
+从原构建 run 恢复 APP，从最后成功保存回执的 run 恢复回执，并核对版本、包名、源码和 RC SHA-256。
+创建草稿、上传或提交的响应丢失时保留意图并停止，先在华为控制台核对后恢复，不能重复创建或上传。
+
+`Mobile Release Catalog` 每小时从默认分支请求受保护的 `main` 控制面刷新；也可手动运行。
+它核对原 version/package ID，只在华为状态为“正在测试”时将待审回执推进为成功。
+正式历史来自已合入的结构化说明和成功回执；提交成功、待生效、待审核不能冒充可用版本。
+目录将三端分区输出：旧 Android/iOS 继续读取 `releases.json`，鸿蒙读取
+`releases-harmony.json`，防止旧客户端因未知渠道拒绝整个目录。
+status 提供同名固定代理路径，客户端使用原有历史时间线和错误重试界面。
+
+最早的鸿蒙 `1.0.18 (36)` 在统一流水线前分发，归档位于
+`releases/history/mobile-1.0.18-36`，不属于自动发布请求，不重建或送审。
+首次刷新仍须由华为 API 确认原邀请测试、版本名、构建号和包 ID 正在测试，才导入历史回执；
+旧包未知或已过期时停止导入，不补写无法证明的版本。历史覆盖从 36 开始，不能声称更早记录完整。
 
 接口依据为华为的[服务端鉴权](https://developer.huawei.com/consumer/cn/doc/App/agc-help-connect-api-obtain-server-auth-0000002271134661/)、
 [Testing API](https://developer.huawei.com/consumer/cn/doc/App/agc-help-test-api-guide-0000002236015562)

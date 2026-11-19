@@ -86,7 +86,7 @@ TYPE_KINDS = {"feat": "feature", "feature": "feature", "fix": "fix", "bugfix": "
               "security": "security", "sec": "security"}
 CONVENTIONAL = re.compile(r"^(\w+)(?:\([^)]*\))?(!)?:")
 SECURITY_WORDS = re.compile(r"security|vulnerab|cve-|安全|漏洞", re.I)
-CHANNEL_SUFFIX = {"android": "", "ios-app-store": "-ios", "ios-testflight": "-beta"}
+CHANNEL_SUFFIX = {"android": "", "ios-app-store": "-ios", "ios-testflight": "-beta", "harmony-apptest": "-harmony"}
 
 
 def _pr_type(pr):

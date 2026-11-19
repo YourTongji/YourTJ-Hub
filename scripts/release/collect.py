@@ -15,6 +15,10 @@ def applicable(path, channel):
         return False
     if path.startswith("apps/mobile/store/"):
         return False
+    if channel == "harmony-apptest" and any(part in path for part in ("/ios/", "/android/")):
+        return False
+    if channel != "harmony-apptest" and "/ohos/" in path:
+        return False
     if channel == "android" and "/ios/" in path:
         return False
     if channel.startswith("ios-") and "/android/" in path:

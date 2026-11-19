@@ -25,6 +25,11 @@ def publish(client, app, version_id, receipt, source):
         record = json.loads(receipt.read_text())
         if any(record.get(key) != value for key, value in expected.items()):
             raise ValueError('Receipt does not match the original APP, source and invitation draft')
+        if record.get('phase') == 'submitting':
+            if version.get('state') not in {0, 3, 4, 12}:
+                raise ValueError('Submission outcome unknown; reconcile Huawei before retrying')
+            record['phase'] = 'submitted'
+            receipt.write_text(json.dumps(record, indent=2) + '\n')
         if record.get('phase') == 'submitted':
             print('Original APP Test submission already recorded; inspect Huawei review status')
             return
@@ -35,10 +40,14 @@ def publish(client, app, version_id, receipt, source):
             raise ValueError('Invitation must be in Prepare to submit state')
         if os.environ.get('GITHUB_RUN_ATTEMPT', '1') != '1':
             raise ValueError('Retry has no upload receipt; reconcile the original upload manually')
+        record = {**expected, 'phase': 'prepared'}
+    if record.get('phase') == 'prepared':
+        record['phase'] = 'uploading'
+        receipt.write_text(json.dumps(record, indent=2) + '\n')
         package, uploaded_digest = client.upload(app)
         if uploaded_digest != digest:
             raise ValueError('APP changed during upload')
-        record = {**expected, 'packageId': package, 'phase': 'uploaded'}
+        record.update({'packageId': package, 'phase': 'uploaded'})
         receipt.write_text(json.dumps(record, indent=2) + '\n')
     package = record.get('packageId', '')
     if not isinstance(package, str) or not re.fullmatch(r'[0-9]{1,32}', package):
@@ -62,6 +71,8 @@ def publish(client, app, version_id, receipt, source):
     bound = client.invitation(version_id).get('packageList') or []
     if len(bound) != 1 or str(bound[0].get('packageId')) != package:
         raise ValueError('Invitation did not bind the original uploaded package')
+    record['phase'] = 'submitting'
+    receipt.write_text(json.dumps(record, indent=2) + '\n')
     client.request('POST', '/api/publish/v2/test/app/version/submit', {'versionId': version_id}, query={})
     record['phase'] = 'submitted'
     receipt.write_text(json.dumps(record, indent=2) + '\n')

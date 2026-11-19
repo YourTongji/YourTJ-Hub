@@ -8,7 +8,7 @@ def verify(channels, requested, results):
     require(channels and all(channel in FILES for channel in channels), 'Invalid approved channels')
     selected = 'android' if requested == 'android-alias' else requested
     require(not selected or selected in channels, 'Requested channel is outside the approved request')
-    publishers = {'ios' if channel.startswith('ios-') else channel for channel in
+    publishers = {'ios' if channel.startswith('ios-') else 'harmonyos' if channel == 'harmony-apptest' else channel for channel in
                   ([selected] if selected else channels)}
     for publisher in sorted(publishers):
         require(results.get(publisher, {}).get('result') == 'success',

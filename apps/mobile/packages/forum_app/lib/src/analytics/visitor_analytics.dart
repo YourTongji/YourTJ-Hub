@@ -4,6 +4,13 @@ import 'dart:collection';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+String? visitorAnalyticsOs(TargetPlatform platform) => switch (platform.name) {
+  'android' => 'Android OS',
+  'iOS' => 'iOS',
+  'ohos' => 'HarmonyOS',
+  _ => null,
+};
+
 /// Only official, native release builds can contribute to production analytics.
 bool visitorAnalyticsAvailable({
   required String apiBaseUrl,
@@ -13,7 +20,7 @@ bool visitorAnalyticsAvailable({
 }) =>
     release &&
     !web &&
-    (platform == TargetPlatform.android || platform == TargetPlatform.iOS) &&
+    visitorAnalyticsOs(platform) != null &&
     (apiBaseUrl == 'https://f.yourtj.de' ||
         apiBaseUrl == 'https://f.yourtj.de/');
 

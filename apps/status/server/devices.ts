@@ -6,7 +6,7 @@ import { trafficHours } from './umami'
 type DeviceRow = StatusDevices['rows'][number]
 // Only these coarse categories cross the public boundary. Never forward arbitrary provider labels.
 const devices = new Set(['mobile', 'laptop', 'desktop', 'tablet'])
-const systems = new Map<string, DeviceRow['os']>([['Mac OS', 'macos'], ['iOS', 'ios'], ['Android OS', 'android'], ['Linux', 'linux'], ['Chrome OS', 'chromeos']])
+const systems = new Map<string, DeviceRow['os']>([['Mac OS', 'macos'], ['iOS', 'ios'], ['Android OS', 'android'], ['HarmonyOS', 'harmonyos'], ['Linux', 'linux'], ['Chrome OS', 'chromeos']])
 const browsers = new Map<string, DeviceRow['browser']>([
   ['yourtj-app', 'yourtj-app'], ['chrome', 'chrome'], ['crios', 'chrome'], ['edge-chromium', 'edge'], ['edge', 'edge'],
   ['safari', 'safari'], ['ios', 'safari'], ['firefox', 'firefox'], ['fxios', 'firefox'],

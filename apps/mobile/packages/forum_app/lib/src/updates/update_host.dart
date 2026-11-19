@@ -23,9 +23,9 @@ const harmonyAppTestGroupUrl =
 final appUpdateHostKey = GlobalKey<MobileUpdateHostState>();
 bool get _isHarmony => !kIsWeb && defaultTargetPlatform.name == 'ohos';
 bool get supportsApkUpdates => !kIsWeb && Platform.isAndroid;
-bool get supportsMobileUpdates => supportsMobileReleaseNotes || _isHarmony;
+bool get supportsMobileUpdates => supportsMobileReleaseNotes;
 bool get supportsMobileReleaseNotes =>
-    !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+    !kIsWeb && (Platform.isAndroid || Platform.isIOS || _isHarmony);
 
 int? installedCatalogBuild(
   Map<String, dynamic> info, {
