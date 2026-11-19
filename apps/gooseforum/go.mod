@@ -44,7 +44,7 @@ require (
 	github.com/tetratelabs/wazero v1.12.0
 	github.com/wneessen/go-mail v0.8.2
 	github.com/yuin/goldmark v1.8.7
-	github.com/zitadel/oidc/v3 v3.51.17
+	github.com/zitadel/oidc/v3 v3.52.0
 	go.uber.org/zap v1.28.0
 	go.uber.org/zap/exp v0.3.0
 	go.yaml.in/yaml/v3 v3.0.6
