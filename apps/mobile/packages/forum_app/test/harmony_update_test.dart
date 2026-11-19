@@ -68,7 +68,10 @@ void main() {
         await host.currentState!.check(force: true);
         expect(opened.length, 2);
       },
-      variant: TargetPlatformVariant(harmony.toSet()),
+      // Stock Flutter has no OHOS enum, but even skipped tests need a variant.
+      variant: TargetPlatformVariant(
+        harmony.isEmpty ? {TargetPlatform.android} : harmony.toSet(),
+      ),
       skip: harmony.isEmpty,
     );
   }
