@@ -24,7 +24,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/feeds v1.2.0
 	github.com/gorilla/sessions v1.4.0
-	github.com/jackc/pgx/v5 v5.12.0
+	github.com/jackc/pgx/v5 v5.13.0
 	github.com/jellydator/ttlcache/v3 v3.4.1
 	github.com/jkboxomine/goldmark-headingid v0.0.0-20200109122657-8b6c16c18388
 	github.com/kanrichan/resvg-go v0.0.2-0.20260124063605-1b2ace355216
