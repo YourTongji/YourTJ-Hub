@@ -400,9 +400,7 @@ function variantSegments(prefix) {
       start = i + 1
     }
   }
-  // 前缀以 ':' 结尾，最后一段在循环里不会入列——补上（否则单段前缀 segs 为空，
-  // 结构性变体识别与超集比较都会失真）。
-  if (start < prefix.length) segs.push(prefix.slice(start))
+  // splitVariant 返回的 prefix 恒以 ':' 结尾，末段必在循环内入列，无需尾补。
   return segs
 }
 
