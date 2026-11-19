@@ -26,7 +26,8 @@
 cd apps/gooseforum && go vet ./... && go test ./...
 
 # Frontend (`pnpm check` = i18n gate: four-locale key consistency, static t() refs,
-# and serverMessages → mobile server_message_catalog.dart mirror freshness)
+# and serverMessages → mobile server_message_catalog.dart mirror freshness;
+# plus the line-clamp × display same-string conflict gate, see coding-conventions.md)
 cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm check && pnpm build
 # Here Node ≥26 needs vitest ≥5: Node ships localStorage/sessionStorage, vitest 4 read Node's
 # during happy-dom setup → false failures; ≥5 injects happy-dom's (Node versions: local-development.md).

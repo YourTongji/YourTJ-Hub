@@ -14,7 +14,8 @@
     "test:browser": "node --test --test-concurrency=2 test/*.browser.mjs",
     "audit:site-colors": "node scripts/audit-site-colors.mjs",
     "check:i18n": "node scripts/check-i18n-keys.mjs && node ../../mobile/tools/generate_server_messages.mjs --check",
-    "check": "pnpm check:i18n"
+    "check:line-clamp": "node scripts/check-line-clamp.mjs",
+    "check": "pnpm check:i18n && pnpm check:line-clamp"
   },
   "dependencies": {
     "@gooseforum/client": "workspace:*",

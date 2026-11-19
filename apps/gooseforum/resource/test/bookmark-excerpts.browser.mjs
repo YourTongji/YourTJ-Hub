@@ -7,6 +7,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
+import { assertNoLineClampViolations } from './helpers/line-clamp-assert.mjs'
 
 // #1639: assert painted line height with the real Tailwind cascade. DOM-only
 // tests cannot catch display:block overriding line-clamp's -webkit-box.
@@ -97,6 +98,8 @@ for (const section of ['bookmarks', 'activity']) for (const width of [320, 1280]
       assert.ok(bounds.every(b => b.x >= 0 && b.x + b.width <= width + 1))
       assert.ok(bounds.every((b, i) => i === 0 || bounds[i - 1].y + bounds[i - 1].height <= b.y), 'bookmark rows stay ordered without overlap')
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow')
+      // 通用 computed-style 截断裁决（issue #1692）：整页扫描所有 line-clamp 元素。
+      capture.clampViolations = await assertNoLineClampViolations(page, { assert })
       assert.deepEqual(errors, [])
       capture.result = 'passed'
     } catch (error) {

@@ -54,6 +54,9 @@ function main() {
   if (scope === 'frontend') {
     install(frontend);
     for (const task of ['typecheck', 'test', 'check:i18n', 'build']) run('pnpm', [task], frontend);
+    // --if-present：本文件从 default branch 取、跑在候选树上；base 早于门禁合入的
+    // 候选树没有 check:line-clamp script，直接调用会 ERR_PNPM_NO_SCRIPT 打挂存量 PR。
+    run('pnpm', ['run', '--if-present', 'check:line-clamp'], frontend);
   }
   if (scope === 'contract') {
     install(contract);
