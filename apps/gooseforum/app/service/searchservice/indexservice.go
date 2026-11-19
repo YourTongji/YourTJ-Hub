@@ -21,6 +21,13 @@ import (
 
 const searchTaskWaitTimeout = 30 * time.Second
 
+const (
+	// searchQueryTimeout 是单次搜索请求的上限，用于没有可传 ctx 的同步搜索入口。
+	searchQueryTimeout = 10 * time.Second
+	// indexRebuildTimeout 是全量重建索引时单次操作的上限。
+	indexRebuildTimeout = 5 * time.Minute
+)
+
 // maxStartupAttempts bounds the ensureManagedIndexConfigured retry loop; the
 // whole startup repair additionally runs under a hard deadline.
 const maxStartupAttempts = 3
@@ -148,7 +155,7 @@ func BuildSingleTopicSearchDocumentContext(ctx context.Context, topic *topics.En
 		firstPost.VisibilityStatus == posts.VisibilityActive
 	if isIndexable {
 		doc := convertTopicToSearchDocument(topic, firstPost)
-		task, err = index.AddDocumentsWithContext(ctx, doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+		task, err = index.AddDocuments(ctx, doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 		if err != nil {
 			slog.Warn(fmt.Sprintf("Meilisearch 处理主题 ID:%v 失败: %v\n", doc.ID, err))
 			return nil, fmt.Errorf("add search document: %w", err)
@@ -156,7 +163,7 @@ func BuildSingleTopicSearchDocumentContext(ctx context.Context, topic *topics.En
 		slog.Info(fmt.Sprintf("处理主题 ID:%v, TaskUID: %v\n", doc.ID, getTaskUID(task)))
 	} else {
 		// DeleteDocument 删除单个文档；index.Delete(uid) 会误删整个索引
-		task, err = index.DeleteDocumentWithContext(ctx, cast.ToString(topic.Id), nil)
+		task, err = index.DeleteDocument(ctx, cast.ToString(topic.Id), nil)
 		if err != nil {
 			slog.Warn(fmt.Sprintf("Meilisearch 删除文档失败: %v, Error: %v\n", topic.Id, err))
 			return nil, fmt.Errorf("delete search document: %w", err)
@@ -196,7 +203,7 @@ func RunTopicSearchTask(ctx context.Context, task *taskQueue.Entity) error {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		deleteTask, deleteErr := client.Index(TopicIndex).DeleteDocumentWithContext(operationCtx, cast.ToString(payload.TopicId), nil)
+		deleteTask, deleteErr := client.Index(TopicIndex).DeleteDocument(operationCtx, cast.ToString(payload.TopicId), nil)
 		if deleteErr != nil {
 			return fmt.Errorf("delete missing topic search document: %w", deleteErr)
 		}
@@ -393,7 +400,7 @@ func ensureManagedIndexConfigured(ctx context.Context, index meilisearch.IndexMa
 		// A settings PATCH can implicitly create an empty Meili index. A missing
 		// projection must stay unavailable until an explicit complete rebuild.
 		if name == CourseIndex {
-			_, err = index.FetchInfoWithContext(ctx)
+			_, err = index.FetchInfo(ctx)
 		} else {
 			err = nil
 		}

@@ -29,7 +29,7 @@ require (
 	github.com/jkboxomine/goldmark-headingid v0.0.0-20200109122657-8b6c16c18388
 	github.com/kanrichan/resvg-go v0.0.2-0.20260124063605-1b2ace355216
 	github.com/markbates/goth v1.82.0
-	github.com/meilisearch/meilisearch-go v0.36.3
+	github.com/meilisearch/meilisearch-go v0.37.0
 	github.com/minio/minio-go/v7 v7.4.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/mojocn/base64Captcha v1.3.8

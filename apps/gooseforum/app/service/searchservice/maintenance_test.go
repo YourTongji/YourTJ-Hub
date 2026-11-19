@@ -302,7 +302,7 @@ func TestMaintenanceAllIndexesIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			index := client.Index(name)
-			task, err := index.DeleteDocument(first, nil)
+			task, err := index.DeleteDocument(context.Background(), first, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

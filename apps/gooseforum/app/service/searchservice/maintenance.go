@@ -127,9 +127,9 @@ func GetIndexMaintenanceStatus(ctx context.Context) (*MaintenanceStatus, error) 
 	status.Configured = client != nil
 	var stats *meilisearch.Stats
 	if client != nil {
-		if version, err := client.VersionWithContext(ctx); err == nil {
+		if version, err := client.Version(ctx); err == nil {
 			status.EngineVersion = version.PkgVersion
-			stats, err = client.GetStatsWithContext(ctx, &meilisearch.StatsParams{})
+			stats, err = client.GetStats(ctx, &meilisearch.StatsParams{})
 			status.Available = err == nil
 		}
 	}

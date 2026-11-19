@@ -1,6 +1,7 @@
 package searchservice
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,7 +22,7 @@ type fakeGhostIndex struct {
 
 var _ ghostIndex = (*fakeGhostIndex)(nil)
 
-func (f *fakeGhostIndex) GetDocuments(param *meilisearch.DocumentsQuery, resp *meilisearch.DocumentsResult) error {
+func (f *fakeGhostIndex) GetDocuments(_ context.Context, param *meilisearch.DocumentsQuery, resp *meilisearch.DocumentsResult) error {
 	f.getCalls++
 	if f.getErr != nil {
 		return f.getErr
@@ -45,7 +46,7 @@ func (f *fakeGhostIndex) GetDocuments(param *meilisearch.DocumentsQuery, resp *m
 	return nil
 }
 
-func (f *fakeGhostIndex) DeleteDocuments(identifiers []string, opts *meilisearch.DocumentOptions) (*meilisearch.TaskInfo, error) {
+func (f *fakeGhostIndex) DeleteDocuments(_ context.Context, identifiers []string, opts *meilisearch.DocumentOptions) (*meilisearch.TaskInfo, error) {
 	if f.deleteErr != nil {
 		return nil, f.deleteErr
 	}
@@ -178,7 +179,7 @@ func TestFetchIndexDocumentIDsPaginates(t *testing.T) {
 	}
 	fake := &fakeGhostIndex{docs: docs, total: 2500}
 
-	ids, err := fetchIndexDocumentIDs(fake)
+	ids, err := fetchIndexDocumentIDs(context.Background(), fake)
 	if err != nil {
 		t.Fatalf("fetchIndexDocumentIDs error: %v", err)
 	}
@@ -192,7 +193,7 @@ func TestFetchIndexDocumentIDsPaginates(t *testing.T) {
 
 func TestFetchIndexDocumentIDsEmpty(t *testing.T) {
 	fake := &fakeGhostIndex{docs: nil, total: 0}
-	ids, err := fetchIndexDocumentIDs(fake)
+	ids, err := fetchIndexDocumentIDs(context.Background(), fake)
 	if err != nil {
 		t.Fatalf("fetchIndexDocumentIDs error: %v", err)
 	}

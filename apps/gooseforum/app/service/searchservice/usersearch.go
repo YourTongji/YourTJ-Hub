@@ -84,7 +84,7 @@ func BuildSingleUserSearchDocumentContext(ctx context.Context, user *users.Entit
 	pk := "id"
 	if shouldIndexUser(user) {
 		doc := convertUserToSearchDocument(user)
-		task, err := index.AddDocumentsWithContext(ctx, doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+		task, err := index.AddDocuments(ctx, doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 		if err != nil {
 			slog.Warn(fmt.Sprintf("Meilisearch 处理用户 ID:%v 失败: %v\n", doc.ID, err))
 			return nil, fmt.Errorf("add user search document: %w", err)
@@ -92,7 +92,7 @@ func BuildSingleUserSearchDocumentContext(ctx context.Context, user *users.Entit
 		slog.Info(fmt.Sprintf("处理用户 ID:%v, TaskUID: %v\n", doc.ID, getTaskUID(task)))
 		return task, nil
 	}
-	task, err := index.DeleteDocumentWithContext(ctx, cast.ToString(user.Id), nil)
+	task, err := index.DeleteDocument(ctx, cast.ToString(user.Id), nil)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Meilisearch 删除用户文档失败: %v, Error: %v\n", user.Id, err))
 		return nil, fmt.Errorf("delete user search document: %w", err)
@@ -114,7 +114,7 @@ func DeleteUserSearchDocumentContext(ctx context.Context, userID uint64) (*meili
 	}
 	client := meiliconnect.GetClient()
 	index := client.Index(UserIndex)
-	task, err := index.DeleteDocumentWithContext(ctx, cast.ToString(userID), nil)
+	task, err := index.DeleteDocument(ctx, cast.ToString(userID), nil)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Meilisearch 删除用户文档失败: %v, Error: %v\n", userID, err))
 		return nil, fmt.Errorf("delete user search document: %w", err)
@@ -152,7 +152,7 @@ func RunUserSearchTask(ctx context.Context, task *taskQueue.Entity) error {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		deleteTask, deleteErr := client.Index(UserIndex).DeleteDocumentWithContext(operationCtx, cast.ToString(payload.UserId), nil)
+		deleteTask, deleteErr := client.Index(UserIndex).DeleteDocument(operationCtx, cast.ToString(payload.UserId), nil)
 		if deleteErr != nil {
 			return deleteErr
 		}

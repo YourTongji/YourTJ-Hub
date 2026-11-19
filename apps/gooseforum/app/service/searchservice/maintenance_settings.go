@@ -52,7 +52,7 @@ func managedSettings(name string) *meilisearch.Settings {
 func applyManagedSettings(ctx context.Context, index meilisearch.IndexManager, name string) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	task, err := index.UpdateSettingsWithContext(ctx, managedSettings(name))
+	task, err := index.UpdateSettings(ctx, managedSettings(name))
 	if err != nil {
 		return err
 	}
