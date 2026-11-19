@@ -176,6 +176,30 @@ class HarmonyReleaseTests(unittest.TestCase):
             client.upload.assert_not_called()
             client.request.assert_not_called()
 
+    def test_inherited_other_group_blocks_submission_after_package_binding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            app = Path(temp) / 'original.app'
+            with ZipFile(app, 'w') as archive:
+                archive.writestr('pack.info', json.dumps({'summary': {'app': {'bundleName': harmony_api.BUNDLE}}}))
+            receipt = Path(temp) / 'receipt.json'
+            receipt.write_text(json.dumps({'appId': harmony_api.APP_ID, 'versionId': '123',
+                'sha256': hashlib.sha256(app.read_bytes()).hexdigest(), 'sourceSha': 'a' * 40,
+                'packageId': '456', 'phase': 'uploaded', 'groupId': 'a' * 32}))
+            client = Mock()
+            client.invitation.return_value = {'state': 7, 'packageList': [{'packageId': '456'}]}
+            def response(method, path, *args, **kwargs):
+                if path.endswith('/compile/status'):
+                    return {'pkgStateList': [{'pkgId': '456', 'successStatus': 0}]}
+                if path.endswith('/app-info'):
+                    return {'openTestInfo': {'testTaskInfo': {'groupInfos': [
+                        {'groupId': 'a' * 32, 'bind': 1}, {'groupId': 'b' * 32, 'bind': 1}]}}}
+                return {}
+            client.request.side_effect = response
+            with self.assertRaisesRegex(ValueError, 'only the explicitly selected group'):
+                publish_harmony.publish(client, app, '123', receipt, 'a' * 40)
+            self.assertFalse(any(call.args[0] == 'POST' for call in client.request.call_args_list))
+            client.upload.assert_not_called()
+
     def test_app_container_is_signed_after_packing(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)

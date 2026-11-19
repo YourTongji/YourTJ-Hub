@@ -13,7 +13,7 @@ from model import require
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'mobile-release'))
 from harmony_api import APP_ID, BUNDLE, Client
-from publish_harmony import publish
+from publish_harmony import publish, verify_group
 
 
 def app_identity(directory, version, number, expected=''):
@@ -39,10 +39,13 @@ def configuration(detail, group, notes, now, share=True):
         require('同济大学' not in language['appDesc'], 'Review inherited app description before submitting')
         languages.append({'language': language['lang'], 'appDesc': language['appDesc'], 'newFeatures': notes})
     require(languages, 'Inherited app languages are missing')
+    inherited = (detail.get('openTestInfo') or {}).get('testTaskInfo', {}).get('groupInfos', [])
+    groups = [{'groupId': old['groupId'], 'bind': 0} for old in inherited if old.get('groupId') != group]
+    groups.append({'groupId': group, 'bind': 1})
     return {'languagesList': languages, 'openTestInfo': {
         'startTime': now * 1000, 'endTime': (now + 30 * 86400) * 1000,
         'testDesc': 'YourTJ HarmonyOS', 'testTaskInfo': {
-            'groupInfos': [{'groupId': group, 'bind': 1}], 'needShareLink': int(share),
+            'groupInfos': groups, 'needShareLink': int(share),
             'displayArea': '1', 'needNotify': 1}}}
 
 
@@ -68,6 +71,7 @@ def publish_original(client, app, receipt, source, sha, group, notes, share=True
         detail = client.request('GET', '/api/publish/v3/app-info', query={'releaseType': 6, 'versionId': version_id})
         config = configuration(detail, group, notes, int(time.time()), share=share)
         client.request('PUT', '/api/publish/v2/test/app/version', {'versionId': version_id, **config}, query={})
+        verify_group(client, version_id, group)
     publish(client, app, version_id, receipt, source)
     record = json.loads(receipt.read_text())
     require(record.get('packageId'), 'Original upload has no package ID')

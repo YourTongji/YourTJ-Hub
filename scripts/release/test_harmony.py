@@ -68,6 +68,13 @@ class HarmonyTests(unittest.TestCase):
         with self.assertRaises(ReleaseError):
             configuration({'languages': [{'lang': 'zh-CN', 'appDesc': '同济大学'}]}, 'a' * 32, '更新', 100)
 
+    def test_internal_delivery_explicitly_unbinds_inherited_external_groups(self):
+        detail = {'languages': [{'lang': 'zh-CN', 'appDesc': 'YourTJ'}], 'openTestInfo': {
+            'testTaskInfo': {'groupInfos': [{'groupId': 'b' * 32, 'bind': 1}]}}}
+        config = configuration(detail, 'a' * 32, '更新', 100, share=False)
+        self.assertEqual(config['openTestInfo']['testTaskInfo']['groupInfos'], [
+            {'groupId': 'b' * 32, 'bind': 0}, {'groupId': 'a' * 32, 'bind': 1}])
+
     def test_dev_group_share_link_stays_disabled(self):
         config = configuration({'languages': [{'lang': 'zh-CN', 'appDesc': 'YourTJ'}]}, 'a' * 32, '更新', 100, share=False)
         self.assertEqual(config['openTestInfo']['testTaskInfo']['needShareLink'], 0)

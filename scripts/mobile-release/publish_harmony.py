@@ -10,6 +10,13 @@ from zipfile import ZipFile
 from harmony_api import APP_ID, BUNDLE, Client
 
 
+def verify_group(client, version_id, group_id):
+    detail = client.request('GET', '/api/publish/v3/app-info', query={'releaseType': 6, 'versionId': version_id})
+    groups = (detail.get('openTestInfo') or {}).get('testTaskInfo', {}).get('groupInfos', [])
+    if {group.get('groupId') for group in groups if group.get('bind') == 1} != {group_id}:
+        raise ValueError('APP Test must bind only the explicitly selected group')
+
+
 def publish(client, app, version_id, receipt, source):
     if not re.fullmatch(r'[0-9a-f]{40}', source):
         raise ValueError('A full source SHA is required')
@@ -71,6 +78,8 @@ def publish(client, app, version_id, receipt, source):
     bound = client.invitation(version_id).get('packageList') or []
     if len(bound) != 1 or str(bound[0].get('packageId')) != package:
         raise ValueError('Invitation did not bind the original uploaded package')
+    if record.get('groupId'):
+        verify_group(client, version_id, record['groupId'])
     record['phase'] = 'submitting'
     receipt.write_text(json.dumps(record, indent=2) + '\n')
     client.request('POST', '/api/publish/v2/test/app/version/submit', {'versionId': version_id}, query={})

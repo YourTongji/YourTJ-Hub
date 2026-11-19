@@ -43,7 +43,8 @@ RC 的 `scope=harmonyos` 只构建鸿蒙；`mobile` 同时选择移动三端。�
 
 `dev` 自动投递复用 dev 的构建身份与原包恢复，使用 dev 地址和预览配置。
 必须配置独立的内部 `HARMONY_DEV_TEST_GROUP_ID`，且不同于正式内测的 `HARMONY_TEST_GROUP_ID`；
-缺少或相同时停止，不能回退到正式群组。两者共享原生 bundle，不能像独立 Android Dev 包一样并存，
+缺少或相同时停止，不能回退到正式群组。显式解除其他继承群组的绑定，并在配置后及最终提交前
+回读华为实际绑定，仅允许本次目标群组，否则保留回执并停止。两者共享原生 bundle，不能像独立 Android Dev 包一样并存，
 加入两个群组的同一设备也可能覆盖安装，测试账号应分开。
 华为要求测试版 VersionCode 不低于已发布的测试版，见
 [版本号规范](https://developer.huawei.com/consumer/cn/doc/App/agc-help-apptest-release-testapp-0000002292711385/)。
