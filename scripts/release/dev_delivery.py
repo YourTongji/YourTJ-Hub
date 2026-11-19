@@ -59,7 +59,7 @@ def project_status(source, platforms, now):
 
 def latest_platforms(github):
     platforms = {}
-    for name in ['web', 'android', 'ios']:
+    for name in ['web', 'android', 'ios', 'harmonyos']:
         for item in github.pages(f'deployments?environment=dev-{name}'):
             payload = item.get('payload') or {}
             if payload.get('kind') != 'continuous-dev':
@@ -81,6 +81,8 @@ def publish_status(github):
                   f"[Distribution run](https://github.com/{github.repository}/actions/runs/{data['run']})"]
         if name == 'android':
             lines.append(f"[Signed APK downloads](https://github.com/{github.repository}/releases/tag/{data['tag']})")
+        elif name == 'harmonyos':
+            lines.append('Install from the separate internal HarmonyOS APP Test group after Huawei approval.')
         elif name == 'ios':
             lines.append('Install from the configured internal TestFlight group.')
     lines += ['', 'Development builds connect to dev.yourtj.de. Production RCs and formal releases use separate artifacts.']
@@ -142,10 +144,13 @@ def main():
     elif args.command == 'start':
         value = identity(github)
         name = os.environ['PREVIEW_ARTIFACT']
-        require(name in {'android', 'ios'}, 'Invalid dev platform')
+        require(name in {'android', 'ios', 'harmonyos'}, 'Invalid dev platform')
         artifacts = github.pages(f"actions/runs/{value['run']}/artifacts", 'artifacts')
         originals = [a for a in artifacts if a['name'] == f"preview-{name}-{value['version']}-{value['number']}"]
         require(len(originals) <= 1 and all(not a['expired'] for a in originals), 'Original dev archive expired/ambiguous')
+        if name == 'harmonyos':
+            receipts = [a for a in artifacts if a['name'].startswith('harmony-upload-')]
+            require(originals or not receipts, 'Original APP missing after upload intent; never rebuild')
         build_id = ''
         if name == 'android' and not originals:
             require(github.api('releases/tags/' + value['tag'], missing=True) is None,
@@ -158,22 +163,28 @@ def main():
                 require(previous['source'] == source and previous['environment'] == 'dev', 'Dev Apple receipt changed')
                 build_id = previous.get('buildId', '')
                 require(originals or build_id, 'Original dev IPA missing; use a new build instead of recompiling')
-        output({'build_required': str(not originals and not build_id).lower(), 'existing_build_id': build_id})
+        output({'build_required': str(not originals and not build_id).lower(), 'existing_build_id': build_id,
+                'build_run_id': value['run'], 'receipt_run_id': value['run']})
     elif args.command == 'check-build':
         identity(github)  # An admitted in-flight upload may safely finish after a newer push.
     elif args.command == 'current':
         output({'eligible': str(current_source(github, source)).lower()})
     elif args.command == 'record':
         name = os.environ['DEV_PLATFORM']
-        require(name in {'web', 'android', 'ios'}, 'Invalid development platform')
+        require(name in {'web', 'android', 'ios', 'harmonyos'}, 'Invalid development platform')
         value = {'source': source, 'run': os.environ['GITHUB_RUN_ID']}
         if name != 'web':
             value |= identity(github)
+        pending = False
+        if name == 'harmonyos':
+            details = json.loads(Path('.release-result.json').read_text())
+            value |= {'details': details}
+            pending = details.get('availability') != 'APPROVED'
         deployment = github.api('deployments', method='POST', data={
             'ref': source, 'environment': 'dev-' + name, 'auto_merge': False, 'required_contexts': [],
             'production_environment': False, 'payload': value | {'kind': 'continuous-dev'}})
         github.api(f"deployments/{deployment['id']}/statuses", method='POST', data={
-            'state': 'success', 'auto_inactive': False,
+            'state': 'in_progress' if pending else 'success', 'auto_inactive': False,
             'log_url': f"https://github.com/{github.repository}/actions/runs/{value['run']}"})
     else:
         publish_status(github)

@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../components/gf_motion.dart';
@@ -81,6 +82,10 @@ ThemeData gfThemeData(
       );
 
   return ThemeData(
+    // Keep the shared mobile controls and motion on the native OHOS runner.
+    platform: defaultTargetPlatform.name == 'ohos'
+        ? TargetPlatform.android
+        : defaultTargetPlatform,
     useMaterial3: true,
     brightness: brightness,
     colorScheme: colorScheme,

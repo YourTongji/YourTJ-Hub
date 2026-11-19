@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "063db1be8945a71fcbe3c2ff4187204f303f0042",
+  "evidence": [
+    {
+      "id": "initial-harmony-release",
+      "channels": [
+        "harmony-apptest"
+      ],
+      "title": "Previously distributed native HarmonyOS APP Test package",
+      "paths": [
+        "apps/mobile/packages/forum_app/ohos"
+      ],
+      "detail": "Archived release identity only. Import requires the exact Huawei invitation/package to be in testing; this candidate must never rebuild or republish build 36.",
+      "receipt": {
+        "appId": "6917621118093079103",
+        "versionId": "2078158113906662848",
+        "packageId": "2078158734110006720",
+        "appSha256": "b15fd7b58f0f056a9d6a6b61dff00f63b30f33acf04a2e9bf37f3f22a8854673"
+      }
+    }
+  ]
+}

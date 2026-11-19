@@ -441,6 +441,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.9.5+1"
+  file_selector_ohos:
+    dependency: transitive
+    description:
+      path: "packages/file_selector/file_selector_ohos"
+      ref: "05111855c6772411f39d10aac43c8a276251c1d3"
+      resolved-ref: "05111855c6772411f39d10aac43c8a276251c1d3"
+      url: "https://gitcode.com/CPF-Flutter/flutter_packages.git"
+    source: git
+    version: "0.5.0+2"
   file_selector_platform_interface:
     dependency: transitive
     description:
@@ -569,12 +578,11 @@ packages:
     source: sdk
     version: "0.0.0"
   flutter_math_fork:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: flutter_math_fork
-      sha256: "6d5f2f1aa57ae539ffb0a04bb39d2da67af74601d685a161aff7ce5bda5fa407"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/flutter_math_fork"
+      relative: true
+    source: path
     version: "0.7.4"
   flutter_native_splash:
     dependency: transitive
@@ -593,12 +601,11 @@ packages:
     source: hosted
     version: "2.0.35"
   flutter_quill:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: flutter_quill
-      sha256: "1f773f5f75e2628d80361c2c840c592791a0a157ebd587c9e37cf2cb8b8519b7"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/flutter_quill"
+      relative: true
+    source: path
     version: "11.6.0"
   flutter_quill_delta_from_html:
     dependency: transitive
@@ -878,6 +885,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.2+1"
+  image_picker_ohos:
+    dependency: transitive
+    description:
+      path: "packages/image_picker/image_picker_ohos"
+      ref: "1af98579e1a95d4fca19e422d26f5b6856ac38ba"
+      resolved-ref: "1af98579e1a95d4fca19e422d26f5b6856ac38ba"
+      url: "https://gitcode.com/CPF-Flutter/flutter_packages.git"
+    source: git
+    version: "0.8.13+7"
   image_picker_platform_interface:
     dependency: transitive
     description:
@@ -1243,6 +1259,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.2"
+  path_provider_ohos:
+    dependency: transitive
+    description:
+      path: "packages/path_provider/path_provider_ohos"
+      ref: d4e49daa0acbd0bc419d58b1da27d64d44fab54b
+      resolved-ref: d4e49daa0acbd0bc419d58b1da27d64d44fab54b
+      url: "https://gitcode.com/CPF-Flutter/flutter_packages.git"
+    source: git
+    version: "2.2.17"
   path_provider_platform_interface:
     dependency: transitive
     description:
@@ -1499,6 +1524,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.1"
+  shared_preferences_ohos:
+    dependency: transitive
+    description:
+      path: "packages/shared_preferences/shared_preferences_ohos"
+      ref: "143d83e7669a359a1ab1ee6558c4a2e4f7f4c53f"
+      resolved-ref: "143d83e7669a359a1ab1ee6558c4a2e4f7f4c53f"
+      url: "https://gitcode.com/CPF-Flutter/flutter_packages.git"
+    source: git
+    version: "2.5.4"
   shared_preferences_platform_interface:
     dependency: transitive
     description:
@@ -1577,12 +1611,11 @@ packages:
     source: hosted
     version: "0.7.0+eol"
   sqlite3:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: sqlite3
-      sha256: "4c7fe79840389aaeaf05fd093f795b631b5a98e2bd28d54e555c100f4a9c7a1c"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/sqlite3"
+      relative: true
+    source: path
     version: "3.5.2"
   sqlite3_flutter_libs:
     dependency: transitive
@@ -1736,6 +1769,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.2.6"
+  url_launcher_ohos:
+    dependency: transitive
+    description:
+      path: "packages/url_launcher/url_launcher_ohos"
+      ref: ae4494a78db5a9e0fe760b0eba9231605ae45716
+      resolved-ref: ae4494a78db5a9e0fe760b0eba9231605ae45716
+      url: "https://gitcode.com/CPF-Flutter/flutter_packages.git"
+    source: git
+    version: "6.3.2"
   url_launcher_platform_interface:
     dependency: transitive
     description:
@@ -1912,6 +1954,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.14.1"
+  webview_flutter_ohos:
+    dependency: transitive
+    description:
+      path: "packages/webview_flutter/webview_flutter_ohos"
+      ref: "3467191089ef4abc76132fff65b8e3354c2c21dd"
+      resolved-ref: "3467191089ef4abc76132fff65b8e3354c2c21dd"
+      url: "https://gitcode.com/CPF-Flutter/flutter_packages.git"
+    source: git
+    version: "4.7.0"
   webview_flutter_platform_interface:
     dependency: transitive
     description:

@@ -93,7 +93,7 @@ StatusDeviceRow:
       enum: [mobile, laptop, desktop, tablet, other, unknown]
     os:
       type: string
-      enum: [windows, macos, ios, android, linux, chromeos, other, unknown]
+      enum: [windows, macos, ios, android, harmonyos, linux, chromeos, other, unknown]
     browser:
       type: string
       enum: [yourtj-app, chrome, edge, safari, firefox, webview, opera, samsung, other, unknown]

@@ -22,7 +22,7 @@ const percent = (n: number) => new Intl.NumberFormat(locale.value, { style: 'per
 const label = (node: DeviceNode) => t(`devices.labels.${node.category}`)
 const source = (link: DeviceLink) => link.source as DeviceNode
 const target = (link: DeviceLink) => link.target as DeviceNode
-const palette: Record<string, string> = { 'yourtj-app': '#df795e', mobile: '#27a99a', laptop: '#5987db', desktop: '#c79953', tablet: '#a18bce', windows: '#5987db', android: '#27a99a', ios: '#8d8dcb', macos: '#b38a67', linux: '#bf9c43', chromeos: '#73a483', chrome: '#5987db', edge: '#27a99a', safari: '#8d8dcb', webview: '#b38a67', firefox: '#ca8659', other: '#929cae', unknown: '#a6abb5' }
+const palette: Record<string, string> = { 'yourtj-app': '#df795e', mobile: '#27a99a', laptop: '#5987db', desktop: '#c79953', tablet: '#a18bce', windows: '#5987db', android: '#27a99a', harmonyos: '#73a483', ios: '#8d8dcb', macos: '#b38a67', linux: '#bf9c43', chromeos: '#73a483', chrome: '#5987db', edge: '#27a99a', safari: '#8d8dcb', webview: '#b38a67', firefox: '#ca8659', other: '#929cae', unknown: '#a6abb5' }
 const color = (node: DeviceNode) => palette[node.category] ?? '#929cae'
 const selected = computed(() => {
   if (selection.value?.kind === 'node') {

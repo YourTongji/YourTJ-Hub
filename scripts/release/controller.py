@@ -23,7 +23,9 @@ def write_json(path, value):
 
 def candidate_path(candidate_id):
     require(isinstance(candidate_id, str) and ID.fullmatch(candidate_id), "Invalid candidate ID")
-    return f"releases/requests/{candidate_id}"
+    # The pre-pipeline Harmony package is an archive, never an automatic publication request.
+    directory = 'history' if candidate_id == 'mobile-1.0.18-36' else 'requests'
+    return f"releases/{directory}/{candidate_id}"
 
 
 def load_candidate(candidate_id, ref="HEAD", destination=None, draft=False):

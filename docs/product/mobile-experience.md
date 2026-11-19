@@ -1536,7 +1536,7 @@ and forwarding on Web, App and old clients; see [forum permissions](forum.md#pri
   without profile privacy keep every stream public. See
   [profile visibility](identity-and-access.md#profile-visibility).
 
-- `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS
+- `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS/HarmonyOS
   release builds against `https://f.yourtj.de`, with no settings switch or consent preference. Fresh
   installations and upgrades use the same policy, regardless of any legacy saved analytics choice.
   Page views go to the existing first-party Umami website. Debug/profile,
@@ -1771,6 +1771,20 @@ The approved permission/privacy/failure boundaries for optional analytics are re
   files are removed after sharing. The browser's cookies/storage/cache are cleared on exit.
 
 ## Distribution and updates
+
+- `Partial`: native HarmonyOS uses a Flutter OH HAP with ArkTS system bridges and service cards,
+  preserving the shared Flutter UI. ARM64 Release and x64 Debug artifacts are built and checked
+  for packaged ABI and ELF compatibility. AppGallery public distribution, signed device acceptance,
+  Passkey, complete card/visual acceptance and configured real push delivery remain incomplete.
+  HarmonyOS preview readiness uses its own artifact and does not inherit Android readiness.
+  See [native HarmonyOS development](../development/mobile-harmonyos.md) for tools and checks.
+
+- `Current`: non-preview HarmonyOS builds expose the existing Check for updates action. It opens
+  the persistent AppTest group through the system external-link handler. AppTest owns test-version
+  installation and automatic updates when the user enables them; startup/resume never opens it
+  automatically. A failed handoff shows an error and can be retried. Android/iOS release history is
+  unchanged; HarmonyOS does not query their release catalogs or claim an unavailable test update is
+  the latest version. See [HarmonyOS distribution and update requirements](../operations/mobile-releases.md#群组分发与更新).
 
 - `Current`: each dev merge automatically builds Web and native developer versions from the same SHA.
   Mobile builds show `DEV <YYYYMMDDNNNN> · <short SHA>`, connect to dev.yourtj.de and use isolated

@@ -27,6 +27,101 @@ Production RCs use the final production builder; RC promotion restores the
 original APKs/image or selects the exact Apple build. Release workflows do not rerun source test
 suites. The [release runbook](releases.md#production-rc) owns this behavior and compatibility.
 
+## HarmonyOS APP Test
+
+原生鸿蒙接入已有 `Release / RC` → Confirm → Recover，渠道名为 `harmony-apptest`。
+RC 的 `scope=harmonyos` 只构建鸿蒙；`mobile` 同时选择移动三端。它复用同一移动构建身份，
+生产 RC 使用正式地址、Release 模式并关闭预览标记。Confirm 复用原签名 APP，才创建邀请测试草稿、
+上传并送审；不会调用正式上架接口。旧 `Release / HarmonyOS APP Test entry` 仅提示新入口。
+应用身份和本地开发工具见[鸿蒙开发文档](../development/mobile-harmonyos.md)。
+
+工作流只从 `main` 控制面运行，签名和华为凭据仍在 `mobile-release` 受保护环境。
+草稿继承控制台现有分类、标签、品牌和审核资料；仅更新本次原包、已审核更新说明、测试时间和
+指定群组。测试开始时间取提交时刻，有效期 30 天；审核完成前不能安装。
+更新说明最多 1024 字，说明和继承的应用描述不得包含“同济大学”，超限或不符时停止送审。
+控制台须先准备有效审核资料，CI 不编造联系人或审核账号。
+
+`dev` 自动投递复用 dev 的构建身份与原包恢复，使用 dev 地址和预览配置。
+必须配置独立的内部 `HARMONY_DEV_TEST_GROUP_ID`，且不同于正式内测的 `HARMONY_TEST_GROUP_ID`；
+缺少或相同时停止，不能回退到正式群组。显式解除其他继承群组的绑定，并在配置后及最终提交前
+回读华为实际绑定，仅允许本次目标群组，否则保留回执并停止。两者共享原生 bundle，不能像独立 Android Dev 包一样并存，
+加入两个群组的同一设备也可能覆盖安装，测试账号应分开。
+华为要求测试版 VersionCode 不低于已发布的测试版，见
+[版本号规范](https://developer.huawei.com/consumer/cn/doc/App/agc-help-apptest-release-testapp-0000002292711385/)。
+如果 dev 已推进到高于待确认 RC 的构建号，旧 RC 在外部操作前停止；需准备新 RC 身份，
+不能重建旧构建号、修改原包或直接降级送审。独立群组不隔离应用级版本号空间。
+
+### 群组分发与更新
+
+`Current`：鸿蒙邀请测试使用 AppTest 外部群组公开链接。群组级链接跨版本复用，
+链接本身无有效期；每个测试版本仍有独立的测试时间和审核状态。
+客户端链接的唯一配置位于 `update_host.dart` 的 `harmonyAppTestGroupUrl`。
+新版本草稿必须勾选同一外部群组，审核通过且到达开始时间后，原测试用户可在
+AppTest 查看新版本；用户开启自动更新时，由 AppTest 自动升级。
+见华为[邀请测试 FAQ](https://developer.huawei.com/consumer/cn/doc/App/agc-help-invite-test-faq-0000002363660365/)。
+
+从 AppGallery 邀请测试切换至 AppTest 后，应重新创建测试版本，不能直接复用切换前
+的旧草稿。统一流程会创建新草稿并保存其 ID；不要为迁移重建已使用过的版本号。
+群组公开链接必须保持启用，并检查人数上限和版本绑定；链接可打开并不证明账号有资格
+或设备可以安装。AppTest 不支持未成年模式，见上述 FAQ。
+
+`Current`：鸿蒙非预览构建的“检查更新”通过系统外部链接打开固定群组入口，
+安装、更新授权和安装包校验均由 AppTest 与系统完成。启动和前后台恢复不会自动跳转。
+打开失败时显示可重试错误，不误报“已是最新版”。开发预览仍使用原有预览分发提示。
+华为[应用市场更新指南](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/store-update/)
+明确排除邀请测试、公开测试和模拟器，因此本分发渠道不调用 `checkAppUpdate`。
+
+`Partial`：旧版到新版的真实覆盖安装、用户数据保留和 AppTest 自动更新仍需真机验收。
+模拟器打开链接或本地构建成功不能证明这些流程通过。
+
+环境 Variables 需要 `HARMONY_TEST_GROUP_ID` 和独立的 `HARMONY_DEV_TEST_GROUP_ID`。
+仅正式群组启用公开分享；dev 内部群组应只允许测试账号访问。
+
+环境需要以下 Secrets：
+
+- `HARMONY_CLI_DOWNLOAD_URL`：官方 Linux x64 Command Line Tools `26.0.0.865` 下载链接。
+  PR 原生 CI 另需同名仓库级下载 Secret，经维护者明确批准后配置；fork PR 不接收 Secret，须在可信分支验证。
+  签名查询参数也属于保密内容；下载器校验域名、版本和固定 SHA-256，并拒绝重定向。
+- `HARMONY_KEYSTORE_BASE64`、`HARMONY_KEYSTORE_PASSWORD`：PKCS12 和密码，密钥别名为 `yourtj-release`。
+- `HARMONY_CERTIFICATE_BASE64`、`HARMONY_PROFILE_BASE64`：发布证书链和同一原生包名的发布 Profile。
+- `HARMONY_SERVICE_ACCOUNT_JSON`：华为下载的 Service Account 凭据，含 `private_key`。
+  使用 APP 管理员角色；平台会包含开发、财务、运营和客服子角色。开发者级凭据可管理账号下其他应用，
+  工作流中的目标应用固定不代表凭据本身具有应用级隔离。
+
+编辑器使用 `READ_PASTEBOARD` ACL。先按“Flutter 开源框架”场景申请权限，审核通过后，
+在发布 Profile 中包含该权限并更新对应 Secret。构建预检拒绝缺少 ACL、包名不符或非发布类型的 Profile。
+待审核申请和短期调试 Profile 都不能替代获批的发布 Profile。
+
+签名包含内部 HAP 和 APP 外层，两层都使用官方工具验签。APP 打包使用
+`--replace-pack-info false`，并检查内部 HAP 字节未变化；仅内部 HAP 验签通过不能证明 APP 可上传。
+软件包上传为“仅测试”，合法性检查成功后才绑定草稿并提交。审核提交成功不代表测试已获批或可安装。
+
+原始 APP 和校验和保存在 `harmonyos-<version>-<number>`，dev 为
+`preview-harmonyos-<version>-<number>`，保存 90 天；原包过期后停止恢复，不能重建已分发身份。
+上传意图和非秘密回执保存在 `harmony-upload-<attempt>`。Recover 选择 `harmony-apptest`，
+从原构建 run 恢复 APP，从最后成功保存回执的 run 恢复回执，并核对版本、包名、源码和 RC SHA-256。
+创建草稿、上传或提交的响应丢失时保留意图并停止，先在华为控制台核对后恢复，不能重复创建或上传。
+
+`Mobile Release Catalog` 每小时从默认分支请求受保护的 `main` 控制面刷新；也可手动运行。
+它核对原 version/package ID，只在华为状态为“正在测试”时将待审回执推进为成功。
+正式历史来自已合入的结构化说明和成功回执；提交成功、待生效、待审核不能冒充可用版本。
+目录将三端分区输出：旧 Android/iOS 继续读取 `releases.json`，鸿蒙读取
+`releases-harmony.json`，防止旧客户端因未知渠道拒绝整个目录。
+status 提供同名固定代理路径，客户端使用原有历史时间线和错误重试界面。
+
+最早的鸿蒙 `1.0.18 (36)` 在统一流水线前分发，归档位于
+`releases/history/mobile-1.0.18-36`，不属于自动发布请求，不重建或送审。
+首次刷新仍须由华为 API 确认原邀请测试、版本名、构建号和包 ID 正在测试，才导入历史回执；
+旧包未知或已过期时停止导入，不补写无法证明的版本。历史覆盖从 36 开始，不能声称更早记录完整。
+历史回填不推进统一发布基线，避免较晚导入的旧记录覆盖新版本，或旧功能分支经 squash 合入后
+无法作祖先比较。首次统一 RC 完整审阅候选变化；原生构建号仍必须高于华为已有软件包。
+
+接口依据为华为的[服务端鉴权](https://developer.huawei.com/consumer/cn/doc/App/agc-help-connect-api-obtain-server-auth-0000002271134661/)、
+[Testing API](https://developer.huawei.com/consumer/cn/doc/App/agc-help-test-api-guide-0000002236015562)
+和[包解析状态](https://developer.huawei.com/consumer/cn/doc/app/agc-help-publish-api-data-packagestates-0000002271160601)。
+当前完整发布验收仍依赖获批 ACL、有效发布 Profile、已配置测试用户和华为审核结果；
+真实设备安装、推送与签名升级另行验收。
+
 ## iOS build requirements
 
 `Current`: the Runner, ScheduleWidgets extension and the local home_widget bridge require iOS 15

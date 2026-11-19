@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "candidateId": "mobile-1.0.18-36",
+  "sourceSha": "063db1be8945a71fcbe3c2ff4187204f303f0042",
+  "product": "mobile",
+  "version": "1.0.18",
+  "tag": "mobile-v1.0.18",
+  "buildNumber": 36,
+  "channels": [
+    "harmony-apptest"
+  ],
+  "operation": "release",
+  "existingRelease": null,
+  "baselines": {
+    "harmony-apptest": {
+      "tag": null,
+      "sourceSha": null
+    }
+  },
+  "notes": {
+    "harmony-apptest": "harmony.zh-CN.md"
+  },
+  "serverRequirement": null,
+  "requiredDisclosures": []
+}

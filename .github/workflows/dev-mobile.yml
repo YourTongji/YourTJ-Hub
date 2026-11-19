@@ -8,6 +8,7 @@ permissions:
   actions: read
   deployments: write
   pull-requests: read
+  checks: read
 concurrency:
   # Allocate only after the preceding bundle has uploaded: Apple numbers increase
   # in upload order even when dev and production RCs share an app ID.
@@ -67,5 +68,15 @@ jobs:
       number: ${{ needs.identity.outputs.number }}
       display_build: ${{ needs.identity.outputs.display }}
       ios_number: ${{ needs.identity.outputs.ios_number }}
+      automatic: true
+    secrets: inherit
+  harmonyos:
+    needs: identity
+    uses: ./.github/workflows/release-harmony.yml
+    with:
+      source: ${{ inputs.source }}
+      version: ${{ needs.identity.outputs.version }}
+      number: ${{ needs.identity.outputs.number }}
+      display_build: ${{ needs.identity.outputs.display }}
       automatic: true
     secrets: inherit

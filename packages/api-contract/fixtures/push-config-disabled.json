@@ -4,7 +4,8 @@
     "native": {
       "apnsEnabled": false,
       "fcmEnabled": false,
-      "jpushEnabled": false
+      "jpushEnabled": false,
+      "huaweiEnabled": false
     },
     "viewerId": 2096
   },

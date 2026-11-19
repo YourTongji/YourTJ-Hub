@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -11,16 +12,31 @@ String read(String path) => normalizeLineEndings(File(path).readAsStringSync());
 String widgetSource(String name) =>
     read('android/app/src/main/kotlin/tj/yourtj/forum_app/widget/$name');
 
-String readAllWidgets() =>
-    [
-      'ScheduleGlanceWidget.kt',
-      'ScheduleWidgetCommon.kt',
-      'NextClassWidget.kt',
-      'TodayScheduleWidget.kt',
-      'CourseTimelineWidget.kt',
-    ].map(widgetSource).join();
+String readAllWidgets() => [
+  'ScheduleGlanceWidget.kt',
+  'ScheduleWidgetCommon.kt',
+  'NextClassWidget.kt',
+  'TodayScheduleWidget.kt',
+  'CourseTimelineWidget.kt',
+].map(widgetSource).join();
 
 void main() {
+  test('Harmony cards allow launcher resize between supported dimensions', () {
+    final profile =
+        jsonDecode(
+              read(
+                'ohos/entry/src/main/resources/base/profile/schedule_forms.json',
+              ),
+            )
+            as Map<String, dynamic>;
+    final forms = (profile['forms'] as List).cast<Map<String, dynamic>>();
+    expect(forms, hasLength(3));
+    for (final form in forms) {
+      expect(form['resizable'], isTrue, reason: form['name'] as String);
+      expect((form['supportDimensions'] as List).length, greaterThan(1));
+    }
+  });
+
   test('Kotlin source matching accepts Windows line endings', () {
     const windowsSource = '@Composable\r\nprivate fun TimelineHeader()\r\n';
     expect(
@@ -100,35 +116,38 @@ void main() {
     expect(timeline, contains('class ToggleCourseTimelineDayAction'));
   });
 
-  test('Android large schedule has two independent equal-width collections', () {
-    final source = widgetSource('TodayScheduleWidget.kt');
-    final large = source.substring(
-      source.indexOf('private fun LargeSchedule'),
-      source.indexOf('private fun LargeDayColumn'),
-    );
-    final dayColumn = source.substring(
-      source.indexOf('private fun LargeDayColumn'),
-      source.indexOf('private fun Divider'),
-    );
+  test(
+    'Android large schedule has two independent equal-width collections',
+    () {
+      final source = widgetSource('TodayScheduleWidget.kt');
+      final large = source.substring(
+        source.indexOf('private fun LargeSchedule'),
+        source.indexOf('private fun LargeDayColumn'),
+      );
+      final dayColumn = source.substring(
+        source.indexOf('private fun LargeDayColumn'),
+        source.indexOf('private fun Divider'),
+      );
 
-    expect(source, isNot(contains('(LocalSize.current.width -')));
-    expect(large, contains(RegExp(r'LargeDayColumn\(\s*"今天"')));
-    expect(large, contains(RegExp(r'LargeDayColumn\(\s*"明天"')));
-    expect(dayColumn, contains('LazyColumn'));
-    expect(dayColumn, contains('items = day.courses'));
-    expect(
-      dayColumn,
-      contains('itemId = { course -> course.id.hashCode().toLong() }'),
-    );
-    expect(large, contains('defaultWeight()'));
-    expect(large, contains('fillMaxHeight()'));
-    expect(large, contains('Divider('));
-    expect(dayColumn, contains('contentDescription = description'));
-    expect(dayColumn, isNot(contains('CoursePairRow')));
-    expect(dayColumn, isNot(contains('items(itemCount)')));
-    expect(dayColumn, isNot(contains('take(2)')));
-    expect(dayColumn, isNot(contains('Remaining(')));
-  });
+      expect(source, isNot(contains('(LocalSize.current.width -')));
+      expect(large, contains(RegExp(r'LargeDayColumn\(\s*"今天"')));
+      expect(large, contains(RegExp(r'LargeDayColumn\(\s*"明天"')));
+      expect(dayColumn, contains('LazyColumn'));
+      expect(dayColumn, contains('items = day.courses'));
+      expect(
+        dayColumn,
+        contains('itemId = { course -> course.id.hashCode().toLong() }'),
+      );
+      expect(large, contains('defaultWeight()'));
+      expect(large, contains('fillMaxHeight()'));
+      expect(large, contains('Divider('));
+      expect(dayColumn, contains('contentDescription = description'));
+      expect(dayColumn, isNot(contains('CoursePairRow')));
+      expect(dayColumn, isNot(contains('items(itemCount)')));
+      expect(dayColumn, isNot(contains('take(2)')));
+      expect(dayColumn, isNot(contains('Remaining(')));
+    },
+  );
 
   test(
     'Android 12 widget picker scales the full-canvas preview within host bounds',

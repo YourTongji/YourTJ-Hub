@@ -68,6 +68,12 @@ jobs:
     uses: ./.github/workflows/ci-mobile-native.yml
     with:
       platforms: '["android"]'
+  harmonyos:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).harmonyos.run
+    uses: ./.github/workflows/ci-mobile-harmony.yml
+    secrets:
+      HARMONY_CLI_DOWNLOAD_URL: ${{ secrets.HARMONY_CLI_DOWNLOAD_URL }}
   ios:
     needs: inputs
     if: fromJSON(needs.inputs.outputs.plan).ios.run
@@ -126,7 +132,7 @@ jobs:
   # this gate/classifier; it is not an authorization boundary independent of code review.
   # Publication additionally uses the trusted-main release-authorized controller.
   ci-required:
-    needs: [inputs, docs, govulncheck, backend, frontend, contract, mobile, android, ios, status, automation, release, ci-backend, ci-frontend, ci-contract]
+    needs: [inputs, docs, govulncheck, backend, frontend, contract, mobile, android, ios, harmonyos, status, automation, release, ci-backend, ci-frontend, ci-contract]
     if: always()
     runs-on: ubuntu-latest
     steps:

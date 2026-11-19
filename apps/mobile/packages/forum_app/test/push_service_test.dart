@@ -37,7 +37,11 @@ class Driver extends PushDriver {
   Completer<bool>? pendingPermission;
   Completer<void>? pendingStop;
   @override
-  String get platform => transport == 'apns' ? 'ios' : 'android';
+  String get platform => switch (transport) {
+    'apns' => 'ios',
+    'huawei' => 'ohos',
+    _ => 'android',
+  };
   @override
   String get provider => transport;
   @override
@@ -541,6 +545,31 @@ void main() {
     await settle();
     await controller().enable();
     expect(repo.registered, ['android:jpush:native-token']);
+  });
+  test(
+    'HarmonyOS registers only with its configured Huawei transport',
+    () async {
+      driver.transport = 'huawei';
+      repo.configValue = const PushConfigPayload(
+        configured: false,
+        native: NativePushConfig(
+          apnsEnabled: false,
+          fcmEnabled: false,
+          huaweiEnabled: true,
+        ),
+      );
+      await settle();
+      await controller().enable();
+      expect(status(), PushChannelStatus.enabled);
+      expect(repo.registered, ['ohos:huawei:native-token']);
+    },
+  );
+  test('other native transports do not enable HarmonyOS delivery', () async {
+    driver.transport = 'huawei';
+    await settle();
+    await controller().enable();
+    expect(status(), PushChannelStatus.serverDisabled);
+    expect(driver.registrations, 0);
   });
   test('repeated native token callbacks do not restart registration', () async {
     await settle();

@@ -3,6 +3,14 @@ from select_inputs import select, verify_results
 
 
 class SelectTests(unittest.TestCase):
+    def test_harmony_native_and_shared_dart_changes_require_harmony_ci(self):
+        for path in ('apps/mobile/packages/forum_app/ohos/entry/src/main/module.json5',
+                     'apps/mobile/packages/forum_app/lib/src/app.dart',
+                     'scripts/mobile-release/build_harmony.py'):
+            with self.subTest(path=path):
+                self.assertTrue(select([path])['harmonyos']['run'])
+
+
     def test_docs_still_get_governance_and_current_vulnerability_scan(self):
         plan = select(["docs/operations/releases.md"])
         self.assertEqual({k for k, v in plan.items() if v["run"]}, {"docs", "govulncheck"})

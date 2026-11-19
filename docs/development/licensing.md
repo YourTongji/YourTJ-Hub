@@ -69,6 +69,7 @@ GPLv3 允许收费分发，但交付 GPL 软件时，须提供对应版本的完
 | `apps/mobile/packages/ui_kit/assets/LICENSE-reicon.txt` | MIT |
 | `apps/mobile/packages/ui_kit/assets/LICENSE-simple-icons.txt` | CC0 1.0 Universal |
 | `apps/mobile/third_party/home_widget/LICENSE` | BSD 3-Clause |
+| `apps/mobile/third_party/flutter_math_fork/LICENSE` | Apache-2.0；内置 KaTeX 字体保留 `lib/katex_fonts/LICENSE` 中的 MIT 许可 |
 | `apps/gooseforum/app/console/stickerpresets/preset_stickers/LICENSE-EmojiPackage.txt` | Apache-2.0 |
 | `apps/gooseforum/app/console/stickerpresets/preset_stickers/LICENSE-WXMemeStickers.txt` | MIT |
 | `apps/gooseforum/app/console/stickerpresets/preset_stickers/LICENSE-flowerhd.txt` | CC BY 4.0 |

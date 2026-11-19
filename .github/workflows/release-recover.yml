@@ -9,7 +9,7 @@ on:
       channel:
         description: Resume only this approved channel using original artifacts
         type: choice
-        options: [web, android, android-alias, ios-testflight, ios-app-store]
+        options: [web, android, android-alias, ios-testflight, ios-app-store, harmony-apptest]
         required: true
 permissions:
   contents: write

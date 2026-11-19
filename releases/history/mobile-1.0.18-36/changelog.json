@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "version": "1.0.18",
+  "buildNumber": 36,
+  "highlights": [
+    {
+      "id": "harmony-native",
+      "title": "原生鸿蒙适配",
+      "summary": "支持原生鸿蒙应用与桌面课表小组件。",
+      "kind": "feature",
+      "platforms": [
+        "harmony-apptest"
+      ]
+    }
+  ],
+  "breaking": [],
+  "requiredActions": [],
+  "testflightNotes": [],
+  "evidence": {
+    "harmony-native": [
+      "initial-harmony-release"
+    ]
+  }
+}

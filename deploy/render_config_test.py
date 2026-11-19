@@ -276,6 +276,16 @@ for instance_name, expected_rp_id in [("dev", "dev.yourtj.de"), ("main", "f.your
     )
     passkey_cfg = tomllib.loads(rc.render(real_tmpl, passkey_values))["passkeys"]
     check_eq(f"{instance_name} passkeys ship disabled", False, passkey_cfg["enabled"])
+    check_eq(f"{instance_name} uses only its configured Harmony identity",
+             instance.get("passkeys", {}).get("harmony_app_identifier", ""), passkey_cfg["harmony_app_identifier"])
+    harmony_instance = {**instance, "passkeys": {
+        **instance.get("passkeys", {}), "harmony_app_identifier": "1234567890",
+    }}
+    harmony_values, _ = rc.build_values(
+        instance_name, harmony_instance, passkey_env, real_tokens, rc.optional_tokens(instance_name)
+    )
+    harmony_config = tomllib.loads(rc.render(real_tmpl, harmony_values))["passkeys"]
+    check_eq(f"{instance_name} preserves Harmony app identity", "1234567890", harmony_config["harmony_app_identifier"])
     check_eq(f"{instance_name} pins its own RP ID", expected_rp_id, passkey_cfg["rp_id"])
     check_eq(
         f"{instance_name} web origin stays on the instance hostname",

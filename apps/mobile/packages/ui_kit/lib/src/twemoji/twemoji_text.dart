@@ -297,16 +297,15 @@ class _GfSelectionAreaState extends State<GfSelectionArea> {
   }
 
   void _finishCopy(SelectableRegionState selection) {
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-      case TargetPlatform.fuchsia:
-        selection.clearSelection();
-      case TargetPlatform.iOS:
-        selection.hideToolbar(false);
-      case TargetPlatform.linux:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-        selection.hideToolbar();
+    final platform = defaultTargetPlatform;
+    if (platform == TargetPlatform.iOS) {
+      selection.hideToolbar(false);
+    } else if (platform == TargetPlatform.linux ||
+        platform == TargetPlatform.macOS ||
+        platform == TargetPlatform.windows) {
+      selection.hideToolbar();
+    } else {
+      selection.clearSelection();
     }
   }
 

@@ -68,6 +68,45 @@ func TestPasskeyStatusDisabledByDefault(t *testing.T) {
 	assertResultObjectKeysMatchFixture(t, response, contractFixture(t, "passkey-status-disabled.json"))
 }
 
+func TestHarmonyAssociationRequiresExplicitAppIdentity(t *testing.T) {
+	_, router := setupPasskeyContractTest(t)
+	router.GET("/.well-known/applinking.json", api.HarmonyAppLinkingAssociation)
+	previous := preferences.GetRaw("passkeys.harmony_app_identifier")
+	t.Cleanup(func() {
+		if previous == nil {
+			preferences.Set("passkeys.harmony_app_identifier", "")
+		} else {
+			preferences.Set("passkeys.harmony_app_identifier", previous)
+		}
+	})
+	preferences.Set("passkeys.harmony_app_identifier", "")
+	missing := servePasskeyJSON(router, http.MethodGet, "/.well-known/applinking.json", "", "")
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("unconfigured association status = %d", missing.Code)
+	}
+	preferences.Set("passkeys.harmony_app_identifier", "1234567890")
+	configured := servePasskeyJSON(router, http.MethodGet, "/.well-known/applinking.json", "", "")
+	if configured.Code != http.StatusOK {
+		t.Fatalf("configured association status = %d", configured.Code)
+	}
+	var body struct {
+		AppLinking struct {
+			Apps []struct {
+				AppIdentifier string `json:"appIdentifier"`
+			} `json:"apps"`
+		} `json:"applinking"`
+	}
+	if err := json.Unmarshal(configured.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.AppLinking.Apps) != 1 || body.AppLinking.Apps[0].AppIdentifier != "1234567890" {
+		t.Fatal("association did not preserve the configured app identity")
+	}
+	if configured.Header().Get("Cache-Control") != "public, max-age=3600" {
+		t.Fatal("association cache policy differs from existing platform associations")
+	}
+}
+
 func TestPasskeyManagementRequiresStrongReauthenticationAndOneUseProof(t *testing.T) {
 	conn, router := setupPasskeyContractTest(t)
 	user := createHTTPContractUser(t, conn, contractTestID())

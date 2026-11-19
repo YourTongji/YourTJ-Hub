@@ -1,0 +1,12 @@
+name: Release / HarmonyOS APP Test entry
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  guidance:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo 'Use Release / RC with scope harmonyos or mobile, then the existing reviewed Confirm request.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Recover uses channel harmony-apptest and restores the original signed APP; this entry never rebuilds or bypasses approval.' >> "$GITHUB_STEP_SUMMARY"

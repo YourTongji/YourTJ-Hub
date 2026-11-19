@@ -22,7 +22,7 @@ export default {
     // Static assets bypass the handler. No HTTP route can start collection.
     const { pathname } = new URL(request.url)
     // Mobile release notes proxy one fixed public GitHub asset without storage access.
-    if (pathname === '/mobile/releases.json') return serveMobileReleases(request)
+    if (pathname === '/mobile/releases.json' || pathname === '/mobile/releases-harmony.json') return serveMobileReleases(request)
     if (pathname !== '/api/status') return new Response(request.method === 'HEAD' ? null : 'Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } })
     const query = snapshotQuery(request), durable = r2Store(env.SNAPSHOTS)
     // Two bounded reads fit the R2 allowance. Avoid copying dynamic responses

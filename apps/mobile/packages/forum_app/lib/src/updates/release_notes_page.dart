@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -19,12 +20,18 @@ class ReleaseNotesPage extends StatefulWidget {
 }
 
 class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
-  late final AndroidReleaseClient _client = AndroidReleaseClient();
+  late final AndroidReleaseClient _client = AndroidReleaseClient(
+    harmony: defaultTargetPlatform.name == 'ohos',
+  );
   ReleaseNoteCatalog? _catalog;
   IosStoreListing? _appStore;
   bool _loading = true;
   // Public history follows the user's platform; beta instructions belong in TestFlight.
-  String get _platform => Platform.isAndroid ? 'android' : 'ios-app-store';
+  String get _platform => switch (defaultTargetPlatform.name) {
+    'android' => 'android',
+    'ohos' => 'harmony-apptest',
+    _ => 'ios-app-store',
+  };
 
   @override
   void initState() {

@@ -17,7 +17,7 @@ export function deviceGraph(data: StatusDevices, width: number, dimensions: Dime
   for (const dimension of dimensions) {
     const totals = new Map<string, number>()
     for (const row of data.rows) totals.set(row[dimension], (totals.get(row[dimension]) ?? 0) + row.visitors)
-    keep.set(dimension, new Set([...totals].sort((a, b) => b[1] - a[1]).filter(([name, n], i) => dimension === 'device' || name === 'unknown' || name === 'yourtj-app' || (i < 5 && n >= data.visitors * .015)).map(([name]) => name)))
+    keep.set(dimension, new Set([...totals].sort((a, b) => b[1] - a[1]).filter(([name, n], i) => dimension === 'device' || name === 'unknown' || name === 'yourtj-app' || name === 'harmonyos' || (i < 5 && n >= data.visitors * .015)).map(([name]) => name)))
   }
   for (const row of data.rows) {
     if (!row.visitors) continue

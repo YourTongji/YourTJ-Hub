@@ -200,6 +200,7 @@ func apiRoute(ginApp *gin.Engine) {
 	campusRoutes(ginApp)
 	ginApp.GET("/.well-known/apple-app-site-association", api.AppleWebCredentialsAssociation)
 	ginApp.GET("/.well-known/assetlinks.json", api.AndroidDigitalAssetLinks)
+	ginApp.GET("/.well-known/applinking.json", api.HarmonyAppLinkingAssociation)
 	baseApi := ginApp.Group("api")
 
 	baseApi.POST("login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)

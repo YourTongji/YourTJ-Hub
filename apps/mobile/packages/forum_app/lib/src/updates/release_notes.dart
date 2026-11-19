@@ -45,6 +45,7 @@ class ReleaseNote {
             'ios',
             'ios-app-store',
             'ios-testflight',
+            'harmony-apptest',
           }.contains(p),
         ) ||
         !const {'feature', 'improvement', 'fix', 'security'}.contains(kind)) {
@@ -99,7 +100,12 @@ class ReleaseNoteVersion {
       return null;
     }
     final rawChannels = value['channels'];
-    const allowedChannels = {'android', 'ios-app-store', 'ios-testflight'};
+    const allowedChannels = {
+      'android',
+      'ios-app-store',
+      'ios-testflight',
+      'harmony-apptest',
+    };
     if (version is! String ||
         !RegExp(r'^\d+\.\d+\.\d+$').hasMatch(version) ||
         build is! int ||
@@ -205,7 +211,12 @@ class ReleaseNoteCatalog {
           channels is! Map) {
         return null;
       }
-      const allowedChannels = {'android', 'ios-app-store', 'ios-testflight'};
+      const allowedChannels = {
+        'android',
+        'ios-app-store',
+        'ios-testflight',
+        'harmony-apptest',
+      };
       if (channels.keys.any((key) => !allowedChannels.contains(key))) {
         return null;
       }

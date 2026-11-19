@@ -27,6 +27,8 @@ for (const [width, lang, theme] of [[320, 'zh', 'gf-light'], [390, 'de', 'gf-dar
         response.result.serverRange = new URL(route.request().url()).searchParams.get('serverRange')
         response.result.deviceRange = new URL(route.request().url()).searchParams.get('deviceRange')
         response.result.devices.fetchedAt = new Date().toISOString()
+        response.result.devices.data.rows[0].visitors -= 1
+        response.result.devices.data.rows.push({ device: 'mobile', os: 'harmonyos', browser: 'yourtj-app', visitors: 1 })
         response.result.server.data.historyFetchedAt = new Date().toISOString()
         response.result.server.fetchedAt = response.result.traffic.fetchedAt = response.result.server.data.current.observedAt = new Date().toISOString()
         response.result.uptime.fetchedAt = response.result.uptime.data.monitors[0].current.time = new Date().toISOString()
@@ -114,6 +116,7 @@ for (const [width, lang, theme] of [[320, 'zh', 'gf-light'], [390, 'de', 'gf-dar
         const labelSizes = await page.locator('.device-node text').evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().height))
         assert.ok(labelSizes.every(h => h >= 20), 'mobile labels remain readable')
       }
+      assert.ok(await page.locator('.device-node text').filter({ hasText: 'HarmonyOS' }).isVisible(), 'small HarmonyOS app traffic remains visible in the existing chart')
       await page.locator('.status-devices .status-range button').nth(2).click()
       await page.waitForFunction(() => document.querySelector('.status-devices .status-range button:nth-child(3)').getAttribute('aria-pressed') === 'true' && !document.querySelector('.status-refresh').disabled)
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'device chart must not overflow')

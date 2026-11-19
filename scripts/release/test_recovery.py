@@ -99,6 +99,20 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(details['assets'], ['immutable.apk'])
         self.assertEqual(details['runId'], '200')
 
+    def test_harmony_failed_recovery_keeps_last_saved_receipt_run(self):
+        manifest = candidate()
+        live = {'tag': manifest['tag'], 'sourceSha': manifest['sourceSha']}
+        prior = {'deployment': {'payload': {'binding': {'contentDigest': 'reviewed'},
+                    'details': {'buildRunId': '100', 'runId': '190', 'receiptRunId': '150', 'appSha256': 'a' * 64}}}}
+        for _ in range(2):
+            output, details = self.invoke(live, prior, channel='harmony-apptest')
+            self.assertIn('build_required=false', output)
+            self.assertIn('build_run_id=100', output)
+            self.assertIn('receipt_run_id=150', output)
+            self.assertIn('app_sha256=' + 'a' * 64, output)
+            self.assertEqual(details['receiptRunId'], '150')
+            prior['deployment']['payload']['details'] = details
+
     def test_changed_review_or_missing_original_artifact_receipt_blocks_recovery(self):
         prior = {'deployment': {'payload': {'binding': {'contentDigest': 'changed'}, 'details': {'buildRunId': '100'}}}}
         for previous in (prior, None):
