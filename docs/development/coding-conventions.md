@@ -37,7 +37,10 @@ specificity 按源序覆盖，行数截断会静默失效（缺陷链 #1639/#164
    （`data-[state=open]/open:`）。
 2. **超集**：display 的变体链段集合 ⊇ clamp 的变体链段集合（含「无变体 clamp +
    断点/状态变体 display」，如 `line-clamp-2 sm:block`）→ display 在 clamp 生效的
-   全部语境额外激活，`@media`/状态规则源序靠后覆盖 clamp，报错。
+   全部语境额外激活，`@media`/状态规则源序靠后覆盖 clamp，报错。**结构性变体段不
+   参与超集比较**：`*:`/`**:`/`[&_svg]:`/`[&>*]:` 等编译出后代/子代选择器，display
+   落在子元素上，不覆盖元素自身的截断（`[&:hover]:` 仍指元素自身，照常参与）。
+   同前缀规则不受此排除影响——`*:line-clamp-1 *:flex` 同落子元素仍是真冲突。
 3. **反方向合法**：clamp 变体链更长（`sm:line-clamp-2` + 裸 `block`）→ clamp 在更窄
    语境源序靠后获胜，不报；不相关变体链（`sm:line-clamp-2` + `md:block`）语境不相交，不报。
 
@@ -59,11 +62,13 @@ important 修饰符（v3 前缀 `!block` / v4 后缀 `block!`）参与判定：�
 - **`:class` 对象/数组语法**：`{'line-clamp-2': true, 'block': true}` 或 `['line-clamp-2', 'block']`
   各键/项独立成串，不合并判定同元素多键同时生效的冲突；
 - **跨组件传导**：父组件 `*:…:flex` 变体打子组件根、子组件根自带 clamp，单文件视角不可见；
-- 扫描范围不含 `resource/templates` gohtml 模板与 `resource/packages/client` 工作区
-  （当前均无 line-clamp 用法）。
+- 扫描范围不含 `resource/templates` gohtml 模板、`resource/packages/client` 工作区，
+  以及 `.css` 文件里的 `@apply`（`components.css`/`admin.css` 在用 `@apply`，当前均无
+  line-clamp 用法；出现时须人工核对或扩展扫描）。
 
-粗扫描不做完整词法分析：极端形态可能漏报，方向保守；发现误报走豁免清单并修正扫描器，
-不放宽判定规则。
+粗扫描不做完整词法分析：极端形态可能漏报；正则/除号启发式与变体语义判断也可能在
+新形态上产生误报（两轮审查各修过一批，复现用例已锁）。发现误报走豁免清单并修正
+扫描器，不放宽判定规则。
 
 **通用浏览器断言（完备性兜底）**：静态门禁只覆盖源码可见形态；真实级联结果由
 `apps/gooseforum/resource/test/helpers/line-clamp-assert.mjs` 在浏览器里以 computed

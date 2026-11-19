@@ -344,3 +344,65 @@ describe('arbitrary 变体 / 修饰（oryn-mini finding）', () => {
     expect(conflicts[0].prefix).toBe('data-[state=open]/open:')
   })
 })
+
+// ---- PR #1693 维护者第二轮审查（head 0d9f092ab）两条误报的复现回归 ----
+
+describe('结构性变体不参与超集比较（第二轮行评 1）', () => {
+  it('display 落子元素的结构性变体不误报', () => {
+    expect(findLineClampConflicts('line-clamp-2 [&_svg]:block')).toEqual([])
+    expect(findLineClampConflicts('line-clamp-2 *:flex')).toEqual([])
+    expect(findLineClampConflicts('line-clamp-2 [&>*]:flex')).toEqual([])
+    expect(findLineClampConflicts('line-clamp-2 [&+*]:block')).toEqual([])
+    expect(findLineClampConflicts('line-clamp-2 [&~*]:block')).toEqual([])
+    expect(findLineClampConflicts('line-clamp-2 **:grid')).toEqual([])
+  })
+
+  it('[&:hover] 仍指元素自身，超集照常报', () => {
+    expect(findLineClampConflicts('line-clamp-2 [&:hover]:block')).toHaveLength(1)
+  })
+
+  it('同前缀规则不动：结构性变体同前缀仍是真冲突（#1688 用例保持）', () => {
+    expect(findLineClampConflicts('*:line-clamp-1 *:flex')).toHaveLength(1)
+    expect(findLineClampConflicts('[&_svg]:line-clamp-2 [&_svg]:block')).toHaveLength(1)
+  })
+
+  it('clamp 带结构性变体 + 裸 display：反方向不报（clamp 链更长）', () => {
+    expect(findLineClampConflicts('[&_svg]:line-clamp-2 block')).toEqual([])
+  })
+})
+
+describe('闭括号后除号不误判正则（第二轮行评 2）', () => {
+  it('f(x) / c 后同行含路径字符串与类串：不产 scan-error，冲突照报', () => {
+    const ts = `const r = f(x) / c, p = 'a/b', cls = 'flex line-clamp-2'\n`
+    const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+    expect(findings.some((f) => f.kind === 'scan-error')).toBe(false)
+    expect(findings).toHaveLength(1)
+  })
+
+  it('arr[0] / c 与 (a+b) / c 后同行 // 注释：不产 scan-error', () => {
+    const ts = [
+      `const a = arr[0] / c // path a/b`,
+      `const b = (a+b) / c // http://x`,
+      `export const C = 'flex line-clamp-2'`,
+    ].join('\n')
+    const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+    expect(findings.some((f) => f.kind === 'scan-error')).toBe(false)
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(3)
+  })
+
+  it('if (x) /re/.test(y) 语句头后的正则仍被识别', () => {
+    const ts = `if (x) /'/.test(y)\nexport const C = 'flex line-clamp-2'\n`
+    const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+    expect(findings.some((f) => f.kind === 'scan-error')).toBe(false)
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(2)
+  })
+
+  it('replace(/…/) 首参正则不受影响（走开括号分支）', () => {
+    const ts = `const t = (x) => x.replace(/'/g, '')\nexport const C = 'flex line-clamp-2'\n`
+    const findings = scanLineClampConflicts([{ relPath: 'src/runtime/fixture.ts', text: ts }])
+    expect(findings).toHaveLength(1)
+    expect(findings[0].line).toBe(2)
+  })
+})

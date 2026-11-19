@@ -93,16 +93,40 @@ function looksLikeRegex(text, i) {
   let j = i - 1
   while (j >= 0 && /\s/.test(text[j])) j--
   if (j < 0) return true
-  // 闭括号后跟 '/'：实参/索引结束后的除号极少出现在源码类串语境，
-  // 而 `replace(/…/)` 这类调用首参正则常见——按正则处理（误判方向是多跳一段，
-  // 不会把引号当定界符，结构错误由 fail-loud 兜底）。
-  if (text[j] === ')' || text[j] === ']') return true
+  // 闭括号后跟 '/'：默认按除号（f(x) / c、arr[0] / c、(a+b) / c 都是合法除法，
+  // 误判成正则会吞掉后续字符串、fail-loud 反而挡住合法代码）。只有 ')' 配平到
+  // if/while/for/switch/catch 语句头时才认正则（if (x) /re/.test(y) 形态）；
+  // replace(/…/) 的正则前是 '('，走 regexPreceder 分支，不受此影响。
+  if (text[j] === ')') return closingParenIsStatementHead(text, j)
+  if (text[j] === ']') return false
   // 窗口须从词边界起截取：固定长度窗口可能截在标识符中间，
   // 让 \breturn$ 之类误匹配（如 …trimmed.replace( 的截断尾巴）。
   let start = Math.max(0, j - 12)
   while (start > 0 && /[A-Za-z0-9_$]/.test(text[start - 1])) start--
   const before = text.slice(start, j + 1)
   return regexPreceder.test(before)
+}
+// 从闭括号向前配平找开括号，看其前是否是语句头关键词。
+function closingParenIsStatementHead(text, close) {
+  let depth = 0
+  let j = close
+  while (j >= 0) {
+    const c = text[j]
+    if (c === ')') depth++
+    else if (c === '(') {
+      depth--
+      if (depth === 0) {
+        let k = j - 1
+        while (k >= 0 && /\s/.test(text[k])) k--
+        let start = k
+        while (start >= 0 && /[A-Za-z0-9_$]/.test(text[start])) start--
+        const word = text.slice(start + 1, k + 1)
+        return /^(?:if|while|for|switch|catch)$/.test(word)
+      }
+    }
+    j--
+  }
+  return false
 }
 function skipRegex(text, start, end) {
   let j = start + 1
@@ -376,15 +400,33 @@ function variantSegments(prefix) {
       start = i + 1
     }
   }
+  // 前缀以 ':' 结尾，最后一段在循环里不会入列——补上（否则单段前缀 segs 为空，
+  // 结构性变体识别与超集比较都会失真）。
+  if (start < prefix.length) segs.push(prefix.slice(start))
   return segs
+}
+
+// 结构性变体段：编译出的选择器带后代/子代组合符，display 落在子元素上，
+// 不覆盖元素自身的 -webkit-box。段以 */** 开头，或 arbitrary 段里 & 后跟
+// 空格/>/+/~（[&_svg]、[&>*]、[&+*]、[&~*]）；[&:hover] 仍指元素自身，不算。
+function isStructuralSegment(seg) {
+  if (seg.startsWith('*')) return true
+  const m = /^\[&([\s\S]*)\]$/.exec(seg)
+  if (!m) return false
+  const rest = m[1]
+  // & 后跟空格（后代组合符 [&_svg]、[& svg]）或 > + ~ 组合符 → 落子元素；
+  // & 后直接跟 : / . / [ 等（[&:hover]、[&.x]）仍指元素自身。
+  return /^[\s>+~]/.test(rest) || rest.startsWith('_')
 }
 
 // 冲突判定（issue #1692 + PR #1693 维护者审查扩展）：
 // 1. 同前缀：clamp 与 display 完整变体前缀逐字相同 → 源序竞争，报（important 可豁免）。
+//    结构性变体的同前缀仍是真冲突（*:line-clamp-1 *:flex 同落子元素，#1688 用例）。
 // 2. 超集：display 变体链段集合 ⊇ clamp 变体链段集合（含 clamp 无变体 + display 带
 //    断点/状态变体）→ display 在 clamp 生效的全部语境额外激活，@media/状态规则源序
-//    靠后覆盖 clamp，报（important 可豁免）。反方向（clamp 链更长）不报：clamp 在
-//    更窄语境源序靠后获胜，合法。
+//    靠后覆盖 clamp，报（important 可豁免）。结构性变体段不参与超集比较（display
+//    落子元素，不构成对元素自身 clamp 的覆盖）。反方向（clamp 链更长）不报：clamp
+//    在更窄语境源序靠后获胜，合法。
 // 返回 [{ prefix, clamps, displays, tokenOffsets }]；tokenOffsets 用于行号定位。
 export function findLineClampConflicts(classString) {
   const entries = []
@@ -407,7 +449,10 @@ export function findLineClampConflicts(classString) {
     for (const d of entries.filter((e) => e.isDisplay)) {
       const samePrefix = c.prefix === d.prefix
       const superset =
-        !samePrefix && c.segs.every((s) => d.segs.includes(s)) && d.segs.length > c.segs.length
+        !samePrefix &&
+        !d.segs.some(isStructuralSegment) &&
+        c.segs.every((s) => d.segs.includes(s)) &&
+        d.segs.length > c.segs.length
       if (!samePrefix && !superset) continue
       // clamp 带 important 而 display 不带 → clamp 确定性获胜，合法。
       if (c.important && !d.important) continue

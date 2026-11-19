@@ -17,14 +17,18 @@
 // 在页面内收集违例。返回 [{ tag, classes, display, lineClamp, expected, text }]。
 export async function collectLineClampViolations(page) {
   return page.evaluate(() => {
-    const clampClass = /^(?:.*:)?line-clamp-(\d+)$/
+    // 与静态门禁 clampUtility 覆盖面对齐：数字与 arbitrary 值（line-clamp-[3]）都认；
+    // line-clamp-none 是显式取消截断，不在正则内。arbitrary 值无法预知具体数字，
+    // expected 记为 'arbitrary'，只裁决 display 形态。
+    const clampClass = /^(?:.*:)?line-clamp-(\d+|\[[^\]]+\])$/
     const violations = []
     for (const element of document.querySelectorAll('[class]')) {
       const classes = typeof element.className === 'string' ? element.className : ''
       let expected = null
       for (const token of classes.split(/\s+/)) {
         const m = clampClass.exec(token)
-        if (m) expected = m[1] // 多个 clamp 类时取最后一个（与源序语义一致的粗粒度）
+        // 多个 clamp 类时取最后一个（与源序语义一致的粗粒度）；arbitrary 值记标记。
+        if (m) expected = m[1].startsWith('[') ? 'arbitrary' : m[1]
       }
       if (expected === null) continue
       const style = getComputedStyle(element)
