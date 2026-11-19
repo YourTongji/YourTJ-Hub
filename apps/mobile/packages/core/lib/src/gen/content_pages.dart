@@ -231,6 +231,7 @@ abstract class CourseDetailPayload with _$CourseDetailPayload {
     List<String>? teamInstructors,
     // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
     List<String>? legacyNames,
+    bool? bookmarked,
   }) = _CourseDetailPayload;
 
   factory CourseDetailPayload.fromJson(Map<String, dynamic> json) =>

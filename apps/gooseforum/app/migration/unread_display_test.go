@@ -36,10 +36,10 @@ func assertUnreadStyleUpgrade(t *testing.T, conn *gorm.DB) {
 	if err := conn.First(&upgraded, legacy.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if upgraded.UnreadBadgeStyle != users.UnreadBadgeNumber || upgraded.Password != legacy.Password || upgraded.TokenVersion != legacy.TokenVersion {
+	if upgraded.UnreadBadgeStyle != users.UnreadBadgeNumber || upgraded.UnreadBadgeCategories != nil || upgraded.Password != legacy.Password || upgraded.TokenVersion != legacy.TokenVersion {
 		t.Fatalf("upgrade changed default or credentials: style=%q version=%d", upgraded.UnreadBadgeStyle, upgraded.TokenVersion)
 	}
-	if err := conn.Model(&upgraded).Update("unread_badge_style", users.UnreadBadgeDot).Error; err != nil {
+	if err := conn.Model(&upgraded).Updates(map[string]any{"unread_badge_style": users.UnreadBadgeDot, "unread_badge_categories": "[]"}).Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.AutoMigrate(&users.EntityComplete{}); err != nil {
@@ -48,7 +48,7 @@ func assertUnreadStyleUpgrade(t *testing.T, conn *gorm.DB) {
 	if err := conn.First(&upgraded, legacy.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if upgraded.UnreadBadgeStyle != users.UnreadBadgeDot {
+	if upgraded.UnreadBadgeStyle != users.UnreadBadgeDot || upgraded.UnreadBadgeCategories == nil || *upgraded.UnreadBadgeCategories != "[]" {
 		t.Fatal("repeat migration reset the explicit preference")
 	}
 }

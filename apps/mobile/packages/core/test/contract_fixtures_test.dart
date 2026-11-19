@@ -5,6 +5,45 @@ import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('generated activation status decodes the shared OpenAPI fixture', () {
+    final fixture = _contractFixture('activation-status-ready.json');
+    final status = ActivationStatus.fromJson(
+      fixture['result'] as Map<String, dynamic>,
+    );
+    expect(status.currentEmail, 'owner@example.test');
+    expect(status.pendingEmail, '');
+    expect(status.targetEmail, status.currentEmail);
+    expect(status.targetKind, 'current');
+    expect(status.state, 'ready');
+    expect(status.remainingToday, 3);
+    expect(status.dailyLimit, 3);
+    expect(status.retryAfterSeconds, 0);
+    final missingRequired = Map<String, dynamic>.from(fixture['result'] as Map)
+      ..remove('dailyLimit');
+    expect(
+      () => ActivationStatus.fromJson(missingRequired),
+      throwsA(isA<TypeError>()),
+    );
+  });
+
+  test('generated device requests preserve optional provider omission', () {
+    expect(
+      const RegisterPushDeviceInput(platform: 'ios', token: 'device').toJson(),
+      {'platform': 'ios', 'token': 'device'},
+    );
+    expect(
+      const RegisterPushDeviceInput(
+        platform: 'android',
+        token: 'device',
+        provider: 'jpush',
+      ).toJson(),
+      {'platform': 'android', 'token': 'device', 'provider': 'jpush'},
+    );
+    expect(const UnregisterPushDeviceInput(token: 'device').toJson(), {
+      'token': 'device',
+    });
+  });
+
   group('首页 PagePayload (home.index)', () {
     final page = PagePayload.fromJson({
       'component': 'home.index',

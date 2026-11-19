@@ -1,5 +1,6 @@
 {
   "result": {
+    "bookmarked": false,
     "id": 42,
     "primaryCode": "100001",
     "name": "高等数学(A)上",

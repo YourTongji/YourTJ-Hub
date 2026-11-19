@@ -41,6 +41,17 @@ class NotificationRepository {
         ),
       );
 
+  Future<NotificationPreferences> updateBadgeCategories(
+    List<String> categories,
+  ) => _client.put<NotificationPreferences>(
+    '/api/forum/notification-preferences',
+    headers: _headers,
+    body: {'badgeCategories': categories},
+    parser: (json) => NotificationPreferences.fromJson(
+      Map<String, dynamic>.from(json as Map),
+    ),
+  );
+
   /// 通知列表(filter: all | unread;cursor 游标;limit 页大小)。
   Future<NotificationListResponse> fetchNotifications({
     String filter = 'all',

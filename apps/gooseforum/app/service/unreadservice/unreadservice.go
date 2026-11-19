@@ -24,14 +24,15 @@ type Status struct {
 	// 而不是只看「无未读→有未读」布尔翻转（issue #444 review）。
 	LatestUnreadId uint64 `json:"latestUnreadId,omitempty"`
 	// Unknown counts are omitted, never replaced by an invented zero or one.
-	NotificationCount *int64 `json:"notificationCount,omitempty"`
-	MessageCount      *int64 `json:"messageCount,omitempty"`
-	BadgeStyle        string `json:"badgeStyle"`
+	NotificationCount *int64   `json:"notificationCount,omitempty"`
+	MessageCount      *int64   `json:"messageCount,omitempty"`
+	BadgeStyle        string   `json:"badgeStyle"`
+	BadgeCategories   []string `json:"badgeCategories"`
 }
 
 func GetStatus(userID uint64) Status {
 	if userID == 0 {
-		return Status{BadgeStyle: users.UnreadBadgeNumber}
+		return Status{BadgeStyle: users.UnreadBadgeNumber, BadgeCategories: users.DefaultUnreadBadgeCategories()}
 	}
 	return statusCache.GetOrLoad(cacheKey(userID), func() (Status, error) {
 		return loadStatus(userID), nil
@@ -52,18 +53,21 @@ func loadStatus(userID uint64) Status {
 		LatestNotificationType: latest.EventType,
 		LatestUnreadId:         latest.Id,
 		BadgeStyle:             users.UnreadBadgeNumber,
+		BadgeCategories:        users.DefaultUnreadBadgeCategories(),
 	}
-	if count, err := eventNotification.GetUnreadCount(userID); err == nil {
-		status.NotificationCount = &count
+	if prefs, err := GetPreferences(userID); err == nil {
+		status.BadgeStyle = prefs.BadgeStyle
+		status.BadgeCategories = prefs.BadgeCategories
+		if count, err := eventNotification.GetUnreadBadgeCount(userID, prefs.BadgeCategories); err == nil {
+			status.NotificationCount = &count
+			status.Notifications = count > 0
+		}
 	}
 	if count, err := imUserChatConfigs.TotalUnread(userID); err == nil {
 		status.MessageCount = &count
 		status.Messages = count > 0
 	} else {
 		status.Messages = imUserChatConfigs.HasUnread(userID)
-	}
-	if style, err := users.GetUnreadBadgeStyle(userID); err == nil {
-		status.BadgeStyle = style
 	}
 	return status
 }

@@ -7,7 +7,14 @@
     "notificationCount": 1,
     "messageCount": 0,
     "latestNotificationType": "post_reply",
-    "latestUnreadId": 6001
+    "latestUnreadId": 6001,
+    "badgeCategories": [
+      "replies",
+      "mentions",
+      "likes",
+      "following",
+      "system"
+    ]
   },
   "code": 0
 }

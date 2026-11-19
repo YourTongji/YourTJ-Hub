@@ -23,12 +23,15 @@ class _UnreadDisplaySettingsState extends ConsumerState<UnreadDisplaySettings> {
     unawaited(ref.read(unreadDisplayProvider.notifier).load());
   }
 
-  Future<void> _save(bool numbers) async {
+  Future<void> _save(bool numbers) => _saveChange(
+    () => ref
+        .read(unreadDisplayProvider.notifier)
+        .update(numbers ? UnreadBadgeStyle.number : UnreadBadgeStyle.dot),
+  );
+
+  Future<void> _saveChange(Future<bool> Function() change) async {
     final epoch = ref.read(offlineCacheEpochProvider);
-    final controller = ref.read(unreadDisplayProvider.notifier);
-    final saved = await controller.update(
-      numbers ? UnreadBadgeStyle.number : UnreadBadgeStyle.dot,
-    );
+    final saved = await change();
     if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
     final error = ref.read(unreadDisplayProvider).error;
     if (!saved && error != null) {
@@ -77,6 +80,43 @@ class _UnreadDisplaySettingsState extends ConsumerState<UnreadDisplaySettings> {
               color: GfTheme.colorsOf(context).textSecondary,
             ),
           ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: GfText(l.unreadBadgeCategoriesTitle),
+        ),
+        for (final category in notificationBadgeCategories)
+          GfSwitchRow(
+            key: Key('unread-category-$category'),
+            symbol: 'bell',
+            title: switch (category) {
+              'replies' => l.notificationsReplies,
+              'mentions' => l.notificationsMentions,
+              'likes' => l.notificationsLikes,
+              'following' => l.notificationsFollowing,
+              _ => l.notificationsSystem,
+            },
+            value: state.categories.contains(category),
+            enabled: !state.saving,
+            onChanged: (enabled) => _saveChange(() {
+              final selected = {...state.categories};
+              if (enabled) {
+                selected.add(category);
+              } else {
+                selected.remove(category);
+              }
+              return ref
+                  .read(unreadDisplayProvider.notifier)
+                  .updateCategories(
+                    notificationBadgeCategories
+                        .where(selected.contains)
+                        .toList(),
+                  );
+            }),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: GfText(l.unreadBadgeCategoriesHint),
         ),
         if (state.saving)
           Semantics(

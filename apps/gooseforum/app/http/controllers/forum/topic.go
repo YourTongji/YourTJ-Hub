@@ -130,23 +130,25 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		limit = postWindowLimit
 	}
 
+	canModeratePosts := moderationservice.CanModerateAnyCategory(req.UserId, topicEntity.CategoryIds)
+	viewer := posts.WindowViewer{UserID: req.UserId, CanModerate: canModeratePosts}
 	var postEntities []*posts.Entity
 	hasBefore := false
 	var hasAfter bool
 
 	switch {
 	case req.Params.AnchorPostNo > 0:
-		anchor, ok := posts.GetByTopicPostNoAtOrAfter(topicID, req.Params.AnchorPostNo)
+		anchor, ok := posts.GetByTopicPostNoAtOrAfter(topicID, req.Params.AnchorPostNo, viewer)
 		if !ok {
-			anchor, ok = posts.GetByTopicPostNoAtOrBefore(topicID, req.Params.AnchorPostNo)
+			anchor, ok = posts.GetByTopicPostNoAtOrBefore(topicID, req.Params.AnchorPostNo, viewer)
 		}
 		if !ok || anchor.Id == 0 || anchor.TopicId != topicID || anchor.PostNo < 1 {
 			return component.FailResponseCode(component.MessagePostNotFound, nil)
 		}
 		beforeLimit := min(5, limit/2)
 		afterLimit := limit - beforeLimit - 1
-		beforePosts := posts.GetByTopicPostNoBefore(topicID, anchor.PostNo, beforeLimit+1)
-		afterPosts := posts.GetByTopicPostNoAfter(topicID, anchor.PostNo, afterLimit+1)
+		beforePosts := posts.GetByTopicPostNoBefore(topicID, anchor.PostNo, beforeLimit+1, viewer)
+		afterPosts := posts.GetByTopicPostNoAfter(topicID, anchor.PostNo, afterLimit+1, viewer)
 		hasBefore = len(beforePosts) > beforeLimit
 		hasAfter = len(afterPosts) > afterLimit
 		if hasBefore {
@@ -168,8 +170,8 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		}
 		beforeLimit := min(5, limit/2)
 		afterLimit := limit - beforeLimit - 1
-		beforePosts := posts.GetByTopicIdBefore(topicID, anchor.Id, beforeLimit+1)
-		afterPosts := posts.GetByTopicIdAfter(topicID, anchor.Id, afterLimit+1)
+		beforePosts := posts.GetByTopicIdBefore(topicID, anchor.Id, beforeLimit+1, viewer)
+		afterPosts := posts.GetByTopicIdAfter(topicID, anchor.Id, afterLimit+1, viewer)
 		hasBefore = len(beforePosts) > beforeLimit
 		hasAfter = len(afterPosts) > afterLimit
 		if hasBefore {
@@ -182,21 +184,21 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		postEntities = append(postEntities, &anchor)
 		postEntities = append(postEntities, afterPosts...)
 	case req.Params.BeforePostNo > 0:
-		postEntities = posts.GetByTopicPostNoBefore(topicID, req.Params.BeforePostNo, limit+1)
+		postEntities = posts.GetByTopicPostNoBefore(topicID, req.Params.BeforePostNo, limit+1, viewer)
 		hasBefore = len(postEntities) > limit
 		if hasBefore {
 			postEntities = postEntities[1:]
 		}
 		hasAfter = true
 	case req.Params.AfterPostNo > 0:
-		postEntities = posts.GetByTopicPostNoAfter(topicID, req.Params.AfterPostNo, limit+1)
+		postEntities = posts.GetByTopicPostNoAfter(topicID, req.Params.AfterPostNo, limit+1, viewer)
 		hasAfter = len(postEntities) > limit
 		if hasAfter {
 			postEntities = postEntities[:limit]
 		}
 		hasBefore = true
 	default:
-		postEntities = posts.GetByTopicPostNoAfter(topicID, 0, limit+1)
+		postEntities = posts.GetByTopicPostNoAfter(topicID, 0, limit+1, viewer)
 		hasAfter = len(postEntities) > limit
 		if hasAfter {
 			postEntities = postEntities[:limit]
@@ -216,7 +218,6 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		userIDs = append(userIDs, item.UserId)
 	}
 	userMap := users.GetMapByIds(userIDs)
-	canModeratePosts := moderationservice.CanModerateAnyCategory(req.UserId, topicEntity.CategoryIds)
 	maxPostNo := uint64(0)
 	if topicEntity.PostSeq > 0 {
 		maxPostNo = topicEntity.PostSeq

@@ -39,9 +39,6 @@ class DevDeployBundleTest(unittest.TestCase):
                                  "INSERT INTO agents VALUES(1,'production-token');"
                                  "CREATE TABLE feed_serve_log(id TEXT);"
                                  "INSERT INTO feed_serve_log VALUES('private-observation');")
-            # Force the previous-dev snapshot path as well as the main-to-dev copy.
-            with closing(sqlite3.connect(root / 'dev/storage/database/sqlite.db')) as db, db:
-                db.execute('CREATE TABLE old_dev(id INTEGER)')
             commands = root / 'bin'
             commands.mkdir()
             docker = commands / 'docker'

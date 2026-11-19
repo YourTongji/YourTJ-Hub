@@ -1,9 +1,12 @@
+import 'package:core/core.dart' show MathSegment, extractMathSegments;
 import 'package:flutter/material.dart';
+import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' show parseFragment;
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'gf_code_block.dart';
+import 'gf_math.dart';
 import 'gf_table.dart';
 
 /// Shared shell for server-rendered rich content (Wiki pages, course reviews).
@@ -71,7 +74,7 @@ class GfHtmlContent extends StatelessWidget {
       // allocate an Emoji placeholder. This protects collisions across nodes.
       selectionSource: parseFragment(html).text ?? '',
       child: HtmlWidget(
-        html,
+        gfHtmlWithMath(html),
         key: htmlKey,
         baseUrl: baseUrl,
         // The default factory keeps the shared policy for the elements the HTML
@@ -230,12 +233,23 @@ CustomStylesBuilder gfHtmlContentStyles({
 
 /// Shared element overrides for server-rendered rich content.
 ///
-/// Only `<pre>` is owned here: it becomes the same [GfCodeBlock] the Markdown
-/// path uses, so highlighting, copy and horizontal scrolling cannot drift.
+/// Only `<pre>` and the math marks from [gfHtmlWithMath] are owned here: they
+/// become the same [GfCodeBlock] / [GfMath] the Markdown path uses, so
+/// highlighting, copy, formulas and horizontal scrolling cannot drift.
 /// Every other element is left to the caller (and then to the renderer).
 CustomWidgetBuilder gfHtmlContentWidgets({
   required GfRichContentTypography profile,
 }) => (element) {
+  if (element.localName == _mathTag) {
+    final bool display = element.attributes.containsKey('data-display');
+    final Widget math = GfMath(
+      tex: element.attributes['data-tex'] ?? '',
+      display: display,
+      source: element.attributes['data-source'] ?? '',
+      style: profile.body,
+    );
+    return display ? math : InlineCustomWidget(child: math);
+  }
   if (element.localName != 'pre') return null;
   final code = element.querySelector('code');
   return GfCodeBlock(
@@ -244,6 +258,64 @@ CustomWidgetBuilder gfHtmlContentWidgets({
     language: _languageFromClass(code?.className ?? element.className),
   );
 };
+
+const String _mathTag = 'gf-math';
+
+/// Web 的 KaTeX 同样跳过这些元素里的文字。
+const Set<String> _mathSkipped = <String>{
+  'pre',
+  'code',
+  'script',
+  'style',
+  'textarea',
+};
+
+/// 服务端把公式原样留在 HTML 文字里（Web 再交给 KaTeX）；这里把文字节点中的公式
+/// 换成 `<gf-math>` 标记，由 [gfHtmlContentWidgets] 渲染成 [GfMath]。
+@visibleForTesting
+String gfHtmlWithMath(String html) {
+  if (!html.contains(r'$') && !html.contains(r'\')) return html;
+  final dom.DocumentFragment fragment = parseFragment(html);
+  var changed = false;
+  void visit(dom.Node parent) {
+    for (final dom.Node node in parent.nodes.toList()) {
+      if (node is dom.Element) {
+        if (!_mathSkipped.contains(node.localName)) visit(node);
+        continue;
+      }
+      if (node is! dom.Text) continue;
+      final String text = node.data;
+      final List<MathSegment> segments = extractMathSegments(text);
+      if (segments.isEmpty) continue;
+      changed = true;
+      var cursor = 0;
+      for (final MathSegment segment in segments) {
+        if (segment.start > cursor) {
+          parent.insertBefore(
+            dom.Text(text.substring(cursor, segment.start)),
+            node,
+          );
+        }
+        final dom.Element mark = dom.Element.tag(_mathTag)
+          ..attributes['data-tex'] = segment.text
+          ..attributes['data-source'] = text.substring(
+            segment.start,
+            segment.end,
+          );
+        if (segment.display) mark.attributes['data-display'] = '';
+        parent.insertBefore(mark, node);
+        cursor = segment.end;
+      }
+      if (cursor < text.length) {
+        parent.insertBefore(dom.Text(text.substring(cursor)), node);
+      }
+      node.remove();
+    }
+  }
+
+  visit(fragment);
+  return changed ? fragment.outerHtml : html;
+}
 
 /// Reads `language-xxx` / `lang-xxx` from a class attribute.
 String _languageFromClass(String className) {

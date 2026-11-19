@@ -1,6 +1,7 @@
 package searchservice
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -234,11 +235,11 @@ func ensureWikiPageIndexConfigured(t *testing.T) {
 	client := meiliconnect.GetClient()
 	index := client.Index(WikiPageIndex)
 	searchable := []string{"title", "heading", "paragraph"}
-	if _, err := index.UpdateSearchableAttributes(&searchable); err != nil {
+	if _, err := index.UpdateSearchableAttributes(context.Background(), &searchable); err != nil {
 		t.Fatalf("configure wiki searchable: %v", err)
 	}
 	filterable := []any{"pageId", "namespace", "isPublic"}
-	if _, err := index.UpdateFilterableAttributes(&filterable); err != nil {
+	if _, err := index.UpdateFilterableAttributes(context.Background(), &filterable); err != nil {
 		t.Fatalf("configure wiki filterable: %v", err)
 	}
 	waitIndexTask(t, client)

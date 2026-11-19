@@ -16,17 +16,43 @@ enum UnreadBadgeStyle {
       value == 'dot' ? UnreadBadgeStyle.dot : UnreadBadgeStyle.number;
 }
 
+const notificationBadgeCategories = [
+  'replies',
+  'mentions',
+  'likes',
+  'following',
+  'system',
+];
+
 class NotificationPreferences {
-  const NotificationPreferences({this.badgeStyle = UnreadBadgeStyle.number});
+  const NotificationPreferences({
+    this.badgeStyle = UnreadBadgeStyle.number,
+    this.badgeCategories = notificationBadgeCategories,
+  });
+  final List<String> badgeCategories;
   final UnreadBadgeStyle badgeStyle;
   factory NotificationPreferences.fromJson(Map<String, dynamic> json) {
     final style = json['badgeStyle'];
     if (style != 'number' && style != 'dot') {
       throw const FormatException('Invalid unread badge style');
     }
-    return NotificationPreferences(badgeStyle: UnreadBadgeStyle.parse(style));
+    final categories = json['badgeCategories'];
+    if (json.containsKey('badgeCategories') &&
+        (categories is! List ||
+            categories.any((v) => !notificationBadgeCategories.contains(v)))) {
+      throw const FormatException('Invalid unread badge categories');
+    }
+    return NotificationPreferences(
+      badgeStyle: UnreadBadgeStyle.parse(style),
+      badgeCategories: categories == null
+          ? notificationBadgeCategories
+          : List<String>.unmodifiable(categories as List),
+    );
   }
-  Map<String, String> toJson() => {'badgeStyle': badgeStyle.name};
+  Map<String, dynamic> toJson() => {
+    'badgeStyle': badgeStyle.name,
+    'badgeCategories': badgeCategories,
+  };
 }
 
 // review_pending links to the author's candidate; review_approved is human-only.

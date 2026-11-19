@@ -101,7 +101,7 @@ func scanIndexedDocuments(ctx context.Context, index meilisearch.IndexManager, p
 	docs := make(map[string]documentDigest)
 	for offset := int64(0); ; {
 		var page meilisearch.DocumentsResult
-		if err := index.GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{Offset: offset, Limit: maintenanceBatch}, &page); err != nil {
+		if err := index.GetDocuments(ctx, &meilisearch.DocumentsQuery{Offset: offset, Limit: maintenanceBatch}, &page); err != nil {
 			return nil, err
 		}
 		for _, hit := range page.Results {
@@ -145,9 +145,9 @@ func scanIndexedDocuments(ctx context.Context, index meilisearch.IndexManager, p
 func checkManagedIndex(ctx context.Context, client meilisearch.ServiceManager, name string, progress maintenanceProgress) (*IndexCheck, error) {
 	report := &IndexCheck{Index: name, ExpectedVersion: expectedProjectionVersion(name), ObservedVersions: map[string]int{}}
 	index := client.Index(name)
-	before, err := client.GetIndexWithContext(ctx, name)
+	before, err := client.GetIndex(ctx, name)
 	var apiError *meilisearch.Error
-	if errors.As(err, &apiError) && apiError.MeilisearchApiError.Code == "index_not_found" {
+	if errors.As(err, &apiError) && apiError.APIError.Code == meilisearch.APIErrCodeIndexNotFound {
 		// An absent index is a complete observation of missing documents, not a
 		// transport failure that should prevent checking the remaining indexes.
 		for cursor := uint64(0); ; {
@@ -170,9 +170,9 @@ func checkManagedIndex(ctx context.Context, client meilisearch.ServiceManager, n
 				return nil, err
 			}
 		}
-		_, endErr := client.GetIndexWithContext(ctx, name)
+		_, endErr := client.GetIndex(ctx, name)
 		var endAPIError *meilisearch.Error
-		report.Stable = errors.As(endErr, &endAPIError) && endAPIError.MeilisearchApiError.Code == "index_not_found"
+		report.Stable = errors.As(endErr, &endAPIError) && endAPIError.APIError.Code == meilisearch.APIErrCodeIndexNotFound
 		if endErr != nil && !report.Stable {
 			return nil, endErr
 		}
@@ -183,11 +183,11 @@ func checkManagedIndex(ctx context.Context, client meilisearch.ServiceManager, n
 	if err != nil {
 		return nil, err
 	}
-	beforeStats, err := index.GetStatsWithContext(ctx, &meilisearch.StatsParams{})
+	beforeStats, err := index.GetStats(ctx, &meilisearch.StatsParams{})
 	if err != nil {
 		return nil, err
 	}
-	settings, err := index.GetSettingsWithContext(ctx)
+	settings, err := index.GetSettings(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -237,11 +237,11 @@ func checkManagedIndex(ctx context.Context, client meilisearch.ServiceManager, n
 		}
 	}
 	report.Extra = len(docs)
-	after, err := client.GetIndexWithContext(ctx, name)
+	after, err := client.GetIndex(ctx, name)
 	if err != nil {
 		return nil, err
 	}
-	afterStats, err := index.GetStatsWithContext(ctx, &meilisearch.StatsParams{})
+	afterStats, err := index.GetStats(ctx, &meilisearch.StatsParams{})
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func writeProjectionBatch(ctx context.Context, index meilisearch.IndexManager, d
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	// AddDocuments replaces complete documents, removing retired fields as well.
-	task, err := index.AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{PrimaryKey: strPtr("id")})
+	task, err := index.AddDocuments(ctx, docs, &meilisearch.DocumentOptions{PrimaryKey: strPtr("id")})
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ func rebuildManagedIndex(ctx context.Context, client meilisearch.ServiceManager,
 		if current != nil {
 			continue
 		} // inserted/restored after our source scan
-		task, err := index.DeleteDocumentWithContext(ctx, id, nil)
+		task, err := index.DeleteDocument(ctx, id, nil)
 		if err != nil {
 			return err
 		}

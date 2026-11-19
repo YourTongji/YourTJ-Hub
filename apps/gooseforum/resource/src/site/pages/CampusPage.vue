@@ -23,7 +23,11 @@ const status = ref<CampusStatus | null>(null)
 const loading = ref(false), busy = ref(false), error = ref(''), unbindOpen = ref(false)
 const tab = ref('overview'), week = ref(1), filter = ref('')
 const data = ref<Partial<Record<CampusDatasetKey, CampusDataset>>>({})
-const failures = ref<Partial<Record<CampusDatasetKey, string>>>({})
+const failures = ref<Partial<Record<CampusDatasetKey, string | { code: 'authorizationRequired' }>>>({})
+function failureText(key: CampusDatasetKey) {
+  const failure = failures.value[key]
+  return typeof failure === 'string' ? failure : failure ? t('campus.authorizationHint') : ''
+}
 const now = ref(new Date())
 const clock = computed(() => campusClock(now.value, locale.value))
 const wish = ref(randomCampusWish())
@@ -189,8 +193,19 @@ function activeKeys(): CampusDatasetKey[] {
   if (tab.value === 'services') return keys
   return [tab.value as CampusDatasetKey]
 }
+function markAuthorizationRequired(targets: CampusDatasetKey[]) {
+  if (status.value?.binding) status.value.binding.needsAuthorization = true
+  for (const key of targets) {
+    if (data.value[key]) delete failures.value[key]
+    else failures.value[key] = { code: 'authorizationRequired' }
+  }
+}
 async function loadData(targets = activeKeys(), force = false) {
-  if (!status.value?.binding || status.value.binding.needsAuthorization) return
+  if (!status.value?.binding) return
+  if (status.value.binding.needsAuthorization) {
+    markAuthorizationRequired(targets)
+    return
+  }
   const requested = targets.filter(key => !pendingKeys.has(key) && (force || !data.value[key] || (key === 'today' && !todayIsCurrent.value)))
   if (!requested.length) return
   const epoch = generation
@@ -208,8 +223,11 @@ async function loadData(targets = activeKeys(), force = false) {
       if (key === 'calendar' && currentWeek.value !== null) week.value = currentWeek.value
     } catch (e) {
       if (!isCurrent()) return
+      if (e instanceof CampusError && e.code === 'campus.authorizationRequired') {
+        markAuthorizationRequired([key])
+        return
+      }
       failures.value[key] = e instanceof Error ? e.message : t('campus.loadFailed')
-      if (e instanceof CampusError && e.code === 'campus.authorizationRequired' && status.value?.binding) status.value.binding.needsAuthorization = true
     } finally {
       if (isCurrent()) { pendingKeys.delete(key); loading.value = pendingKeys.size > 0 }
     }
@@ -281,6 +299,7 @@ function courseStyle(name: string) {
   return timetableCourseStyle(name)
 }
 function serviceState(key: CampusDatasetKey) {
+  if (status.value?.binding?.needsAuthorization) return t('campus.authorizationRequired')
   if (failures.value[key]) return t('campus.loadFailed')
   const state = data.value[key]?.status
   return state === 'ready' ? t('campus.connected') : state === 'empty' ? t('campus.empty') : state === 'unavailable' ? t('campus.unavailable') : loading.value ? t('campus.syncing') : t('campus.notSynced')
@@ -467,7 +486,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
               </template>
             </SectionHeader>
             <p v-if="todayAdjustment" class="border-b border-line px-4 py-3 text-sm text-base-content/65" role="status">{{ todayAdjustment }}</p>
-            <EmptyState v-if="!todayCourses.length" :icon="BookOpen" :title="todayTitle" :description="failures.today || t('campus.todayHint')" />
+            <EmptyState v-if="!todayCourses.length" :icon="BookOpen" :title="todayTitle" :description="failureText('today') || t('campus.todayHint')" />
             <div v-else class="space-y-2 p-4">
               <article v-for="(course,index) in todayCourses" :key="index" class="flex items-start gap-3 rounded-xl border p-3" :style="courseStyle(course.name)">
                 <span class="w-16 shrink-0 rounded-field bg-base-100/60 py-2 text-center text-xs font-semibold tabular-nums text-[var(--card-title)]">{{ t('campus.periods', { start: course.start, end: course.end }) }}</span>
@@ -501,9 +520,9 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
           <CampusCalendarRules />
           <p v-if="exportError" role="alert" class="gf-status-message gf-status-message-error m-4">{{ exportError }}</p>
           <p v-else-if="exportMessage" role="status" class="gf-status-message gf-status-message-info m-4">{{ exportMessage }}</p>
-          <p v-if="failures.timetable" class="gf-status-message gf-status-message-error m-4">{{ failures.timetable }}</p>
+          <p v-if="failures.timetable" class="gf-status-message gf-status-message-error m-4">{{ failureText('timetable') }}</p>
           <EmptyState v-if="!data.timetable && !failures.timetable" loading :title="t('campus.timetableLoading')" />
-          <EmptyState v-else-if="failures.timetable || data.timetable?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.timetableUnavailable')" :description="t('campus.schoolRetry')" />
+          <EmptyState v-else-if="failures.timetable || data.timetable?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.timetableUnavailable')" :description="status.binding.needsAuthorization ? t('campus.authorizationHint') : t('campus.schoolRetry')" />
           <template v-else>
             <p v-if="!weekCourses.length" class="px-4 py-3 text-sm text-base-content/55">{{ t('campus.noWeekCourses') }}</p>
             <div class="p-2 sm:p-4"><CampusTimetable :courses="courses" :week="week" :today="today" /></div>
@@ -516,7 +535,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
           <div class="divide-y divide-line px-4">
             <div v-for="key in keys" :key="key" class="flex items-center justify-between gap-3 py-3.5">
               <h3 class="text-sm font-medium">{{ names[key] }}</h3>
-              <span class="gf-badge shrink-0" :class="data[key]?.status === 'ready' ? 'gf-badge-info' : 'gf-badge-muted'">{{ serviceState(key) }}</span>
+              <span class="gf-badge shrink-0" :class="!status.binding?.needsAuthorization && data[key]?.status === 'ready' ? 'gf-badge-info' : 'gf-badge-muted'">{{ serviceState(key) }}</span>
             </div>
           </div>
           <p class="border-t border-line bg-base-200/50 px-4 py-3 text-xs leading-6 text-base-content/55">{{ t('campus.serviceHint') }}</p>
@@ -547,7 +566,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
             </dl>
             <div v-if="creditProgress !== null" class="border-t border-line px-4 py-3"><div class="mb-2 flex justify-between text-xs text-base-content/55"><span>{{ t('campus.creditProgress') }}</span><span>{{ t('campus.creditsProgress', { completed: completedCredits, total: totalCredits }) }}</span></div><div class="h-2 overflow-hidden rounded-full bg-base-300"><div class="h-full rounded-full bg-primary/75" :style="{ width: `${creditProgress}%` }"></div></div></div>
           </div>
-          <p v-if="tab === 'grades' && failures.summary" class="gf-status-message gf-status-message-error m-4">{{ failures.summary }}</p>
+          <p v-if="tab === 'grades' && failures.summary" class="gf-status-message gf-status-message-error m-4">{{ failureText('summary') }}</p>
           <dl v-if="current?.metrics.length" class="flex flex-wrap gap-x-8 gap-y-4 border-b border-line p-4">
             <div v-for="metric in current.metrics" :key="metric.label">
               <dt class="text-xs text-base-content/55">{{ fieldLabel(metric.label) }}</dt>
@@ -563,7 +582,7 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
             </div>
             <p class="mt-4 text-xs text-base-content/55">{{ tab === 'grades' ? t('campus.gradeChartHint') : t('campus.examChartHint') }}</p>
           </div>
-          <EmptyState v-if="failures[tab as CampusDatasetKey] || current?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.recordsUnavailable')" :description="failures[tab as CampusDatasetKey] || t('campus.errorUpstream')" />
+          <EmptyState v-if="failures[tab as CampusDatasetKey] || current?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.recordsUnavailable')" :description="failureText(tab as CampusDatasetKey) || t('campus.errorUpstream')" />
           <EmptyState v-else-if="!current" loading :title="t('campus.recordsLoading')" />
           <EmptyState v-else-if="!rows.length" :icon="BookOpen" :title="filter ? t('campus.noMatchingRecords') : t('campus.noRecords')" />
           <div v-else class="overflow-x-auto">

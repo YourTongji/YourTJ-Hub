@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { mkdir } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
 let server, browser, origin
@@ -12,6 +13,40 @@ before(async () => {
   browser = await chromium.launch()
 })
 after(async () => { await browser?.close(); await server?.close() })
+for (const theme of ['gf-light', 'gf-dark']) for (const width of [320, 1280]) {
+  test(`notification preview keeps its server ellipsis and row layout ${theme} ${width}`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 844 } })
+    const evidence = process.env.YOURTJ_BOOKMARK_EXCERPT_EVIDENCE_DIR
+    try {
+      await page.goto(`${origin}/assets/test/fixtures/browser/review-notifications.html?preview=1&theme=${theme}`)
+      const preview = page.locator('p.line-clamp-1').first()
+      await preview.waitFor()
+      const text = await preview.textContent()
+      const details = await preview.evaluate(element => {
+        const style = getComputedStyle(element)
+        const bounds = element.closest('article').getBoundingClientRect()
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        context.font = style.font
+        return { lineHeight: Number.parseFloat(style.lineHeight), height: element.getBoundingClientRect().height,
+          clientWidth: element.clientWidth, naturalTextWidth: context.measureText(element.textContent).width,
+          clamp: style.webkitLineClamp, rowLeft: bounds.left, rowRight: bounds.right }
+      })
+      assert.equal(Array.from(text).length, 64, 'notification preview matches the server max-64 result')
+      assert.match(text, /[^…]…$/, 'notification preview ends with one ellipsis')
+      assert.equal(details.clamp, '1')
+      assert.ok(details.height <= details.lineHeight + 1, 'notification content stays on one clamped line')
+      if (width === 1280) assert.ok(details.naturalTextWidth <= details.clientWidth, `wide notification preview displays the complete server ellipsis: ${JSON.stringify(details)}`)
+      else assert.ok(details.naturalTextWidth > details.clientWidth, `narrow notification preview continues to use CSS line clamping: ${JSON.stringify(details)}`)
+      assert.ok(details.rowLeft >= 0 && details.rowRight <= width + 1, 'notification row stays inside the viewport')
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'notification list must not overflow horizontally')
+      if (evidence) {
+        await mkdir(evidence, { recursive: true })
+        await page.screenshot({ path: resolve(evidence, `notification-${theme}-${width}.png`), fullPage: true })
+      }
+    } finally { await page.close() }
+  })
+}
 for (const theme of ['gf-light', 'gf-dark']) for (const width of [390, 1280]) {
   test(`review notifications remain readable and link to recovery ${theme} ${width}`, async () => {
     const page = await browser.newPage({ viewport: { width, height: 844 } })

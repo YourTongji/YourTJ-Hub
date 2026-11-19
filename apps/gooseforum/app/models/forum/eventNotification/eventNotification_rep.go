@@ -52,20 +52,10 @@ func queryByUserId(conn *gorm.DB, userId uint64, limit int, startId uint64, unre
 	if unreadOnly {
 		db = db.Where(queryopt.Eq("is_read", false))
 	}
-	if len(category) > 0 {
-		switch category[0] {
-		case "mentions":
-			db = db.Where("event_type = ? OR has_direct_mention = ?", EventTypeMention, true)
-		case "replies":
-			db = db.Where("event_type IN ? AND has_direct_mention = ?", []string{EventTypeComment, EventTypePostReply}, false)
-		case "likes":
-			db = db.Where("event_type = ?", EventTypeLike)
-		case "following":
-			db = db.Where("event_type IN ?", []string{EventTypeFollow, EventTypeTopicPost, EventTypeWikiUpdated})
-		case "system":
-			db = db.Where("event_type NOT IN ?", []string{EventTypeMention, EventTypeComment, EventTypePostReply, EventTypeLike, EventTypeFollow, EventTypeTopicPost, EventTypeWikiUpdated})
-		}
+	if len(category) > 0 && category[0] != "" && category[0] != "all" {
+		db = db.Where(badgeCategoryScope(conn, []string{category[0]}))
 	}
+
 	err = db.Order(queryopt.Desc(`id`)).
 		Limit(limit).
 		Find(&notifications).Error
@@ -212,4 +202,31 @@ func ValidCategory(category string) bool {
 		return true
 	}
 	return false
+}
+
+// badgeCategoryScope reuses the center's predicates; OR counts overlapping categories only once.
+func badgeCategoryScope(conn *gorm.DB, categories []string) *gorm.DB {
+	scope := conn.Session(&gorm.Session{NewDB: true}).Where("1 = 0")
+	for _, category := range categories {
+		switch category {
+		case "mentions":
+			scope = scope.Or("event_type = ? OR has_direct_mention = ?", EventTypeMention, true)
+		case "replies":
+			scope = scope.Or("event_type IN ? AND has_direct_mention = ?", []string{EventTypeComment, EventTypePostReply}, false)
+		case "likes":
+			scope = scope.Or("event_type = ?", EventTypeLike)
+		case "following":
+			scope = scope.Or("event_type IN ?", []string{EventTypeFollow, EventTypeTopicPost, EventTypeWikiUpdated})
+		case "system":
+			scope = scope.Or("event_type NOT IN ?", []string{EventTypeMention, EventTypeComment, EventTypePostReply, EventTypeLike, EventTypeFollow, EventTypeTopicPost, EventTypeWikiUpdated})
+		}
+	}
+	return scope
+}
+
+func GetUnreadBadgeCount(userID uint64, categories []string) (count int64, err error) {
+	conn := builder()
+	err = conn.Where("user_id = ? AND is_read = ?", userID, false).
+		Where(badgeCategoryScope(conn, categories)).Count(&count).Error
+	return
 }

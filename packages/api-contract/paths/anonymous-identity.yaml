@@ -5,6 +5,7 @@ getAnonymousIdentityState:
     operationId: getAnonymousIdentityState
     description: >-
       Private, no-store response. One persona per numeric owner, shared across clients.
+      State reads have no writable-account guard and GET is exempt from cookie CSRF checks.
       State reads share the configurable interaction rate limit with persona writes.
       New names freely combine embedded action, scene/object and animal components as six Han characters (phrase6-v1); existing names and persisted batches remain unchanged.
       Shanghai calendar day allows ten idempotent batches of ten distinct words.
@@ -26,12 +27,6 @@ getAnonymousIdentityState:
                 externalValue: ../fixtures/anonymous-state-success.json
       '401':
         description: Authentication required
-        content:
-          application/json:
-            schema:
-              $ref: ../components/schemas.yaml#/ApiFailure
-      '403':
-        description: Frozen account, write eligibility or CSRF rejected
         content:
           application/json:
             schema:

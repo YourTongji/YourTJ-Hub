@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-23
+> Last verified: 2026-11-11
 
 Implementation status: **Current** for the configured integration. Live run results are recorded in
 Actions; a green preflight proves App access and planning, while an executed review proves model access.
@@ -21,8 +21,47 @@ human approval. Runtime protocol tests and the deterministic Core smoke also run
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/32af3fbc705ea34f8e4229d38035513ce165d511)
-and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/ad2b9847c01cba36f8a0abd5564df7144d47878e)
+(`ad2b9847c01cba36f8a0abd5564df7144d47878e`)
+and applies [this repository's policy](../../.github/oryn/repositories.json). That runtime includes
+multi-review dispatch. Repository policy sets `allowLowRiskApprove` to true. The publisher can submit
+`APPROVE` on a non-draft pull request when the author is not the bot, changed paths are complete and
+not sensitive, coverage is complete with a low floor, every required check from its trusted app
+succeeded on that exact head, and the report is a clean low-risk `no_action` with high confidence and
+admission `approve`. Medium risk, high risk, unknown risk, findings, incomplete coverage, and sensitive
+paths produce `COMMENT`. See
+[decision 0127](../decisions/0127-oryn-low-risk-approve-sensitive-prefixes.md). Scheduled and event runs
+load this policy from the default branch. A pull request does not change those runs until it merges.
+Manual dispatch loads the selected workflow commit. A bot `APPROVE` does not
+replace the team review required by the active `dev-protect` and `main-protect` rulesets, and this
+repository does not enable auto-merge. Policy directs lesson reuse to the trusted default-branch
+copies of [decisions](../decisions/) and [postmortems](../postmortems/README.md)
+(`lessonPaths`: `docs/decisions`, `docs/postmortems`). There is no separate lessons tree. Policy pairs
+the check name `ci-required` with the GitHub App slug `github-actions` (`trustedCheckApps`), so trust
+in that check is app-bound rather than name-only. `sensitivePaths` holds at most 50 Hub prefixes, the
+pinned parser's array limit. The runtime checks those prefixes and then `protectedMergePaths` with
+the same `startsWith` rule.
+`releases/requests/` stays only in `protectedMergePaths`. The list covers policy, workflows and the
+repo-seed gate manifest (`.repo-seed/manifest.json`), repository tooling under `scripts/`, the
+password, admin and account API controllers, the whole route table, the session, JWT, permission and
+token services, password hashing and the encrypted credential store, the identity, role and OIDC token
+models, the login captcha guard and rate limiting, and the authentication and account contract paths.
+The pinned matcher
+also treats `.github/`, path tokens such as `migration`, `deploy`, and `releases`, and
+`docs/decisions/` plus `docs/postmortems/` as sensitive without a Hub prefix. Prefixes stay narrow
+enough that ordinary code, documentation and logging remain reviewable; `node --test
+scripts/test-oryn-validation.mjs` enforces that split against real repository paths. It checks the
+50-entry limit and proves that each original protection prefix remains covered by a current prefix,
+including future files beneath it. The model prefixes consolidate into `app/models/forum/oidc`,
+`app/models/forum/role`, and `app/models/forum/user` under `apps/gooseforum/`. This also marks user
+activities, badges, follows, points and statistics models sensitive; ordinary topic/post models,
+logging, Wiki controllers and documentation remain outside the Hub prefixes. These additional account
+models receive comments rather than low-risk bot approval. No original sensitive coverage is removed.
+The local limit guard is not a substitute for the private runtime parser. Full schema/matcher
+verification remains **Partial** in ordinary CI because it has no private runtime checkout. An
+operator with source access must run the strict probe below against the exact setup-action pin and
+perform a selected-ref manual preflight before claiming parser/planning compatibility.
+Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
 reservations carry a unique lease ID. Execution and publication check receipt ownership before model
@@ -63,7 +102,7 @@ requires the next enabled scan/event. Existing issue reports are preserved durin
 edited-issue event or explicit review replaces them with a text-versioned report. See
 [the selection decision](../decisions/0063-oryn-review-once-per-version.md).
 
-All Oryn policy capabilities are enabled: reviews, triage, source-backed Mermaid diagrams, emoji labels,
+Enabled policy capabilities are reviews, triage, source-backed Mermaid diagrams, emoji labels,
 questions, stop/resume, repair, adoption, rebase, clusters, automatic small-bug implementation, close and
 merge. A scan selects at most 20 eligible items; later scans pick up the remaining items while published
 reviews of the current version are excluded. Two item workflows run concurrently. Each item publishes immediately after its own execution,
@@ -79,8 +118,8 @@ patches, independently of removable labels. Generated fixes remain draft PRs for
 The trusted [validation entry](../../.github/oryn/validate.mjs) is installed outside the candidate
 checkout and mounted read-only in Oryn's credential-free bubblewrap sandbox. It compares the working
 tree with the job's exact base SHA, including staged and untracked changes. Every repair runs governance
-checks, then affected Go vet/test/build, PostgreSQL migration/model tests, Vue typecheck/test/i18n/build,
-API contract checks or Flutter analysis/tests. Unknown executable paths select all domains. Linux
+checks, then affected Go vet/test/build, PostgreSQL migration/model tests, Vue
+typecheck/test/i18n/line-clamp/build, API contract checks or Flutter analysis/tests. Unknown executable paths select all domains. Linux
 runners install Go, Node/pnpm and Flutter before repair execution; PostgreSQL uses a disposable local
 service. Flutter's writable SDK cache lives in the temporary validation home. Validation failures or
 budget exhaustion prevent patch publication; browser layout tests and other full CI suites remain
@@ -238,12 +277,17 @@ selected report after changing runtime or credentials. Review local entry change
 ```sh
 actionlint -ignore 'unexpected key "queue" for "concurrency" section' .github/workflows/oryn.yml .github/workflows/oryn-item.yml
 node --test scripts/test-oryn-validation.mjs
+# For the real parser/matcher check, use a clean checkout at the setup action's exact runtime pin
+# with its locked dependencies installed. Strict mode fails rather than skips if source is absent.
+ORYN_REQUIRE_PIN_SRC=1 ORYN_PIN_SRC=/path/to/pinned-oryn node --test scripts/test-oryn-validation.mjs
 node scripts/run-gates.mjs
 git diff --check
 ```
 
 The ignore covers only an older actionlint version's lack of native queued-concurrency support; do not
-suppress other errors. Local checks do not establish live App authentication or model success.
+suppress other errors. The strict probe checks the final policy, the original over-limit policy,
+the parser's 50/51 boundary, and the real matcher. An unset `ORYN_PIN_SRC` skips that probe in ordinary local/CI runs; a skip is not
+parser success. Local checks do not establish live App authentication or model success.
 
 References: [GitHub App registration](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app),
 [pinned token action and permission inputs](https://github.com/actions/create-github-app-token/tree/bcd2ba49218906704ab6c1aa796996da409d3eb1),

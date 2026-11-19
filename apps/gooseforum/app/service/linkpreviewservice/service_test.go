@@ -3,6 +3,7 @@ package linkpreviewservice
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"sync"
 	"sync/atomic"
@@ -192,6 +193,19 @@ func TestResolveCallerCancellationDoesNotPoisonSharedFetch(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	go func() { second <- resolver.Resolve(t.Context(), 0, "https://example.com/") }()
+	deadline := time.Now().Add(time.Second)
+	for {
+		resolver.flightsMu.Lock()
+		joined := resolver.flights["https://example.com/"] != nil && resolver.flights["https://example.com/"].waiters == 2
+		resolver.flightsMu.Unlock()
+		if joined {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("second waiter did not join")
+		}
+		time.Sleep(time.Millisecond)
+	}
 	cancelFirst()
 	if got := <-first; got.Status != StatusTimeout {
 		t.Fatalf("cancelled caller status = %q, want %q", got.Status, StatusTimeout)
@@ -596,5 +610,170 @@ func TestResolveInternalWikiAndUserProfile(t *testing.T) {
 	}
 	if got := resolver.Resolve(t.Context(), 0, "/u/7599"); got.Status != StatusPermissionDenied {
 		t.Fatalf("missing user status = %q", got.Status)
+	}
+}
+
+type contextProbeFetcher struct {
+	started chan context.Context
+	stopped chan struct{}
+}
+
+func (f *contextProbeFetcher) Fetch(ctx context.Context, _ string) (safefetch.Result, error) {
+	f.started <- ctx
+	<-ctx.Done()
+	f.stopped <- struct{}{}
+	return safefetch.Result{}, ctx.Err()
+}
+func (f *contextProbeFetcher) FetchJSON(ctx context.Context, raw string) (safefetch.Result, error) {
+	return f.Fetch(ctx, raw)
+}
+
+func TestResolveSharedWorkHasDeadline(t *testing.T) {
+	f := &contextProbeFetcher{make(chan context.Context, 1), make(chan struct{}, 1)}
+	r := New(f, nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan Preview, 1)
+	go func() { done <- r.Resolve(ctx, 0, "https://example.com/deadline") }()
+	work := <-f.started
+	if _, ok := work.Deadline(); !ok {
+		t.Error("shared work has no deadline covering queue wait")
+	}
+	cancel()
+	<-done
+	select {
+	case <-f.stopped:
+	case <-time.After(time.Second):
+		t.Error("last waiter cancellation left background work running")
+	}
+}
+
+func TestResolveSharedBudgetExpires(t *testing.T) {
+	f := &contextProbeFetcher{make(chan context.Context, 1), make(chan struct{}, 1)}
+	r := New(f, nil)
+	r.workTimeout = 20 * time.Millisecond
+	if got := r.Resolve(t.Context(), 0, "https://example.com/budget"); got.Status != StatusTimeout {
+		t.Fatalf("budget result=%s", got.Status)
+	}
+	<-f.stopped
+}
+
+func TestResolveRetriesAfterSharedBudgetExpiry(t *testing.T) {
+	release := make(chan struct{})
+	finalURL, _ := url.Parse("https://example.com/budget-retry")
+	f := &fakeFetcher{
+		result: safefetch.Result{
+			FinalURL:    finalURL,
+			StatusCode:  200,
+			ContentType: "text/html",
+			Body:        []byte(`<title>Recovered</title>`),
+		},
+		wait: release,
+	}
+	r := New(f, nil)
+	r.workTimeout = 20 * time.Millisecond
+	const rawURL = "https://example.com/budget-retry"
+	if got := r.Resolve(t.Context(), 0, rawURL); got.Status != StatusTimeout {
+		t.Fatalf("budget result=%s", got.Status)
+	}
+	close(release)
+	if got := r.Resolve(t.Context(), 0, rawURL); got.Status != StatusReady || got.Title != "Recovered" {
+		t.Fatalf("retry after budget expiry = %#v, want refreshed ready preview", got)
+	}
+	if calls := f.calls.Load(); calls != 2 {
+		t.Fatalf("fetch calls after budget expiry = %d, want 2", calls)
+	}
+}
+
+func TestResolveBoundsDistinctBackgroundWork(t *testing.T) {
+	f := &contextProbeFetcher{make(chan context.Context, maxPreviewFlights), make(chan struct{}, maxPreviewFlights)}
+	r := New(f, nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan Preview, maxPreviewFlights)
+	for i := 0; i < maxPreviewFlights; i++ {
+		go func() { done <- r.Resolve(ctx, 0, fmt.Sprintf("https://example.com/%d", i)) }()
+		<-f.started
+	}
+	overload := r.Resolve(t.Context(), 0, "https://example.com/overload")
+	if overload.Status != StatusUnavailable {
+		t.Fatalf("overload status=%s", overload.Status)
+	}
+	cancel()
+	for i := 0; i < maxPreviewFlights; i++ {
+		<-done
+		<-f.stopped
+	}
+}
+
+// Pause at the cancellation check after the initial cache miss, before flight
+// admission. This makes the cache-fill race deterministic without timing sleeps.
+type cacheMissContext struct {
+	context.Context
+	once   sync.Once
+	missed chan struct{}
+	resume chan struct{}
+}
+
+func (c *cacheMissContext) Err() error {
+	c.once.Do(func() {
+		close(c.missed)
+		select {
+		case <-c.resume:
+		case <-c.Done():
+		}
+	})
+	return c.Context.Err()
+}
+
+func TestResolveRechecksCacheBeforeRejectingAtCapacity(t *testing.T) {
+	f := &contextProbeFetcher{make(chan context.Context, maxPreviewFlights), make(chan struct{}, maxPreviewFlights)}
+	r := New(f, nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan Preview, maxPreviewFlights)
+	for i := 0; i < maxPreviewFlights; i++ {
+		go func() { done <- r.Resolve(ctx, 0, fmt.Sprintf("https://example.com/busy/%d", i)) }()
+		<-f.started
+	}
+	defer func() {
+		cancel()
+		for range maxPreviewFlights {
+			<-done
+			<-f.stopped
+		}
+	}()
+
+	const key = "https://example.com/completed"
+	const requestedURL = key + "#reader-section"
+	paused := &cacheMissContext{
+		Context: ctx,
+		missed:  make(chan struct{}),
+		resume:  make(chan struct{}),
+	}
+	result := make(chan Preview, 1)
+	go func() { result <- r.Resolve(paused, 0, requestedURL) }()
+	select {
+	case <-paused.missed:
+	case <-time.After(time.Second):
+		t.Fatal("caller did not reach the initial cache miss")
+	}
+	// Reproduce a completed flight publishing its result after the caller's
+	// initial cache lookup, while other URLs occupy every admission slot.
+	r.cache.Set(key, Preview{
+		Kind: KindExternal, Status: StatusReady, Title: "Completed preview",
+		RequestedURL: key + "#original-reader", URL: key + "#original-reader",
+	}, ttlFor(StatusReady))
+	close(paused.resume)
+	select {
+	case got := <-result:
+		if got.Status != StatusReady || got.Title != "Completed preview" {
+			t.Fatalf("cached result at capacity = %#v, want completed preview", got)
+		}
+		if got.RequestedURL != requestedURL || got.URL != requestedURL {
+			t.Fatalf("cached result lost caller URL: %#v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cached result waited for flight capacity")
 	}
 }

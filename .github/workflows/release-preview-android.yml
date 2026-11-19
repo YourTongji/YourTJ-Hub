@@ -63,7 +63,7 @@ jobs:
           ref: ${{ inputs.source }}
           path: .source
           persist-credentials: false
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880
         if: ${{ !inputs.automatic || steps.start.outputs.build_required == 'true' }}
         with:
           distribution: temurin

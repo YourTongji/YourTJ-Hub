@@ -34,8 +34,6 @@ let debounceTimer: number | undefined
 let abortController: AbortController | null = null
 
 const hasQuery = computed(() => query.value.trim().length > 0)
-const activeItem = computed(() => (activeIndex.value >= 0 ? results.value[activeIndex.value] : null))
-const activeId = computed(() => (activeItem.value ? `wiki-search-option-${activeIndex.value}` : undefined))
 
 // 按命名空间分组展示（对齐 WikiSidebar 分组），组内保持 score 降序（后端已排序）。
 // 每项携带全局索引 globalIndex（面板内唯一 id / aria-activedescendant 用）。
@@ -56,6 +54,11 @@ const groupedResults = computed(() => {
   }
   return groups
 })
+
+// globalIndex follows the grouped display order, not the original API order.
+const displayedResults = computed(() => groupedResults.value.flatMap((group) => group.items))
+const activeItem = computed(() => displayedResults.value[activeIndex.value] ?? null)
+const activeId = computed(() => (activeItem.value ? `wiki-search-option-${activeIndex.value}` : undefined))
 
 function runSearch(raw: string) {
   window.clearTimeout(debounceTimer)
@@ -100,13 +103,13 @@ watch(query, (value) => runSearch(value))
 function handleInputKeydown(event: KeyboardEvent) {
   if (event.key === 'ArrowDown') {
     event.preventDefault()
-    if (results.value.length === 0) return
-    activeIndex.value = (activeIndex.value + 1) % results.value.length
+    if (displayedResults.value.length === 0) return
+    activeIndex.value = (activeIndex.value + 1) % displayedResults.value.length
     scrollActiveIntoView()
   } else if (event.key === 'ArrowUp') {
     event.preventDefault()
-    if (results.value.length === 0) return
-    activeIndex.value = (activeIndex.value - 1 + results.value.length) % results.value.length
+    if (displayedResults.value.length === 0) return
+    activeIndex.value = (activeIndex.value - 1 + displayedResults.value.length) % displayedResults.value.length
     scrollActiveIntoView()
   } else if (event.key === 'Enter') {
     if (activeItem.value) {

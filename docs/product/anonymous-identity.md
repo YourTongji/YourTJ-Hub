@@ -58,6 +58,9 @@ The profile introduction depends on the viewer: the owner is told what others ca
 signed-in members and guests see neutral descriptions that never mention private state. On topic
 pages the owner's own topic and replies carry a "your anonymous identity" tag; everyone else, and
 every feed list, shows the plain anonymous tag.
+Web participant avatar stacks use the same public UID profile links and identity keys as
+authors, so distinct personas never share a numeric-zero link or rendering key.
+
 Web SVG avatars keep their original URL at comment, quote, list and profile sizes; no medium
 raster derivative is requested for the public persona SVG endpoint.
 

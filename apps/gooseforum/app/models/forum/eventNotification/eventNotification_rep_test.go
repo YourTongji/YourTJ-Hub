@@ -178,6 +178,21 @@ func TestCategoriesFilterBeforeLimitAndPreserveMentionReason(t *testing.T) {
 			t.Fatalf("%s unread=%v got=%+v err=%v", tt.category, tt.unread, got, err)
 		}
 	}
+	for _, tc := range []struct {
+		categories []string
+		want       int64
+	}{
+		{[]string{}, 0}, {[]string{"replies"}, 1}, {[]string{"mentions"}, 1},
+		{[]string{"likes"}, 1}, {[]string{"following"}, 0}, {[]string{"system"}, 1},
+		{[]string{"replies", "mentions"}, 2},
+		{[]string{"replies", "mentions", "likes", "following", "system"}, 4},
+	} {
+		count, err := GetUnreadBadgeCount(owner, tc.categories)
+		if err != nil || count != tc.want {
+			t.Fatalf("badge %v: got %d want %d err %v", tc.categories, count, tc.want, err)
+		}
+	}
+
 	got, err := QueryByUserId(owner, 1, rows[3].Id, false, "mentions")
 	if err != nil || len(got) != 1 || got[0].Id != rows[0].Id || !got[0].Payload.HasDirectMention {
 		t.Fatalf("mention cursor reason: %+v %v", got, err)

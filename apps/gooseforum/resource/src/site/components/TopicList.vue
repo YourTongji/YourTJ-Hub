@@ -35,7 +35,7 @@ const { t } = useI18n()
 const slots = useSlots()
 const pinnedTopicsId = `gf-pinned-topics-${useId()}`
 const pinnedTopicsExpanded = ref(false)
-const pinnedTopics = computed(() => props.home && props.showPinned ? props.topics.filter(topic => topic.pinWeight > 0) : [])
+const pinnedTopics = computed(() => props.showPinned ? props.topics.filter(topic => topic.pinWeight > 0) : [])
 const visiblePinnedTopics = computed(() => pinnedTopicsExpanded.value ? pinnedTopics.value.slice(1) : [])
 const regularTopics = computed(() => pinnedTopics.value.length
   ? props.topics.filter(topic => topic.pinWeight <= 0)

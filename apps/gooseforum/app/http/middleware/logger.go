@@ -20,7 +20,6 @@ func AccessLog(c *gin.Context) {
 
 	startTime := time.Now()
 	path := c.Request.URL.Path
-	raw := logQuery(c.Request.URL)
 
 	c.Next()
 
@@ -35,10 +34,6 @@ func AccessLog(c *gin.Context) {
 		if clientPath != "" {
 			path = clientPath
 		}
-		raw = ""
-	}
-	if raw != "" {
-		path = path + "?" + raw
 	}
 
 	fields := []any{
@@ -70,14 +65,6 @@ func AccessLog(c *gin.Context) {
 	}); err != nil {
 		slog.Warn("network access log record failed", "err", err)
 	}
-}
-
-// OAuth credentials and state must never enter application or network-access logs.
-func logQuery(u *url.URL) string {
-	if ShouldRedactQuery(u) {
-		return ""
-	}
-	return u.RawQuery
 }
 
 // ShouldRedactQuery identifies authentication and identity surfaces whose query
@@ -115,20 +102,13 @@ func isAnonymousIdentityPath(path string) bool {
 	return strings.HasPrefix(path, "/api/forum/anonymous/") || strings.HasPrefix(path, "/api/admin/anonymous-identities/") || strings.HasPrefix(path, "/a/")
 }
 
+// logReferer retains only the web origin, not user info, paths or queries.
 func logReferer(raw string) string {
 	u, err := url.Parse(raw)
-	if err != nil {
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
 		return ""
 	}
-	if _, err := url.ParseQuery(u.RawQuery); err != nil {
-		return ""
-	}
-	if !ShouldRedactQuery(u) {
-		return raw
-	}
-	u.RawQuery = ""
-	u.ForceQuery = false
-	return u.String()
+	return (&url.URL{Scheme: u.Scheme, Host: u.Host}).String()
 }
 
 // isSignedActionPage 版主快捷审批确认页的查询串携带签名 token（issue #1049），

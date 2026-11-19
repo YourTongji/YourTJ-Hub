@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/registrationservice"
 	"log/slog"
 	"maps"
+	"math"
 	"net/url"
 	"slices"
 	"strconv"
@@ -186,14 +187,15 @@ type ThemePayload struct {
 }
 
 type UnreadStatusPayload struct {
-	Notifications          bool   `json:"notifications"`
-	Messages               bool   `json:"messages"`
-	ModerationReports      bool   `json:"moderationReports"`
-	LatestNotificationType string `json:"latestNotificationType,omitempty"`
-	LatestUnreadId         uint64 `json:"latestUnreadId,omitempty"`
-	NotificationCount      *int64 `json:"notificationCount,omitempty"`
-	MessageCount           *int64 `json:"messageCount,omitempty"`
-	BadgeStyle             string `json:"badgeStyle"`
+	Notifications          bool     `json:"notifications"`
+	Messages               bool     `json:"messages"`
+	ModerationReports      bool     `json:"moderationReports"`
+	LatestNotificationType string   `json:"latestNotificationType,omitempty"`
+	LatestUnreadId         uint64   `json:"latestUnreadId,omitempty"`
+	NotificationCount      *int64   `json:"notificationCount,omitempty"`
+	MessageCount           *int64   `json:"messageCount,omitempty"`
+	BadgeStyle             string   `json:"badgeStyle"`
+	BadgeCategories        []string `json:"badgeCategories"`
 }
 
 type SitePayload struct {
@@ -939,6 +941,7 @@ func buildUnreadStatus(userID uint64) UnreadStatusPayload {
 		NotificationCount:      status.NotificationCount,
 		MessageCount:           status.MessageCount,
 		BadgeStyle:             status.BadgeStyle,
+		BadgeCategories:        status.BadgeCategories,
 	}
 }
 
@@ -1376,7 +1379,8 @@ func buildHomeMeta(c *gin.Context, page int, sort string, hasNext bool) PageMeta
 
 func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *posts.Entity, anchorPostNo uint64) TopicDetailProps {
 	currentUserID := component.LoginUserId(c)
-	postEntities, hasBefore, hasAfter := topicInitialPosts(topic, anchorPostNo)
+	canModerate := moderationservice.CanModerateAnyCategory(currentUserID, topic.CategoryIds)
+	postEntities, hasBefore, hasAfter := topicInitialPosts(topic, anchorPostNo, posts.WindowViewer{UserID: currentUserID, CanModerate: canModerate})
 	if anchorPostNo <= 1 && len(postEntities) == 0 && firstPost != nil && firstPost.Id != 0 {
 		postEntities = append(postEntities, firstPost)
 	}
@@ -1414,7 +1418,6 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 		userIDs = append(userIDs, item.UserId)
 	}
 	userMap := users.GetMapByIds(userIDs)
-	canModerate := moderationservice.CanModerateAnyCategory(currentUserID, topic.CategoryIds)
 
 	return TopicDetailProps{
 		Topic: buildTopicDetailPayload(c, topic, firstPost, userMap),
@@ -1442,18 +1445,17 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 	}
 }
 
-func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64) ([]*posts.Entity, bool, bool) {
-	if anchorPostNo <= 1 {
-		items := posts.GetFirstPageByTopicId(topic.Id)
-		return items, false, topic.PostSeq > uint64(len(items))
+func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64, viewer posts.WindowViewer) ([]*posts.Entity, bool, bool) {
+	after := uint64(0)
+	if anchorPostNo > 1 {
+		after = anchorPostNo - 1
 	}
-
-	items := posts.GetByTopicPostNoAfter(topic.Id, anchorPostNo-1, postWindowLimit+1)
+	items := posts.GetByTopicPostNoAfter(topic.Id, after, postWindowLimit+1, viewer)
 	hasAfter := len(items) > postWindowLimit
 	if hasAfter {
 		items = items[:postWindowLimit]
 	}
-	return items, true, hasAfter
+	return items, anchorPostNo > 1, hasAfter
 }
 
 func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64, firstPost *posts.Entity) PostWindowPayload {
@@ -3486,8 +3488,12 @@ func buildPublishCategories() []PublishCategoryPayload {
 	return res
 }
 
+var searchPageAggregate = searchservice.AggregateSearch
+
 func buildSearchPageProps(query string, scope string, page int) SearchPageProps {
 	const pageSize = 10
+	// Bound the entire offset + limit window before multiplying the requested page.
+	page = max(1, min(page, math.MaxInt/pageSize))
 	normalizedScope := searchservice.NormalizeScope(scope)
 	props := SearchPageProps{
 		Query:      query,
@@ -3504,9 +3510,6 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		return props
 	}
 
-	if page < 1 {
-		page = 1
-	}
 	// topics（含 all 视图中的 topics 部分）按 pageSize 分页；
 	// users/categories/courses 一期单页（上限 MaxAggregateLimit），无分页 UI。
 	limit := pageSize
@@ -3517,7 +3520,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 	if normalizedScope == searchservice.ScopeTopics || normalizedScope == searchservice.ScopeAll {
 		offset = (page - 1) * pageSize
 	}
-	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
+	result, err := searchPageAggregate(searchservice.AggregateSearchRequest{
 		Query:     query,
 		Scope:     normalizedScope,
 		Limit:     limit,
@@ -3583,6 +3586,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		}
 	})
 	props.Total = result.Total
+	props.TotalPages = totalPageCount
 	props.UsersTotal = result.UsersTotal
 	props.CategoriesTotal = result.CategoriesTotal
 	props.CoursesTotal = result.CoursesTotal

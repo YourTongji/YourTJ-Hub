@@ -26,7 +26,8 @@
 cd apps/gooseforum && go vet ./... && go test ./...
 
 # Frontend (`pnpm check` = i18n gate: four-locale key consistency, static t() refs,
-# and serverMessages → mobile server_message_catalog.dart mirror freshness)
+# and serverMessages → mobile server_message_catalog.dart mirror freshness;
+# plus the line-clamp × display same-string conflict gate, see coding-conventions.md)
 cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm check && pnpm build
 # Here Node ≥26 needs vitest ≥5: Node ships localStorage/sessionStorage, vitest 4 read Node's
 # during happy-dom setup → false failures; ≥5 injects happy-dom's (Node versions: local-development.md).
@@ -63,6 +64,31 @@ cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run check
 # Build smoke
 make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 ```
+
+### Real object-storage upload checks
+
+The backend workflow's `ci-backend-minio` job builds the official MinIO
+`RELEASE.2025-10-15T17-29-55Z` source pinned by module version and checksum, then
+starts a disposable server bound to loopback. It uses synthetic credentials and
+temporary storage, requires no repository or production secrets, and stops the
+server and removes its data on exit. The existing backend aggregate includes
+this job's result. Changes to its runner, test or backend workflow select it.
+
+From the repository root, in an environment that supports an unmodified MinIO
+server, run `bash apps/gooseforum/scripts/run-minio-upload-e2e.sh`. This downloads
+and builds the pinned official source. The opt-in `miniointegration` test tag
+keeps ordinary unit tests independent of a running object store; explicitly
+running the integration test without its disposable instance fails, not skips.
+
+The real Gin route chain, metadata adapter and S3 provider exercise both PNG and
+declared-JPEG/actual-PNG uploads. The test sends the returned presigned POST to
+MinIO, checks size-plus-one Range behavior, completes the upload, replays the
+original policy with different same-length bytes, and requires changing its key
+to the final filename to receive `403 AccessDenied`. It verifies the final bytes
+and type, duplicate completion, source-read denial and recovery after cleanup.
+This checks the HTTP/storage protocol, not browser CORS, production credentials,
+or other S3 vendors. A compile-only run or a simulated provider is not evidence
+that the real-store test passed; use the exact commit's job result.
 
 ## Layers
 
@@ -190,11 +216,28 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   to `CAMPUS_MAP_BROWSER_EVIDENCE_DIR` (a temporary directory by default). CI uploads
   `campus-map-browser-evidence-<workflow SHA>` for 30 days; link the current run's artifact in a PR
   when reviewing those flows. Captures remain outside Git and are browser evidence, not dev acceptance.
+  The mixed-bookmark suite reuses the profile privacy fixture to mount the real profile shell, then
+  exercises intercepted cursor responses through browser scrolling. Both bookmark entry points,
+  both loading orders for equal IDs, 320/1280px widths and both themes produce first-page and
+  after-pagination captures in `YOURTJ_BOOKMARK_SCREENSHOT_DIR`. CI preserves the PNGs, HTML
+  contact sheet and source receipt as `profile-bookmark-browser-evidence-<workflow SHA>` for
+  30 days. These are synthetic-data browser captures for visual review, not screenshot goldens
+  or production-account/backend acceptance.
+  The bookmark-excerpt suite (`resource/test/bookmark-excerpts.browser.mjs`) mounts the real
+  UserPage/AppShell and Tailwind cascade with synthetic bookmarks and an initialized memory
+  router, asserting the two-line reply-excerpt clamp at 320/1280px in both themes. The activity
+  variant covers the retained render branch, not a current server tab. CI preserves eight PNGs
+  and a source receipt (checkout SHA, PR head SHA, browser version, per-case measurements) as
+  `bookmark-excerpt-evidence-<workflow SHA>` for 30 days. Like the other bookmark captures, these
+  are synthetic-data browser evidence for visual review, not live-account/backend acceptance.
 - ci-contract.yml: changed contract inputs install the locked `packages/api-contract` pnpm tooling, run OpenAPI
   lint + bundle + TypeScript generation, then rejects an uncommitted diff below
-  `apps/gooseforum/resource/packages/client/src/gen`. Its inputs are the contract package, generated
-  TypeScript, client package manifest, and its own workflow configuration. The route-level HTTP
-  contract fixture tests run inside the backend `go test ./...` gate.
+  `apps/gooseforum/resource/packages/client/src/gen`. It also checks selected generated Dart wire
+  models without rewriting them (`pnpm check:dart`); regenerate with `pnpm generate:dart` before
+  committing schema changes. Its inputs include the contract package, generated TypeScript, mobile
+  core `lib/src/gen/`, client package manifest, and its own workflow configuration. The route-level
+  HTTP contract fixture tests run inside the backend `go test ./...` gate; Flutter fixture and push
+  repository tests verify the generated models through the existing client imports.
 - ci-mobile.yml: Flutter source, tests, assets, dependency/tooling or native files trigger independent
   analysis and test jobs. Before Flutter bootstrap, its analysis job runs the dependency-free
   UI-kit Node tool tests: Twemoji inventory/Unicode input → JSON manifest + Dart map freshness
@@ -207,7 +250,8 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   skipping parity. Run `node --test apps/mobile/packages/ui_kit/tool/*.test.mjs` from the repository
   root, or `node apps/mobile/packages/ui_kit/tool/check_token_mirror.mjs` for just token parity.
   Dart paths include `integration_test`, `test_driver` and package-local `tool`
-  so these sources still receive analysis; device integration tests remain a separate manual run.
+  so these sources still receive analysis. Device integration tests are separate from these widget
+  shards; most remain manual, with the native CI cases described below running on a simulator.
   Each package tests on its own runner; `forum_app` has two disjoint Flutter
   shards. All package suites run for a shared-code change, including dependent packages. The local
   `melos run test` remains serial to avoid sharing one SDK's startup lock across Flutter processes.
@@ -233,11 +277,16 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   class, missing inspector or inspector failure fails the job; a successful Flutter build alone
   cannot conceal missing app Kotlin compilation. The inspector is resolved from `PATH`, then
   `ANDROID_HOME`/`ANDROID_SDK_ROOT` under `cmdline-tools/latest/bin`. This checks the packaged
-  entrypoint, not device startup or every Kotlin class, and does not change the Flutter/AGP pins
-  or Kotlin/DSL compatibility flags. Checker changes select an Android native build; fixture
+  entrypoint, not device startup or every Kotlin class. Android additionally runs the widget-projection
+  JUnit tests with `./gradlew :app:testDebugUnitTest` after the release build generates the Gradle wrapper.
+  This does not change the Flutter/AGP pins or Kotlin/DSL compatibility flags. Checker changes select an Android native build; fixture
   regressions run with `python3 -m unittest discover -s scripts/ci -p 'test_*.py'`.
   iOS runs the simulator
   build, native `RunnerTests` storage-policy and widget schedule regressions, and effective distribution-signing checks.
+  Ordinary iOS native CI also runs the [mixed-bookmark acceptance fixture](../../apps/mobile/packages/forum_app/README.md#收藏分页原生验收)
+  in both themes and preserves eight captures, execution logs and source/device metadata for 14 days.
+  This synthetic-data fixture is excluded when a release candidate supplies `source`; its captures
+  still require visual review and do not establish live-backend or physical-device acceptance.
   Clean checkouts use `flutter pub get` before native compilation. Signed releases separately verify the fixed application source
   and build only the selected native platforms.
 - Mobile tests assert behavior, layout constraints, accessibility and design tokens without screenshot

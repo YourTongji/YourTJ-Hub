@@ -35,3 +35,41 @@ export function decideHorizontalSwipe(
   }
   return 'none'
 }
+
+/** 灯箱缩放范围：1 = 适应屏幕，最大 4 倍 */
+export const LIGHTBOX_MIN_SCALE = 1
+export const LIGHTBOX_MAX_SCALE = 4
+
+/** 图片相对舞台中心的位移（px）与缩放倍数 */
+export interface ZoomView {
+  scale: number
+  x: number
+  y: number
+}
+
+export interface ZoomSize {
+  width: number
+  height: number
+}
+
+export const IDENTITY_ZOOM: ZoomView = { scale: 1, x: 0, y: 0 }
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+/** 限制倍数，并让放大后的图片边缘不离开舞台（图片比舞台小的方向保持居中） */
+export function clampZoomView(view: ZoomView, content: ZoomSize, stage: ZoomSize): ZoomView {
+  const scale = clamp(view.scale, LIGHTBOX_MIN_SCALE, LIGHTBOX_MAX_SCALE)
+  if (scale === LIGHTBOX_MIN_SCALE) return IDENTITY_ZOOM
+  const maxX = Math.max(0, (content.width * scale - stage.width) / 2)
+  const maxY = Math.max(0, (content.height * scale - stage.height) / 2)
+  return { scale, x: maxX ? clamp(view.x, -maxX, maxX) : 0, y: maxY ? clamp(view.y, -maxY, maxY) : 0 }
+}
+
+/** 以 point（相对舞台中心）为不动点缩放：指针 / 双指中点下的那块图片停在原处 */
+export function zoomViewAt(view: ZoomView, nextScale: number, point: { x: number; y: number }, content: ZoomSize, stage: ZoomSize): ZoomView {
+  const scale = clamp(nextScale, LIGHTBOX_MIN_SCALE, LIGHTBOX_MAX_SCALE)
+  const ratio = scale / view.scale
+  return clampZoomView({ scale, x: point.x - (point.x - view.x) * ratio, y: point.y - (point.y - view.y) * ratio }, content, stage)
+}

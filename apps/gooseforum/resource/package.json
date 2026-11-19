@@ -14,7 +14,8 @@
     "test:browser": "node --test --test-concurrency=2 test/*.browser.mjs",
     "audit:site-colors": "node scripts/audit-site-colors.mjs",
     "check:i18n": "node scripts/check-i18n-keys.mjs && node ../../mobile/tools/generate_server_messages.mjs --check",
-    "check": "pnpm check:i18n"
+    "check:line-clamp": "node scripts/check-line-clamp.mjs",
+    "check": "pnpm check:i18n && pnpm check:line-clamp"
   },
   "dependencies": {
     "@gooseforum/client": "workspace:*",
@@ -38,7 +39,7 @@
     "markdown-it-anchor": "^9.2.0",
     "markdown-it-task-lists": "^2.1.1",
     "mermaid": "^11.17.2",
-    "node-forge": "^1.4.1",
+    "node-forge": "^1.4.3",
     "prosemirror-commands": "^1.7.1",
     "prosemirror-history": "^1.5.0",
     "prosemirror-inputrules": "^1.5.1",

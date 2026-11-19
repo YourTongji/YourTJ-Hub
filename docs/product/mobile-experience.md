@@ -137,6 +137,12 @@ and comments into one reading column up to 720 pixels. Enlarged text raises the 
 Folding retains the active pane's relative reading offset and unsent reply draft; unfolding maps that
 position back into the appropriate pane. See [0111](../decisions/0111-topic-content-and-comments-panes.md).
 
+`Current`: when a notification or floor deep link opens a reply window that omits floor 1, the App
+loads the first post through the existing post-window API and includes it in the topic header. The
+reply window keeps its target floor and pagination cursors. If the first-post request fails, the
+reply window stays available and the header shows a localized load error instead of presenting the
+topic excerpt as the full post.
+
 `Current`: tablet workspaces organize navigation beside their content. Home keeps its category
 tabs in a horizontal row above one retained topic feed at every window width. Home centers its complete
 header and feed in a reading column up to 720 logical pixels wide, with a neutral canvas outside it.
@@ -386,6 +392,28 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
 - `Current`: simple-content topics show an uncropped, swipeable image gallery above the body, with
   an ambient blurred image backdrop, a compact count badge and page indicator. The same gallery is
   used in the publishing preview and opens the shared full-screen viewer from any image.
+- `Current`: the publishing preview mirrors the topic detail page for every content type: type
+  label, title in the detail title style, the photo gallery for moments and questions, then the body
+  through the same Markdown renderer, so stickers, mentions, links and formatting appear as they will
+  be published instead of as raw source.
+- `Current`: extra blank lines between top-level blocks show as empty lines in the reader and the
+  publishing preview, using the server rule ([0133](../decisions/0133-visible-blank-lines.md)): each
+  blank line after the first becomes one body-text line plus paragraph spacing, at most three per
+  run; code, math and list items keep Markdown meaning. The long-form editor keeps empty lines when a
+  draft or post is reopened and saves k empty lines as k+1 blank Markdown lines, matching the Web
+  editor; the short-form editor stores text as typed.
+- `Current`: images with a relative width ([0131](../decisions/0131-relative-image-width.md)) follow
+  the Web rule in the reader and the publishing preview: a paragraph of only images with a `#w=`
+  preset lays them out in a centred, wrapping row at that share of the body width, never narrower
+  than 160 logical pixels and without the height cap. `Planned`: a width control in the app editors;
+  they currently keep the fragment they load.
+- `Current`: post Markdown, the publishing preview, Wiki and course-review HTML render math with the
+  same delimiters and guards as the Web (`$`, `$$`, `\(…\)`, `\[…\]` and the common environments;
+  a lone `$` next to whitespace, code and over-5000-character formulas stay literal), at the Web's
+  1.21× body size. Inline formulas sit on the text baseline; display formulas take their own line,
+  start-aligned like narrow Web screens, and scroll sideways inside their own region when too wide.
+  Numbered environments render without numbering, `\tag{n}` shows as a trailing (n), and TeX the app
+  renderer does not support (for example `\ce` or `CD`) falls back to its original source text.
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
   The toolbar's layout button switches between card and list in one tap; its glyph, tooltip and
@@ -395,12 +423,14 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
   rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
   moment and article labels are localized, and enlarged text allows the title/excerpt to grow.
-  Home's unfiltered stream, in both list and card mode, folds pinned topics into one initially
+  Home's unfiltered stream and latest-reply category filter (in both list and card mode), and the
+  standalone category page (card mode), fold pinned topics into one initially
   collapsed announcement-style line: pin mark, "Pinned" badge, the first pinned title and, with
   several pins, their count. A single pin opens directly; several unfold into one-line titles led by
   a small author avatar (with unread dot and relative time) inside the same strip, each opening its
-  topic. At large text the badge and time yield to the title. Category streams and Following retain
-  the server's ordering.
+  topic. At large text the badge and time yield to the title. Other category sorts and Following
+  retain the server's ordering without a pinned strip. Only topics returned for the selected
+  category are collected; pin weights remain global.
   Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
@@ -668,7 +698,11 @@ window space rather than device names; see [0095](../decisions/0095-adaptive-ios
   thresholds, keyboard overlays and lifecycle behavior still require device validation.
 - `Current`: the authenticated Flutter shell keeps one chat/notification/unread event connection only
   while foregrounded. The server sends an immediate resync instruction and owner-scoped change hints;
-  the app reloads actual messages, notification lists and unread badges through REST. Reconnects and
+  the app reloads actual messages, notification lists and unread badges through REST.
+  Notification settings include account-synced badge categories (replies, mentions, likes, following,
+  system), defaulting to all and allowing none, independently of number/dot style and push consent.
+  Directly mentioned replies belong to mentions. Filtering changes navigation notification counts only;
+  notification lists, read state and private-message badges retain their semantics. Reconnects and
   resumed sessions reconcile again, and a failed or unsupported stream uses foreground polling until
   delivery recovers. Account changes cancel the previous connection and discard stale unread responses.
   Background push delivery is not provided by this stream.
@@ -862,7 +896,7 @@ change. The header keeps a small outer margin for its primary action.
   tinted with a check. As in Web's quick composer, moments and questions take one category and the
   menu closes on pick; articles take up to three with the menu staying open and a count. The row
   lists the picks as small pills.
-  Publishing identity and the bot-reply switch follow. Save draft is an app-bar icon in both steps.
+  Publishing identity and the bot-reply switch follow. Save draft is an app-bar icon in both steps: the ReIcon floppy disk, which does not read as the bookmark used for saving to favourites.
 - `Current`: an article preview with two or more body images adds an image-order card above the
   settings: numbered thumbnails in reading order that long-press dragging reorders. The move swaps
   which image fills each existing slot, leaves the text untouched, refreshes the preview at once and
@@ -1540,6 +1574,7 @@ and forwarding on Web, App and old clients; see [forum permissions](forum.md#pri
   Anonymous replies and older servers without author enrichment use an unlinked neutral avatar.
   Bookmark replies and activity URLs with a post number open that floor. Each profile stream keeps
   its own scroll position when switching between different row heights.
+  Mixed bookmark identity and pagination follow the [forum collection rules](forum.md#feed-and-reading).
 
 - `Current`: avatar and cover uploads open a native drag/pinch crop preview with an accessible
   zoom slider and reset action. Avatars export at 300×300; covers at 1600×320 with the central

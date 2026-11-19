@@ -34,7 +34,7 @@ func SearchCourseCandidates(ctx context.Context, keyword string) ([]uint64, bool
 func searchCourseCandidates(ctx context.Context, index meilisearch.IndexManager, keyword string) ([]uint64, error) {
 	// Meili caps even exhaustive totals at maxTotalHits. Check settings so an
 	// older index cannot silently produce incomplete catalog pages during rollout.
-	pagination, err := index.GetPaginationWithContext(ctx)
+	pagination, err := index.GetPagination(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func searchCourseCandidates(ctx context.Context, index meilisearch.IndexManager,
 		return nil, errors.New("course index requires refresh-course settings")
 	}
 	limit := maxCourseCandidates + 1
-	response, err := index.SearchWithContext(ctx, keyword, &meilisearch.SearchRequest{
+	response, err := index.Search(ctx, keyword, &meilisearch.SearchRequest{
 		Page: 1, HitsPerPage: &limit,
 		AttributesToRetrieve: []string{"id"},
 		MatchingStrategy:     meilisearch.All,

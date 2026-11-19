@@ -445,6 +445,104 @@ with tempfile.TemporaryDirectory() as td:
     check("跨库 DSN 端到端拒绝（exit != 0）", proc_cross.returncode != 0)
     check("跨库错误信息含 dbname", "dbname" in proc_cross.stderr)
 
+SQLITE_DAILY_BACKUP = {
+    "migration": "on",
+    "backupSqlite": True,
+    "backupDir": "./storage/databasebackup/",
+    "keep": 3,
+    "spec": "0 3 * * *",
+}
+DB_POOL = {
+    "maxIdleConnections": 3,
+    "maxOpenConnections": 5,
+    "maxLifeSeconds": 300,
+}
+
+
+def render_deployed_config(env_name, dbname, extra):
+    with tempfile.TemporaryDirectory() as td:
+        out_path = os.path.join(td, "config.toml")
+        env_full = dict(os.environ)
+        env_full.update(
+            {
+                "SIGNING_KEY": "k" * 32,
+                "PG_DSN": (
+                    "host=postgres user=yourtj password=x "
+                    f"dbname={dbname} port=5432 sslmode=disable"
+                ),
+                "MEILI_MASTER_KEY": "m" * 32,
+                "WIKI_WEBHOOK_SECRET": "w" * 64,
+            }
+        )
+        env_full.update(extra)
+        proc = subprocess.run(
+            [
+                sys.executable,
+                os.path.join(HERE, "render_config.py"),
+                "render",
+                "--env",
+                env_name,
+                "--out",
+                out_path,
+            ],
+            env=env_full,
+            capture_output=True,
+            text=True,
+        )
+        check(
+            f"{env_name} daily backup render exit 0 ({proc.stderr.strip()[:80]})",
+            proc.returncode == 0,
+        )
+        if proc.returncode != 0:
+            return None
+        with open(out_path, encoding="utf-8") as f:
+            return tomllib.loads(f.read())
+
+
+def check_sqlite_daily_backup(label, db, dbname):
+    for key, want in SQLITE_DAILY_BACKUP.items():
+        check_eq(f"{label} db.{key}", want, db[key])
+    check_eq(f"{label} db.default.connection", "postgres", db["default"]["connection"])
+    check_eq(
+        f"{label} db.default.path",
+        "./storage/database/sqlite.db",
+        db["default"]["path"],
+    )
+    for key, want in DB_POOL.items():
+        check_eq(f"{label} db.default.{key}", want, db["default"][key])
+    check_eq(f"{label} db.file.connection", "sqlite", db["file"]["connection"])
+    check_eq(
+        f"{label} db.file.path",
+        "./storage/database/file.db",
+        db["file"]["path"],
+    )
+    for key, want in DB_POOL.items():
+        check_eq(f"{label} db.file.{key}", want, db["file"][key])
+    if dbname is not None:
+        check_eq(
+            f"{label} dsn dbname",
+            dbname,
+            db["default"]["url"].split("dbname=")[1].split()[0],
+        )
+
+
+for env_name, dbname, extra in (
+    ("main", "yourtj_main", {"GH_CLIENT_ID": "gh-id", "GH_CLIENT_SECRET": "gh-secret"}),
+    ("dev", "yourtj_dev", {}),
+):
+    rendered = render_deployed_config(env_name, dbname, extra)
+    if rendered is not None:
+        check_sqlite_daily_backup(env_name, rendered["db"], dbname)
+
+with open(os.path.join(HERE, "config.toml.example"), encoding="utf-8") as example_file:
+    example_cfg = tomllib.loads(example_file.read())
+check_sqlite_daily_backup("init example", example_cfg["db"], None)
+check_eq(
+    "init example db url stays a placeholder",
+    "REPLACE_POSTGRES_DSN",
+    example_cfg["db"]["default"]["url"],
+)
+
 # --- 7. 坏模板端到端拒绝（fail-closed 不产文件） ---
 with tempfile.TemporaryDirectory() as td:
     bad_tmpl = os.path.join(td, "bad.tmpl")

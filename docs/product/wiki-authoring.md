@@ -38,6 +38,9 @@ The public endpoint is `GET /api/wiki/search`:
   or a 700 ms fallback.
 - `searchUnavailable: true` means the optional Meilisearch backend is unavailable. The API keeps HTTP
   200 and returns an empty item list so Wiki reading remains available.
+- The search panel distinguishes an empty successful search from an unavailable search. HTTP
+  errors, invalid JSON, and missing result envelopes show the existing unavailable message,
+  not the no-results message; a later query can retry normally.
 
 Search snippets contain `<mark>` tags only for matched text. Search-rendering code escapes all other
 HTML, so Markdown text that looks like an HTML tag remains visible as text rather than executable

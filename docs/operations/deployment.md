@@ -41,6 +41,25 @@
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
 
+### Single serving process check
+
+`Current`: one `main` process serves the production database and one `dev` process serves the
+development database. Their separate database names and storage directories are environment isolation,
+not a multi-replica deployment. The host reverse proxy has one upstream for each environment.
+
+After a deployment, inspect `docker compose ps main dev` in the deployment directory and the
+corresponding reverse-proxy upstreams. Each environment must have exactly one serving container and
+one upstream. Also account for manually started `serve` processes or other Compose projects before
+moving an instance to another host: this Compose inventory cannot detect them. Stop the previous
+serving process before routing traffic to its replacement. The application has no distributed
+singleton lock that would reject a second serving process automatically.
+
+Sharing PostgreSQL or S3 does not change this boundary. SSE fan-out, process-local caches, in-memory
+events and scheduled jobs require separate coordination before replicas can be supported; the
+`task_queue` lease only protects tasks using that queue. The current deployment uses the existing
+single-process recovery procedure. Any multi-process design needs measured workload evidence and
+verification of cross-process invalidation, job ownership, file access and rollback behavior.
+
 ### 服务器时区：必须无夏令时
 
 进程按容器/宿主机的系统时区（Go 的 `time.Local`）换算「自然日」。逐日口径不止一处依赖它：
@@ -258,7 +277,11 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   snapshots/
     main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
 
-Dev 同步成功后，`snapshots/dev-prev` 仅保留最近 5 个时间戳组的同步前数据库副本；同组 `sqlite`/`file` 一起保留。同步失败不清理旧快照，未知命名文件和符号链接不参与清理。此策略不改变在线库或其他备份目录，首次成功同步也会清理历史遗留的较旧组。
+应用按 `[db]` 的 `backupSqlite`、`backupDir` 和 `keep` 做 SQLite 日备份。main 与 dev 的渲染配置都是 `backupSqlite = true`、`backupDir = "./storage/databasebackup/"`、`keep = 3`。`keep` 是成功备份的保留份数。这和 `backup-db.sh` 部署前 `pg_dump` 的 7 份保留各自独立。
+
+`sync-db-from-main.sh` 把 main 的数据库同步到 dev。同步前不复制旧 dev 库，也不写入 `snapshots/dev-prev`。同步范围、校验，以及停止 dev 服务的时机保持不变。
+
+dev 部署工作流从 `main` 检出渲染这份配置，并安装 `sync-db-from-main.sh`。这两处改动进入该检出后，随后的 dev 部署才会用到它们。生产部署同样从 `main` 检出渲染配置。
 
 ## Branch model & CI/CD
 
@@ -299,9 +322,10 @@ Dev 同步成功后，`snapshots/dev-prev` 仅保留最近 5 个时间戳组的�
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
   Both deploys install `feed-privacy.py` and `feed-raw-tables.json` — `backup-db.sh` hard-depends
-  on that pair to scrub feed observations. Dev additionally uploads `snapshot-db.sh`, and both
-  upload `rotate-agent-epoch.py`, so copied Agent credentials are disabled and previous-dev
-  snapshots remain usable without preinstalled helpers. The trusted
+  on that pair to scrub feed observations. Both upload `rotate-agent-epoch.py`, so copied Agent
+  credentials are disabled without preinstalled helpers. Dev also uploads `snapshot-db.sh` for a
+  manual SQLite snapshot. `sync-db-from-main.sh` copies the live databases and leaves that helper
+  unused. The trusted
   `main` checkout must contain this complete script bundle before the dev workflow uses it.
   Changes to `deploy-dev.yml` select backend/frontend checks and a dev deployment, so workflow
   repairs are exercised after merge even when application source is unchanged.
@@ -615,7 +639,7 @@ instance:
   - PostgreSQL: `backup-db.sh` runs `pg_dump` into `snapshots/<instance>/pg-<db>-<ts>.sql`;
     `sync-db-from-main.sh` drops/recreates `yourtj_dev` and pipes
     `pg_dump -d yourtj_main | psql -d yourtj_dev` (dev is a clean one-way snapshot of main).
-  - PostgreSQL mode also snapshots dev's existing `file.db` and copies main's `file.db` to dev, because `[db.file]` remains SQLite even when the main database is PostgreSQL.
+  - PostgreSQL mode copies main's `file.db` to dev, because `[db.file]` remains SQLite even when the main database is PostgreSQL.
 - Manual equivalent inside the postgres container:
   ```bash
   docker compose exec postgres sh -c \
@@ -1277,6 +1301,13 @@ owner to sign in through the known site address and explicitly resend from email
 delivered messages are not rewritten. Activation validity still starts at issuance and expires after
 24 hours even if the queue or provider delayed delivery; requesting another message does not extend
 an old token. Do not edit tokens or user activation data to compensate for URL configuration.
+
+Activation tokens require the dedicated purpose-bound format described in the
+[activation-token boundary](../product/identity-and-access.md#activation-token-purpose-boundary).
+When enabling this format, previously issued and queued shared-key activation links
+become unusable. Queued legacy messages are not purged or re-signed and may still be
+delivered; direct affected owners to sign in at the known site and resend from
+email settings. Do not restore shared-key parsing as a compatibility workaround.
 
 `Partial`: the existing URL selection is not an origin-health or deliverability check. Operators must
 verify their own host/configuration; this content recovery does not introduce a new URL validator,

@@ -137,6 +137,16 @@ func TestSanitize(t *testing.T) {
 			want: `<meta http-equiv="content-security-policy" content="default-src &#39;self&#39;"/>`,
 		},
 		{
+			// issue #1284 #27：<base> 改写整页相对 URL 解析，meta refresh 让页面
+			// 自动跳转——两者都是导航控制而非 head 内容，一律剥离；
+			// 其它 http-equiv 策略（CSP 等）照旧保留。
+			name: "base tag and refresh meta are stripped",
+			raw: `<base href="https://evil.example/">` + "\n" +
+				`<meta http-equiv="Refresh" content="0;url=https://evil.example/">` + "\n" +
+				`<meta name="keywords" content="k">`,
+			want: `<meta name="keywords" content="k"/>`,
+		},
+		{
 			// x/net/html 把 <body> 内的 head 风格元素也插在 body 里（不回插 head），
 			// 因此它们与普通元素、游离文本一样被丢弃。
 			name: "body content is dropped including head-style elements",

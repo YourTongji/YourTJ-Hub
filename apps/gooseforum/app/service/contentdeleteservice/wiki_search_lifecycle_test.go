@@ -1,6 +1,7 @@
 package contentdeleteservice
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -54,11 +55,11 @@ func configureWikiSearchIndexForLifecycleTest(t *testing.T) {
 	t.Helper()
 	index := meiliconnect.GetClient().Index(searchservice.WikiPageIndex)
 	searchable := []string{"title", "heading", "paragraph"}
-	if _, err := index.UpdateSearchableAttributes(&searchable); err != nil {
+	if _, err := index.UpdateSearchableAttributes(context.Background(), &searchable); err != nil {
 		t.Fatalf("configure wiki searchable attributes: %v", err)
 	}
 	filterable := []any{"pageId", "namespace"}
-	if _, err := index.UpdateFilterableAttributes(&filterable); err != nil {
+	if _, err := index.UpdateFilterableAttributes(context.Background(), &filterable); err != nil {
 		t.Fatalf("configure wiki filterable attributes: %v", err)
 	}
 	waitWikiSearchTasks(t)
@@ -69,7 +70,7 @@ func waitWikiSearchTasks(t *testing.T) {
 	client := meiliconnect.GetClient()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		tasks, err := client.GetTasks(&meilisearch.TasksQuery{
+		tasks, err := client.GetTasks(context.Background(), &meilisearch.TasksQuery{
 			IndexUIDS: []string{searchservice.WikiPageIndex},
 		})
 		if err != nil {

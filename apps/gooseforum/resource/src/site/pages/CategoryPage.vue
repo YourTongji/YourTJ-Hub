@@ -131,7 +131,7 @@ onBeforeUnmount(() => {
           </a>
         </div>
 
-        <TopicList :topics="topics" :show-categories="false" :show-hot="false">
+        <TopicList :topics="topics" :show-categories="false" :show-hot="false" :show-pinned="page.props.sort === 'latest'">
           <template #empty>
             <EmptyState v-if="!hasTopics" :icon="UsersRound" :title="t('topicList.emptyTitle')" :description="t('topicList.emptyCategoryDescription')" />
           </template>

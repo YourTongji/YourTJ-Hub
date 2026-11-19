@@ -384,6 +384,24 @@ func cloneCourseDetail(d CourseDetail) CourseDetail {
 	}
 }
 
+// CourseDetailForUser adds request-local state without placing it in the public detail cache.
+type CourseDetailForUser struct {
+	CourseDetail
+	Bookmarked bool `json:"bookmarked"`
+}
+
+func GetCourseDetailForUser(ctx context.Context, id, userId uint64) (CourseDetailForUser, error) {
+	detail, err := GetCourseDetail(id)
+	if err != nil {
+		return CourseDetailForUser{}, err
+	}
+	bookmarked, err := course.IsCourseBookmarkedContext(ctx, userId, id)
+	if err != nil {
+		return CourseDetailForUser{}, err
+	}
+	return CourseDetailForUser{CourseDetail: detail, Bookmarked: bookmarked}, nil
+}
+
 // GetCourseDetail 返回课程详情；课程不存在或已隐藏时返回 ErrCourseNotFound。
 func GetCourseDetail(id uint64) (CourseDetail, error) {
 	if id == 0 {

@@ -1987,7 +1987,7 @@ async function toggleBinding(provider: string) {
           </section>
 
           <section v-show="activeTab === 'account'">
-            <SectionHeader :icon="KeyRound" :title="t('settings.account.title')" />
+            <SectionHeader :icon="KeyRound" :title="t('settings.account.title')" :description="t('settings.account.description')" />
             <form class="max-w-xl space-y-4 p-4" @submit.prevent="submitPassword">
               <p v-if="page.props.canSetPassword" class="gf-status-message gf-status-message-info">{{ t('settings.account.setPasswordHint') }}</p>
               <label v-else class="block">
@@ -2152,7 +2152,7 @@ async function toggleBinding(provider: string) {
           </Teleport>
 
           <section v-show="activeTab === 'privacy'">
-            <SectionHeader :icon="Shield" :title="t('settings.privacy.title')" />
+            <SectionHeader :icon="Shield" :title="t('settings.privacy.title')" :description="t('settings.privacy.description')" />
             <div class="max-w-2xl divide-y divide-line p-4">
               <ProfilePrivacySettings v-if="activeTab === 'privacy'" :key="`profile-privacy-${page.layout.viewer.id}`" :profile-url="profileUrl" />
               <AnonymousIdentitySettings v-if="activeTab === 'privacy'" :key="page.layout.viewer.id" />
@@ -2160,7 +2160,7 @@ async function toggleBinding(provider: string) {
           </section>
 
           <section v-show="activeTab === 'notifications'">
-            <SectionHeader :icon="Bell" :title="t('settings.privacy.notificationsTitle')" />
+            <SectionHeader :icon="Bell" :title="t('settings.privacy.notificationsTitle')" :description="t('settings.privacy.notificationsDescription')" />
             <div class="max-w-2xl divide-y divide-line p-4">
               <UnreadDisplaySettings />
               <div v-if="pushPreferences" class="py-3">

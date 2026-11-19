@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Line clamp acceptance</title>
+    <style>
+      body { margin: 0; padding: 12px; font-family: system-ui, sans-serif; }
+      html[data-theme="gf-light"] body { background: #f8fafc; color: #172033; }
+      html[data-theme="gf-dark"] body { background: #17191e; color: #eceef2; }
+      main { display: grid; gap: 12px; }
+      section { min-width: 0; border: 1px solid currentColor; border-radius: 8px; padding: 10px; }
+      h2 { margin: 0 0 8px; font-size: 14px; }
+      #schedule-scroll { width: 100%; overflow-x: auto; }
+      #select-target, #select-target-direct { width: 260px; max-width: calc(100vw - 24px); }
+      #select-target-direct { margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./line-clamp.ts"></script>
+  </body>
+</html>

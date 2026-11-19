@@ -17,6 +17,10 @@ if (params.get('guest') === '1') { layout.viewer.isAuthenticated = false; layout
 // stands in for a server-persisted preference across the production page reload.
 const fixtureState = { ...identityState, showContent: params.get('hidden') !== '1' }
 anonymousProfile.showContent = fixtureState.showContent
+if (params.get('long-preview') === '1') {
+  const excerpt = Array.from('匿名主页回复摘要用于确认服务端硬截断会显示省略号。'.repeat(12)).slice(0, 199).join('') + '…'
+  anonymousProfile.replies = [{ id: 99, url: '/p/99/2', excerpt }]
+}
 if (!fixtureState.showContent) {
   anonymousProfile.topics = []; anonymousProfile.replies = []
   anonymousProfile.topicCount = 0; anonymousProfile.replyCount = 0

@@ -25,6 +25,7 @@ func GetUnreadStatus(req component.BetterRequest[GetUnreadCountReq]) component.R
 		"latestNotificationType": status.LatestNotificationType,
 		"latestUnreadId":         status.LatestUnreadId,
 		"badgeStyle":             status.BadgeStyle,
+		"badgeCategories":        status.BadgeCategories,
 	}
 	if status.NotificationCount != nil {
 		result["notificationCount"] = *status.NotificationCount
@@ -44,12 +45,13 @@ func GetNotificationPreferences(req component.BetterRequest[GetUnreadCountReq]) 
 }
 
 type NotificationPreferencesUpdate struct {
-	BadgeStyle string `json:"badgeStyle" validate:"required,oneof=number dot"`
+	BadgeStyle      *string   `json:"badgeStyle"`
+	BadgeCategories *[]string `json:"badgeCategories"`
 }
 
 func UpdateNotificationPreferences(req component.BetterRequest[NotificationPreferencesUpdate]) component.Response {
-	prefs, err := unreadservice.UpdatePreferences(req.UserId, req.Params.BadgeStyle)
-	if errors.Is(err, users.ErrUnreadBadgeStyle) {
+	prefs, err := unreadservice.UpdatePreferences(req.UserId, req.Params.BadgeStyle, req.Params.BadgeCategories)
+	if errors.Is(err, users.ErrUnreadBadgeStyle) || errors.Is(err, users.ErrUnreadBadgeCategories) {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
 	if err != nil {

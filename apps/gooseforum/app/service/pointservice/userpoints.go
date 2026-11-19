@@ -62,12 +62,37 @@ func ReversePostReward(userId, postID uint64) error {
 		fmt.Sprintf("post-deleted:%d", postID), fmt.Sprintf("post:%d", postID))
 }
 
-// ClearPostDeletedTombstone 恢复内容时清除删除回滚墓碑（post-deleted:ID）。
-// applyPointsTx 对 PointsActionPostCreated 会因已存在删除墓碑而跳过加分，
-// 恢复路径必须先清除墓碑才能回补创建奖励，否则"删除→恢复"积分永久丢失。
-func ClearPostDeletedTombstone(postID uint64) error {
-	return db.Connect().Where("source_key = ?", fmt.Sprintf("post-deleted:%d", postID)).
-		Delete(&pointsRecord.Entity{}).Error
+// RestorePostRewardTx undoes the recorded reversal, not a new publication
+// reward. The caller must already hold the restored post's write lock.
+func RestorePostRewardTx(tx *gorm.DB, userID, postID uint64) error {
+	lock := clause.Locking{Strength: "UPDATE"}
+	var participant struct{ ID uint64 }
+	if err := tx.Table("users").Clauses(lock).Select("id").Where("id = ?", userID).Take(&participant).Error; err != nil {
+		return err
+	}
+	var reversal pointsRecord.Entity
+	if err := tx.Clauses(lock).Where("source_key = ?", fmt.Sprintf("post-deleted:%d", postID)).Take(&reversal).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if reversal.UserId != userID || reversal.Action != PointsActionPostDeleted.Code() || reversal.PointsChange > 0 {
+		return fmt.Errorf("invalid reward reversal for restored post %d", postID)
+	}
+	if reversal.PointsChange < 0 {
+		// Deletion does not create a missing wallet; restoration likewise leaves
+		// that legacy row absent rather than projecting a partial balance.
+		if err := tx.Table("user_points").Where("user_id = ?", userID).
+			Update("current_points", gorm.Expr("current_points - ?", reversal.PointsChange)).Error; err != nil {
+			return err
+		}
+		if err := tx.Table("users").Where("id = ?", userID).
+			Update("prestige", gorm.Expr("prestige - ?", reversal.PointsChange)).Error; err != nil {
+			return err
+		}
+	}
+	return tx.Delete(&reversal).Error
 }
 
 func applyPoints(userId uint64, points int64, action PointsAction, sourceKey, originalSourceKey string) error {
@@ -88,7 +113,8 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 	// reward model is scoped to humans. Skipping here covers RewardPoints from both
 	// topic/reply event handlers and ReversePostRewardTx from the delete path, so
 	// bot content neither earns nor reverses points and never errors into the
-	// eventbus retry/drop loop.
+	// eventbus retry/drop loop. This initial read only skips bot paths; non-bot
+	// paths acquire the participant users row after their content locks below.
 	var actorType int8
 	if err := tx.Table("users").Select("actor_type").Where("id = ?", userId).Take(&actorType).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -100,8 +126,8 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 		return nil
 	}
 	locking := clause.Locking{Strength: "UPDATE"}
-	// Publication handlers receive events only after the write path has accepted the
-	// content. Rechecking mutable moderation state here would make rewards depend on
+	// Publication handlers receive events only after the write path has accepted
+	// the content. Rechecking mutable moderation state here would make rewards depend on
 	// asynchronous scheduling; deletion is handled deterministically by its tombstone.
 	if strings.HasPrefix(sourceKey, "topic:") {
 		topicID, err := strconv.ParseUint(strings.TrimPrefix(sourceKey, "topic:"), 10, 64)
@@ -163,6 +189,23 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 			return fmt.Errorf("original points record %q does not match user %d and points %d", originalSourceKey, userId, -points)
 		}
 	}
+	// After content/tombstone locks, acquire the participant users row before any
+	// points ledger/balance write. Persona publication already holds this row
+	// through ValidateWriterTx; member publication, old event replay, and deletion
+	// reversal now follow the same content -> users -> points order, so PostgreSQL
+	// cannot form a users <-> user_points deadlock. Re-read actor_type under the
+	// row lock so the bot exclusion observes committed account changes.
+	var lockedActorType int8
+	if err := tx.Clauses(locking).Table("users").Select("actor_type").
+		Where("id = ?", userId).Take(&lockedActorType).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if lockedActorType == users.ActorTypeBot {
+		return nil
+	}
 	key := sourceKey
 	recordPoints := points
 	if !applyBalance {
@@ -191,6 +234,8 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 	if !applyBalance {
 		return nil
 	}
+	// Keep this write after the users row lock: all callers now hold the
+	// participant row before touching user_points, including replay paths.
 	result = tx.Table("user_points").Where("user_id = ?", userId).
 		Update("current_points", gorm.Expr("current_points + ?", points))
 	if result.Error != nil {

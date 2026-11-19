@@ -20,7 +20,6 @@ func Recovery() gin.HandlerFunc {
 				attrs := []any{
 					"method", c.Request.Method,
 					"path", path,
-					"query", logQuery(c.Request.URL),
 					"route", c.FullPath(),
 					"user_agent", c.Request.UserAgent(),
 				}

@@ -80,7 +80,8 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
       );
       if (next != null && next.topics.isNotEmpty) {
         setState(() {
-          _topics.addAll(next.topics);
+          final seen = _topics.map((topic) => topic.id).toSet();
+          _topics.addAll(next.topics.where((topic) => seen.add(topic.id)));
           _page = AsyncValue.data(next);
         });
       }
@@ -131,6 +132,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
                           controller: controller,
                           loading: _loadingMore,
                           topics: _topics,
+                          collapsePinned: props.sort == 'latest',
                           feedMode: GfTopicFeedMode.card,
                           stickerLibrary: ref.watch(stickerLibraryProvider),
                           hiddenCategoryId: widget.categoryId,

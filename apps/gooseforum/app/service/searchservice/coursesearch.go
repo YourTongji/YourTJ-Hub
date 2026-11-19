@@ -309,7 +309,7 @@ func waitForTaskCheckedContext(ctx context.Context, client meilisearch.TaskReade
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	// The SDK argument is a polling interval, not an operation timeout.
-	task, err := client.WaitForTaskWithContext(ctx, taskUID, 100*time.Millisecond)
+	task, err := client.WaitForTask(ctx, taskUID, 100*time.Millisecond)
 	if err != nil {
 		// The SDK's communication error can hide context cancellation from
 		// errors.Is. Preserve the caller's cancellation/deadline semantics.
@@ -321,7 +321,7 @@ func waitForTaskCheckedContext(ctx context.Context, client meilisearch.TaskReade
 	if task != nil && (task.Status == meilisearch.TaskStatusFailed || task.Status == meilisearch.TaskStatusCanceled) {
 		msg := task.Error.Message
 		if msg == "" {
-			msg = task.Error.Code
+			msg = string(task.Error.Code)
 		}
 		return fmt.Errorf("meilisearch task %d failed: %s", taskUID, msg)
 	}
@@ -330,6 +330,9 @@ func waitForTaskCheckedContext(ctx context.Context, client meilisearch.TaskReade
 
 // BuildSingleCourseSearchDocument 单课程 upsert/delete 到 Meili（worker 与事件共用）。
 func BuildSingleCourseSearchDocument(entity course.Entity) error {
+	// 单文档同步入口没有可传的 ctx（meilisearch-go 0.37 起索引操作要求 ctx）。
+	ctx, cancel := context.WithTimeout(context.Background(), searchTaskWaitTimeout)
+	defer cancel()
 	if !meiliconnect.IsAvailable() {
 		return errors.New("meilisearch 服务不可用")
 	}
@@ -339,17 +342,17 @@ func BuildSingleCourseSearchDocument(entity course.Entity) error {
 	if !shouldIndexCourse(entity) {
 		// 删除分支同样等待任务终态：仅发起请求不等待，
 		// 崩溃/失败时无法确认删除是否生效，outbox 会误判成功。
-		task, err := index.DeleteDocument(cast.ToString(entity.Id), nil)
+		task, err := index.DeleteDocument(ctx, cast.ToString(entity.Id), nil)
 		if err != nil {
 			return err
 		}
-		return waitForTaskChecked(client, task.TaskUID, 30*time.Second)
+		return waitForTaskCheckedContext(ctx, client, task.TaskUID, searchTaskWaitTimeout)
 	}
 	doc, err := convertCourseToSearchDocument(entity)
 	if err != nil {
 		return err
 	}
-	task, err := index.AddDocuments([]CourseSearchDocument{doc}, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+	task, err := index.AddDocuments(ctx, []CourseSearchDocument{doc}, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 	if err != nil {
 		return err
 	}
@@ -383,7 +386,7 @@ func buildCourseIndex(ctx context.Context, clearExisting bool) (*IndexBuildResul
 	// 清空旧文档并等待任务终态：避免 rebuild 只做 AddDocuments 叠加，
 	// 使 PG 中已不存在/隐藏的课程永久残留索引。
 	if clearExisting {
-		cleanTask, err := index.DeleteAllDocumentsWithContext(ctx, nil)
+		cleanTask, err := index.DeleteAllDocuments(ctx, nil)
 		if err != nil {
 			return nil, fmt.Errorf("清空课程索引失败: %w", err)
 		}
@@ -395,7 +398,7 @@ func buildCourseIndex(ctx context.Context, clearExisting bool) (*IndexBuildResul
 		course.ListCoursesAfterID,
 		convertCoursesToSearchDocuments,
 		func(docs []CourseSearchDocument) error {
-			task, err := index.AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+			task, err := index.AddDocuments(ctx, docs, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 			if err != nil {
 				return err
 			}
@@ -505,7 +508,7 @@ func RunCourseSearchTask(ctx context.Context, task *taskQueue.Entity) error {
 			return errors.New("meilisearch 服务不可用")
 		}
 		client := meiliconnect.GetClient()
-		delTask, err := client.Index(CourseIndex).DeleteDocument(cast.ToString(payload.CourseId), nil)
+		delTask, err := client.Index(CourseIndex).DeleteDocument(ctx, cast.ToString(payload.CourseId), nil)
 		if err != nil {
 			return err
 		}
@@ -538,7 +541,7 @@ func ReconcileCourseIndex(ctx context.Context) (*CourseReconcileResult, error) {
 	}
 	client := meiliconnect.GetClient()
 	index := client.Index(CourseIndex)
-	stats, err := index.GetStats(&meilisearch.StatsParams{})
+	stats, err := index.GetStats(ctx, &meilisearch.StatsParams{})
 	if err != nil {
 		return nil, fmt.Errorf("get course index stats: %w", err)
 	}

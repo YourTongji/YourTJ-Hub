@@ -205,7 +205,7 @@ function cardMinHeight(row: number, day: number, count: number) { return cardMin
                         aria-hidden="true"
                       />
                       <h3
-                        class="block font-semibold tracking-tight text-[11px] sm:text-xs md:text-[12.5px] leading-tight md:leading-snug line-clamp-2 break-all text-[var(--card-title)]"
+                        class="font-semibold tracking-tight text-[11px] sm:text-xs md:text-[12.5px] leading-tight md:leading-snug line-clamp-2 break-all text-[var(--card-title)]"
                       >
                         {{ course.courseName || course.code }}
                       </h3>

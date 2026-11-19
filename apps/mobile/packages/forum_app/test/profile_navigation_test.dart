@@ -294,6 +294,65 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  for (final firstType in ['topic', 'post']) {
+    testWidgets(
+      'bookmark pagination retains equal IDs across types: $firstType first',
+      (tester) async {
+        tester.view.physicalSize = const Size(900, 1400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final nextType = firstType == 'topic' ? 'post' : 'topic';
+        Map<String, dynamic> bookmark(String type) => {
+          'id': 7,
+          'type': type,
+          'topicId': type == 'topic' ? 100 : 200,
+          if (type == 'post') 'postId': 555,
+          if (type == 'post') 'postNo': 3,
+          'title': 'Saved $type',
+          'url': type == 'topic' ? '/p/100' : '/p/200?postNo=3',
+          'bookmarkedAt': '2026-01-01T00:00:00Z',
+        };
+        final repo = _Profiles()
+          ..configure = (path, props) {
+            props['bookmarks'] = path.endsWith('cursor=next')
+                ? [bookmark(firstType), bookmark(nextType), bookmark(nextType)]
+                : [bookmark(firstType)];
+            props['pagination'] = {
+              'page': 1,
+              'nextPage': path.endsWith('cursor=next') ? 0 : 2,
+              'hasNext': !path.endsWith('cursor=next'),
+              'nextUrl': path.endsWith('cursor=next')
+                  ? ''
+                  : '/u/1/bookmarks?cursor=next',
+            };
+          };
+        final pending = Completer<PagePayload>();
+        repo.pending['/u/1/bookmarks?cursor=next'] = pending;
+        await _pump(
+          tester,
+          repo,
+          home: const ProfilePage(userId: 1, initialStream: 'bookmarks'),
+          settle: false,
+        );
+        expect(find.text('Saved $firstType'), findsOneWidget);
+        // Exercise pagination explicitly, independently of viewport prefetch.
+        tester.widget<GfListFooter>(find.byType(GfListFooter)).onLoadMore();
+        await tester.pump();
+        expect(repo.paths, contains('/u/1/bookmarks?cursor=next'));
+        pending.complete(repo.response('/u/1/bookmarks?cursor=next'));
+        await tester.pumpAndSettle();
+        expect(find.text('Saved topic'), findsOneWidget);
+        expect(find.text('Saved post'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text('Saved $firstType')).dy,
+          lessThan(tester.getTopLeft(find.text('Saved $nextType')).dy),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'topic deletion retains reply activities in surviving discussions',
     (tester) async {

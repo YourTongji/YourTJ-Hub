@@ -79,3 +79,29 @@ test("read-only passkey listing does not invent rate-limit or write-gate failure
   assert.equal(responses["403"], undefined);
   assert.equal(responses["429"], undefined);
 });
+
+// These account GETs bypass CSRF and have no writable-account or admin guard.
+for (const [file, key] of [
+  ["decorations.yaml", "myDecorations"],
+  ["anonymous-identity.yaml", "getAnonymousIdentityState"],
+  ["moderation-appeals.yaml", "contentAppeals"],
+]) {
+  test(`${key} GET does not declare an unreachable forbidden response`, () => {
+    const responses = operation(file, key, "get").responses;
+    assert.ok(responses["200"]);
+    assert.ok(responses["401"]);
+    assert.equal(responses["403"], undefined);
+  });
+}
+
+for (const [file, key, method] of [
+  ["decorations.yaml", "listDecorations", "get"],
+  ["decorations.yaml", "getUserDecorations", "get"],
+  ["decorations.yaml", "equipDecorations", "post"],
+  ["anonymous-identity.yaml", "generateAnonymousNames", "post"],
+  ["moderation-appeals.yaml", "contentAppeals", "post"],
+]) {
+  test(`${key} ${method} retains its reachable guard failure`, () => {
+    assert.ok(operation(file, key, method).responses["403"]);
+  });
+}

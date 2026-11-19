@@ -74,7 +74,7 @@ func BuildSingleCategorySearchDocumentContext(ctx context.Context, entity *categ
 	index := client.Index(CategoryIndex)
 	pk := "id"
 	doc := convertCategoryToSearchDocument(entity)
-	task, err := index.AddDocumentsWithContext(ctx, doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+	task, err := index.AddDocuments(ctx, doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Meilisearch 处理分类 ID:%v 失败: %v\n", doc.ID, err))
 		return nil, fmt.Errorf("add category search document: %w", err)
@@ -96,7 +96,7 @@ func DeleteCategorySearchDocumentContext(ctx context.Context, categoryID uint64)
 	}
 	client := meiliconnect.GetClient()
 	index := client.Index(CategoryIndex)
-	task, err := index.DeleteDocumentWithContext(ctx, cast.ToString(categoryID), nil)
+	task, err := index.DeleteDocument(ctx, cast.ToString(categoryID), nil)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Meilisearch 删除分类文档失败: %v, Error: %v\n", categoryID, err))
 		return nil, fmt.Errorf("delete category search document: %w", err)
@@ -135,7 +135,7 @@ func RunCategorySearchTask(ctx context.Context, task *taskQueue.Entity) error {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		deleteTask, deleteErr := client.Index(CategoryIndex).DeleteDocumentWithContext(operationCtx, cast.ToString(payload.CategoryId), nil)
+		deleteTask, deleteErr := client.Index(CategoryIndex).DeleteDocument(operationCtx, cast.ToString(payload.CategoryId), nil)
 		if deleteErr != nil {
 			return deleteErr
 		}

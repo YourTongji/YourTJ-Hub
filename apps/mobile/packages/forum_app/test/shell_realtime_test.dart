@@ -11,6 +11,7 @@ import 'package:forum_app/src/navigation/route_visibility.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/realtime/realtime_updates.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:forum_app/src/notifications/unread_display.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -170,6 +171,165 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     streamDone.complete();
   });
+
+  testWidgets(
+    'category save refreshes badges without an SSE hint and fences old status',
+    (tester) async {
+      final storage = MemTokenStorage();
+      await storage.write('accepted-token');
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: storage,
+        baseUrl: 'http://fake.local',
+      );
+      final unread = _UnreadRepository(client)
+        ..status = const UnreadStatusPayload(
+          notifications: true,
+          messages: true,
+          notificationCount: 7,
+          messageCount: 3,
+          badgeStyle: 'number',
+        );
+      final categorySave = Completer<NotificationPreferences>();
+      final display = UnreadDisplayController(
+        loadPreferences: () async => const NotificationPreferences(),
+        savePreferences: (style) async =>
+            NotificationPreferences(badgeStyle: style),
+        saveCategories: (_) => categorySave.future,
+        isCurrent: () => true,
+      );
+      final eventsReady = Completer<void>();
+      final streamDone = Completer<void>();
+      var connects = 0;
+      final cache = NoopCache();
+      final container = ProviderContainer(
+        overrides: [
+          unreadDisplayProvider.overrideWith((ref) => display),
+          tokenStorageProvider.overrideWithValue(storage),
+          apiClientProvider.overrideWithValue(client),
+          notificationRepositoryProvider.overrideWithValue(unread),
+          offlineTopicCacheProvider.overrideWithValue(cache),
+          offlineChatCacheProvider.overrideWithValue(cache),
+          realtimeConnectProvider.overrideWithValue((
+            token,
+            cancel,
+            onActivity,
+          ) async {
+            connects++;
+            Stream<ForumSseFrame> events() async* {
+              yield const ForumSseFrame(
+                event: 'hello',
+                data:
+                    '{"version":1,"heartbeatSeconds":15,"resync":true,"capabilities":{"visibleRead":true}}',
+              );
+              await eventsReady.future;
+              yield const ForumSseFrame(
+                event: 'chat.changed',
+                data: '{"convId":1,"change":"received"}',
+              );
+              yield const ForumSseFrame(event: 'unread.changed', data: '{}');
+              await streamDone.future;
+            }
+
+            return ForumRealtimeConnection(events(), cancel);
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = GoRouter(
+        observers: [VisibilityRouteObserver()],
+        routes: [
+          StatefulShellRoute.indexedStack(
+            builder: (_, _, shell) => GfShell(navigationShell: shell),
+            branches: [
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/',
+                    builder: (_, _) => const Scaffold(body: Text('home')),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      for (
+        var i = 0;
+        i < 8 && (!container.read(realtimeHealthyProvider) || connects == 0);
+        i++
+      ) {
+        await tester.pump();
+      }
+      expect(routeIsUncovered(tester.element(find.byType(GfShell))), isTrue);
+      expect(connects, 1);
+      expect(container.read(realtimeHealthyProvider), isTrue);
+      expect(find.text('7'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      final before = unread.calls;
+      final beforeRevision = container
+          .read(realtimeInvalidationsProvider)
+          .chatRevision;
+      unread.gate = Completer<UnreadStatusPayload>();
+      eventsReady.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(
+        container.read(realtimeInvalidationsProvider).chatRevision,
+        beforeRevision + 1,
+      );
+      expect(unread.calls, before + 1);
+      final save = display.updateCategories(['replies']);
+      await tester.pump();
+      expect(find.text('7'), findsOneWidget);
+      categorySave.complete(
+        const NotificationPreferences(badgeCategories: ['replies']),
+      );
+      expect(await save, isTrue);
+      await tester.pump();
+      final old = unread.gate!;
+      unread.gate = null;
+      unread.status = const UnreadStatusPayload(
+        notifications: false,
+        messages: true,
+        notificationCount: 0,
+        messageCount: 3,
+        badgeStyle: 'number',
+        badgeCategories: ['replies'],
+      );
+      old.complete(
+        const UnreadStatusPayload(
+          notifications: true,
+          messages: true,
+          notificationCount: 99,
+          messageCount: 3,
+          badgeStyle: 'number',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('99'), findsNothing);
+      expect(find.text('7'), findsNothing);
+      expect(find.text('3'), findsOneWidget);
+      expect(unread.calls, before + 2);
+      await tester.pumpWidget(const SizedBox.shrink());
+      streamDone.complete();
+    },
+  );
 
   testWidgets('guest shell reconnects after login returns to the same route', (
     tester,

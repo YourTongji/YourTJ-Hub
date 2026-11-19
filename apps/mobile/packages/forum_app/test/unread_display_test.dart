@@ -5,6 +5,43 @@ import 'package:forum_app/src/notifications/unread_display.dart';
 
 void main() {
   test(
+    'category saves preserve style, roll back failures and reject stale status',
+    () async {
+      var fail = true;
+      final controller = UnreadDisplayController(
+        loadPreferences: () async =>
+            const NotificationPreferences(badgeStyle: UnreadBadgeStyle.dot),
+        savePreferences: (style) async =>
+            NotificationPreferences(badgeStyle: style),
+        saveCategories: (categories) async {
+          if (fail) throw StateError('offline');
+          return NotificationPreferences(
+            badgeStyle: UnreadBadgeStyle.dot,
+            badgeCategories: categories,
+          );
+        },
+        isCurrent: () => true,
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+      expect(await controller.updateCategories(['replies']), isFalse);
+      expect(controller.state.categories, notificationBadgeCategories);
+      fail = false;
+      final stale = controller.revision;
+      expect(await controller.updateCategories(['replies']), isTrue);
+      controller.acceptRemote(
+        UnreadBadgeStyle.number,
+        categories: notificationBadgeCategories,
+        expectedRevision: stale,
+      );
+      expect(controller.state.categories, ['replies']);
+      expect(controller.state.style, UnreadBadgeStyle.dot);
+      expect(await controller.updateCategories([]), isTrue);
+      expect(controller.state.categories, isEmpty);
+    },
+  );
+
+  test(
     'one initial read is shared and a newer status wins over its completion',
     () async {
       final read = Completer<NotificationPreferences>();

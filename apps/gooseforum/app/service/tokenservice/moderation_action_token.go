@@ -25,8 +25,8 @@ const (
 	ModerationActionSubjectAppeal      = "appeal"       // 待复核的申诉（ID = appeal id）
 )
 
-// moderationActionPurpose 派生签名密钥的用途标签：与重置密码/激活 JWT（直接用
-// app.signingKey）隔离，任何一方的 token 都不能被另一方接受。
+// moderationActionPurpose 派生签名密钥的用途标签：与重置密码/激活 JWT
+// 隔离，任何一方的 token 都不能被另一方接受。
 const moderationActionPurpose = "yourtj-moderation-action-token"
 
 const moderationActionPrefix = "v1."

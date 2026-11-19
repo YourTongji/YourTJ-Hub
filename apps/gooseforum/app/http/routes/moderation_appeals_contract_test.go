@@ -50,6 +50,40 @@ func TestModerationAppealsHTTPContract(t *testing.T) {
 	conn.Model(&posts.Entity{}).Where("id = ?", postID).Update("latest_revision_id", rev.Id)
 	body := fmt.Sprintf(`{"kind":"topic","id":%d,"revisionId":%d,"reason":"Please review"}`, topicID, rev.Id)
 	ownerToken, modToken, strangerToken := contractSessionToken(t, owner), contractSessionToken(t, moderator), contractSessionToken(t, stranger)
+	reply := posts.Entity{Id: contractTestID(), TopicId: topicID, UserId: owner.Id, PostNo: 2, Content: "Private appeal target", ProcessStatus: posts.ProcessStatusBlocked}
+	if err := conn.Create(&reply).Error; err != nil {
+		t.Fatal(err)
+	}
+	replyRevision := postRevisions.Entity{PostId: reply.Id, Version: 1, Content: reply.Content, ProcessStatus: posts.ProcessStatusBlocked}
+	if err := conn.Create(&replyRevision).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []struct {
+		kind           string
+		id, revisionID uint64
+	}{{"topic", topicID, rev.Id}, {"post", reply.Id, replyRevision.Id}} {
+		missingID := contractTestID()
+		requestBody := func(id, revisionID uint64) string {
+			return fmt.Sprintf(`{"kind":%q,"id":%d,"revisionId":%d,"reason":"Please review"}`, target.kind, id, revisionID)
+		}
+		for _, scenario := range []struct {
+			name, method, path, body, token string
+		}{
+			{"nonowner history", http.MethodGet, fmt.Sprintf("/api/forum/content/appeals?kind=%s&id=%d", target.kind, target.id), "", strangerToken},
+			{"missing history", http.MethodGet, fmt.Sprintf("/api/forum/content/appeals?kind=%s&id=%d", target.kind, missingID), "", ownerToken},
+			{"nonowner submit", http.MethodPost, "/api/forum/content/appeals", requestBody(target.id, target.revisionID), strangerToken},
+			{"missing target", http.MethodPost, "/api/forum/content/appeals", requestBody(missingID, target.revisionID), ownerToken},
+			{"missing revision", http.MethodPost, "/api/forum/content/appeals", requestBody(target.id, missingID), ownerToken},
+		} {
+			t.Run(target.kind+"/"+scenario.name, func(t *testing.T) {
+				rec := serveAuthSecurityJSON(router, scenario.method, scenario.path, scenario.body, scenario.token)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("status=%d, want 200: %s", rec.Code, rec.Body.String())
+				}
+				assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "content-appeal-not-found.json"))
+			})
+		}
+	}
 	if w := serveJSON(router, "/api/forum/content/appeals", body, ""); w.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status %d", w.Code)
 	}
@@ -100,20 +134,26 @@ func TestModerationAppealsHTTPContract(t *testing.T) {
 	if e := decodeContractEnvelope(t, history); e.Code != 0 || !strings.Contains(string(e.Result), "Rejected immutable content") {
 		t.Fatalf("history %s", history.Body.String())
 	}
-	if e := decodeContractEnvelope(t, serveAuthSecurityJSON(router, http.MethodGet, historyPath, "", strangerToken)); e.Code == 0 {
-		t.Fatal("nonowner read history")
+	deniedHistory := serveAuthSecurityJSON(router, http.MethodGet, historyPath, "", strangerToken)
+	if deniedHistory.Code != http.StatusOK {
+		t.Fatalf("nonowner history status %d", deniedHistory.Code)
 	}
-	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/appeals", `{}`, strangerToken)); e.Code == 0 {
-		t.Fatal("nonmoderator read queue")
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, deniedHistory), contractFixture(t, "content-appeal-not-found.json"))
+	deniedQueue := serveJSON(router, "/api/forum/moderation/appeals", `{}`, strangerToken)
+	if deniedQueue.Code != http.StatusOK {
+		t.Fatalf("nonmoderator queue status %d", deniedQueue.Code)
 	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, deniedQueue), contractFixture(t, "permission-denied.json"))
 	queue := serveJSON(router, "/api/forum/moderation/appeals", `{"page":1,"pageSize":20,"status":"pending"}`, modToken)
 	if e := decodeContractEnvelope(t, queue); e.Code != 0 || !strings.Contains(string(e.Result), "Rejected immutable content") {
 		t.Fatalf("queue %s", queue.Body.String())
 	}
 	action := fmt.Sprintf(`{"id":%d,"approve":true}`, item.Id)
-	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/appeal-action", action, strangerToken)); e.Code == 0 {
-		t.Fatal("nonmoderator reviewed")
+	deniedAction := serveJSON(router, "/api/forum/moderation/appeal-action", action, strangerToken)
+	if deniedAction.Code != http.StatusOK {
+		t.Fatalf("nonmoderator action status %d", deniedAction.Code)
 	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, deniedAction), contractFixture(t, "permission-denied.json"))
 	decision := serveJSON(router, "/api/forum/moderation/appeal-action", action, modToken)
 	if e := decodeContractEnvelope(t, decision); e.Code != 0 || string(e.Result) != "true" {
 		t.Fatalf("decision %s", decision.Body.String())

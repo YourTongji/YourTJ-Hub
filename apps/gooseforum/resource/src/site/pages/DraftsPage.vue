@@ -5,7 +5,7 @@ import { nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { deleteTopic, reportContentEvent } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
-import { queueFlashMessage } from '@/runtime/flash-message'
+import { queueFlashMessage, useFlashMessages } from '@/runtime/flash-message'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { DraftPayload, DraftsPageProps, LayoutPayload } from '@gooseforum/client'
@@ -16,6 +16,7 @@ const page = defineProps<{
 }>()
 
 const { t } = useI18n()
+const { push: flash } = useFlashMessages()
 const DRAFT_WINDOW_SIZE = 100
 const drafts = ref([...page.props.drafts])
 const total = ref(page.props.total)
@@ -89,11 +90,14 @@ async function confirmDeleteDraft() {
       ? Math.max(0, total.value - 1)
       : drafts.value.length
     draftToDelete.value = null
-    queueFlashMessage(t('drafts.deleteSuccess'), 'success')
-
     // The server page is a bounded 100-item window. Reload to fill the slot
     // with the next draft instead of leaving the list one item short.
-    if (refreshWindow) window.location.reload()
+    if (refreshWindow) {
+      queueFlashMessage(t('drafts.deleteSuccess'), 'success')
+      window.location.reload()
+    } else {
+      flash(t('drafts.deleteSuccess'), 'success')
+    }
   } catch (error) {
     deleteError.value = error instanceof Error && error.message.trim()
       ? error.message

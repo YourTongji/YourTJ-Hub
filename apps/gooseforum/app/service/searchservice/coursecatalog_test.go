@@ -111,7 +111,7 @@ func TestCourseCatalogMeiliIntegration(t *testing.T) {
 	client := meilisearch.New(endpoint)
 	uid := fmt.Sprintf("course_catalog_test_%d", time.Now().UnixNano())
 	index := client.Index(uid)
-	t.Cleanup(func() { _, _ = client.DeleteIndex(uid) })
+	t.Cleanup(func() { _, _ = client.DeleteIndex(context.Background(), uid) })
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := configureCourseIndex(ctx, index); err != nil {
@@ -125,11 +125,11 @@ func TestCourseCatalogMeiliIntegration(t *testing.T) {
 	docs[0].ClassCodes = []string{"10000101"}
 	docs[0].InstructorSearch = []string{"张三", "zhangsan", "zs"}
 	key := "id"
-	task, err := index.AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{PrimaryKey: &key})
+	task, err := index.AddDocuments(ctx, docs, &meilisearch.DocumentOptions{PrimaryKey: &key})
 	if err != nil {
 		t.Fatal(err)
 	}
-	completed, err := client.WaitForTaskWithContext(ctx, task.TaskUID, 20*time.Millisecond)
+	completed, err := client.WaitForTask(ctx, task.TaskUID, 20*time.Millisecond)
 	if err != nil || completed.Status != meilisearch.TaskStatusSucceeded {
 		t.Fatalf("index write: %+v %v", completed, err)
 	}
@@ -165,7 +165,7 @@ func TestCourseCatalogMeiliIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		task, err := index.AddDocumentsWithContext(ctx, projected, &meilisearch.DocumentOptions{PrimaryKey: &key})
+		task, err := index.AddDocuments(ctx, projected, &meilisearch.DocumentOptions{PrimaryKey: &key})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -49,7 +49,7 @@ android_sha256_cert_fingerprints = []
 migration = "on"
 backupSqlite = true
 backupDir = "./storage/databasebackup/"
-keep = 7
+keep = 3
 spec = "0 3 * * *"
 
 [cron]

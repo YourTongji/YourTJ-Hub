@@ -14,7 +14,7 @@ YourTJ 移动端论坛客户端(Flutter)。`apps/mobile` melos 工作区的入�
 - **入口与主题**:`lib/main.dart` → `GfApp`(`lib/src/app.dart`)。主题严格来自 ui_kit 设计 token(web `tokens.css` 的 1:1 镜像),light/dark 双主题默认跟随系统,设置页可手动切换;l10n 为 zh/en/ja/de,支持跟随系统或手动选择。
 - **导航**(`lib/src/router.dart`, go_router):首页、校园、通知、私信四个持久分支,各自保留 navigator 与滚动状态;搜索、发布、个人资料、会话、课程、排课器和 Wiki 以推入页呈现。底部为有可访问名称的图标,根页面导航随向下阅读收起、向上阅读恢复;首页复用方形 YourTJ 小猫标识;头像打开平铺账号菜单,展示真实关注数和关注者数。发布 FAB 先展开瞬间、文章、问题三个入口;新会话 FAB 直接打开会话页,帖内回复与楼层跳转使用底部操作栏。
 - **内容与编辑**:按图片方向展示的信息流;瞬间/提问使用图片轮播加正文,文章使用折叠工具栏的富文本编辑器;三类编辑器共享类型图标、步骤提示、18 px 正文与预览后的分类区域,支持服务端草稿和离开确认。长文编辑时页面跟随光标行滚动(键盘弹起压缩视口后同样回到可见区),正文图片按可用宽度等比缩放并把高度限制在 0.6 倍视口高,课评 sheet 编辑器保留自身内部滚动。个人页的各个 Tab 请求真实活动流,内容管理和回收站按服务端权限提供操作。
-- **课程目录**:`lib/src/pages/courses/catalog_page.dart` 按请求代际固定搜索与筛选条件；院系、学期、校区的多选面板支持搜索。可见列表自动补页，分页失败可原页重试，刷新失败保留结果；会话或站点变化隔离旧请求。验证覆盖 `test/course_catalog_discovery_test.dart`，课程详情继续使用现有接口与页面。
+- **课程目录**:`lib/src/pages/courses/catalog_page.dart` 按请求代际固定搜索与筛选条件；院系、学期、校区的多选面板支持搜索。可见列表自动补页，分页失败可原页重试，刷新失败保留结果；会话或站点变化隔离旧请求。验证覆盖 `test/course_catalog_discovery_test.dart`。详情按当前会话读取收藏状态并串行写入，教学班切换/刷新释放旧分页占用；延迟请求回归位于 `test/course_detail_state_test.dart`。
 - **账号与管理**:资料编辑保留网站、语言和社交链接;账号、安全与隐私控制位于独立设置页。完整 Web 管理与审核工作台通过受限的原生 WebView 访问,会话仅通过请求头交接。公共站点信息从校园或设置页的“关于社区”进入。
 - **交互规格**:具体行为、权限和验证边界见[移动端体验](../../../../docs/product/mobile-experience.md);路由以 `lib/src/router.dart` 为准。
 - **本机写作**:`lib/src/local/writing_store.dart` 按 API origin 与数字账号 ID 隔离未完成草稿和最近搜索；每次新建使用独立 ID，云端草稿编辑、已发布话题编辑和按话题保存的回复分别命名。旧 v1 槽位可从草稿列表继续恢复。回复保留正文、对象和图片，收起/离页不清空；发送成功只清理未被继续编辑的提交内容。草稿页使用同一滚动面，支持当前列表搜索及本机/云端/回复筛选，显示内容类型与继续编辑入口；本机删除可在当前页撤销最近一次，已有新版时不覆盖，账号切换清理撤销与搜索状态。刷新失败保留原内容；写入失败可重试，缓存清理不删除草稿。私信发送状态由 `lib/src/messages/chat_outbox.dart` 在当前会话中保留。
@@ -121,6 +121,33 @@ YOURTJ_TEST_ARTIFACTS=/absolute/path/to/screenshots flutter drive \
 “我的 iPhone”目录的 `mobile-picker-check.json`。内容可为 `{"fixture":"file selector"}`。
 测试验证 Web 表单收到该文件,不会提交导入。`YOURTJ_TEST_FILES_ONLY=true` 可跳过已覆盖的
 后台模块遍历,缩短这项单独检查;文件选择等待上限为五分钟。
+
+## 收藏分页原生验收
+
+`integration_test/profile_bookmarks_native_test.dart` 在真实 iOS 模拟器窗口和安全区中渲染
+`ProfilePage`，使用 `ui_kit` 深浅主题。数据全部来自内存 fixture，页面明确标识“合成数据”，
+不登录、不连接后端，也不读取真实收藏。滚动到分页边界后，验证 `topic:7` / `post:7` 两种
+先后顺序均保留两条不同收藏，并合并跨页和页内的同类型重复项；等待分页时再次滚动不会重复请求。
+
+在 `forum_app` 目录运行，设备 ID 从 `flutter devices` 获取：
+
+```bash
+YOURTJ_TEST_ARTIFACTS=/absolute/path/to/screenshots flutter drive --no-pub --debug \
+  --driver=test_driver/integration_driver.dart \
+  --target=integration_test/profile_bookmarks_native_test.dart -d "$YOURTJ_TEST_DEVICE" \
+  --dart-define=YOURTJ_ENVIRONMENT=dev \
+  --dart-define=YOURTJ_PREVIEW=true \
+  --dart-define=YOURTJ_API_BASE_URL=https://dev.yourtj.de \
+  --dart-define=YOURTJ_OIDC_ISSUER=https://dev.yourtj.de/api/oauth \
+  --dart-define=YOURTJ_TEST_SCREENSHOTS=true
+```
+
+运行会输出四组案例的分页等待态和合并结果，共八张 PNG。实际执行 iOS native job 的普通 CI
+（不含传入 `source` 的 release candidate）也运行此目标，并将截图、日志和实际 checkout SHA、
+PR head、工具链、模拟器信息上传为 `profile-bookmarks-ios-<workflow SHA>-<attempt>` artifact，
+保留 14 天。只有 Dart 改动时现有选择器不会自动运行 native job，可使用 `CI / Verify` 的手动完整运行。
+截图留在 Git 外供人工查看，不作为 golden 基线；自动断言通过不等于截图已经审阅，也不代表
+真实后端、Android 或物理真机验收完成。
 
 ## 服务端错误文案
 

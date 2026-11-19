@@ -5,22 +5,19 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 )
 
-type Preferences struct {
-	BadgeStyle string `json:"badgeStyle"`
-}
+type Preferences = users.UnreadDisplayPreferences
 
 func GetPreferences(userID uint64) (Preferences, error) {
-	style, err := users.GetUnreadBadgeStyle(userID)
-	return Preferences{BadgeStyle: style}, err
+	return users.GetUnreadDisplayPreferences(userID)
 }
 
-func UpdatePreferences(userID uint64, style string) (Preferences, error) {
-	if err := users.SetUnreadBadgeStyle(userID, style); err != nil {
+func UpdatePreferences(userID uint64, style *string, categories *[]string) (Preferences, error) {
+	if err := users.PatchUnreadDisplayPreferences(userID, style, categories); err != nil {
 		return Preferences{}, err
 	}
 	Invalidate(userID)
 	// Existing private invalidation hints refresh other sessions. They contain
 	// neither counts nor content and do not create a notification or push task.
 	realtimeservice.PublishNotificationsChanged(userID, "preferences")
-	return Preferences{BadgeStyle: style}, nil
+	return GetPreferences(userID)
 }

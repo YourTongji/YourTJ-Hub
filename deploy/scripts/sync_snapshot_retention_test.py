@@ -1,87 +1,158 @@
+import json
+import os
 import pathlib
+import sqlite3
 import subprocess
 import tempfile
 import unittest
 
-SCRIPT = pathlib.Path(__file__).with_name('sync-db-from-main.sh').read_text()
+SCRIPT = pathlib.Path(__file__).with_name('sync-db-from-main.sh')
+ROOT_NAME = 'snapshots/dev-prev'
 
 
-class SnapshotRetentionTest(unittest.TestCase):
-    def test_failed_sync_keeps_old_snapshots(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = pathlib.Path(tmp)
-            directory = root / 'snapshots/dev-prev'
-            directory.mkdir(parents=True)
-            for day in range(1, 9):
-                (directory / f'file-202610{day:02d}_030000.db').write_text('keep')
-            main = root / 'main/storage/database'
-            main.mkdir(parents=True)
-            (main / 'file.db').write_text('source')
-            commands = root / 'bin'
-            commands.mkdir()
-            for name, body in [('docker', 'exit 0'), ('sqlite3', 'exit 1'),
-                               ('python3', 'exit 0')]:
-                command = commands / name
-                command.write_text('#!/bin/sh\n' + body + '\n')
-                command.chmod(0o755)
-            result = subprocess.run(['bash', str(pathlib.Path(__file__).with_name('sync-db-from-main.sh'))],
-                                    env={'PATH': str(commands) + ':/usr/bin:/bin', 'YOURTJ_ROOT': tmp},
-                                    capture_output=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(len(list(directory.iterdir())), 8)
+def write_executable(path, body):
+    path.write_text(body)
+    path.chmod(0o755)
 
-    def test_postgres_success_prunes_existing_snapshots(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = pathlib.Path(tmp)
-            directory = root / 'snapshots/dev-prev'
-            directory.mkdir(parents=True)
-            for day in range(1, 9):
-                (directory / f'file-202609{day:02d}_030000.db').write_text('old')
-            for instance in ('main', 'dev'):
-                storage = root / instance / 'storage/database'
-                storage.mkdir(parents=True)
-                (storage / 'file.db').write_text(instance)
-                (root / instance / 'config.toml').write_text(
-                    '[db.default]\nconnection = "postgres"\nurl = "postgres://localhost/' + instance + '"\n')
-            commands = root / 'bin'
-            commands.mkdir()
-            mocks = {'docker': '#!/bin/sh\ncat >/dev/null\n',
-                     'sqlite3': '#!/usr/bin/env python3\nimport shutil,sys\n'
-                                'shutil.copyfile(sys.argv[1], sys.argv[2].split("\'")[1])\n'}
-            for name, body in mocks.items():
-                command = commands / name
-                command.write_text(body)
-                command.chmod(0o755)
-            result = subprocess.run(['bash', str(pathlib.Path(__file__).with_name('sync-db-from-main.sh'))],
-                                    env={'PATH': str(commands) + ':/usr/bin:/bin', 'YOURTJ_ROOT': tmp},
-                                    capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(len(list(directory.iterdir())), 5)
-            self.assertEqual((root / 'dev/storage/database/file.db').read_text(), 'main')
-            self.assertEqual((root / 'main/storage/database/file.db').read_text(), 'main')
-            self.assertFalse((directory / 'file-20260901_030000.db').exists())
 
-    def test_retention(self):
-        start = SCRIPT.index('prune_dev_snapshots() {')
-        function = SCRIPT[start:SCRIPT.index('\n}\n', start) + 3]
-        for count in (0, 3, 8):
-            with self.subTest(count=count), tempfile.TemporaryDirectory() as tmp:
-                directory = pathlib.Path(tmp) / 'snapshots/dev-prev'
-                directory.mkdir(parents=True)
-                for day in range(1, count + 1):
-                    for label in ('sqlite', 'file'):
-                        (directory / f'{label}-202610{day:02d}_030000.db').write_text('fixture')
-                unknown = directory / 'file-not-a-snapshot.db'
-                unknown.write_text('keep')
-                link = directory / 'file-20260901_030000.db'
-                link.symlink_to(unknown)
-                subprocess.run(['bash', '-eu', '-c', function + '\nprune_dev_snapshots', 'test', tmp],
-                               env={'PATH': '/usr/bin:/bin', 'ROOT': tmp}, check=True)
-                expected = {f'{label}-202610{day:02d}_030000.db'
-                            for day in range(max(1, count - 4), count + 1)
-                            for label in ('sqlite', 'file')}
-                self.assertEqual({p.name for p in directory.iterdir()},
-                                 expected | {unknown.name, link.name})
+def make_marker_db(path, marker):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        path.unlink()
+    with sqlite3.connect(path) as db:
+        db.execute('CREATE TABLE marker(v TEXT)')
+        db.execute('INSERT INTO marker VALUES (?)', (marker,))
+
+
+def marker_of(path):
+    with sqlite3.connect(path) as db:
+        return db.execute('SELECT v FROM marker').fetchone()[0]
+
+
+class SyncWithoutDevPrevTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self.tmp.name)
+        self.commands = self.root / 'bin'
+        self.commands.mkdir()
+        self.docker_log = self.root / 'docker.log'
+        write_executable(
+            self.commands / 'docker',
+            '#!/bin/sh\nprintf "%s\\n" "$*" >> "$DOCKER_LOG"\ncat >/dev/null\nexit 0\n',
+        )
+        self.env = {
+            'PATH': str(self.commands) + os.pathsep + '/usr/bin:/bin',
+            'YOURTJ_ROOT': str(self.root),
+            'DOCKER_LOG': str(self.docker_log),
+        }
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_sync(self):
+        return subprocess.run(
+            ['bash', str(SCRIPT)],
+            env=self.env,
+            capture_output=True,
+            text=True,
+        )
+
+    def docker_text(self):
+        if not self.docker_log.exists():
+            return ''
+        return self.docker_log.read_text()
+
+    def write_config(self, instance, connection, url):
+        path = self.root / instance / 'config.toml'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            '[db.default]\nconnection = "%s"\nurl = "%s"\n' % (connection, url)
+        )
+
+    def test_sqlite_mode_copies_main_to_dev_and_skips_dev_prev(self):
+        make_marker_db(self.root / 'main/storage/database/sqlite.db', 'main-sqlite')
+        make_marker_db(self.root / 'main/storage/database/file.db', 'main-file')
+        make_marker_db(self.root / 'dev/storage/database/sqlite.db', 'old-dev-sqlite')
+        make_marker_db(self.root / 'dev/storage/database/file.db', 'old-dev-file')
+        self.write_config('main', 'sqlite', '')
+        self.write_config('dev', 'sqlite', '')
+
+        result = self.run_sync()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(marker_of(self.root / 'dev/storage/database/sqlite.db'), 'main-sqlite')
+        self.assertEqual(marker_of(self.root / 'dev/storage/database/file.db'), 'main-file')
+        self.assertEqual(marker_of(self.root / 'main/storage/database/sqlite.db'), 'main-sqlite')
+        self.assertEqual(marker_of(self.root / 'main/storage/database/file.db'), 'main-file')
+        self.assertFalse((self.root / ROOT_NAME).exists())
+        log = self.docker_text()
+        self.assertIn('stop dev', log)
+        self.assertNotIn('pg_dump', log)
+        state = json.loads((self.root / 'dev/storage/agent-state/state.json').read_text())
+        self.assertFalse(state['apiEnabled'])
+
+    def test_postgres_mode_copies_file_db_and_skips_dev_prev(self):
+        make_marker_db(self.root / 'main/storage/database/file.db', 'main-file')
+        make_marker_db(self.root / 'dev/storage/database/file.db', 'old-dev-file')
+        self.write_config('main', 'postgres', 'postgres://localhost/yourtj_main')
+        self.write_config('dev', 'postgres', 'postgres://localhost/yourtj_dev')
+        previous = self.root / ROOT_NAME
+        previous.mkdir(parents=True)
+        (previous / 'file-20261001_030000.db').write_text('already-there')
+
+        result = self.run_sync()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(marker_of(self.root / 'dev/storage/database/file.db'), 'main-file')
+        self.assertEqual(marker_of(self.root / 'main/storage/database/file.db'), 'main-file')
+        self.assertEqual(
+            sorted(path.name for path in previous.iterdir()),
+            ['file-20261001_030000.db'],
+        )
+        log = self.docker_text()
+        self.assertLess(log.index('stop dev'), log.index('pg_dump'))
+        self.assertIn('yourtj_main', log)
+        self.assertIn('yourtj_dev', log)
+        state = json.loads((self.root / 'dev/storage/agent-state/state.json').read_text())
+        self.assertFalse(state['apiEnabled'])
+
+    def test_mode_mismatch_exits_before_stopping_dev(self):
+        self.write_config('main', 'postgres', 'postgres://localhost/yourtj_main')
+        self.write_config('dev', 'sqlite', '')
+
+        result = self.run_sync()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.docker_text(), '')
+        self.assertFalse((self.root / ROOT_NAME).exists())
+
+    def test_invalid_postgres_dsn_exits_before_stopping_dev(self):
+        self.write_config('main', 'postgres', '')
+        self.write_config('dev', 'postgres', 'postgres://localhost/yourtj_dev')
+
+        result = self.run_sync()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.docker_text(), '')
+        self.assertFalse((self.root / ROOT_NAME).exists())
+
+    def test_failed_sqlite_backup_leaves_dev_and_old_copies_unchanged(self):
+        make_marker_db(self.root / 'main/storage/database/sqlite.db', 'main-sqlite')
+        make_marker_db(self.root / 'dev/storage/database/sqlite.db', 'old-dev-sqlite')
+        write_executable(self.commands / 'sqlite3', '#!/bin/sh\nexit 1\n')
+        previous = self.root / ROOT_NAME
+        previous.mkdir(parents=True)
+        (previous / 'sqlite-20261001_030000.db').write_text('already-there')
+
+        result = self.run_sync()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(marker_of(self.root / 'dev/storage/database/sqlite.db'), 'old-dev-sqlite')
+        self.assertEqual(
+            sorted(path.name for path in previous.iterdir()),
+            ['sqlite-20261001_030000.db'],
+        )
+        self.assertIn('stop dev', self.docker_text())
 
 
 if __name__ == '__main__':

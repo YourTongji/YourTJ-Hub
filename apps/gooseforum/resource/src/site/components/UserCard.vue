@@ -166,6 +166,8 @@ async function show(event: Event) {
   const detail = (event as CustomEvent<UserCardShowDetail>).detail
   if (!detail?.user?.id || !detail.target) return
 
+  // 每次打开都切换请求归属，命中新鲜缓存也不能让上一张卡的慢响应覆盖当前卡片。
+  const token = ++requestToken
   fallbackUser.value = detail.user
   visible.value = true
   error.value = ''
@@ -182,12 +184,11 @@ async function show(event: Event) {
     loading.value = false
     const fetchedAt = cacheFetchedAt.get(detail.user.id) || 0
     if (Date.now() - fetchedAt >= CACHE_REVALIDATE_TTL_MS) {
-      void revalidateCard(detail.user.id, ++requestToken)
+      void revalidateCard(detail.user.id, token)
     }
     return
   }
 
-  const token = ++requestToken
   loading.value = true
   card.value = null
   const seqAtRequest = getFollowChangeSeq(detail.user.id)
