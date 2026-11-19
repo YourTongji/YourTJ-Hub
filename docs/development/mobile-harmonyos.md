@@ -126,7 +126,10 @@ GIF 保留独立的原始 MIME 记录以保存动画；未提供 GIF 记录的�
 设置按钮。拒绝后不会在同一次粘贴中自动强行进入设置。恢复授权使用官方
 [指定权限设置对话框](https://developer.huawei.com/consumer/cn/doc/doccenter-capabilities/request-user-authorization-second)。
 通用应用详情采用 API 26 的官方接口，较低版本使用系统应用详情 Want；
-当前模拟器未打开该详情页面，不能把调用返回当作页面验收通过。
+API 26 的 Mate 70 模拟器已通过独立按钮验证，实际显示 YourTJ 系统应用详情及通知、网络、
+剪贴板权限入口。API 18–25 的 Want 分支仍需对应系统验证。
+系统测试页分别提供应用详情和剪贴板权限按钮，并显示等待、调用返回、缺少桥接和超时状态。
+`returned` 只表示桥接调用完成；页面验收仍须确认系统界面实际出现。
 
 ## 品牌资源
 

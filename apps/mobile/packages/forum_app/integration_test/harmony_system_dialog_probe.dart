@@ -22,7 +22,7 @@ class SystemDialogProbe extends StatefulWidget {
 }
 
 class _SystemDialogProbeState extends State<SystemDialogProbe> {
-  String _status = 'ready';
+  String _status = 'settings-v2:ready';
   bool _busy = false;
   StreamSubscription<List<ConnectivityResult>>? _network;
   int _networkEvents = 0;
@@ -215,20 +215,31 @@ class _SystemDialogProbeState extends State<SystemDialogProbe> {
     }
   }
 
-  Future<void> _settings() async {
+  Future<void> _settings(String type) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _status = 'settings:$type:waiting';
+    });
     try {
-      await const MethodChannel(
-        'com.spencerccf.app_settings/methods',
-      ).invokeMethod<void>('openSettings', {'type': 'clipboard'});
-      if (mounted) setState(() => _status = 'settings:opened');
+      await const MethodChannel('com.spencerccf.app_settings/methods')
+          .invokeMethod<void>('openSettings', {'type': type})
+          .timeout(const Duration(seconds: 20));
+      if (mounted) setState(() => _status = 'settings:$type:returned');
     } on PlatformException catch (error) {
       if (mounted) setState(() => _status = 'settings:${error.code}');
+    } on MissingPluginException {
+      if (mounted) setState(() => _status = 'settings:missing_plugin');
+    } on TimeoutException {
+      if (mounted) setState(() => _status = 'settings:timeout');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('YourTJ system acceptance')),
+    appBar: AppBar(title: const Text('YourTJ system acceptance · settings v2')),
     body: SafeArea(
       child: Column(
         children: [
@@ -245,8 +256,12 @@ class _SystemDialogProbeState extends State<SystemDialogProbe> {
             child: const Text('Test native clipboard'),
           ),
           TextButton(
-            onPressed: _busy ? null : _settings,
+            onPressed: _busy ? null : () => _settings('clipboard'),
             child: const Text('Test clipboard permission settings'),
+          ),
+          TextButton(
+            onPressed: _busy ? null : () => _settings('settings'),
+            child: const Text('Test application details settings'),
           ),
           TextButton(
             onPressed: _busy ? null : _camera,
