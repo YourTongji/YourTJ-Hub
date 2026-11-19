@@ -41,11 +41,11 @@ runs:
     - name: Verify the native SDK reports its pinned version
       shell: bash
       run: |
-        "$RUNNER_TEMP/flutter-ohos/bin/flutter" --version --machine > "$RUNNER_TEMP/flutter-ohos-version.json"
+        "$RUNNER_TEMP/flutter-ohos/bin/flutter" --version > /dev/null
         python3 - <<'PY'
         import json, os
         from pathlib import Path
-        version = json.loads((Path(os.environ['RUNNER_TEMP']) / 'flutter-ohos-version.json').read_text())
+        version = json.loads((Path(os.environ['RUNNER_TEMP']) / 'flutter-ohos/bin/cache/flutter.version.json').read_text())
         assert version['frameworkVersion'] == '3.44.9+ohos-1.0.0-beta', 'Flutter OH tag/version discovery failed'
         assert version['frameworkRevision'] == 'c2fb91fb38c40a6b97b5ae3d9f71107b7dae7ad2', 'Flutter OH revision changed'
         print('Pinned Flutter OH version and revision verified')
