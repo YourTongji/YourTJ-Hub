@@ -68,7 +68,9 @@ def collect(manifest, github):
         base = baseline["sourceSha"]
         if base is None:
             base = git("hash-object", "-t", "tree", "--stdin")
-            uncertainties.append(f"{channel}: first distribution has no prior baseline; review initial-release claims")
+            uncertainties.append(f"{channel}: no comparable mainline release baseline; review initial-release claims"
+                                 if channel == 'harmony-apptest' else
+                                 f"{channel}: first distribution has no prior baseline; review initial-release claims")
         else:
             git("merge-base", "--is-ancestor", base, source)
         # --no-renames exposes both sides of moves, including moves across platform boundaries.

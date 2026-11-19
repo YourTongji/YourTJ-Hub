@@ -9,6 +9,7 @@ from zipfile import ZipFile
 
 from harmony import app_identity, configuration, publish_original, APP_ID, BUNDLE
 from harmony_reconcile import availability, reconcile, import_initial_release
+from state import baselines
 from model import ReleaseError
 from controller import candidate_path
 from catalog import build_catalog, candidate_content_digest
@@ -16,6 +17,18 @@ from rc import reusable
 
 
 class HarmonyTests(unittest.TestCase):
+    def test_history_backfill_does_not_become_a_new_publishing_baseline(self):
+        remote = Mock()
+        archive = {'id': 1, 'sha': 'a' * 40, 'payload': {
+            'candidateId': 'mobile-1.0.18-36', 'tag': 'mobile-v1.0.18'}}
+        remote.pages.side_effect = lambda endpoint: [archive] if endpoint.startswith('deployments?') else [{'state': 'success'}]
+        self.assertEqual(baselines(remote, ['harmony-apptest'], []), {
+            'harmony-apptest': {'tag': None, 'sourceSha': None}})
+        formal = {'id': 2, 'sha': 'b' * 40, 'payload': {
+            'candidateId': 'mobile-1.0.19-108', 'tag': 'mobile-v1.0.19'}}
+        remote.pages.side_effect = lambda endpoint: [archive, formal] if endpoint.startswith('deployments?') else [{'state': 'success'}]
+        self.assertEqual(baselines(remote, ['harmony-apptest'], [])['harmony-apptest']['sourceSha'], 'b' * 40)
+
     def test_original_digest_version_and_bundle_are_required(self):
         with tempfile.TemporaryDirectory() as temp:
             app = Path(temp) / 'original.app'

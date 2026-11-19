@@ -108,6 +108,8 @@ status 提供同名固定代理路径，客户端使用原有历史时间线和�
 `releases/history/mobile-1.0.18-36`，不属于自动发布请求，不重建或送审。
 首次刷新仍须由华为 API 确认原邀请测试、版本名、构建号和包 ID 正在测试，才导入历史回执；
 旧包未知或已过期时停止导入，不补写无法证明的版本。历史覆盖从 36 开始，不能声称更早记录完整。
+历史回填不推进统一发布基线，避免较晚导入的旧记录覆盖新版本，或旧功能分支经 squash 合入后
+无法作祖先比较。首次统一 RC 完整审阅候选变化；原生构建号仍必须高于华为已有软件包。
 
 接口依据为华为的[服务端鉴权](https://developer.huawei.com/consumer/cn/doc/App/agc-help-connect-api-obtain-server-auth-0000002271134661/)、
 [Testing API](https://developer.huawei.com/consumer/cn/doc/App/agc-help-test-api-guide-0000002236015562)

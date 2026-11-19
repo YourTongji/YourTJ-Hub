@@ -46,6 +46,10 @@ def latest_receipt(github, candidate_id, channel):
 def successful_baseline(github, channel):
     # First successful receipt in GitHub's reverse chronological deployment order.
     for deployment in github.pages(f"deployments?environment=release-{channel}"):
+        # Backfilled history can postdate a real release and its source may be squash-merged.
+        payload = deployment.get('payload')
+        if channel == 'harmony-apptest' and isinstance(payload, dict) and payload.get('candidateId') == 'mobile-1.0.18-36':
+            continue
         statuses = github.pages(f"deployments/{deployment['id']}/statuses")
         if statuses and statuses[0]["state"] == "success":
             payload = deployment.get('payload')
