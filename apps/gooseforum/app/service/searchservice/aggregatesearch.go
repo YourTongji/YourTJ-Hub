@@ -1,6 +1,7 @@
 package searchservice
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -150,10 +151,10 @@ func scopeQueries(req AggregateSearchRequest) []*meilisearch.SearchRequest {
 }
 
 // searchSingleIndex 对单索引执行一次搜索（multi-search 失败时的回退路径）。
-func searchSingleIndex(query *meilisearch.SearchRequest) (*meilisearch.SearchResponse, error) {
+func searchSingleIndex(ctx context.Context, query *meilisearch.SearchRequest) (*meilisearch.SearchResponse, error) {
 	client := meiliconnect.GetClient()
 	index := client.Index(query.IndexUID)
-	return index.Search(query.Query, &meilisearch.SearchRequest{
+	return index.Search(ctx, query.Query, &meilisearch.SearchRequest{
 		Limit:                query.Limit,
 		Offset:               query.Offset,
 		Filter:               query.Filter,
@@ -180,6 +181,11 @@ func AggregateSearch(req AggregateSearchRequest) (*AggregateSearchResponse, erro
 	}
 	req.Scope = NormalizeScope(req.Scope)
 
+	// meilisearch-go 0.37 起搜索接口要求 ctx；AggregateSearch 是同步入口，
+	// 用固定上限的局部 ctx 兜住整轮 multi-search 与回退搜索。
+	ctx, cancel := context.WithTimeout(context.Background(), searchQueryTimeout)
+	defer cancel()
+
 	queries := scopeQueries(req)
 
 	resp := &AggregateSearchResponse{
@@ -189,7 +195,7 @@ func AggregateSearch(req AggregateSearchRequest) (*AggregateSearchResponse, erro
 		Courses:    []CourseSearchResult{},
 	}
 
-	multiResp, err := meiliconnect.GetClient().MultiSearch(&meilisearch.MultiSearchRequest{
+	multiResp, err := meiliconnect.GetClient().MultiSearch(ctx, &meilisearch.MultiSearchRequest{
 		Federation: nil,
 		Queries:    queries,
 	})
@@ -206,7 +212,7 @@ func AggregateSearch(req AggregateSearchRequest) (*AggregateSearchResponse, erro
 			searchResp = &multiResp.Results[i]
 		} else {
 			var sErr error
-			searchResp, sErr = searchSingleIndex(query)
+			searchResp, sErr = searchSingleIndex(ctx, query)
 			if sErr != nil {
 				slog.Warn("per-index search failed", "index", query.IndexUID, "err", sErr)
 				resp.FailedScopes = append(resp.FailedScopes, query.IndexUID)

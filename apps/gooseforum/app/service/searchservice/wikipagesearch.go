@@ -93,6 +93,9 @@ func wikiPagePubliclySearchable(page *wikiPages.Entity) bool {
 // BuildWikiPageIndex 全量重建 wiki 段落索引（对齐 BuildMeilisearchIndex 模式）。
 // 只索引公开页面（topic 可见性过滤），删除文档先清空索引（重建语义）。
 func BuildWikiPageIndex() (*IndexBuildResult, error) {
+	// 全量重建是同步入口，没有可传的 ctx；用固定上限的局部 ctx 兜住整轮重建。
+	ctx, cancel := context.WithTimeout(context.Background(), indexRebuildTimeout)
+	defer cancel()
 	if !meiliconnect.IsAvailable() {
 		return nil, errors.New("meilisearch 服务不可用，请检查配置或连接状态")
 	}
@@ -103,7 +106,7 @@ func BuildWikiPageIndex() (*IndexBuildResult, error) {
 	if err := configureWikiPageIndex(index); err != nil {
 		return nil, fmt.Errorf("配置 wiki 索引失败: %w", err)
 	}
-	deleteTask, err := index.DeleteAllDocuments(&meilisearch.DocumentOptions{})
+	deleteTask, err := index.DeleteAllDocuments(ctx, &meilisearch.DocumentOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("清空 wiki 索引失败: %w", err)
 	}
@@ -134,7 +137,7 @@ func BuildWikiPageIndex() (*IndexBuildResult, error) {
 			end = len(documents)
 		}
 		batch := documents[start:end]
-		if _, err := index.AddDocuments(batch, &meilisearch.DocumentOptions{PrimaryKey: strPtr("id")}); err != nil {
+		if _, err := index.AddDocuments(ctx, batch, &meilisearch.DocumentOptions{PrimaryKey: strPtr("id")}); err != nil {
 			return nil, fmt.Errorf("写入 wiki 索引批次失败: %w", err)
 		}
 		totalBatches++
@@ -179,6 +182,9 @@ func wikiPageDocuments(page *wikiPages.Entity) []WikiPageDocument {
 // 搜索会命中已删除文本并把用户带到不存在的 #s-3 锚点。无段落（纯标题页）
 // 同样清空该页索引，避免整页旧索引继续存在。
 func IndexWikiPageDocuments(pageID uint64) error {
+	// 单页同步入口没有可传的 ctx（meilisearch-go 0.37 起索引操作要求 ctx）。
+	ctx, cancel := context.WithTimeout(context.Background(), searchTaskWaitTimeout)
+	defer cancel()
 	if !meiliconnect.IsAvailable() {
 		return nil
 	}
@@ -198,7 +204,7 @@ func IndexWikiPageDocuments(pageID uint64) error {
 	if len(docs) == 0 {
 		return nil
 	}
-	if _, err := index.AddDocuments(docs, &meilisearch.DocumentOptions{PrimaryKey: strPtr("id")}); err != nil {
+	if _, err := index.AddDocuments(ctx, docs, &meilisearch.DocumentOptions{PrimaryKey: strPtr("id")}); err != nil {
 		return fmt.Errorf("索引 wiki 页面 %d: %w", pageID, err)
 	}
 	return nil
@@ -207,13 +213,16 @@ func IndexWikiPageDocuments(pageID uint64) error {
 // DeleteWikiPageDocuments 删除单页全部段落文档（页面软删/不可见/段落清空时）。
 // 删除是异步任务：等待完成，保证调用方随后写入或搜索不会读到旧文档。
 func DeleteWikiPageDocuments(pageID uint64) error {
+	// 单页同步入口没有可传的 ctx（meilisearch-go 0.37 起索引操作要求 ctx）。
+	ctx, cancel := context.WithTimeout(context.Background(), searchTaskWaitTimeout)
+	defer cancel()
 	if !meiliconnect.IsAvailable() {
 		return nil
 	}
 	client := meiliconnect.GetClient()
 	index := client.Index(WikiPageIndex)
 	filter := "pageId = " + fmt.Sprintf("%d", pageID)
-	task, err := index.DeleteDocumentsByFilter([]string{filter}, nil)
+	task, err := index.DeleteDocumentsByFilter(ctx, []string{filter}, nil)
 	if err != nil {
 		return fmt.Errorf("删除 wiki 页面 %d 索引: %w", pageID, err)
 	}
@@ -225,6 +234,9 @@ func DeleteWikiPageDocuments(pageID uint64) error {
 
 // SearchWikiPageHits 在 wiki_pages 索引执行段落级搜索，只返回标记为公开的文档。
 func SearchWikiPageHits(query string, limit int) (*WikiPageSearchResponse, error) {
+	// 同步搜索入口没有可传的 ctx，用固定上限的局部 ctx。
+	ctx, cancel := context.WithTimeout(context.Background(), searchQueryTimeout)
+	defer cancel()
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return &WikiPageSearchResponse{Hits: []WikiPageHit{}, Total: 0}, nil
@@ -239,7 +251,7 @@ func SearchWikiPageHits(query string, limit int) (*WikiPageSearchResponse, error
 		limit = 30
 	}
 	index := meiliconnect.GetClient().Index(WikiPageIndex)
-	searchResp, err := index.Search(query, &meilisearch.SearchRequest{
+	searchResp, err := index.Search(ctx, query, &meilisearch.SearchRequest{
 		Limit:                 int64(limit),
 		Filter:                "isPublic = true",
 		AttributesToRetrieve:  []string{"id", "pageId", "path", "title", "namespace", "heading", "anchor", "paragraph"},
@@ -309,6 +321,9 @@ func SearchWikiPageHits(query string, limit int) (*WikiPageSearchResponse, error
 // 页面级 total 应去重（review P2）。distinct 在 Meilisearch 中要求该属性可过滤；
 // isPublic 同时排除旧软删文档和尚未完成清理的非公开文档。
 func CountWikiPages(query string) (int64, error) {
+	// 同步搜索入口没有可传的 ctx，用固定上限的局部 ctx。
+	ctx, cancel := context.WithTimeout(context.Background(), searchQueryTimeout)
+	defer cancel()
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return 0, nil
@@ -320,7 +335,7 @@ func CountWikiPages(query string) (int64, error) {
 		return 0, ErrSearchUnavailable
 	}
 	index := meiliconnect.GetClient().Index(WikiPageIndex)
-	searchResp, err := index.Search(query, &meilisearch.SearchRequest{
+	searchResp, err := index.Search(ctx, query, &meilisearch.SearchRequest{
 		Limit:    1,
 		Distinct: "pageId",
 		Filter:   "isPublic = true",

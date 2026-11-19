@@ -93,7 +93,7 @@ func waitTask(t *testing.T, taskUID int64) {
 	client := meiliconnect.GetClient()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		info, err := client.GetTask(taskUID)
+		info, err := client.GetTask(context.Background(), taskUID)
 		if err != nil {
 			t.Fatalf("GetTask(%d) error: %v", taskUID, err)
 		}

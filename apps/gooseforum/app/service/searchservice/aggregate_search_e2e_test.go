@@ -1,6 +1,7 @@
 package searchservice
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -121,7 +122,7 @@ func TestAggregateSearchE2E(t *testing.T) {
 	}
 
 	// 9. 部分降级：删除 users 索引 -> failedScopes 含 users，分类仍可搜
-	if _, err := client.DeleteIndex(UserIndex); err != nil {
+	if _, err := client.DeleteIndex(context.Background(), UserIndex); err != nil {
 		t.Fatalf("delete users index: %v", err)
 	}
 	waitIndexTask(t, client)
@@ -182,7 +183,7 @@ func waitIndexTask(t *testing.T, client meilisearch.ServiceManager) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		tasks, err := client.GetTasks(&meilisearch.TasksQuery{
+		tasks, err := client.GetTasks(context.Background(), &meilisearch.TasksQuery{
 			IndexUIDS: []string{TopicIndex, UserIndex, CategoryIndex, WikiPageIndex},
 		})
 		if err != nil {

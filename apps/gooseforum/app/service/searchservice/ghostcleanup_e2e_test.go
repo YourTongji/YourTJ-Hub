@@ -1,6 +1,7 @@
 package searchservice
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -23,19 +24,19 @@ func TestCleanupGhostDocumentsE2E(t *testing.T) {
 	indexName := fmt.Sprintf("ghost-cleanup-e2e-%d", unique%1000000)
 
 	// 1. 创建隔离测试索引
-	if _, err := client.CreateIndex(&meilisearch.IndexConfig{Uid: indexName, PrimaryKey: "id"}); err != nil {
+	if _, err := client.CreateIndex(context.Background(), &meilisearch.IndexConfig{Uid: indexName, PrimaryKey: "id"}); err != nil {
 		t.Fatalf("CreateIndex(%s) error: %v", indexName, err)
 	}
 	waitIndexTasks(t, indexName)
 	defer func() {
-		_, _ = client.DeleteIndex(indexName)
+		_, _ = client.DeleteIndex(context.Background(), indexName)
 	}()
 
 	index := client.Index(indexName)
 
 	// 2. 写入 4 个文档（ID 1-4），其中 1、3 是幽灵文档（不在期望集合）
 	pk := "id"
-	if _, err := index.AddDocuments([]map[string]any{
+	if _, err := index.AddDocuments(context.Background(), []map[string]any{
 		{"id": 1, "title": "ghost-one"},
 		{"id": 2, "title": "kept-two"},
 		{"id": 3, "title": "ghost-three"},
@@ -56,7 +57,7 @@ func TestCleanupGhostDocumentsE2E(t *testing.T) {
 	waitIndexTasks(t, indexName)
 
 	// 4. 断言索引中只剩 2、4
-	ids, err := fetchIndexDocumentIDs(index)
+	ids, err := fetchIndexDocumentIDs(context.Background(), index)
 	if err != nil {
 		t.Fatalf("fetchIndexDocumentIDs error: %v", err)
 	}
@@ -86,7 +87,7 @@ func waitIndexTasks(t *testing.T, indexUID string) {
 	client := meiliconnect.GetClient()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		tasks, err := client.GetTasks(&meilisearch.TasksQuery{IndexUIDS: []string{indexUID}})
+		tasks, err := client.GetTasks(context.Background(), &meilisearch.TasksQuery{IndexUIDS: []string{indexUID}})
 		if err != nil {
 			t.Fatalf("GetTasks(%s) error: %v", indexUID, err)
 		}

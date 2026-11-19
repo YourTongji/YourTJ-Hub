@@ -1,11 +1,13 @@
 package searchservice
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/meilisearch/meilisearch-go"
 )
@@ -19,9 +21,14 @@ const (
 
 // ghostIndex 是幽灵文档清理所需的 Meilisearch 索引操作子集，便于单测注入。
 type ghostIndex interface {
-	GetDocuments(param *meilisearch.DocumentsQuery, resp *meilisearch.DocumentsResult) error
-	DeleteDocuments(identifiers []string, opts *meilisearch.DocumentOptions) (*meilisearch.TaskInfo, error)
+	GetDocuments(ctx context.Context, param *meilisearch.DocumentsQuery, resp *meilisearch.DocumentsResult) error
+	DeleteDocuments(ctx context.Context, identifiers []string, opts *meilisearch.DocumentOptions) (*meilisearch.TaskInfo, error)
 }
+
+// ghostCleanupTimeout 兜住一次幽灵清理（拉取 + 批量删除）的总时长：
+// 清理由 rebuild 同步触发，调用方没有可传的 ctx（meilisearch-go 0.37 起
+// 索引操作一律要求 ctx），因此用固定上限的局部 ctx。
+const ghostCleanupTimeout = 5 * time.Minute
 
 // ghostRevalidator 在删除幽灵文档前复核索引文档 ID 在数据库中的最新状态，
 // 用于关闭 rebuild snapshot 与线上事件处理器之间的竞态（PR #151 review P1）：
@@ -37,7 +44,9 @@ type ghostRevalidator func(id string) (keep bool, err error)
 // 返回实际入队删除的文档 ID 列表；调用方应在其后对列表执行 replay 复核，
 // 恢复删除入队期间重新变为可索引的文档（见各 Build*Index 的实现）。
 func cleanupGhostDocuments(index ghostIndex, want map[string]struct{}, revalidate ghostRevalidator) ([]string, error) {
-	indexed, err := fetchIndexDocumentIDs(index)
+	ctx, cancel := context.WithTimeout(context.Background(), ghostCleanupTimeout)
+	defer cancel()
+	indexed, err := fetchIndexDocumentIDs(ctx, index)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +75,7 @@ func cleanupGhostDocuments(index ghostIndex, want map[string]struct{}, revalidat
 		if len(batch) == 0 {
 			continue
 		}
-		if _, err := index.DeleteDocuments(batch, nil); err != nil {
+		if _, err := index.DeleteDocuments(ctx, batch, nil); err != nil {
 			return nil, fmt.Errorf("delete ghost documents: %w", err)
 		}
 		deleted = append(deleted, batch...)
@@ -76,12 +85,12 @@ func cleanupGhostDocuments(index ghostIndex, want map[string]struct{}, revalidat
 
 // fetchIndexDocumentIDs 分页拉取索引中的全部文档 ID（字符串形式）。
 // 索引不存在时返回空列表（无文档可清理），避免空库重建失败。
-func fetchIndexDocumentIDs(index ghostIndex) ([]string, error) {
+func fetchIndexDocumentIDs(ctx context.Context, index ghostIndex) ([]string, error) {
 	var ids []string
 	offset := int64(0)
 	for {
 		resp := &meilisearch.DocumentsResult{}
-		if err := index.GetDocuments(&meilisearch.DocumentsQuery{
+		if err := index.GetDocuments(ctx, &meilisearch.DocumentsQuery{
 			Offset: offset,
 			Limit:  ghostFetchBatchSize,
 			Fields: []string{"id"},

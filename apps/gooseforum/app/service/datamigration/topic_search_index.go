@@ -1,9 +1,11 @@
 package datamigration
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
@@ -26,7 +28,11 @@ func MigrateTopicSearchIndex() TopicSearchIndexMigrationResult {
 		meiliconnect.IsAvailable,
 		searchservice.BuildMeilisearchIndex,
 		func(index string) error {
-			_, err := meiliconnect.GetClient().DeleteIndex(index)
+			// meilisearch-go 0.37 起 DeleteIndex 要求 ctx；迁移入口是同步函数，
+			// 用固定上限的局部 ctx。
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			_, err := meiliconnect.GetClient().DeleteIndex(ctx, index)
 			return err
 		},
 	)
