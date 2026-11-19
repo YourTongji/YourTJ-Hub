@@ -68,6 +68,30 @@ object HomeWidgetScheduler {
     armNext(context, providerClassName, upcoming)
   }
 
+  /**
+   * Adds [updateTimes] to the stored schedule of [providerClassName] without dropping any
+   * existing future time, then arms the alarm for the earliest upcoming one.
+   *
+   * Unlike [schedule] this never replaces the table, so a receiver can contribute its own
+   * refresh boundaries (e.g. countdown display changes) while the full schedule published by
+   * the app — including a validity/stale switch — stays intact. Times in the past are ignored;
+   * passing only past times is equivalent to [pruneAndArmNext].
+   */
+  fun mergeAndArmNext(context: Context, providerClassName: String, updateTimes: List<Long>) {
+    val now = System.currentTimeMillis()
+    val merged = (loadTimes(context, providerClassName) + updateTimes)
+      .filter { it > now }
+      .distinct()
+      .sorted()
+    if (merged.isEmpty()) {
+      cancel(context, providerClassName)
+      return
+    }
+    warnIfReceiverMissing(context)
+    saveTimes(context, providerClassName, merged)
+    armNext(context, providerClassName, merged)
+  }
+
   /** Cancels all scheduled updates of [providerClassName] and forgets its stored times. */
   fun cancel(context: Context, providerClassName: String) {
     cancelAlarm(context, providerClassName)

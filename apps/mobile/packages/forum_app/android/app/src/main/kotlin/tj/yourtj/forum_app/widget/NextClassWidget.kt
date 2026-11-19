@@ -2,6 +2,7 @@ package tj.yourtj.forum_app.widget
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -368,25 +369,27 @@ private fun detailText(zhLabel: String, enLabel: String, value: String): String 
 class NextClassWidgetReceiver : HomeWidgetGlanceWidgetReceiver<NextClassWidget>() {
     override val glanceAppWidget = NextClassWidget()
 
-    override fun onEnabled(context: Context) {
-        super.onEnabled(context)
-        scheduleNextUpdate(context)
-    }
+    // onEnabled needs no override: the base receiver already advances the
+    // bridge's stored schedule via pruneAndArmNext. Scheduling a fresh table
+    // here would replace the bridge's full schedule (including the +1ms
+    // stale switch) with a single entry.
 
-    override fun onUpdate(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray,
-    ) {
-        super.onUpdate(context, appWidgetManager, appWidgetIds)
-        scheduleNextUpdate(context)
-    }
-
-    private fun scheduleNextUpdate(context: Context) {
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action != AppWidgetManager.ACTION_APPWIDGET_UPDATE) return
+        if (!intent.getBooleanExtra(HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET, false)) {
+            // System-driven update (e.g. reboot): re-arm the stored table
+            // without replacing it.
+            HomeWidgetScheduler.pruneAndArmNext(context, javaClass.name, catchUp = false)
+        }
+        // The countdown display changes between course boundaries. Merge the
+        // next display boundary into the bridge's stored schedule so the
+        // alarm chain keeps walking; never replace the table (that would
+        // drop the bridge's +1ms stale switch).
         val projection = ScheduleProjection.parse(
             HomeWidgetPlugin.getData(context).getString(PROJECTION_KEY, null),
         ) ?: return
         val nextUpdate = projection.nextUpdateAt(Date()) ?: return
-        HomeWidgetScheduler.schedule(context, javaClass.name, listOf(nextUpdate.time))
+        HomeWidgetScheduler.mergeAndArmNext(context, javaClass.name, listOf(nextUpdate.time))
     }
 }

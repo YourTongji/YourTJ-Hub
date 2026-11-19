@@ -138,6 +138,10 @@ class ScheduleWidgetBridge {
         times,
         qualifiedAndroidName: _todayReceiver,
       ),
+      HomeWidget.scheduleWidgetUpdates(
+        times,
+        qualifiedAndroidName: _timelineReceiver,
+      ),
     ]);
     await _reload();
   }
@@ -205,6 +209,9 @@ class ScheduleWidgetBridge {
       ),
       HomeWidget.cancelScheduledWidgetUpdates(
         qualifiedAndroidName: _todayReceiver,
+      ),
+      HomeWidget.cancelScheduledWidgetUpdates(
+        qualifiedAndroidName: _timelineReceiver,
       ),
     ]);
     await _reload();

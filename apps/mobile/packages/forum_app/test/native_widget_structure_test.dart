@@ -317,7 +317,9 @@ void main() {
     expect(source, contains('generatedAt?.let(::updatedText)'));
     expect(source, contains('distanceText('));
     expect(data, contains('fun nextUpdateAt('));
-    expect(source, contains('HomeWidgetScheduler.schedule('));
+    // The receiver advances the bridge's stored schedule; it never replaces
+    // it (see 'Android receivers never clobber the bridge update schedule').
+    expect(source, contains('HomeWidgetScheduler.pruneAndArmNext('));
   });
 
   test('NextClass picker shares one full-canvas image across preview APIs', () {
@@ -441,6 +443,84 @@ void main() {
     );
   });
 
+  test('Android all three receivers share the projection update schedule', () {
+    final bridge = read('lib/src/campus_widget/schedule_widget_bridge.dart');
+    final schedule = bridge.substring(
+      bridge.indexOf('final times = projection.updateTimesAfter'),
+      bridge.indexOf('await _reload();'),
+    );
+
+    expect(schedule, contains('HomeWidget.scheduleWidgetUpdates('));
+    for (final receiver in [
+      '_nextReceiver',
+      '_todayReceiver',
+      '_timelineReceiver',
+    ]) {
+      expect(schedule, contains('qualifiedAndroidName: $receiver'));
+    }
+  });
+
+  test('Android clear cancels every receiver that _write schedules', () {
+    final bridge = read('lib/src/campus_widget/schedule_widget_bridge.dart');
+    final clearStart = bridge.indexOf('Future<void> _clear(String state)');
+    expect(clearStart, isNonNegative);
+    final cancel = bridge.substring(
+      clearStart,
+      bridge.indexOf('await _reload();', clearStart),
+    );
+
+    expect(cancel, contains('HomeWidget.cancelScheduledWidgetUpdates('));
+    for (final receiver in [
+      '_nextReceiver',
+      '_todayReceiver',
+      '_timelineReceiver',
+    ]) {
+      expect(cancel, contains('qualifiedAndroidName: $receiver'));
+    }
+  });
+
+  test('Android receivers never clobber the bridge update schedule', () {
+    // HomeWidgetScheduler.schedule replaces the whole stored table. No
+    // schedule receiver may call it: the bridge owns the full table
+    // (including the +1ms stale switch), and the base receiver already
+    // advances it via pruneAndArmNext on onEnabled. Receivers only re-arm
+    // the stored table on system-driven updates (e.g. reboot).
+    for (final name in ['CourseTimelineWidget.kt', 'NextClassWidget.kt']) {
+      final source = widgetSource(name);
+      final receiver = source.substring(
+        source.indexOf(RegExp(r'class \w+WidgetReceiver')),
+      );
+      expect(receiver, isNot(contains('HomeWidgetScheduler.schedule(')));
+      expect(receiver, isNot(contains('nextShanghaiMidnight')));
+      expect(
+        receiver,
+        contains('HomeWidgetScheduler.pruneAndArmNext('),
+        reason: name,
+      );
+      expect(
+        receiver,
+        contains('HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET'),
+        reason: name,
+      );
+    }
+    // The timeline has no countdown: its receiver must not merge extra times.
+    final timeline = widgetSource('CourseTimelineWidget.kt');
+    final timelineReceiver = timeline.substring(
+      timeline.indexOf('class CourseTimelineWidgetReceiver'),
+    );
+    expect(timelineReceiver, isNot(contains('ScheduleProjection.parse')));
+    expect(timelineReceiver, isNot(contains('mergeAndArmNext')));
+    // NextClass shows a countdown whose display changes between course
+    // boundaries; it merges those boundaries non-destructively so the alarm
+    // chain keeps walking without dropping the bridge's stale switch.
+    final nextClass = widgetSource('NextClassWidget.kt');
+    final nextReceiver = nextClass.substring(
+      nextClass.indexOf('class NextClassWidgetReceiver'),
+    );
+    expect(nextReceiver, contains('projection.nextUpdateAt('));
+    expect(nextReceiver, contains('HomeWidgetScheduler.mergeAndArmNext('));
+  });
+
   test('iOS WidgetKit target, App Group and timeline are fully configured', () {
     final project = read('ios/Runner.xcodeproj/project.pbxproj');
     final source =
@@ -473,7 +553,8 @@ void main() {
     expect(source, contains('Asia/Shanghai'));
     expect(source, contains('emptyStateKey'));
     expect(source, contains('safeText'));
-    expect(source, contains('projection.days'));
+    expect(source, contains('projection.day(on: date, at: entry.date)'));
+    expect(source, isNot(contains('projection.days')));
     expect(source, contains('LargeDayColumn'));
     expect(source, contains('今天'));
     expect(source, contains('明天'));

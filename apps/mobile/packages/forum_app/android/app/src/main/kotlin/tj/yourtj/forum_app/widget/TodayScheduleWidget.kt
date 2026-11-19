@@ -48,15 +48,23 @@ class TodayScheduleWidget : ScheduleGlanceWidget() {
             val preferences = currentState<HomeWidgetGlanceState>().preferences
             val projection = ScheduleProjection.parse(preferences.getString(PROJECTION_KEY, null))
             val transparency = preferences.getInt(WIDGET_TRANSPARENCY_KEY, DEFAULT_WIDGET_TRANSPARENCY)
-            val status = projection?.status()
+            val now = Date()
+            val status = projection?.status(now)
                 ?: (emptyStatus(preferences.getString(EMPTY_STATE_KEY, null)) to null)
             val large = LocalSize.current.height >= 150.dp
-            val today = projection?.dayFor()
-            val tomorrow = projection?.days?.firstOrNull { it.date == tomorrowDate() }
+            val today = projection?.dayFor(now)
+            val tomorrow = projection?.dayOn(tomorrowDate(now), now)
             val description = scheduleDescription(status.first, today, if (large) tomorrow else null, projection != null)
             Surface(context, description, transparency) {
                 if (large) {
-                    LargeSchedule(today, tomorrow, status.second?.id, projection != null, projection?.generatedAt)
+                    LargeSchedule(
+                        today,
+                        tomorrow,
+                        status.second?.id,
+                        projection != null,
+                        projection?.generatedAt,
+                        if (status.first == "stale") "stale" else "needsRefresh",
+                    )
                 } else {
                     MediumDayColumn(today, status, projection != null)
                 }
@@ -108,6 +116,7 @@ private fun LargeSchedule(
     currentId: String?,
     hasProjection: Boolean,
     generatedAt: Date?,
+    emptyStatus: String = "needsRefresh",
 ) {
     Column(modifier = GlanceModifier.fillMaxSize()) {
         Row(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
@@ -116,6 +125,7 @@ private fun LargeSchedule(
                 today,
                 currentId,
                 hasProjection,
+                emptyStatus,
                 GlanceModifier.defaultWeight().fillMaxHeight().padding(end = 6.dp),
             )
             Divider()
@@ -124,6 +134,7 @@ private fun LargeSchedule(
                 tomorrow,
                 null,
                 hasProjection,
+                emptyStatus,
                 GlanceModifier.defaultWeight().fillMaxHeight().padding(start = 6.dp),
             )
         }
@@ -137,6 +148,7 @@ private fun LargeDayColumn(
     day: ScheduleDay?,
     currentId: String?,
     hasProjection: Boolean,
+    emptyStatus: String,
     modifier: GlanceModifier,
 ) {
     val accessibilityTitle = when {
@@ -147,8 +159,8 @@ private fun LargeDayColumn(
     val description = day?.let { dayDescription(accessibilityTitle, it) }
         ?: listOfNotNull(
             accessibilityTitle,
-            labelFor("needsRefresh"),
-            supportFor("needsRefresh", hasProjection),
+            labelFor(emptyStatus),
+            supportFor(emptyStatus, hasProjection),
         ).joinToString("，")
     Column(modifier = modifier.semantics { contentDescription = description }) {
         Row(modifier = GlanceModifier.fillMaxWidth()) {
@@ -162,7 +174,7 @@ private fun LargeDayColumn(
         DayHeader(day?.date.orEmpty(), day?.week, day?.adjustmentLabel, showBrand = false)
         Spacer(GlanceModifier.height(4.dp))
         if (day == null || day.courses.isEmpty()) {
-            EmptyDay(emptyStatusFor(day), day, hasProjection)
+            EmptyDay(if (day == null) emptyStatus else emptyStatusFor(day), day, hasProjection)
         } else {
             LazyColumn(
                 modifier = GlanceModifier.defaultWeight().fillMaxWidth(),

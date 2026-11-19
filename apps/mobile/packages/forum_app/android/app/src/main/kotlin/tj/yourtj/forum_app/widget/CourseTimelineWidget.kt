@@ -2,6 +2,7 @@ package tj.yourtj.forum_app.widget
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -70,9 +71,10 @@ class CourseTimelineWidget : ScheduleGlanceWidget() {
             val showTomorrow = preferences.getBoolean(timelineDayKey(appWidgetId), false)
             val now = Date()
             val date = if (showTomorrow) tomorrowDate(now) else schoolDate(now)
-            val day = projection?.days?.firstOrNull { it.date == date }
+            val day = projection?.dayOn(date, now)
             val emptyState = emptyStatus(preferences.getString(EMPTY_STATE_KEY, null))
             val status = when {
+                projection?.isStale(now) == true -> "stale"
                 day != null -> emptyStatusFor(day)
                 projection == null && emptyState != "ready" -> emptyState
                 else -> "needsRefresh"
@@ -364,14 +366,22 @@ class ToggleCourseTimelineDayAction : ActionCallback {
 class CourseTimelineWidgetReceiver : HomeWidgetGlanceWidgetReceiver<CourseTimelineWidget>() {
     override val glanceAppWidget = CourseTimelineWidget()
 
-    override fun onEnabled(context: Context) {
-        super.onEnabled(context)
-        scheduleNextDay(context)
-    }
+    // onEnabled needs no override: the base receiver already advances the
+    // bridge's stored schedule via pruneAndArmNext. Scheduling a fresh table
+    // here would replace the bridge's full schedule (including the +1ms
+    // stale switch) with a single entry.
 
-    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        super.onUpdate(context, appWidgetManager, appWidgetIds)
-        scheduleNextDay(context)
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        // Plugin- and alarm-driven updates already carry the bridge's full
+        // schedule; the alarm receiver advances it after broadcasting. Only
+        // system-driven updates (e.g. reboot) must re-arm the stored table,
+        // non-destructively — never replace it.
+        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE &&
+            !intent.getBooleanExtra(HomeWidgetPlugin.TRIGGERED_FROM_HOME_WIDGET, false)
+        ) {
+            HomeWidgetScheduler.pruneAndArmNext(context, javaClass.name, catchUp = false)
+        }
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
@@ -384,9 +394,5 @@ class CourseTimelineWidgetReceiver : HomeWidgetGlanceWidgetReceiver<CourseTimeli
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         HomeWidgetScheduler.cancel(context, javaClass.name)
-    }
-
-    private fun scheduleNextDay(context: Context) {
-        HomeWidgetScheduler.schedule(context, javaClass.name, listOf(nextShanghaiMidnight(Date()).time))
     }
 }

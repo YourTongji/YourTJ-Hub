@@ -60,7 +60,7 @@ private func normalizedEmptyState(_ value: String?) -> String {
     value == "needsData" ? "needsRefresh" : value ?? "needsRefresh"
 }
 
-private func title(_ state: String, isTomorrow: Bool = false) -> String {
+private func widgetTitle(_ state: String, isTomorrow: Bool = false) -> String {
     let zh = Locale.current.languageCode == "zh"
     if zh {
         switch state {
@@ -127,7 +127,7 @@ private func scheduleAccessibilityText(
 ) -> String {
     let zh = Locale.current.languageCode == "zh"
     return [
-        title(state),
+        widgetTitle(state),
         today.map { dayAccessibilityText(zh ? "今天" : "Today", day: $0, emptyState: state) },
         tomorrow.map { dayAccessibilityText(zh ? "明天" : "Tomorrow", day: $0, isTomorrow: true) },
     ].compactMap { $0 }.joined(separator: "，")
@@ -141,9 +141,9 @@ private func dayAccessibilityText(_ heading: String, day: Projection.Day, emptyS
     let empty: String?
     if courses.isEmpty {
         switch day.kind {
-        case "holiday": empty = day.adjustmentLabel ?? title("holiday", isTomorrow: isTomorrow)
-        case "unknown": empty = title("needsRefresh")
-        default: empty = title(emptyState ?? "noClasses", isTomorrow: isTomorrow)
+        case "holiday": empty = day.adjustmentLabel ?? widgetTitle("holiday", isTomorrow: isTomorrow)
+        case "unknown": empty = widgetTitle("needsRefresh")
+        default: empty = widgetTitle(emptyState ?? "noClasses", isTomorrow: isTomorrow)
         }
     } else {
         empty = nil
@@ -265,7 +265,7 @@ private struct NextClassView: View {
         let day = state.2 ?? entry.projection?.day(at: entry.date)
         let courses = state.1 == nil ? [] : Array((day?.courses ?? []).prefix(3))
         let accessibility = [
-            title(state.0), day.map(dayHeaderText),
+            widgetTitle(state.0), day.map(dayHeaderText),
             courses.map { [$0.name, compactRoom($0.room), $0.teacher, courseTime($0)]
                 .filter { !$0.isEmpty }.joined(separator: "，") }.joined(separator: "，"),
             entry.projection.map { lastUpdatedText($0.generatedAt) },
@@ -290,7 +290,7 @@ private struct NextClassView: View {
                     }
                 }
             } else {
-                Text(title(state.0)).font(.subheadline.weight(.semibold)).lineLimit(3)
+                Text(widgetTitle(state.0)).font(.subheadline.weight(.semibold)).lineLimit(3)
                 if let support = support(state.0, hasProjection: entry.projection != nil) {
                     Text(support).font(.caption2).foregroundColor(.secondary).lineLimit(3)
                 }
@@ -349,7 +349,8 @@ private struct TodayScheduleView: View {
                     LargeDayColumn(title: "明天", day: next,
                                    fallbackDate: nextDay(after: entry.date),
                                    currentId: nil, hasProjection: projection != nil,
-                                   showsBrandMark: true)
+                                   showsBrandMark: true,
+                                   currentState: state.0 == "stale" ? "stale" : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             } else {
@@ -374,7 +375,7 @@ private struct TodayScheduleView: View {
     private func tomorrow(in projection: Projection?) -> Projection.Day? {
         guard let projection else { return nil }
         let date = Projection.schoolDate.string(from: nextDay(after: entry.date))
-        return projection.days.first { $0.date == date }
+        return projection.day(on: date, at: entry.date)
     }
 }
 
@@ -571,7 +572,7 @@ private struct LargeDayColumn: View {
         let zh = Locale.current.languageCode == "zh"
         let heading = zh ? "\(title)课表" : (title == "今天" ? "Today schedule" : "Tomorrow schedule")
         guard let day else {
-            return "\(heading)，\(zh ? "需要更新课表" : "Schedule needs an update")"
+            return "\(heading)，\(widgetTitle(emptyState))"
         }
         return dayAccessibilityText(heading, day: day, emptyState: emptyState, isTomorrow: title == "明天")
     }
@@ -632,7 +633,7 @@ private struct EmptyDay: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(state == "holiday" ? day?.adjustmentLabel ?? title(state, isTomorrow: isTomorrow) : title(state, isTomorrow: isTomorrow))
+            Text(state == "holiday" ? day?.adjustmentLabel ?? widgetTitle(state, isTomorrow: isTomorrow) : widgetTitle(state, isTomorrow: isTomorrow))
                 .font(.subheadline.weight(.semibold))
             if let support = support(state, hasProjection: hasProjection) {
                 Text(support).font(.caption2).foregroundColor(.secondary)
