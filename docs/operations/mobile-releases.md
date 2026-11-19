@@ -41,6 +41,29 @@ CI 构建生产地址的 ARM64 Release 包，并关闭应用内预览标记和�
 手机、平板和 PC/2in1 共用该包；测试资格和有效期由 APP Test 管理。
 测试时间、用户和审核资料以控制台草稿为准，CI 只绑定本次软件包并提交邀请测试审核。
 
+### 群组分发与更新
+
+`Current`：鸿蒙邀请测试使用 AppTest 外部群组公开链接。群组级链接跨版本复用，
+链接本身无有效期；每个测试版本仍有独立的测试时间和审核状态。
+客户端链接的唯一配置位于 `update_host.dart` 的 `harmonyAppTestGroupUrl`。
+新版本草稿必须勾选同一外部群组，审核通过且到达开始时间后，原测试用户可在
+AppTest 查看新版本；用户开启自动更新时，由 AppTest 自动升级。
+见华为[邀请测试 FAQ](https://developer.huawei.com/consumer/cn/doc/App/agc-help-invite-test-faq-0000002363660365/)。
+
+从 AppGallery 邀请测试切换至 AppTest 后，应重新创建测试版本，不能直接复用切换前
+的旧草稿。创建草稿后再将其 ID 交给现有 CI；不要为迁移重建已使用过的版本号。
+群组公开链接必须保持启用，并检查人数上限和版本绑定；链接可打开并不证明账号有资格
+或设备可以安装。AppTest 不支持未成年模式，见上述 FAQ。
+
+`Current`：鸿蒙非预览构建的“检查更新”通过系统外部链接打开固定群组入口，
+安装、更新授权和安装包校验均由 AppTest 与系统完成。启动和前后台恢复不会自动跳转。
+打开失败时显示可重试错误，不误报“已是最新版”。开发预览仍使用原有预览分发提示。
+华为[应用市场更新指南](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/store-update/)
+明确排除邀请测试、公开测试和模拟器，因此本分发渠道不调用 `checkAppUpdate`。
+
+`Partial`：旧版到新版的真实覆盖安装、用户数据保留和 AppTest 自动更新仍需真机验收。
+模拟器打开链接或本地构建成功不能证明这些流程通过。
+
 环境需要以下 Secrets：
 
 - `HARMONY_CLI_DOWNLOAD_URL`：官方 Linux x64 Command Line Tools `26.0.0.865` 下载链接。

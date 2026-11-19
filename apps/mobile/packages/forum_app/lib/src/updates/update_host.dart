@@ -18,8 +18,12 @@ import 'update_prompt_sheet.dart';
 
 const updateChannel = MethodChannel('yourtj/app_updates');
 const testFlightAppUrl = 'https://apps.apple.com/app/testflight/id899247664';
+const harmonyAppTestGroupUrl =
+    'https://appgallery.huawei.com/apptest/97XLQ3nvyL0';
 final appUpdateHostKey = GlobalKey<MobileUpdateHostState>();
+bool get _isHarmony => !kIsWeb && defaultTargetPlatform.name == 'ohos';
 bool get supportsApkUpdates => !kIsWeb && Platform.isAndroid;
+bool get supportsMobileUpdates => supportsMobileReleaseNotes || _isHarmony;
 bool get supportsMobileReleaseNotes =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
@@ -69,6 +73,32 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
   }
 
   Future<void> check({bool force = false}) async {
+    // AppGallery's update API excludes invitation tests. AppTest owns upgrades;
+    // only an explicit check opens the persistent group, never app resume.
+    if (_isHarmony && !AppConfig.preview) {
+      if (!force || _busy || !mounted) return;
+      _busy = true;
+      try {
+        if (!await launchUrl(
+          Uri.parse(harmonyAppTestGroupUrl),
+          mode: LaunchMode.externalApplication,
+        )) {
+          throw StateError('Could not open AppTest');
+        }
+      } catch (_) {
+        final context = widget.navigatorKey.currentContext;
+        if (mounted && context != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: GfText(AppLocalizations.of(context).updateFailed),
+            ),
+          );
+        }
+      } finally {
+        _busy = false;
+      }
+      return;
+    }
     // Preview distributions never query or install a stable release. Testers
     // receive the next build through the cycle's TestFlight group/download link.
     if (AppConfig.preview) {

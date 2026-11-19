@@ -10,6 +10,9 @@ workspace:
   - packages/ui_kit
   - packages/ui_kit/example
 dependency_overrides:
+  # Preserve upstream math rendering while accepting Flutter OH mobile platforms.
+  flutter_math_fork:
+    path: third_party/flutter_math_fork
   # Runner and Widget Extension share the iOS 15 minimum (decision 0109);
   # this copy carries the local patches listed in its README.
   home_widget:

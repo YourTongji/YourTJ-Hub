@@ -6,13 +6,14 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-11-07
+> Last verified: 2026-11-19
 
 `Partial`：应用通过 Flutter OH 和 ArkTS UIAbility 构建原生 HarmonyOS HAP，复用现有
 Flutter 页面和设计系统。鸿蒙沿用手机端品牌启动层、减弱动态效果和存储就绪门控。
 系统调用及桌面服务卡片位于
 [原生模块](../../apps/mobile/packages/forum_app/ohos/entry/src/main/module.json5)。
 签名真机、完整视觉与交互验收、Passkey 和应用市场分发尚未完成。
+AppTest 邀请测试及固定群组更新入口见[发布文档](../operations/mobile-releases.md#群组分发与更新)。
 
 ## 应用身份
 
@@ -106,6 +107,11 @@ hdc shell aa test -b tj.yourtj.forumapp -m entry_test \
 该检查验证共享 Flutter 渲染的一致性，不代替设备字体、系统窗口和全部页面的视觉验收。
 
 ## 编辑器剪贴板
+
+公式渲染沿用共享编辑器的 `flutter_math_fork` 0.7.4。本地
+[适配副本](../../apps/mobile/third_party/flutter_math_fork/README.md) 仅为平台选择分支补上
+Material 回退，以支持 Flutter OH 的额外平台；原有公式字体和布局保持不变。
+升级该依赖时，需同时用标准 Flutter 和 Flutter OH 运行 Markdown 与富内容测试。
 
 鸿蒙编辑器复用原有 Quill UI，通过原生 Pasteboard 处理 HTML、图片和 GIF。
 工具栏只查询 MIME 元数据，不能定时读取正文或触发授权。用户粘贴时才申请
