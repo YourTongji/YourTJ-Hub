@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -58,13 +59,18 @@ func TestHuaweiServiceAccountAndDelivery(t *testing.T) {
 		success    bool
 	}{
 		{"accepted", `{"code":"80000000"}`, 200, true},
-		{"providerRejected", `{"code":"80300007","msg":"do not expose provider text"}`, 200, false},
+		{"projectMismatchRetainsDevice", `{"code":"80300007","msg":"{\"illegalTokens\":{\"noRight\":[\"do not expose provider text\"]}}"}`, 200, false},
+		{"permissionMismatchRetainsDevice", `{"code":"80300007","msg":"{\"illegalTokens\":{\"noPushTypeRight\":[\"do not expose provider text\"]}}"}`, 400, false},
+		{"malformedTokenRetainsDevice", `{"code":"80300007","msg":"{\"illegalTokens\":{\"tokenFormatError\":[\"do not expose provider text\"]}}"}`, 200, false},
+		{"unknownCodeRetainsDevice", `{"code":"unknown","msg":"do not expose provider text"}`, 200, false},
 		{"serverError", `{"code":"80000000"}`, 503, false},
 		{"malformed", `not JSON`, 200, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			requests := 0
 			huaweiHTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-				if request.URL.String() != "https://push-api.cloud.huawei.com/v3/123456/messages:send" ||
+				requests++
+				if request.Method != http.MethodPost || request.URL.String() != "https://push-api.cloud.huawei.com/v3/123456/messages:send" ||
 					request.Header.Get("Authorization") != "Bearer "+auth.token || request.Header.Get("push-type") != "0" {
 					t.Fatal("unexpected Huawei endpoint or authentication headers")
 				}
@@ -100,6 +106,9 @@ func TestHuaweiServiceAccountAndDelivery(t *testing.T) {
 			})
 			if (err == nil) != tc.success {
 				t.Fatal("provider outcome was misclassified")
+			}
+			if requests != 1 || errors.Is(err, errTokenStale) {
+				t.Fatal("Huawei rejection must retain ownership without retrying the send")
 			}
 			if err != nil && strings.Contains(err.Error(), "do not expose") {
 				t.Fatal("provider response leaked")

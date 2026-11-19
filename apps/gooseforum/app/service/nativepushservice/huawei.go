@@ -56,6 +56,8 @@ func authorizeHuawei(cfg HuaweiConfig) (*huaweiAuthorization, error) {
 	if err != nil || privateKey.N.BitLen() < 2048 {
 		return nil, errors.New("invalid huawei service-account signing key")
 	}
+	// HarmonyOS v3 accepts this service-account JWT directly; aud is not an exchange step.
+	// https://developer.huawei.com/consumer/en/doc/doccenter-capabilities/push-jwt-token/
 	now := time.Now().UTC()
 	claims := jwt.RegisteredClaims{
 		Issuer:   key.SubAccount,
@@ -118,6 +120,7 @@ func sendHuawei(ctx context.Context, auth *huaweiAuthorization, deviceToken stri
 	if resp.StatusCode == http.StatusOK && response.Code == "80000000" {
 		return nil
 	}
-	// Invalid-token codes can also mean a configuration mismatch; retain ownership for retries.
+	// 80300007 also covers project/permission mismatches, so do not delete device ownership.
+	// This delivery is best-effort; the worker does not retry provider rejections.
 	return errors.New("huawei push rejected")
 }

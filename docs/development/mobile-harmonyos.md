@@ -174,6 +174,21 @@ Passkey、域名关联、正式签名及 AppGallery 发布不能由未签名 HAP
 当前未扩展服务端来源白名单，也未改动生产认证配置。域名及签名身份准备好后，用
 `hdc shell hidumper -s AppDomainVerifyManager` 检查对应域名的验证结果。
 
+## 服务端推送鉴权与拒绝处理
+
+原生鸿蒙使用 Push Kit v3 场景化推送：服务账号以 PS256 签出 JWT，直接放入
+`Authorization: Bearer <JWT>`；`aud` 的 OAuth 地址是 JWT 声明，不代表需要交换 access token。
+HarmonyOS 5 起该接口不再支持 OAuth 2.0 鉴权，见
+[官方请求头规范](https://developer.huawei.com/consumer/en/doc/doccenter-references/api/push-scenariozed-api-request-struct/)
+和[服务账号 JWT 指南](https://developer.huawei.com/consumer/en/doc/doccenter-capabilities/push-jwt-token/)。
+
+服务端不会仅凭 `80300007` 删除设备注册：该码同时涵盖项目不匹配、推送权限缺失、
+地区限制与 token 格式错误等原因，见
+[官方响应码说明](https://developer.huawei.com/consumer/en/doc/doccenter-references/api/push-scenariozed-api-response/)。
+拒绝按 best-effort 失败处理，当前通知不自动重试；保留注册也意味着无效 token 可能继续占用
+每用户设备配额。排查时应先核对项目、权限与客户端重新注册，不把该码等同于 APNs 的永久失效。
+原生推送仍为 `Partial`：协议契约测试不代表真实设备注册、送达或点击已验收。
+
 ## 原生 CI 与发布验收
 
 `CI / native HarmonyOS` 对相关同仓库 PR 使用固定 Flutter OH 和经 SHA-256 校验的官方 SDK，
