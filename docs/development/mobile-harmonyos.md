@@ -93,7 +93,9 @@ SQLite3MC 归档来源和摘要见[本地 SQLite README](../../apps/mobile/third
 ## 原生与交互验证
 
 [Hypium 测试](../../apps/mobile/packages/forum_app/ohos/entry/src/ohosTest/ets/test/List.test.ets)
-覆盖课表投影、账号返回 URI、图片格式和加密存储。在应用的 `ohos` 目录运行：
+覆盖课表投影、账号返回 URI、图片格式和加密存储。卡片测试通过真实原生存储验证三类卡片的
+非空课程字段与退出后的数据清空，并在结束时恢复原存储值；不替代桌面添加、拖拽和尺寸视觉验收。
+在应用的 `ohos` 目录运行：
 
 ```bash
 hvigorw --mode module -p module=entry@ohosTest -p product=default \

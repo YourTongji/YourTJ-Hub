@@ -33,6 +33,15 @@ export default function scheduleFormStoreTest(context: common.UIAbilityContext):
         expect(data.tomorrowKnown).assertTrue();
         expect(data.tomorrowCourses.length).assertEqual(1);
         expect(data.showTomorrow).assertTrue();
+        for (const kind of ['nextClass', 'today', 'timeline']) {
+          const populated = cardData(context, kind, 'test', now + 86400000);
+          expect(populated.kind).assertEqual(kind);
+          expect(populated.todayKnown).assertTrue();
+          expect(populated.todayCourses.length).assertEqual(1);
+          expect(populated.courseName).assertEqual('Sample course');
+          expect(populated.courseTime).assertEqual('09:00–10:00');
+          expect(populated.showTomorrow).assertEqual(kind === 'timeline');
+        }
         const expired = cardData(context, 'timeline', 'test', now + 8 * 86400000);
         expect(expired.status).assertEqual('stale');
         expect(expired.tomorrowCourses.length).assertEqual(0);
@@ -42,6 +51,14 @@ export default function scheduleFormStoreTest(context: common.UIAbilityContext):
         expect(cleared.status).assertEqual('signedOut');
         expect(cleared.generatedAt).assertEqual('');
         expect(cleared.tomorrowCourses.length).assertEqual(0);
+        for (const kind of ['nextClass', 'today', 'timeline']) {
+          const signedOut = cardData(context, kind, 'test', now + 86400000);
+          expect(signedOut.status).assertEqual('signedOut');
+          expect(signedOut.courseName).assertEqual('');
+          expect(signedOut.courseTime).assertEqual('');
+          expect(signedOut.todayCourses.length).assertEqual(0);
+          expect(signedOut.tomorrowCourses.length).assertEqual(0);
+        }
       } finally {
         if (oldProjection === null) store.deleteSync(projectionKey); else store.putSync(projectionKey, oldProjection);
         if (oldEmpty === null) store.deleteSync(emptyKey); else store.putSync(emptyKey, oldEmpty);
