@@ -162,7 +162,7 @@ void main() {
       await expectLater(
         ForumRealtimeTransport(
           client,
-        ).connect(token: 'captured', cancelToken: CancelToken()),
+        ).connect(token: 'current-token', cancelToken: CancelToken()),
         throwsA(
           isA<ForumRealtimeHttpException>().having(
             (e) => e.statusCode,
@@ -176,7 +176,7 @@ void main() {
       await expectLater(
         ForumRealtimeTransport(
           client,
-        ).connect(token: 'captured', cancelToken: CancelToken()),
+        ).connect(token: 'current-token', cancelToken: CancelToken()),
         throwsA(
           isA<ForumRealtimeHttpException>().having(
             (e) => e.statusCode,
@@ -185,6 +185,55 @@ void main() {
           ),
         ),
       );
+    },
+  );
+
+  test('a stale stream 401 is retryable and preserves current auth', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+    var unauthorized = 0;
+    final client = GfApiClient(
+      dio: dio,
+      tokenStorage: _Tokens(),
+      baseUrl: 'http://test',
+      onUnauthorized: () => unauthorized++,
+    );
+    dio.httpClientAdapter = _StreamAdapter(401, '');
+    await expectLater(
+      ForumRealtimeTransport(
+        client,
+      ).connect(token: 'old-token', cancelToken: CancelToken()),
+      throwsA(
+        isA<ForumRealtimeHttpException>()
+            .having((e) => e.statusCode, 'status', 401)
+            .having((e) => e.staleSession, 'stale', isTrue),
+      ),
+    );
+    expect(unauthorized, 0);
+  });
+
+  test(
+    'stream invalidation only affects the token it was validating',
+    () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      var unauthorized = 0;
+      final client = GfApiClient(
+        dio: dio,
+        tokenStorage: _Tokens(),
+        baseUrl: 'http://test',
+        onUnauthorized: () => unauthorized++,
+      );
+      for (final token in ['old-token', 'current-token']) {
+        dio.httpClientAdapter = _StreamAdapter(
+          200,
+          'event: session.invalidated\ndata: {}\n\n',
+        );
+        final connection = await ForumRealtimeTransport(
+          client,
+        ).connect(token: token, cancelToken: CancelToken());
+        expect((await connection.events.single).event, 'session.invalidated');
+        expect(unauthorized, token == 'current-token' ? 1 : 0);
+        connection.close();
+      }
     },
   );
 }

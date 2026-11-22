@@ -249,8 +249,6 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
         ref.read(realtimeInvalidationsProvider.notifier).notifications();
       case 'unread.changed':
         unawaited(_pollUnread());
-      case 'session.invalidated':
-        ref.read(apiClientProvider).onUnauthorized?.call();
     }
   }
 

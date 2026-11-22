@@ -133,7 +133,8 @@ class ForegroundRealtimeCoordinator {
       );
     } on ForumRealtimeHttpException catch (error) {
       if (!_current(attempt)) return;
-      if (error.statusCode == 401 || error.statusCode == 403) {
+      if ((error.statusCode == 401 && !error.staleSession) ||
+          error.statusCode == 403) {
         stop();
         return;
       }

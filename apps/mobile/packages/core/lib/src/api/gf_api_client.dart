@@ -70,6 +70,28 @@ class GfApiClient {
   /// 收到 401 时回调(会话失效,上层负责清理)。
   final void Function()? onUnauthorized;
 
+  /// A delayed rejection must not invalidate credentials issued since dispatch.
+  Future<bool> rejectSessionToken(String? requestToken) async {
+    if (requestToken == null || requestToken.isEmpty) return false;
+    final String? currentToken;
+    try {
+      currentToken = await tokenStorage.read();
+    } catch (_) {
+      // Unavailable secure storage is not evidence of revocation.
+      return false;
+    }
+    if (currentToken != requestToken) return false;
+    onUnauthorized?.call();
+    return true;
+  }
+
+  Future<void> _handleUnauthorized(RequestOptions request) async {
+    final value = request.headers['Authorization'];
+    if (value is String && value.startsWith('Bearer ')) {
+      await rejectSessionToken(value.substring('Bearer '.length));
+    }
+  }
+
   Future<T> get<T>(
     String path, {
     CancelToken? cancelToken,
@@ -263,7 +285,7 @@ class GfApiClient {
     } on DioException catch (e) {
       final status = e.response?.statusCode;
       if (status == 401) {
-        onUnauthorized?.call();
+        await _handleUnauthorized(e.requestOptions);
         throw const UnauthorizedException();
       }
       if (status == 429) {
@@ -311,14 +333,13 @@ class GfApiClient {
     // Password login and TOTP return their session only through New-Token.
     // Persist it before resolving the request so callers can immediately read
     // TokenStorage without racing flutter_secure_storage.
-    await _handleTokenRenewal(response);
     final statusCode = response.statusCode;
     final data = response.data;
-
     if (statusCode == 401) {
-      onUnauthorized?.call();
+      await _handleUnauthorized(response.requestOptions);
       throw const UnauthorizedException();
     }
+    await _handleTokenRenewal(response);
     if (statusCode == 429) {
       final envelope = _tryParseEnvelope(data);
       throw RateLimitException(

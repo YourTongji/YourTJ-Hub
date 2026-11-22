@@ -30,6 +30,10 @@ info:
     aggregate search, public site statistics, and bounded link-preview resolution.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
+    Forum JWT authentication middleware can return HTTP 503 when session validation
+    cannot reach its dependencies. The request is not authorized; clients should keep
+    their stored session and may retry safe reads. Only a definitive session rejection
+    returns HTTP 401 at the required-authentication guard.
 servers:
   - url: /
 tags:

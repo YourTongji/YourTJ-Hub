@@ -342,6 +342,46 @@ void main() {
       expect(unauthorizedCalls, 1);
     });
 
+    test(
+      'late 401 does not clear a renewed session or replay a write',
+      () async {
+        setupClient(initialToken: 'old-token');
+        final dispatched = Completer<void>();
+        final release = Completer<void>();
+        final adapter = MockAdapter((request) async {
+          expect(request.headers['Authorization'], 'Bearer old-token');
+          dispatched.complete();
+          await release.future;
+          return ResponseData(401, {'code': 1, 'messageCode': 'auth.required'});
+        });
+        dio.httpClientAdapter = adapter;
+        final rejection = expectLater(
+          client.post<bool>('/api/forum/topics/status'),
+          throwsA(isA<UnauthorizedException>()),
+        );
+        await dispatched.future;
+        await storage.write('renewed-token');
+        release.complete();
+        await rejection;
+        expect(unauthorizedCalls, 0);
+        expect(await storage.read(), 'renewed-token');
+        expect(adapter.requests, hasLength(1));
+      },
+    );
+
+    test('503 preserves the signed-in session', () async {
+      setupClient(initialToken: 'live-token');
+      dio.httpClientAdapter = MockAdapter(
+        (_) async => ResponseData(503, {'code': 1}),
+      );
+      await expectLater(
+        client.get<bool>('/api/user/sessions'),
+        throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 503)),
+      );
+      expect(unauthorizedCalls, 0);
+      expect(await storage.read(), 'live-token');
+    });
+
     test('429 读 Retry-After 抛 RateLimitException', () async {
       setupClient(initialToken: 'tok');
       final adapter = MockAdapter((request) async {
