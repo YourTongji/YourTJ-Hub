@@ -29,7 +29,7 @@ import (
 
 func Logout(c *gin.Context) {
 	token := jwt.GetGinAccessToken(c)
-	if claims, _, err := jwt.VerifyTokenWithFreshClaims(token); err == nil && claims.Jti != "" {
+	if claims, err := jwt.Std().ParseToken(token); err == nil && claims.Jti != "" {
 		if err := sessionservice.RevokeByJti(claims.UserId, claims.Jti); err != nil {
 			slog.Error("Logout revoke session failed", "userId", claims.UserId, "jti", claims.Jti, "error", err)
 			jwt.TokenClean(c)

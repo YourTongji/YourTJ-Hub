@@ -49,23 +49,23 @@ func JWTAuth(c *gin.Context) {
 
 func JWTAuthGetUserId(c *gin.Context) uint64 {
 	token := jwt.GetGinAccessToken(c)
-	userID, jti, newToken, ok := authsessionservice.ValidateToken(token)
+	res, ok := authsessionservice.ValidateSession(token)
 	if !ok {
 		return 0
 	}
-	if token != newToken {
-		jwt.TokenSetting(c, newToken)
+	if res.Refreshed {
+		maxAge := time.Until(res.ExpiresAt)
+		if maxAge < time.Second {
+			maxAge = time.Second
+		}
+		jwt.TokenSettingWithMaxAge(c, res.Token, maxAge)
 		// Keep the session record expiry aligned with the refreshed token.
-		if jti != "" {
-			if claims, _, err := jwt.VerifyTokenWithFreshClaims(newToken); err == nil {
-				if exp, err := claims.GetExpirationTime(); err == nil {
-					sessionservice.TouchExpiry(jti, exp.Time)
-				}
-			}
+		if res.Jti != "" {
+			sessionservice.TouchExpiry(res.Jti, res.ExpiresAt)
 		}
 	}
-	c.Set("currentJti", jti)
-	return userID
+	c.Set("currentJti", res.Jti)
+	return res.UserID
 }
 
 func NoUpdateUserActivity(c *gin.Context) {

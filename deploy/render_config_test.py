@@ -543,6 +543,12 @@ check_eq(
     example_cfg["db"]["default"]["url"],
 )
 
+# Sliding session defaults: 30d idle TTL, 24h refresh throttle, 180d absolute cap.
+for cfg_label, cfg_obj in [("example", example_cfg), ("template", tomllib.loads(rc.dummy_render(real_tmpl)))]:
+    check_eq(f"{cfg_label} jwtopt.validTime = 30d", 2592000, cfg_obj["jwtopt"]["validTime"])
+    check_eq(f"{cfg_label} jwtopt.refreshInterval = 24h", 86400, cfg_obj["jwtopt"]["refreshInterval"])
+    check_eq(f"{cfg_label} jwtopt.maxSessionLifetime = 180d", 15552000, cfg_obj["jwtopt"]["maxSessionLifetime"])
+
 # --- 7. 坏模板端到端拒绝（fail-closed 不产文件） ---
 with tempfile.TemporaryDirectory() as td:
     bad_tmpl = os.path.join(td, "bad.tmpl")

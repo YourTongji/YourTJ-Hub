@@ -18,7 +18,8 @@
 - **Numeric ID is a hard constraint**: credit's `GetID()` parses sub with `strconv.ParseUint`. A UUID
   fails to parse and falls back to 0, making all users collide. The OIDC provider enforces this
   server-side (the `sub` claim is always the numeric `users.id`).
-- The forum JWT is only a **session credential** (HS256, self-signed, 7-day TTL, carries a `jti`); it
+- The forum JWT is only a **session credential** (HS256, self-signed, 30-day sliding idle TTL with
+  24-hour refresh throttling and a 180-day absolute session cap, carries a `jti`); it
   is not identity truth and is never issued to external OIDC clients — those receive opaque access
   tokens scoped to the built-in provider.
 ## Forum anonymous personas
@@ -366,9 +367,13 @@ social counts and badges, and moderator access rules beyond today's public profi
   (normalized substring scan, block action with a dedicated `course.review.sensitiveBlocked`
   message for reviews). Built-in defaults ship with an empty banned list and a curated
   reserved/sensitive bank (see `docs/architecture/contracts-and-data.md`).
-- Session: forum JWT valid 7 days (GooseForum scale, tunable). Every session-scoped token carries a
-  `jti` that maps to a row in `user_sessions`; the auth middleware rejects tokens whose session row is
-  missing or expired, so revocation is immediate.
+- Session: forum JWT defaults to a 30-day sliding idle lifetime (`jwtopt.validTime`), renewed at
+  most once every 24 hours (`jwtopt.refreshInterval`) on authenticated activity and bounded by a
+  180-day absolute session cap (`jwtopt.maxSessionLifetime`, measured from `user_sessions.created_at`;
+  `0` disables the cap). Every session-scoped token carries a `jti` that maps to a row in
+  `user_sessions`; the auth middleware and SSE stream reject tokens whose session row is missing,
+  idle-expired, or past the absolute cap, so revocation is immediate. Expired rows are cleaned up
+  at startup and in the daily cron job.
 - Revocation: users can list sessions (IP masked, device/UA) in Settings → Security, revoke a single
   session, or sign out of all devices. "Sign out of all devices" also bumps `TokenVersion`, which
   invalidates every previously issued token as a second line of defense (this also invalidates OIDC

@@ -21,7 +21,9 @@ accessLog = false
 gzip = true # 应用层 gzip 开关
 
 [jwtopt]
-validTime = 604800
+validTime = 2592000
+refreshInterval = 86400
+maxSessionLifetime = 15552000
 
 # WebAuthn passkeys are disabled until RP and app signing identities are set.
 [passkeys]

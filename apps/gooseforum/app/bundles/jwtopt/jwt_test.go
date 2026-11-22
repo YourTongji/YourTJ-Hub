@@ -317,6 +317,160 @@ func TestCreateSessionTokenJtiPreservedOnRefresh(t *testing.T) {
 	}
 }
 
+func withJWTOptConfig(t *testing.T, validSecs, refreshSecs, maxLifeSecs int64) {
+	t.Helper()
+	prevValid := preferences.GetInt64("jwtopt.validTime", int64(DefaultValidTime/time.Second))
+	prevRefresh := preferences.GetInt64("jwtopt.refreshInterval", int64(DefaultRefreshInterval/time.Second))
+	prevMax := preferences.GetInt64("jwtopt.maxSessionLifetime", int64(DefaultMaxSessionLifetime/time.Second))
+	preferences.Set("jwtopt.validTime", validSecs)
+	preferences.Set("jwtopt.refreshInterval", refreshSecs)
+	preferences.Set("jwtopt.maxSessionLifetime", maxLifeSecs)
+	t.Cleanup(func() {
+		preferences.Set("jwtopt.validTime", prevValid)
+		preferences.Set("jwtopt.refreshInterval", prevRefresh)
+		preferences.Set("jwtopt.maxSessionLifetime", prevMax)
+	})
+}
+
+func TestVerifyTokenWithFreshClaimsSlidesAfterRefreshInterval(t *testing.T) {
+	withJWTOptConfig(t, 30*86400, 86400, 180*86400)
+
+	// A token with 28 days remaining (2 days after issue on a 30d TTL, well outside
+	// the legacy final-24h window) must slide forward and preserve jti.
+	agedToken, err := Std().CreateToken(CustomClaims{
+		UserId:           42,
+		TokenVersion:     1,
+		Jti:              "slide-jti-001",
+		RegisteredClaims: GetBaseRegisteredClaims(28 * 24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, newToken, err := VerifyTokenWithFreshClaims(agedToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claims.Jti != "slide-jti-001" {
+		t.Fatalf("claims.Jti = %q, want slide-jti-001", claims.Jti)
+	}
+	if newToken == agedToken {
+		t.Fatal("expected token with 28d remaining to refresh on active use, got unchanged token")
+	}
+	refreshedClaims, err := Std().ParseToken(newToken)
+	if err != nil {
+		t.Fatalf("parse refreshed token: %v", err)
+	}
+	if refreshedClaims.Jti != "slide-jti-001" {
+		t.Fatalf("refreshed jti = %q, want slide-jti-001", refreshedClaims.Jti)
+	}
+	exp, err := refreshedClaims.GetExpirationTime()
+	if err != nil || exp == nil {
+		t.Fatalf("refreshed exp err = %v", err)
+	}
+	if delta := time.Until(exp.Time) - 30*24*time.Hour; delta < -time.Minute || delta > time.Minute {
+		t.Fatalf("refreshed remaining TTL = %v, want ~30d", time.Until(exp.Time))
+	}
+
+	// Throttling: a freshly refreshed token must not re-sign immediately.
+	_, secondToken, err := VerifyTokenWithFreshClaims(newToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondToken != newToken {
+		t.Fatal("fresh token within refreshInterval should not refresh again")
+	}
+
+	// Upgrade path: a legacy 7-day token upgrades to 30 days on its first request.
+	legacyToken, err := Std().CreateToken(CustomClaims{
+		UserId:           42,
+		TokenVersion:     1,
+		Jti:              "legacy-7d-jti",
+		RegisteredClaims: GetBaseRegisteredClaims(6 * 24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, upgradedToken, err := VerifyTokenWithFreshClaims(legacyToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if upgradedToken == legacyToken {
+		t.Fatal("legacy 7d token should immediately upgrade to 30d TTL")
+	}
+}
+
+func TestRefreshTokenIfNeededRespectsMaxSessionLifetime(t *testing.T) {
+	withJWTOptConfig(t, 30*86400, 86400, 180*86400)
+
+	// Session created 170 days ago (10d left until 180d cap), token expires in 5d:
+	// renewal must clamp to createdAt + 180d (~10d), not now + 30d.
+	createdAt := time.Now().Add(-170 * 24 * time.Hour).Truncate(time.Second)
+	token, err := Std().CreateToken(CustomClaims{
+		UserId:           7,
+		TokenVersion:     1,
+		Jti:              "cap-jti-001",
+		RegisteredClaims: GetBaseRegisteredClaims(5 * 24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := Std().ParseToken(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextToken, nextExp, refreshed, err := RefreshTokenIfNeeded(token, claims, createdAt)
+	if err != nil {
+		t.Fatalf("RefreshTokenIfNeeded() error = %v", err)
+	}
+	if !refreshed || nextToken == token {
+		t.Fatal("expected refresh up to hard deadline")
+	}
+	wantDeadline := createdAt.Add(180 * 24 * time.Hour)
+	if diff := nextExp.Sub(wantDeadline); diff < -2*time.Second || diff > 2*time.Second {
+		t.Fatalf("clamped exp = %v, want %v", nextExp, wantDeadline)
+	}
+
+	// Repeating with the capped token must not loop-refresh.
+	cappedClaims, err := Std().ParseToken(nextToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, again, err := RefreshTokenIfNeeded(nextToken, cappedClaims, createdAt); err != nil || again {
+		t.Fatalf("capped token re-refreshed: again=%t err=%v", again, err)
+	}
+
+	// Session past maxSessionLifetime must be rejected.
+	expiredCreatedAt := time.Now().Add(-181 * 24 * time.Hour)
+	if _, _, _, err := RefreshTokenIfNeeded(token, claims, expiredCreatedAt); err == nil {
+		t.Fatal("session past maxSessionLifetime should fail")
+	}
+
+	// Setting maxSessionLifetime = 0 disables the cap.
+	withJWTOptConfig(t, 30*86400, 86400, 0)
+	_, unlimitedExp, unlimitedRefreshed, err := RefreshTokenIfNeeded(token, claims, expiredCreatedAt)
+	if err != nil || !unlimitedRefreshed {
+		t.Fatalf("unlimited cap refresh: refreshed=%t err=%v", unlimitedRefreshed, err)
+	}
+	if time.Until(unlimitedExp) < 29*24*time.Hour {
+		t.Fatalf("unlimited exp = %v, want ~30d", unlimitedExp)
+	}
+}
+
+func TestRefreshIntervalClampsToHalfValidTime(t *testing.T) {
+	withJWTOptConfig(t, 30*86400, 6*3600, 0)
+	if got := RefreshInterval(); got != 6*time.Hour {
+		t.Fatalf("RefreshInterval() = %v, want 6h for explicit custom refreshInterval", got)
+	}
+	withJWTOptConfig(t, 3600, 86400, 0)
+	if got := RefreshInterval(); got != 30*time.Minute {
+		t.Fatalf("RefreshInterval() = %v, want 30m when validTime=1h and refreshInterval=24h", got)
+	}
+	withJWTOptConfig(t, 30*86400, 86400, 10*86400)
+	if got := InitialSessionLifetime(); got != 10*24*time.Hour {
+		t.Fatalf("InitialSessionLifetime() = %v, want 10d when maxSessionLifetime < validTime", got)
+	}
+}
+
 func TestCreateChallengeTokenPurpose(t *testing.T) {
 	token, err := CreateChallengeToken(7, 0, PurposeTotpChallenge, 5*time.Minute)
 	if err != nil {
