@@ -366,6 +366,11 @@ social counts and badges, and moderator access rules beyond today's public profi
   (normalized substring scan, block action with a dedicated `course.review.sensitiveBlocked`
   message for reviews). Built-in defaults ship with an empty banned list and a curated
   reserved/sensitive bank (see `docs/architecture/contracts-and-data.md`).
+- A temporary failure reading forum session or account data returns HTTP 503 on
+  the request authentication path without admitting the request. Mobile clients
+  keep credentials on this response. A 401 or stream invalidation for an older
+  token does not remove the newer stored token; writes are never replayed just
+  because an earlier token was rejected.
 - Session: forum JWT valid 7 days (GooseForum scale, tunable). Every session-scoped token carries a
   `jti` that maps to a row in `user_sessions`; the auth middleware rejects tokens whose session row is
   missing or expired, so revocation is immediate.

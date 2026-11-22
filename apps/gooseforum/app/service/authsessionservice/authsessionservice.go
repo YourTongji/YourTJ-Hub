@@ -5,6 +5,8 @@
 package authsessionservice
 
 import (
+	"context"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
@@ -16,23 +18,33 @@ import (
 // session owned by that user with a matching TokenVersion. Challenge tokens
 // (e.g. TOTP second factor) never create a session row and are rejected here.
 func ValidateToken(token string) (userID uint64, jti, newToken string, ok bool) {
+	userID, jti, newToken, ok, _ = ValidateTokenContext(context.Background(), token)
+	return
+}
+
+// ValidateTokenContext distinguishes an invalid credential from an unavailable
+// dependency. A caller must never grant access on either failure.
+func ValidateTokenContext(ctx context.Context, token string) (userID uint64, jti, newToken string, ok bool, err error) {
 	if token == "" {
-		return 0, "", "", false
+		return 0, "", "", false, nil
 	}
 	claims, refreshedToken, err := jwtopt.VerifyTokenWithFreshClaims(token)
 	if err != nil {
-		return 0, "", "", false
+		return 0, "", "", false, nil
 	}
-	user, userOK := userservice.GetUserInfo(claims.UserId)
+	if claims.Jti == "" || claims.Purpose != "" {
+		return 0, "", "", false, nil
+	}
+	user, userOK, err := userservice.LookupSessionUser(ctx, claims.UserId)
+	if err != nil {
+		return 0, "", "", false, err
+	}
 	if !userOK || user.TokenVersion != claims.TokenVersion || user.ActorType == users.ActorTypeBot {
-		return 0, "", "", false
+		return 0, "", "", false, nil
 	}
-	if claims.Jti == "" {
-		return 0, "", "", false
+	live, err := sessionservice.CheckLiveContext(ctx, claims.UserId, claims.Jti)
+	if err != nil || !live {
+		return 0, "", "", false, err
 	}
-	entity := sessionservice.GetValidByJti(claims.Jti)
-	if entity == nil || entity.UserId != claims.UserId {
-		return 0, "", "", false
-	}
-	return claims.UserId, claims.Jti, refreshedToken, true
+	return claims.UserId, claims.Jti, refreshedToken, true, nil
 }

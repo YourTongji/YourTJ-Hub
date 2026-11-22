@@ -20325,6 +20325,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Session authentication is temporarily unavailable; do not clear the stored token. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     listSessions: {
@@ -20347,6 +20356,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session authentication is temporarily unavailable; do not clear the stored token. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -20396,6 +20414,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Session authentication is temporarily unavailable; do not clear the stored token. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     revokeAllSessions: {
@@ -20427,6 +20454,15 @@ export interface operations {
             };
             /** @description Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session authentication is temporarily unavailable; do not clear the stored token. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

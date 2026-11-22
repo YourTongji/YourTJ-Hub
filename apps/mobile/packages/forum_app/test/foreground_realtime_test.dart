@@ -168,4 +168,34 @@ void main() {
       coordinator.stop();
     },
   );
+  testWidgets(
+    'stale handshake reconnects with current token, current 401 stops',
+    (tester) async {
+      var token = 'old-token';
+      final attempts = <String>[];
+      final coordinator = ForegroundRealtimeCoordinator(
+        readToken: () async => token,
+        connect: (sent, cancel, activity) async {
+          attempts.add(sent);
+          if (sent == 'old-token') {
+            token = 'renewed-token';
+            throw const ForumRealtimeHttpException(401, staleSession: true);
+          }
+          throw const ForumRealtimeHttpException(401);
+        },
+        onResync: () {},
+        onEvent: (_) {},
+        onFallbackTick: () {},
+        onHealthChanged: (_) {},
+      );
+      coordinator.start();
+      await tester.pump();
+      expect(attempts, ['old-token']);
+      await tester.pump(const Duration(seconds: 3));
+      expect(attempts, ['old-token', 'renewed-token']);
+      await tester.pump(const Duration(minutes: 1));
+      expect(attempts, hasLength(2));
+      coordinator.stop();
+    },
+  );
 }

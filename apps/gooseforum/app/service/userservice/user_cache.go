@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"gorm.io/gorm"
 )
 
 const (
@@ -91,20 +92,30 @@ var (
 // demand. Invalidation (see InvalidateUserInfoCache) also drops any in-flight
 // load, so a stale row is never written back into the cache.
 func GetUserInfo(userID uint64) (UserInfo, bool) {
+	user, found, err := LookupSessionUser(context.Background(), userID)
+	return user, found && err == nil
+}
+
+// LookupSessionUser uses the shared account cache without classifying a
+// temporary read failure as a missing account.
+func LookupSessionUser(ctx context.Context, userID uint64) (UserInfo, bool, error) {
 	if userID == 0 {
-		return UserInfo{}, false
+		return UserInfo{}, false, nil
 	}
 	user, err := userInfoCache.GetOrLoadE(userInfoKey(userID), func() (UserInfo, error) {
-		entity, err := users.Get(userID)
-		if err != nil || entity.Id == 0 {
+		entity, err := users.GetWithContext(ctx, userID)
+		if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && entity.Id == 0) {
 			return UserInfo{}, errUserNotFound
+		}
+		if err != nil {
+			return UserInfo{}, err
 		}
 		return userInfoFromEntity(entity), nil
 	}, userInfoTTL)
-	if err != nil {
-		return UserInfo{}, false
+	if errors.Is(err, errUserNotFound) {
+		return UserInfo{}, false, nil
 	}
-	return user, true
+	return user, err == nil, err
 }
 
 func GetUserRoleId(userID uint64) (uint64, bool) {

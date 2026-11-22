@@ -17,7 +17,12 @@ import (
 const SkipUpdateUserActivity = "SkipUpdateUserActivity"
 
 func JWTAuthCheck(c *gin.Context) {
-	userId := JWTAuthGetUserId(c)
+	userId, err := jwtAuthGetUserID(c)
+	if err != nil {
+		c.Header("Cache-Control", "no-store")
+		abortGuardFailure(c, http.StatusServiceUnavailable, component.FailDataCode(component.MessageOperationFailed, nil))
+		return
+	}
 	if userId == 0 {
 		abortGuardFailure(c, http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		c.Abort()
@@ -34,7 +39,12 @@ func JWTAuthCheck(c *gin.Context) {
 }
 
 func JWTAuth(c *gin.Context) {
-	userId := JWTAuthGetUserId(c)
+	userId, err := jwtAuthGetUserID(c)
+	if err != nil {
+		c.Header("Cache-Control", "no-store")
+		abortGuardFailure(c, http.StatusServiceUnavailable, component.FailDataCode(component.MessageOperationFailed, nil))
+		return
+	}
 	if userId != 0 {
 		c.Set("userId", userId)
 	}
@@ -47,11 +57,11 @@ func JWTAuth(c *gin.Context) {
 	}
 }
 
-func JWTAuthGetUserId(c *gin.Context) uint64 {
+func jwtAuthGetUserID(c *gin.Context) (uint64, error) {
 	token := jwt.GetGinAccessToken(c)
-	userID, jti, newToken, ok := authsessionservice.ValidateToken(token)
-	if !ok {
-		return 0
+	userID, jti, newToken, ok, err := authsessionservice.ValidateTokenContext(c.Request.Context(), token)
+	if err != nil || !ok {
+		return 0, err
 	}
 	if token != newToken {
 		jwt.TokenSetting(c, newToken)
@@ -65,7 +75,7 @@ func JWTAuthGetUserId(c *gin.Context) uint64 {
 		}
 	}
 	c.Set("currentJti", jti)
-	return userID
+	return userID, nil
 }
 
 func NoUpdateUserActivity(c *gin.Context) {

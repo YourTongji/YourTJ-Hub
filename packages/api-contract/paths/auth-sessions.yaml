@@ -73,6 +73,16 @@ listSessions:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
 
+      '503':
+        description: Session authentication is temporarily unavailable; do not clear the stored token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unavailable:
+                externalValue: ../fixtures/session-auth-unavailable.json
+
 revokeSession:
   post:
     tags: [Authentication]
@@ -133,6 +143,16 @@ revokeSession:
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
 
+      '503':
+        description: Session authentication is temporarily unavailable; do not clear the stored token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unavailable:
+                externalValue: ../fixtures/session-auth-unavailable.json
+
 revokeAllSessions:
   post:
     tags: [Authentication]
@@ -178,6 +198,16 @@ revokeAllSessions:
             examples:
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+
+      '503':
+        description: Session authentication is temporarily unavailable; do not clear the stored token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unavailable:
+                externalValue: ../fixtures/session-auth-unavailable.json
 
 mobileWebSession:
   get:
@@ -249,3 +279,12 @@ mobileWebSession:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '503':
+        description: Session authentication is temporarily unavailable; do not clear the stored token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unavailable:
+                externalValue: ../fixtures/session-auth-unavailable.json

@@ -26,7 +26,11 @@ func MobileWebSession(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		return
 	}
-	userID, _, _, ok := authsessionservice.ValidateToken(authorization[1])
+	userID, _, _, ok, err := authsessionservice.ValidateTokenContext(c.Request.Context(), authorization[1])
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, component.FailDataCode(component.MessageOperationFailed, nil))
+		return
+	}
 	if !ok {
 		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		return

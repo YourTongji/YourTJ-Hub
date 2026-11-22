@@ -6,10 +6,15 @@ import 'forum_sse.dart';
 import 'gf_api_client.dart';
 
 class ForumRealtimeHttpException implements Exception {
-  const ForumRealtimeHttpException(this.statusCode, {this.retryAfter});
+  const ForumRealtimeHttpException(
+    this.statusCode, {
+    this.retryAfter,
+    this.staleSession = false,
+  });
 
   final int statusCode;
   final Duration? retryAfter;
+  final bool staleSession;
 }
 
 class ForumRealtimeConnection {
@@ -54,17 +59,16 @@ class ForumRealtimeTransport {
     } on DioException {
       rethrow;
     }
-    final newToken = response.headers.value('new-token');
-    if (newToken != null && newToken.isNotEmpty) {
-      await _client.onTokenRenewed?.call(newToken);
-    }
     final status = response.statusCode ?? 0;
     if (status != 200) {
-      if (status == 401) _client.onUnauthorized?.call();
+      final staleSession =
+          status == 401 &&
+          (cancelToken.isCancelled || !await _client.rejectSessionToken(token));
       cancelToken.cancel('SSE rejected with HTTP $status');
       throw ForumRealtimeHttpException(
         status,
         retryAfter: _retryAfter(response.headers.value('retry-after')),
+        staleSession: staleSession,
       );
     }
     if (!response.headers
@@ -80,6 +84,11 @@ class ForumRealtimeTransport {
       cancelToken.cancel('SSE response has no body');
       throw const FormatException('SSE response has no body');
     }
+    final renewed = response.headers.value('new-token')?.trim();
+    final streamToken = renewed != null && renewed.isNotEmpty ? renewed : token;
+    if (streamToken != token && !cancelToken.isCancelled) {
+      await _client.onTokenRenewed?.call(streamToken);
+    }
     return ForumRealtimeConnection(
       decodeForumSse(
         // Lifecycle shutdown cancels the decoder and HTTP request together.
@@ -91,7 +100,12 @@ class ForumRealtimeTransport {
           test: (error) => error is DioException && CancelToken.isCancel(error),
         ),
         onActivity: onActivity,
-      ),
+      ).asyncMap((frame) async {
+        if (frame.event == 'session.invalidated' && !cancelToken.isCancelled) {
+          await _client.rejectSessionToken(streamToken);
+        }
+        return frame;
+      }),
       cancelToken,
     );
   }
