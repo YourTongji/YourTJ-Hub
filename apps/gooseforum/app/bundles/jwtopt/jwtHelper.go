@@ -226,12 +226,21 @@ func GenerateJti() (string, error) {
 // the refreshed expiry is capped at sessionCreatedAt + MaxSessionLifetime().
 // Refreshing preserves jti and purpose and does not mutate claims.
 func RefreshTokenIfNeeded(tokenStr string, claims *CustomClaims, sessionCreatedAt time.Time) (newToken string, expiresAt time.Time, refreshed bool, err error) {
+	nextToken, exp, didRefresh, _, err := RefreshSessionTokenIfNeeded(tokenStr, claims, sessionCreatedAt, time.Time{})
+	return nextToken, exp, didRefresh, err
+}
+
+// RefreshSessionTokenIfNeeded evaluates whether a validated session token should
+// slide forward, distinguishing a server-side DB extension (needsPersist=true)
+// from an older client catching up to an already-persisted session expiry
+// (needsPersist=false). Refreshing preserves jti and purpose and never mutates claims.
+func RefreshSessionTokenIfNeeded(tokenStr string, claims *CustomClaims, sessionCreatedAt, persistedExpiresAt time.Time) (newToken string, expiresAt time.Time, refreshed bool, needsPersist bool, err error) {
 	if claims == nil {
-		return "", time.Time{}, false, ErrTokenInvalid
+		return "", time.Time{}, false, false, ErrTokenInvalid
 	}
 	eTime, err := claims.GetExpirationTime()
 	if err != nil || eTime == nil {
-		return tokenStr, time.Time{}, false, err
+		return tokenStr, time.Time{}, false, false, err
 	}
 	now := time.Now()
 	currentExp := eTime.Time
@@ -239,10 +248,11 @@ func RefreshTokenIfNeeded(tokenStr string, claims *CustomClaims, sessionCreatedA
 	interval := RefreshInterval()
 
 	targetExp := now.Add(valid)
+	var hardDeadline time.Time
 	if maxLife := MaxSessionLifetime(); maxLife > 0 && !sessionCreatedAt.IsZero() {
-		hardDeadline := sessionCreatedAt.Add(maxLife)
+		hardDeadline = sessionCreatedAt.Add(maxLife)
 		if !hardDeadline.After(now) {
-			return "", time.Time{}, false, ErrTokenInvalid
+			return "", time.Time{}, false, false, ErrTokenInvalid
 		}
 		if targetExp.After(hardDeadline) {
 			targetExp = hardDeadline
@@ -251,29 +261,48 @@ func RefreshTokenIfNeeded(tokenStr string, claims *CustomClaims, sessionCreatedA
 	// JWT NumericDate has second precision; truncate before comparing so
 	// sub-second differences at hardDeadline never trigger repeated refreshes.
 	targetExp = targetExp.Truncate(time.Second)
-	gain := targetExp.Sub(currentExp)
 	minFinalGain := min(time.Minute, interval/2)
 	if minFinalGain < time.Second {
 		minFinalGain = time.Second
 	}
-	shouldRefresh := gain >= interval || (currentExp.Sub(now) <= interval && gain >= minFinalGain)
-	if !shouldRefresh {
-		return tokenStr, currentExp, false, nil
+
+	persistedExp := currentExp
+	if !persistedExpiresAt.IsZero() {
+		persistedExp = persistedExpiresAt.Truncate(time.Second)
+		if !hardDeadline.IsZero() && persistedExp.After(hardDeadline) {
+			persistedExp = hardDeadline.Truncate(time.Second)
+		}
 	}
-	if !targetExp.After(now) {
-		return tokenStr, currentExp, false, nil
+
+	dbGain := targetExp.Sub(persistedExp)
+	needDBExtend := dbGain >= interval || (persistedExp.Sub(now) <= interval && dbGain >= minFinalGain)
+
+	desiredExp := targetExp
+	if needDBExtend {
+		needsPersist = true
+	} else {
+		// Persisted session expiry is already within the throttle window: only
+		// issue a catch-up JWT when this client's token lags behind the DB row.
+		if persistedExp.Sub(currentExp) < minFinalGain {
+			return tokenStr, currentExp, false, false, nil
+		}
+		desiredExp = persistedExp
+		needsPersist = false
+	}
+	if !desiredExp.After(now) {
+		return tokenStr, currentExp, false, false, nil
 	}
 	nextClaims := *claims
 	nextClaims.RegisteredClaims = jwt.RegisteredClaims{
 		NotBefore: jwt.NewNumericDate(now.Add(-10 * time.Second)),
-		ExpiresAt: jwt.NewNumericDate(targetExp),
+		ExpiresAt: jwt.NewNumericDate(desiredExp),
 		Issuer:    "GooseForum",
 	}
 	signed, err := Std().CreateToken(nextClaims)
 	if err != nil {
-		return "", time.Time{}, false, err
+		return "", time.Time{}, false, false, err
 	}
-	return signed, targetExp, true, nil
+	return signed, desiredExp, true, needsPersist, nil
 }
 
 // VerifyTokenWithFresh verifies tokenStr and refreshes it when it is eligible to slide.

@@ -15,11 +15,12 @@ import (
 
 // SessionValidation holds a verified forum session and any sliding renewal.
 type SessionValidation struct {
-	UserID    uint64
-	Jti       string
-	Token     string
-	ExpiresAt time.Time
-	Refreshed bool
+	UserID       uint64
+	Jti          string
+	Token        string
+	ExpiresAt    time.Time
+	Refreshed    bool
+	NeedsPersist bool
 }
 
 // ValidateSession verifies a forum session token against the live user and
@@ -45,16 +46,17 @@ func ValidateSession(token string) (SessionValidation, bool) {
 	if entity == nil || entity.UserId != claims.UserId {
 		return SessionValidation{}, false
 	}
-	nextToken, expiresAt, refreshed, err := jwtopt.RefreshTokenIfNeeded(token, claims, entity.CreatedAt)
+	nextToken, expiresAt, refreshed, needsPersist, err := jwtopt.RefreshSessionTokenIfNeeded(token, claims, entity.CreatedAt, entity.ExpiresAt)
 	if err != nil {
 		return SessionValidation{}, false
 	}
 	return SessionValidation{
-		UserID:    claims.UserId,
-		Jti:       claims.Jti,
-		Token:     nextToken,
-		ExpiresAt: expiresAt,
-		Refreshed: refreshed,
+		UserID:       claims.UserId,
+		Jti:          claims.Jti,
+		Token:        nextToken,
+		ExpiresAt:    expiresAt,
+		Refreshed:    refreshed,
+		NeedsPersist: needsPersist,
 	}, true
 }
 

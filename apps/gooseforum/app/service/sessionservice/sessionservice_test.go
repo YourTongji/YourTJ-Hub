@@ -182,14 +182,48 @@ func TestTouchExpiry(t *testing.T) {
 	setupTestDB(t)
 
 	_ = Create(100, "jti-touch", "ua", "1.1.1.1")
-	future := time.Now().Add(30 * 24 * time.Hour)
-	TouchExpiry("jti-touch", future)
+	future := time.Now().Add(40 * 24 * time.Hour).Truncate(time.Second)
+	persisted, err := TouchExpiry("jti-touch", future)
+	if err != nil || !persisted {
+		t.Fatalf("TouchExpiry() = (%t, %v), want (true, nil)", persisted, err)
+	}
 	entity := GetValidByJti("jti-touch")
 	if entity == nil {
 		t.Fatal("session should still exist")
 	}
 	if !entity.ExpiresAt.Equal(future) {
 		t.Fatalf("expiresAt = %v, want %v", entity.ExpiresAt, future)
+	}
+}
+
+func TestTouchExpiryIsMonotonicAndRejectsMissingOrExpired(t *testing.T) {
+	setupTestDB(t)
+
+	if err := Create(100, "jti-mono", "ua", "1.1.1.1"); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(45 * 24 * time.Hour).Truncate(time.Second)
+	earlier := time.Now().Add(35 * 24 * time.Hour).Truncate(time.Second)
+
+	persisted, err := TouchExpiry("jti-mono", later)
+	if err != nil || !persisted {
+		t.Fatalf("TouchExpiry(later) = (%t, %v), want (true, nil)", persisted, err)
+	}
+	// Out-of-order earlier expiry must not shorten the persisted deadline, while
+	// still reporting persisted=true because the live row already covers earlier.
+	persisted, err = TouchExpiry("jti-mono", earlier)
+	if err != nil || !persisted {
+		t.Fatalf("TouchExpiry(earlier) = (%t, %v), want (true, nil)", persisted, err)
+	}
+	entity := GetValidByJti("jti-mono")
+	if entity == nil || !entity.ExpiresAt.Equal(later) {
+		t.Fatalf("out-of-order write shortened expiresAt: got %+v, want %v", entity, later)
+	}
+
+	// Missing/revoked jti must report persisted=false.
+	persisted, err = TouchExpiry("jti-missing", later)
+	if err != nil || persisted {
+		t.Fatalf("TouchExpiry(missing) = (%t, %v), want (false, nil)", persisted, err)
 	}
 }
 
@@ -202,7 +236,10 @@ func TestTouchExpiryDoesNotResurrectExpiredSession(t *testing.T) {
 	if err := userSessions.UpdateExpiresAtByJti("jti-dead", time.Now().Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	TouchExpiry("jti-dead", time.Now().Add(30*24*time.Hour))
+	persisted, err := TouchExpiry("jti-dead", time.Now().Add(30*24*time.Hour))
+	if err != nil || persisted {
+		t.Fatalf("TouchExpiry(expired) = (%t, %v), want (false, nil)", persisted, err)
+	}
 	if GetValidByJti("jti-dead") != nil {
 		t.Fatal("TouchExpiry must not resurrect an already-expired session")
 	}

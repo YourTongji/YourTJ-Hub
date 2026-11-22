@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -54,14 +55,20 @@ func JWTAuthGetUserId(c *gin.Context) uint64 {
 		return 0
 	}
 	if res.Refreshed {
-		maxAge := time.Until(res.ExpiresAt)
-		if maxAge < time.Second {
-			maxAge = time.Second
+		persisted := true
+		if res.NeedsPersist && res.Jti != "" {
+			var err error
+			persisted, err = sessionservice.TouchExpiry(res.Jti, res.ExpiresAt)
+			if err != nil {
+				slog.Warn("Failed to persist sliding session expiry", "userId", res.UserID, "jti", res.Jti, "error", err)
+			}
 		}
-		jwt.TokenSettingWithMaxAge(c, res.Token, maxAge)
-		// Keep the session record expiry aligned with the refreshed token.
-		if res.Jti != "" {
-			sessionservice.TouchExpiry(res.Jti, res.ExpiresAt)
+		if persisted {
+			maxAge := time.Until(res.ExpiresAt)
+			if maxAge < time.Second {
+				maxAge = time.Second
+			}
+			jwt.TokenSettingWithMaxAge(c, res.Token, maxAge)
 		}
 	}
 	c.Set("currentJti", res.Jti)

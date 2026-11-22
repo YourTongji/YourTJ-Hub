@@ -86,7 +86,13 @@ func UpdateExpiresAtByJti(jti string, expiresAt time.Time) error {
 	return builder().Where(fieldJti, jti).Update(fieldExpiresAt, expiresAt).Error
 }
 
-// UpdateExpiresAtByJtiIfLive extends expires_at only while the session is still live.
-func UpdateExpiresAtByJtiIfLive(jti string, expiresAt time.Time, now time.Time) error {
-	return builder().Where(fieldJti, jti).Where(fieldExpiresAt+" > ?", now).Update(fieldExpiresAt, expiresAt).Error
+// ExtendExpiresAtByJtiIfLive monotonically extends expires_at only while the
+// session is still live and its persisted expiry is earlier than expiresAt.
+func ExtendExpiresAtByJtiIfLive(jti string, expiresAt time.Time, now time.Time) (int64, error) {
+	result := builder().
+		Where(fieldJti, jti).
+		Where(fieldExpiresAt+" > ?", now).
+		Where(fieldExpiresAt+" < ?", expiresAt).
+		Update(fieldExpiresAt, expiresAt)
+	return result.RowsAffected, result.Error
 }

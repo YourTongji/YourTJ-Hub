@@ -471,6 +471,43 @@ func TestRefreshIntervalClampsToHalfValidTime(t *testing.T) {
 	}
 }
 
+func TestRefreshSessionTokenDistinguishesDBExtendFromClientCatchUp(t *testing.T) {
+	withJWTOptConfig(t, 30*86400, 86400, 180*86400)
+
+	createdAt := time.Now().Add(-2 * 24 * time.Hour).Truncate(time.Second)
+	oldToken, err := Std().CreateToken(CustomClaims{
+		UserId:           9,
+		TokenVersion:     1,
+		Jti:              "catchup-jti-001",
+		RegisteredClaims: GetBaseRegisteredClaims(28 * 24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := Std().ParseToken(oldToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Both JWT and DB are 28d remaining (>24h elapsed): must extend DB.
+	persistedOld := time.Now().Add(28 * 24 * time.Hour).Truncate(time.Second)
+	_, _, refreshed, needsPersist, err := RefreshSessionTokenIfNeeded(oldToken, claims, createdAt, persistedOld)
+	if err != nil || !refreshed || !needsPersist {
+		t.Fatalf("aged DB + JWT: refreshed=%t needsPersist=%t err=%v, want true/true/nil", refreshed, needsPersist, err)
+	}
+
+	// 2. DB was already extended to ~30d by a concurrent request, while this
+	// client still sent the old 28d JWT: catch up JWT without another DB write.
+	persistedFresh := time.Now().Add(30*24*time.Hour - 2*time.Second).Truncate(time.Second)
+	catchUpToken, catchUpExp, refreshed, needsPersist, err := RefreshSessionTokenIfNeeded(oldToken, claims, createdAt, persistedFresh)
+	if err != nil || !refreshed || needsPersist || catchUpToken == oldToken {
+		t.Fatalf("catch-up: refreshed=%t needsPersist=%t err=%v, want true/false/nil", refreshed, needsPersist, err)
+	}
+	if !catchUpExp.Equal(persistedFresh) {
+		t.Fatalf("catch-up exp = %v, want persisted %v", catchUpExp, persistedFresh)
+	}
+}
+
 func TestCreateChallengeTokenPurpose(t *testing.T) {
 	token, err := CreateChallengeToken(7, 0, PurposeTotpChallenge, 5*time.Minute)
 	if err != nil {

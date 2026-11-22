@@ -90,10 +90,24 @@ func CheckLiveContext(ctx context.Context, userID uint64, jti string) (bool, err
 	return entity.UserId == userID && entity.ExpiresAt.After(now) && isWithinMaxLifetime(entity.CreatedAt, now), nil
 }
 
-// TouchExpiry extends the session record expiry to match a refreshed token
-// without resurrecting an already-expired session row.
-func TouchExpiry(jti string, expiresAt time.Time) {
-	_ = userSessions.UpdateExpiresAtByJtiIfLive(jti, expiresAt, time.Now())
+// TouchExpiry monotonically extends the live session row to at least expiresAt.
+// It returns (true, nil) when the update persisted or when the live row already
+// covers expiresAt; it returns (false, err) on DB errors and (false, nil) when
+// the session row was concurrently revoked, idle-expired, or past its cap.
+func TouchExpiry(jti string, expiresAt time.Time) (bool, error) {
+	now := time.Now()
+	rows, err := userSessions.ExtendExpiresAtByJtiIfLive(jti, expiresAt, now)
+	if err != nil {
+		return false, err
+	}
+	if rows > 0 {
+		return true, nil
+	}
+	entity := GetValidByJti(jti)
+	if entity == nil {
+		return false, nil
+	}
+	return !entity.ExpiresAt.Before(expiresAt), nil
 }
 
 // List returns the user's active sessions, newest first.
