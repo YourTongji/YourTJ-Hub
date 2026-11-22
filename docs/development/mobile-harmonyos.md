@@ -61,6 +61,35 @@ x64 模拟器改用 `--debug --target-platform=ohos-x64`，ABI 检查改为 `--a
 防止上次 native-assets 构建留下的库混入 HAP。检查脚本验证库是否齐全、ELF 架构是否匹配，
 并拒绝 glibc 依赖。构建成功不能代替这些产物检查，也不能证明签名或真机可用。
 
+## 本地依赖来源与差异边界
+
+`apps/mobile/third_party` 的三份源码以 pub.dev 对应版本的发布归档为基线。
+升级时从版本 API 的 `archive_url` 获取归档，先校验 `archive_sha256`，再逐文件比较；
+不要以版本号相同代替源码保真检查。
+
+| 包 | 基线版本 | pub.dev 归档 SHA-256 |
+|---|---|---|
+| flutter_quill | 11.6.0 | `1f773f5f75e2628d80361c2c840c592791a0a157ebd587c9e37cf2cb8b8519b7` |
+| flutter_math_fork | 0.7.4 | `6d5f2f1aa57ae539ffb0a04bb39d2da67af74601d685a161aff7ce5bda5fa407` |
+| sqlite3 | 3.5.2 | `4c7fe79840389aaeaf05fd093f795b631b5a98e2bd28d54e555c100f4a9c7a1c` |
+
+预期运行源码差异如下，包内 README 说明行为与撤除条件：
+
+- Quill 修改 `raw_editor_state.dart` 的平台分支、`quill_native_provider.dart` 的桥选择、
+  `default_clipboard_service.dart` 的元数据查询，新增 `harmony_quill_native_bridge.dart`。
+- Math 修改 `line_editable.dart`、`selectable.dart` 和
+  `gesture_detector_builder_selectable.dart` 的平台默认分支；共四处 switch 回退。
+- SQLite 修改 `hook/build.dart`，新增 `hook/ohos.dart` 与 `assets/sqlite3mc/`；
+  `pubspec.yaml` 移除上游 workspace resolution。其他 Dart 运行源码保持上游内容。
+
+其余差异为 README 替换及少量行尾空格、空行清理；未省略 `lib/`、`hook/` 或上游运行资产。
+为控制体积，副本省略上游示例、测试、开发文档与工具；Quill 还省略独立的 extensions/test
+子包，这些不由当前本地包导出。副本不代表上游完整开发仓库，升级仍需运行应用侧回归。
+
+SQLite3MC 归档来源和摘要见[本地 SQLite README](../../apps/mobile/third_party/sqlite3/README.md)。
+其中主 C 源、`sqlite3mc_amalgamation.h`、`sqlite3.h` 与该归档逐字节一致；
+`sqlite3ext.h` 仅三行注释的行尾空格被清理，归档 README 保持原样。
+
 ## 原生与交互验证
 
 [Hypium 测试](../../apps/mobile/packages/forum_app/ohos/entry/src/ohosTest/ets/test/List.test.ets)
