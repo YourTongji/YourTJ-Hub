@@ -71,10 +71,20 @@ export default class ScheduleWidgetPlugin implements FlutterPlugin, MethodCallHa
           result.success(store.hasSync(id) ? values[id] : args.get('defaultValue') ?? null);
           return;
         }
-        case 'updateWidget':
-          await refreshCards(this.context);
+        case 'updateWidget': {
+          const args = call.args as Map<string, string>;
+          const receiver = args.get('qualifiedAndroidName') ?? '';
+          const kind = receiver.endsWith('NextClassWidgetReceiver') ? 'nextClass' :
+            receiver.endsWith('TodayScheduleWidgetReceiver') ? 'today' :
+            receiver.endsWith('CourseTimelineWidgetReceiver') ? 'timeline' : '';
+          if (kind === '') {
+            result.error('invalid_widget', 'Unknown widget target', null);
+            return;
+          }
+          await refreshCards(this.context, kind);
           result.success(true);
           return;
+        }
         case 'isRequestPinWidgetSupported':
           result.success(true);
           return;

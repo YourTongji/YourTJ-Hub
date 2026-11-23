@@ -101,6 +101,15 @@ class HarmonyTests(unittest.TestCase):
             with self.assertRaises(ReleaseError):
                 import_initial_release(remote, {details['versionId']: version})
 
+    def test_missing_initial_archive_skips_without_writing_receipts(self):
+        remote = Mock()
+        folder = Path(__file__).resolve().parents[2] / 'releases/history/mobile-1.0.18-36'
+        manifest = json.loads((folder / 'manifest.json').read_text())
+        with patch('harmony_reconcile.latest_receipt', return_value=None), patch('harmony_reconcile.load_candidate', return_value=(manifest, folder)), patch('harmony_reconcile.record') as record:
+            import_initial_release(remote, {})
+            record.assert_not_called()
+            remote.api.assert_not_called()
+
     def test_verified_initial_archive_renders_existing_history_schema(self):
         folder = Path(__file__).resolve().parents[2] / 'releases/history/mobile-1.0.18-36'
         manifest = json.loads((folder / 'manifest.json').read_text())

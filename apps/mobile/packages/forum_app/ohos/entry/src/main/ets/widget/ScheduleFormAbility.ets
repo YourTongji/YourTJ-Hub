@@ -1,8 +1,6 @@
 import { Want } from '@kit.AbilityKit';
-import { FormExtensionAbility, formBindingData, formInfo, formProvider } from '@kit.FormKit';
-import { BusinessError } from '@kit.BasicServicesKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
-import { cardData, widgetPreferences } from './ScheduleFormStore';
+import { FormExtensionAbility, formBindingData, formInfo } from '@kit.FormKit';
+import { cardData, refreshCards, removeCard, widgetPreferences } from './ScheduleFormStore';
 
 export default class ScheduleFormAbility extends FormExtensionAbility {
   onAddForm(want: Want): formBindingData.FormBindingData {
@@ -18,15 +16,7 @@ export default class ScheduleFormAbility extends FormExtensionAbility {
   }
 
   async onUpdateForm(id: string): Promise<void> {
-    const store = widgetPreferences(this.context);
-    const kind = store.getSync(`form_kind_${id}`, 'nextClass') as string;
-    try {
-      await formProvider.updateForm(id, formBindingData.createFormBindingData(cardData(this.context, kind, id)));
-      // Form Kit permits no interval shorter than five minutes.
-      await formProvider.setFormNextRefreshTime(id, 5);
-    } catch (error) {
-      hilog.warn(0x0000, 'ScheduleForm', 'Card refresh failed: %{public}d', (error as BusinessError).code);
-    }
+    await refreshCards(this.context, '', undefined, id);
   }
 
   onFormEvent(id: string, message: string): void {
@@ -45,11 +35,7 @@ export default class ScheduleFormAbility extends FormExtensionAbility {
   }
 
   onRemoveForm(id: string): void {
-    const store = widgetPreferences(this.context);
-    const ids = store.getSync('form_ids', []) as string[];
-    store.putSync('form_ids', ids.filter(value => value !== id));
-    store.deleteSync(`form_kind_${id}`);
-    store.deleteSync(`form_tomorrow_${id}`);
+    removeCard(this.context, id);
   }
 
   onAcquireFormState(_want: Want): formInfo.FormState {

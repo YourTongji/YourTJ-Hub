@@ -90,6 +90,9 @@ SQLite3MC 归档来源和摘要见[本地 SQLite README](../../apps/mobile/third
 其中主 C 源、`sqlite3mc_amalgamation.h`、`sqlite3.h` 与该归档逐字节一致；
 `sqlite3ext.h` 仅三行注释的行尾空格被清理，归档 README 保持原样。
 
+卡片使用系统声明的 30 分钟刷新（每天 48 次）与午夜刷新，不叠加五分钟轮询；同步和退出按目标类型刷新，
+单卡失败不阻断其余卡片清空，仅明确不存在的 formId 会从注册表移除。系统后台刷新不保证课程切换即时到达。
+
 ## 原生与交互验证
 
 [Hypium 测试](../../apps/mobile/packages/forum_app/ohos/entry/src/ohosTest/ets/test/List.test.ets)

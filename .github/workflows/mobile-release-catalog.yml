@@ -34,6 +34,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Reconcile Huawei approval against original package receipts
+        id: harmony
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           HARMONY_IMPORT_INITIAL: 'true'
@@ -47,3 +49,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/release/workflow.py publish-catalog
+      - name: Report Huawei reconciliation failure after catalog publication
+        if: ${{ !cancelled() && steps.harmony.outcome == 'failure' }}
+        run: |
+          echo '::error::Huawei reconciliation failed; inspect reconciliation and catalog refresh steps before retrying.'
+          exit 1

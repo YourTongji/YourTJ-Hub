@@ -38,7 +38,8 @@ def import_initial_release(github, versions):
         require(details['appId'] == APP_ID and manifest['sourceSha'] == evidence['sourceSha'],
                 'Initial Harmony archive identity changed')
         version = versions.get(details['versionId'])
-        require(version is not None, 'Initial Harmony invitation missing')
+        if version is None:
+            return  # Historical invitations may expire; never synthesize approval.
         packages = version.get('packageList') or []
         require(len(packages) == 1 and str(packages[0].get('versionCode')) == str(manifest['buildNumber'])
                 and packages[0].get('versionName') == manifest['version'], 'Initial Harmony native identity changed')

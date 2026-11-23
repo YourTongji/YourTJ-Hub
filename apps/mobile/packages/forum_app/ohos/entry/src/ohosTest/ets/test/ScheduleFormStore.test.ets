@@ -1,11 +1,49 @@
 import { describe, it, expect } from '@ohos/hypium';
 import { common } from '@kit.AbilityKit';
 import { ScheduleProjection } from '../../../main/ets/widget/ScheduleData';
-import { cardData, widgetPreferences } from '../../../main/ets/widget/ScheduleFormStore';
+import { ScheduleCardData, cardData, refreshCards, widgetPreferences } from '../../../main/ets/widget/ScheduleFormStore';
+
+class FormTestError extends Error {
+  code: number;
+  constructor(code: number) { super('Synthetic form failure'); this.code = code; }
+}
 
 // Run only on the isolated test device; restore every shared value after the check.
 export default function scheduleFormStoreTest(context: common.UIAbilityContext): void {
   describe('ScheduleFormStore', () => {
+    it('isolatesFailedFormsAndFiltersRequestedKind', 0, async () => {
+      const store = widgetPreferences(context);
+      const oldIds = store.getSync('form_ids', null);
+      const ids = ['review-invalid', 'review-next', 'review-today'];
+      const oldKinds = ids.map(id => store.getSync(`form_kind_${id}`, null));
+      const updated: string[] = [];
+      try {
+        store.putSync('form_ids', ids);
+        store.putSync(`form_kind_${ids[0]}`, 'nextClass');
+        store.putSync(`form_kind_${ids[1]}`, 'nextClass');
+        store.putSync(`form_kind_${ids[2]}`, 'today');
+        await refreshCards(context, 'nextClass', async (id: string, _data: ScheduleCardData): Promise<void> => {
+          updated.push(id);
+          if (id === ids[0]) throw new FormTestError(16501001);
+        });
+        expect(updated.join(',')).assertEqual('review-invalid,review-next');
+        expect((store.getSync('form_ids', []) as string[]).includes(ids[0])).assertFalse();
+        expect(store.hasSync(`form_kind_${ids[0]}`)).assertFalse();
+        updated.length = 0;
+        await refreshCards(context, '', async (id: string, _data: ScheduleCardData): Promise<void> => {
+          updated.push(id);
+          if (id === ids[1]) throw new FormTestError(16500050);
+        });
+        expect(updated.join(',')).assertEqual('review-next,review-today');
+        expect((store.getSync('form_ids', []) as string[]).includes(ids[1])).assertTrue();
+      } finally {
+        if (oldIds === null) store.deleteSync('form_ids'); else store.putSync('form_ids', oldIds);
+        for (let i = 0; i < ids.length; i++) {
+          if (oldKinds[i] === null) store.deleteSync(`form_kind_${ids[i]}`);
+          else store.putSync(`form_kind_${ids[i]}`, oldKinds[i]);
+        }
+      }
+    });
     it('distinguishesUnknownDaysAndClearsPrivateCourses', 0, () => {
       const store = widgetPreferences(context);
       const projectionKey = 'schedule_widget_projection';

@@ -66,5 +66,24 @@ class FreezeRerunPermissions(unittest.TestCase):
         self.assertIn('release-control.yml:project', checked)
 
 
+class CatalogFailureIsolation(unittest.TestCase):
+    def test_huawei_failure_does_not_block_catalog_but_stays_visible(self):
+        text = (WORKFLOWS / 'mobile-release-catalog.yml').read_text()
+        steps = re.split(r'(?m)^      - ', text)[1:]
+        huawei = next(step for step in steps if 'run: python3 scripts/release/harmony_reconcile.py' in step)
+        self.assertRegex(huawei, r'(?m)^        continue-on-error: true$')
+        self.assertRegex(huawei, r'(?m)^        id: harmony$')
+        catalog = next(step for step in steps if 'run: python3 scripts/release/workflow.py publish-catalog' in step)
+        dev = next(step for step in steps if 'run: python3 scripts/release/dev_delivery.py status' in step)
+        self.assertNotIn('steps.harmony', catalog)
+        self.assertNotIn('steps.harmony', dev)
+        report = next(step for step in steps if "steps.harmony.outcome == 'failure'" in step)
+        self.assertIn('!cancelled()', report)
+        self.assertRegex(report, r'(?m)^          exit 1$')
+        self.assertLess(steps.index(huawei), steps.index(dev))
+        self.assertLess(steps.index(dev), steps.index(catalog))
+        self.assertLess(steps.index(catalog), steps.index(report))
+
+
 if __name__ == '__main__':
     unittest.main()
