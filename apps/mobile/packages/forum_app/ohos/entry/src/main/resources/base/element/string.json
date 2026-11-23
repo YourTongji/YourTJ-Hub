@@ -1,0 +1,96 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "YourTJ"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "YourTJ"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "YourTJ"
+    },
+    {
+      "name": "widget_next",
+      "value": "Up next"
+    },
+    {
+      "name": "widget_today",
+      "value": "Today’s schedule"
+    },
+    {
+      "name": "widget_timeline",
+      "value": "Course timeline"
+    },
+    {
+      "name": "widget_todayLabel",
+      "value": "Today"
+    },
+    {
+      "name": "widget_tomorrow",
+      "value": "Tomorrow"
+    },
+    {
+      "name": "widget_inClass",
+      "value": "In class"
+    },
+    {
+      "name": "widget_noneUpcoming",
+      "value": "No classes in the next 8 days"
+    },
+    {
+      "name": "widget_stale",
+      "value": "Schedule may have changed"
+    },
+    {
+      "name": "widget_signedOut",
+      "value": "Sign in and bind your Tongji account"
+    },
+    {
+      "name": "widget_unbound",
+      "value": "Bind your Tongji account to show classes"
+    },
+    {
+      "name": "widget_authorizationRequired",
+      "value": "Open YourTJ to restore campus access"
+    },
+    {
+      "name": "widget_needsRefresh",
+      "value": "Schedule needs an update"
+    },
+    {
+      "name": "widget_refresh",
+      "value": "Open YourTJ to refresh"
+    },
+    {
+      "name": "widget_noClasses",
+      "value": "No classes scheduled"
+    },
+    {
+      "name": "widget_viewFull",
+      "value": "Open YourTJ to view your full schedule"
+    },
+    {
+      "name": "widget_updated",
+      "value": "Updated %s %s"
+    },
+    {
+      "name": "widget_switchToday",
+      "value": "Switch to today"
+    },
+    {
+      "name": "widget_switchTomorrow",
+      "value": "Switch to tomorrow"
+    },
+    {
+      "name": "widget_section",
+      "value": "L%s"
+    },
+    {
+      "name": "clipboard_read_reason",
+      "value": "Paste text or images into the editor."
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 /// 原生推送设备注册契约镜像（push/device/register|unregister、push/config.native）。
 ///
 /// 注册/注销请求由 OpenAPI 生成；其余响应保留手写兼容解析。
-/// platform 取值 "ios"|"android"，
+/// platform 取值 "ios"|"android"|"ohos"，
 /// token 为 APNs 令牌或 JPush/FCM 注册标识（全局唯一索引）。
 library;
 
@@ -14,20 +14,24 @@ class NativePushConfig {
     required this.apnsEnabled,
     required this.fcmEnabled,
     this.jpushEnabled = false,
+    this.huaweiEnabled = false,
   });
 
   final bool apnsEnabled;
   final bool fcmEnabled;
   final bool jpushEnabled;
+  final bool huaweiEnabled;
 
   /// 任一通道启用即视为原生推送可用（具体设备仍须匹配 provider）。
-  bool get anyEnabled => apnsEnabled || fcmEnabled || jpushEnabled;
+  bool get anyEnabled =>
+      apnsEnabled || fcmEnabled || jpushEnabled || huaweiEnabled;
 
   factory NativePushConfig.fromJson(Map<String, dynamic> json) =>
       NativePushConfig(
         apnsEnabled: json['apnsEnabled'] as bool? ?? false,
         fcmEnabled: json['fcmEnabled'] as bool? ?? false,
         jpushEnabled: json['jpushEnabled'] as bool? ?? false,
+        huaweiEnabled: json['huaweiEnabled'] as bool? ?? false,
       );
 }
 

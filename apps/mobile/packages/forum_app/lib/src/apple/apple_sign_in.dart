@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:auth/auth.dart' show NativeSecureStorage;
 
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
@@ -25,7 +26,7 @@ typedef AppleAuthorization = ({
 class AppleSignInService {
   AppleSignInService({
     this._channel = const MethodChannel('yourtj/apple-auth'),
-    this._storage = const FlutterSecureStorage(),
+    this._storage = const NativeSecureStorage(),
   }) {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'credentialsChanged') _changes.add(null);

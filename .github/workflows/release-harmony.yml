@@ -1,0 +1,180 @@
+name: Release / HarmonyOS builder and APP Test
+on:
+  workflow_call:
+    inputs:
+      candidate: {type: string, default: ''}
+      source: {type: string, required: true}
+      version: {type: string, required: true}
+      number: {type: string, required: true}
+      display_build: {type: string, default: ''}
+      recover: {type: boolean, default: false}
+      rc_build: {type: boolean, default: false}
+      automatic: {type: boolean, default: false}
+permissions:
+  contents: write
+  actions: read
+  deployments: write
+  pull-requests: read
+  checks: read
+concurrency:
+  group: harmony-app-test-6917621118093079103
+  cancel-in-progress: false
+  queue: max
+jobs:
+  harmonyos:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE: ${{ inputs.candidate }}
+      SOURCE_SHA: ${{ inputs.source }}
+      MOBILE_VERSION: ${{ inputs.version }}
+      MOBILE_BUILD_NUMBER: ${{ inputs.number }}
+      MOBILE_BUILD_ID: ${{ inputs.display_build }}
+      MOBILE_ENVIRONMENT: ${{ inputs.automatic && 'dev' || 'production' }}
+      MOBILE_PREVIEW: ${{ inputs.automatic && 'true' || 'false' }}
+      AUTOMATIC_DEV: ${{ inputs.automatic }}
+      RC_BUILD: ${{ inputs.rc_build }}
+      RECOVER: ${{ inputs.recover }}
+      CHANNEL: harmony-apptest
+      HARMONY_TEST_GROUP_ID: ${{ inputs.automatic && vars.HARMONY_DEV_TEST_GROUP_ID || vars.HARMONY_TEST_GROUP_ID }}
+      HARMONY_PRODUCTION_GROUP_ID: ${{ vars.HARMONY_TEST_GROUP_ID }}
+      PREVIEW_ARTIFACT: harmonyos
+      DEV_PLATFORM: harmonyos
+      RELEASE_SOURCE_ROOT: .source
+      HARMONY_APP_DIRECTORY: .source/apps/mobile/build/release/harmonyos
+      FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
+      PUB_HOSTED_URL: https://pub.dev
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {fetch-depth: 0, persist-credentials: false}
+      - name: Authorize immutable build inputs
+        run: |
+          if [ "$AUTOMATIC_DEV" = true ]; then
+            python3 scripts/release/dev_delivery.py check-build
+          else
+            python3 scripts/release/workflow.py authorize
+          fi
+      - id: start
+        name: Select original artifact for this identity
+        run: |
+          if [ "$AUTOMATIC_DEV" = true ]; then
+            python3 scripts/release/dev_delivery.py start
+          else
+            python3 scripts/release/workflow.py start
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        if: steps.start.outputs.build_required == 'true'
+        with: {ref: '${{ inputs.source }}', path: .source, persist-credentials: false}
+      - name: Check unused Huawei native number before building
+        if: steps.start.outputs.build_required == 'true'
+        env:
+          HARMONY_SERVICE_ACCOUNT_JSON: ${{ secrets.HARMONY_SERVICE_ACCOUNT_JSON }}
+        run: python3 scripts/release/harmony.py preflight
+      - uses: ./.github/actions/setup-harmony-toolchain
+        if: steps.start.outputs.build_required == 'true'
+        with:
+          download_url: ${{ secrets.HARMONY_CLI_DOWNLOAD_URL }}
+      - name: Resolve locked source dependencies
+        if: steps.start.outputs.build_required == 'true'
+        working-directory: .source/apps/mobile
+        run: flutter pub get --enforce-lockfile
+      - name: Build verified signed original APP
+        if: steps.start.outputs.build_required == 'true'
+        env:
+          HARMONY_KEYSTORE_BASE64: ${{ secrets.HARMONY_KEYSTORE_BASE64 }}
+          HARMONY_CERTIFICATE_BASE64: ${{ secrets.HARMONY_CERTIFICATE_BASE64 }}
+          HARMONY_PROFILE_BASE64: ${{ secrets.HARMONY_PROFILE_BASE64 }}
+          HARMONY_KEYSTORE_PASSWORD: ${{ secrets.HARMONY_KEYSTORE_PASSWORD }}
+        run: python3 scripts/mobile-release/build_harmony.py
+      - name: Preserve original signed APP before external publication
+        if: steps.start.outputs.build_required == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ${{ inputs.automatic && 'preview-harmonyos' || 'harmonyos' }}-${{ inputs.version }}-${{ inputs.number }}
+          path: .source/apps/mobile/build/release/harmonyos/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Restore original APP; never rebuild a distributed identity
+        if: steps.start.outputs.build_required != 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: ${{ inputs.automatic && 'preview-harmonyos' || 'harmonyos' }}-${{ inputs.version }}-${{ inputs.number }}
+          path: .source/apps/mobile/build/release/harmonyos
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.start.outputs.build_run_id }}
+      - name: Verify original APP identity and RC digest
+        env:
+          EXPECTED_APP_SHA256: ${{ steps.start.outputs.app_sha256 }}
+        run: python3 scripts/release/harmony.py inspect
+      - name: Restore original upload intent and package receipt
+        if: ${{ !inputs.rc_build }}
+        env:
+          RECEIPT_RUN_ID: ${{ steps.start.outputs.receipt_run_id }}
+        run: python3 scripts/release/harmony_receipt.py
+      - name: Submit to the selected invitation group only
+        if: ${{ !inputs.rc_build }}
+        env:
+          HARMONY_SERVICE_ACCOUNT_JSON: ${{ secrets.HARMONY_SERVICE_ACCOUNT_JSON }}
+          HARMONY_NOTES_PATH: ${{ inputs.automatic && '.harmony-dev-notes.txt' || '.release-approved/harmony.zh-CN.md' }}
+          EXPECTED_APP_SHA256: ${{ steps.start.outputs.app_sha256 }}
+        run: |
+          if [ "$AUTOMATIC_DEV" = true ]; then
+            python3 scripts/release/dev_delivery.py check-build
+            printf 'Development build %s. Source %s.\n' "$MOBILE_BUILD_ID" "$SOURCE_SHA" > .harmony-dev-notes.txt
+          else
+            python3 scripts/release/workflow.py verify-publication
+          fi
+          python3 scripts/release/harmony.py publish
+      - name: Preserve non-secret upload intent even on failure
+        id: upload_receipt
+        if: ${{ always() && !inputs.rc_build }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: harmony-upload-${{ github.run_attempt }}
+          path: .harmony-upload.json
+          include-hidden-files: true
+          retention-days: 90
+          if-no-files-found: ignore
+      - name: Record original artifact and submission facts
+        if: always() && steps.start.outcome == 'success'
+        env:
+          JOB_STATUS: ${{ job.status }}
+          UPLOAD_RECEIPT_SAVED: ${{ steps.upload_receipt.outcome }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          dev = os.environ['AUTOMATIC_DEV'] == 'true'
+          if os.environ.get('UPLOAD_RECEIPT_SAVED') == 'success' and Path('.harmony-upload.json').exists():
+              file = Path('.release-result.json')
+              details = json.loads(file.read_text()) if file.exists() else {}
+              file.write_text(json.dumps(details | {'receiptRunId': os.environ['GITHUB_RUN_ID']}) + '\n')
+          if dev:
+              if os.environ['JOB_STATUS'] == 'success':
+                  subprocess.run(['python3', 'scripts/release/dev_delivery.py', 'record'], check=True)
+          else:
+              details = json.loads(Path('.release-result.json').read_text()) if Path('.release-result.json').exists() else {}
+              state = 'failure' if os.environ['JOB_STATUS'] != 'success' else 'success' if os.environ['RC_BUILD'] == 'true' or details.get('availability') == 'APPROVED' else 'in_progress'
+              subprocess.run(['python3', 'scripts/release/workflow.py', 'receipt'], check=True,
+                             env={**os.environ, 'RELEASE_STATE': state})
+          PY
+      - name: Seal RC platform result
+        if: always() && inputs.rc_build && steps.start.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: rc-result-harmonyos-${{ github.run_attempt }}
+          path: rc-results/harmonyos-${{ github.run_attempt }}.json
+          retention-days: 90
+          if-no-files-found: error
+      - name: Refresh receipt-backed distribution status
+        if: ${{ !inputs.rc_build && success() }}
+        run: |
+          if [ "$AUTOMATIC_DEV" = true ]; then
+            python3 scripts/release/dev_delivery.py status
+          else
+            python3 scripts/release/workflow.py publish-catalog
+          fi

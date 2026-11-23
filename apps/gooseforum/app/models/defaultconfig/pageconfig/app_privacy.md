@@ -74,7 +74,7 @@ Android 更新从 GitHub 获取版本信息，下载可能经过公开 APK 镜�
 
 ### App 访问统计
 
-正式 Android/iOS 版本连接 `https://f.yourtj.de` 时，访问统计自动开启，访客和已登录用户
+正式 Android、iOS 和 HarmonyOS 版本连接 `https://f.yourtj.de` 时，访问统计自动开启，访客和已登录用户
 均适用；App 内不提供访问统计开关。安装或升级后均按此方式运行，不再读取旧版本的统计偏好。
 App 在前台浏览公开页面时向 YourTJ 自托管的 Umami 服务（umi.yourtj.de）发送公开页面类别、YourTJ App 标记、
 系统家族以及手机／平板类型，用于访问统计和状态页的设备分布。不会发送账号、登录凭据、

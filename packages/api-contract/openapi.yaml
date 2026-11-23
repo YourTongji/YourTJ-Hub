@@ -146,6 +146,8 @@ paths:
     $ref: ./paths/auth-passkeys.yaml#/appleAssociation
   /.well-known/assetlinks.json:
     $ref: ./paths/auth-passkeys.yaml#/androidAssociation
+  /.well-known/applinking.json:
+    $ref: ./paths/auth-passkeys.yaml#/harmonyAssociation
   /api/auth/passkey/login/begin:
     $ref: ./paths/auth-passkeys.yaml#/loginBegin
   /api/auth/passkey/login/finish:

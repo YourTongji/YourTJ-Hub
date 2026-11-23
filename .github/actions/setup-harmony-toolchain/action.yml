@@ -1,0 +1,52 @@
+name: Set up pinned HarmonyOS toolchain
+description: Verify official Linux SDK bytes and install the pinned Flutter OH fork without signing material
+inputs:
+  download_url:
+    description: Download-only official Linux SDK URL; never a signing or publishing credential
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880
+      with:
+        distribution: temurin
+        java-version: '21'
+    - name: Verify and install official SDK
+      shell: bash
+      env:
+        HARMONY_CLI_DOWNLOAD_URL: ${{ inputs.download_url }}
+      run: |
+        test -n "$HARMONY_CLI_DOWNLOAD_URL" || { echo 'Harmony SDK download access is unavailable. A maintainer must validate fork changes on a trusted branch.' >&2; exit 1; }
+        python3 scripts/mobile-release/download_harmony_cli.py
+        unzip -q "$RUNNER_TEMP/harmony-cli.zip" -d "$RUNNER_TEMP/harmony-sdk"
+        rm "$RUNNER_TEMP/harmony-cli.zip"
+        tools="$RUNNER_TEMP/harmony-sdk/command-line-tools"
+        test -f "$tools/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar"
+        echo "DEVECO_SDK_HOME=$tools/sdk" >> "$GITHUB_ENV"
+        echo "NODE_HOME=$tools/tool/node" >> "$GITHUB_ENV"
+        echo "$tools/tool/node/bin" >> "$GITHUB_PATH"
+        echo "$tools/bin" >> "$GITHUB_PATH"
+        echo "$tools/sdk/default/openharmony/toolchains" >> "$GITHUB_PATH"
+    - name: Install pinned Flutter OH
+      shell: bash
+      run: |
+        git init "$RUNNER_TEMP/flutter-ohos"
+        git -C "$RUNNER_TEMP/flutter-ohos" remote add origin https://gitcode.com/CPF-Flutter/flutter_flutter.git
+        git -C "$RUNNER_TEMP/flutter-ohos" fetch --depth=64 origin c2fb91fb38c40a6b97b5ae3d9f71107b7dae7ad2 refs/tags/3.44.9+ohos-1.0.0-beta:refs/tags/3.44.9+ohos-1.0.0-beta
+        git -C "$RUNNER_TEMP/flutter-ohos" checkout --detach c2fb91fb38c40a6b97b5ae3d9f71107b7dae7ad2
+        test "$(git -C "$RUNNER_TEMP/flutter-ohos" rev-parse HEAD)" = c2fb91fb38c40a6b97b5ae3d9f71107b7dae7ad2
+        test "$(git -C "$RUNNER_TEMP/flutter-ohos" rev-parse '3.44.9+ohos-1.0.0-beta^{commit}')" = 744cbb4f08e577787774c04033cc19a9d318d0d2
+        git -C "$RUNNER_TEMP/flutter-ohos" merge-base --is-ancestor 3.44.9+ohos-1.0.0-beta HEAD
+        echo "$RUNNER_TEMP/flutter-ohos/bin" >> "$GITHUB_PATH"
+    - name: Verify the native SDK reports its pinned version
+      shell: bash
+      run: |
+        "$RUNNER_TEMP/flutter-ohos/bin/flutter" --version > /dev/null
+        python3 - <<'PY'
+        import json, os
+        from pathlib import Path
+        version = json.loads((Path(os.environ['RUNNER_TEMP']) / 'flutter-ohos/bin/cache/flutter.version.json').read_text())
+        assert version['frameworkVersion'] == '3.44.9+ohos-1.0.0-beta', 'Flutter OH tag/version discovery failed'
+        assert version['frameworkRevision'] == 'c2fb91fb38c40a6b97b5ae3d9f71107b7dae7ad2', 'Flutter OH revision changed'
+        print('Pinned Flutter OH version and revision verified')
+        PY

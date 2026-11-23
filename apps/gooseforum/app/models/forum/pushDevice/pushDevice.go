@@ -12,6 +12,7 @@ const tableName = "push_device"
 const (
 	PlatformIOS     = "ios"
 	PlatformAndroid = "android"
+	PlatformHarmony = "ohos"
 )
 
 // Entity 一台已注册的原生推送设备。token 是推送服务长期凭据，等同用户会话
@@ -39,6 +40,9 @@ func (itself *Entity) DeliveryProvider() string {
 	}
 	if itself.Platform == PlatformIOS {
 		return "apns"
+	}
+	if itself.Platform == PlatformHarmony {
+		return "huawei"
 	}
 	return "fcm"
 }

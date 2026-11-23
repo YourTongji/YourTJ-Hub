@@ -16,7 +16,7 @@ final visitorAnalyticsProvider = Provider<VisitorAnalytics?>((ref) {
     return null;
   }
   final analytics = VisitorAnalytics(
-    os: defaultTargetPlatform == TargetPlatform.iOS ? 'iOS' : 'Android OS',
+    os: visitorAnalyticsOs(defaultTargetPlatform)!,
   );
   ref.onDispose(analytics.dispose);
   return analytics;

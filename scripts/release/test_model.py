@@ -75,8 +75,9 @@ class CandidateTests(unittest.TestCase):
         validate_candidate(manifest, self.path)
 
     def test_explicit_scope(self):
+        self.assertEqual(channels_for("harmonyos", "testflight"), ["harmony-apptest"])
         self.assertEqual(channels_for("android", "testflight"), ["android"])
-        self.assertEqual(channels_for("mobile", "testflight"), ["android", "ios-testflight"])
+        self.assertEqual(channels_for("mobile", "testflight"), ["android", "ios-testflight", "harmony-apptest"])
         with self.assertRaises(ReleaseError):
             channels_for("android", "app-store")
 

@@ -154,8 +154,27 @@ jobs:
       pull-requests: read
       checks: read
 
+  harmonyos:
+    needs: [authorize, reserve]
+    if: ${{ !cancelled() && needs.authorize.result == 'success' && needs.reserve.result == 'success' && contains(fromJSON(needs.authorize.outputs.channels), 'harmony-apptest') && (inputs.channel == '' || inputs.channel == 'harmony-apptest') }}
+    uses: ./.github/workflows/release-harmony.yml
+    with:
+      candidate: ${{ needs.authorize.outputs.candidate }}
+      source: ${{ needs.authorize.outputs.sha }}
+      version: ${{ needs.authorize.outputs.version }}
+      number: ${{ needs.authorize.outputs.number }}
+      display_build: ${{ needs.authorize.outputs.display }}
+      recover: ${{ inputs.recover || false }}
+    secrets: inherit
+    permissions:
+      contents: write
+      deployments: write
+      actions: read
+      pull-requests: read
+      checks: read
+
   published:
-    needs: [authorize, reserve, web, android, ios]
+    needs: [authorize, reserve, web, android, ios, harmonyos]
     if: ${{ !cancelled() && needs.authorize.result == 'success' }}
     runs-on: ubuntu-latest
     steps:

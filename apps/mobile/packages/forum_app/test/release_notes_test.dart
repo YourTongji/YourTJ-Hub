@@ -98,6 +98,44 @@ Map<String, dynamic> catalog() => {
 };
 
 void main() {
+  test('HarmonyOS history is isolated from Android and iOS coverage', () {
+    final value = {
+      'schemaVersion': 1,
+      'historyCoverage': {
+        'source': 'github-release-receipts',
+        'publishedAt': '2026-11-19T00:00:00Z',
+        'byChannel': {
+          'harmony-apptest': {
+            'completeFromBuild': 36,
+            'throughBuild': 36,
+            'coveredBuilds': [36],
+          },
+        },
+      },
+      'releases': [
+        release(
+          36,
+          channels: ['harmony-apptest'],
+          highlights: [
+            note(
+              'native-harmony',
+              'Native HarmonyOS',
+              platforms: ['harmony-apptest'],
+            ),
+          ],
+        ),
+      ],
+    };
+    final parsed = ReleaseNoteCatalog.decode(value);
+    expect(parsed, isNotNull);
+    expect(parsed!.releases.single.channels, {'harmony-apptest'});
+    expect(parsed.channelCoverage.containsKey('android'), isFalse);
+    expect(
+      parsed.releases.single.highlights.single.includesChannel('android'),
+      isFalse,
+    );
+  });
+
   test(
     'iOS public release lookup is pinned to the Chinese App Store listing',
     () async {
@@ -368,6 +406,47 @@ void main() {
             .map((entry) => entry.id),
         ['target'],
       );
+    },
+  );
+
+  test(
+    'HarmonyOS uses only its fixed status and GitHub history assets',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final adapter = _Adapter((request) {
+        if (request.uri.host == 'status.yourtj.de') {
+          return ResponseBody.fromString('', 503);
+        }
+        return ResponseBody.fromString(
+          jsonEncode({
+            'schemaVersion': 1,
+            'releases': [
+              release(
+                36,
+                channels: ['harmony-apptest'],
+                highlights: [
+                  note(
+                    'native',
+                    'Native support',
+                    platforms: ['harmony-apptest'],
+                  ),
+                ],
+              ),
+            ],
+          }),
+          200,
+        );
+      });
+      final client = AndroidReleaseClient(
+        dio: Dio()..httpClientAdapter = adapter,
+        harmony: true,
+      )..notesPreferences = await SharedPreferences.getInstance();
+      final result = await client.loadHistory();
+      expect(result?.releases.single.channels, {'harmony-apptest'});
+      expect(adapter.requests.map((request) => request.uri.toString()), [
+        harmonyReleaseNotesUrl,
+        githubHarmonyReleaseNotesUrl,
+      ]);
     },
   );
 

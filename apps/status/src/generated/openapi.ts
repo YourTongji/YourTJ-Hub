@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mobile/releases-harmony.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read HarmonyOS AppTest release notes
+         * @description Returns a display-only catalog derived from reviewed release requests and successful GitHub distribution receipts. This asset contains only HarmonyOS APP Test history; the legacy Android/iOS catalog remains separate. Pending review is not availability. Responses are cached and carry an ETag. The catalog contains no candidate evidence, deployment payloads or credentials.
+         */
+        get: operations["getHarmonyReleaseCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/status": {
         parameters: {
             query?: never;
@@ -73,7 +93,7 @@ export interface components {
             buildNumber: number;
             /** @description UTC+8 date and daily sequence; optional for historical releases */
             displayBuild?: string;
-            channels: ("android" | "ios-app-store" | "ios-testflight")[];
+            channels: ("android" | "ios-app-store" | "ios-testflight" | "harmony-apptest")[];
             highlights: components["schemas"]["MobileReleaseNote"][];
             breaking: components["schemas"]["MobileReleaseNote"][];
             requiredActions: components["schemas"]["MobileReleaseNote"][];
@@ -88,7 +108,7 @@ export interface components {
             summary: string;
             /** @enum {string} */
             kind: "feature" | "improvement" | "fix" | "security";
-            platforms: ("android" | "ios-app-store" | "ios-testflight")[];
+            platforms: ("android" | "ios-app-store" | "ios-testflight" | "harmony-apptest")[];
         };
         StatusDevicesSource: {
             /** @enum {string} */
@@ -114,7 +134,7 @@ export interface components {
             /** @enum {string} */
             device: "mobile" | "laptop" | "desktop" | "tablet" | "other" | "unknown";
             /** @enum {string} */
-            os: "windows" | "macos" | "ios" | "android" | "linux" | "chromeos" | "other" | "unknown";
+            os: "windows" | "macos" | "ios" | "android" | "harmonyos" | "linux" | "chromeos" | "other" | "unknown";
             /** @enum {string} */
             browser: "yourtj-app" | "chrome" | "edge" | "safari" | "firefox" | "webview" | "opera" | "samsung" | "other" | "unknown";
             visitors: number;
@@ -254,6 +274,49 @@ export interface components {
 export type $defs = Record<string, never>;
 export interface operations {
     getMobileReleaseCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Receipt-backed release catalog */
+            200: {
+                headers: {
+                    ETag?: string;
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileReleaseCatalog"];
+                };
+            };
+            /** @description Catalog unchanged */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GET required */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Catalog source unavailable or invalid */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getHarmonyReleaseCatalog: {
         parameters: {
             query?: never;
             header?: never;

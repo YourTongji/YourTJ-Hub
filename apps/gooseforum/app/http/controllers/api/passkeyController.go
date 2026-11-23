@@ -65,6 +65,18 @@ func AppleWebCredentialsAssociation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"webcredentials": gin.H{"apps": []string{cfg.AppleAppID()}}})
 }
 
+func HarmonyAppLinkingAssociation(c *gin.Context) {
+	cfg, err := passkeyservice.LoadConfig()
+	apps := []gin.H{}
+	if err != nil || cfg.HarmonyAppIdentifier == "" {
+		c.JSON(http.StatusNotFound, gin.H{"applinking": gin.H{"apps": apps}})
+		return
+	}
+	apps = append(apps, gin.H{"appIdentifier": cfg.HarmonyAppIdentifier})
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.JSON(http.StatusOK, gin.H{"applinking": gin.H{"apps": apps}})
+}
+
 func AndroidDigitalAssetLinks(c *gin.Context) {
 	cfg, err := passkeyservice.LoadConfig()
 	if err != nil || cfg.AndroidPackageName == "" || len(cfg.AndroidFingerprints) == 0 {

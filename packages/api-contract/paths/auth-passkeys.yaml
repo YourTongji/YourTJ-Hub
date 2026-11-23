@@ -55,6 +55,34 @@ androidAssociation:
               configured:
                 externalValue: ../fixtures/passkey-android-association.json
 
+harmonyAssociation:
+  get:
+    tags: [Authentication]
+    summary: Return the configured HarmonyOS App Linking association
+    operationId: getHarmonyAppLinkingAssociation
+    security: []
+    responses:
+      '200':
+        description: App Linking association for the explicitly configured appIdentifier.
+        content:
+          application/json:
+            schema:
+              $ref: '#/HarmonyAssociationResponse'
+            examples:
+              configured:
+                externalValue: ../fixtures/passkey-harmony-association.json
+      '404':
+        description: No HarmonyOS application is associated with this deployment.
+        content:
+          application/json:
+            schema:
+              $ref: '#/HarmonyAssociationResponse'
+            examples:
+              unconfigured:
+                value:
+                  applinking:
+                    apps: []
+
 loginBegin:
   post:
     tags: [Authentication]
@@ -451,6 +479,28 @@ revoke:
             examples:
               rateLimited:
                 externalValue: ../fixtures/change-password-rate-limited.json
+
+HarmonyAssociationResponse:
+  type: object
+  required: [applinking]
+  properties:
+    applinking:
+      type: object
+      required: [apps]
+      properties:
+        apps:
+          type: array
+          maxItems: 1
+          items:
+            type: object
+            required: [appIdentifier]
+            properties:
+              appIdentifier:
+                type: string
+                minLength: 1
+            additionalProperties: false
+      additionalProperties: false
+  additionalProperties: false
 
 AppleAssociationResponse:
   type: object

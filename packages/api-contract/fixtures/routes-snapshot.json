@@ -37,6 +37,10 @@
   },
   {
     "method": "GET",
+    "path": "/.well-known/applinking.json"
+  },
+  {
+    "method": "GET",
     "path": "/.well-known/assetlinks.json"
   },
   {

@@ -14,9 +14,10 @@ import (
 
 // NativePushConfigResp GET push/config 中原生推送通道状态。
 type NativePushConfigResp struct {
-	APNsEnabled  bool `json:"apnsEnabled"`
-	FCMEnabled   bool `json:"fcmEnabled"`
-	JPushEnabled bool `json:"jpushEnabled"`
+	APNsEnabled   bool `json:"apnsEnabled"`
+	FCMEnabled    bool `json:"fcmEnabled"`
+	JPushEnabled  bool `json:"jpushEnabled"`
+	HuaweiEnabled bool `json:"huaweiEnabled"`
 }
 
 // PushConfigResp GET push/config 响应。
@@ -46,17 +47,18 @@ func GetPushConfig(req component.BetterRequest[GetPushConfigReq]) component.Resp
 		ApplicationServerKey: key,
 		ViewerId:             req.UserId,
 		Native: NativePushConfigResp{
-			APNsEnabled:  channels.APNs.Enabled(),
-			FCMEnabled:   channels.FCM.Enabled(),
-			JPushEnabled: channels.JPush.Enabled(),
+			APNsEnabled:   channels.APNs.Enabled(),
+			FCMEnabled:    channels.FCM.Enabled(),
+			JPushEnabled:  channels.JPush.Enabled(),
+			HuaweiEnabled: channels.Huawei.Enabled(),
 		},
 	})
 }
 
 // RegisterPushDeviceReq POST push/device/register 请求。
 type RegisterPushDeviceReq struct {
-	Provider string `json:"provider" validate:"omitempty,oneof=apns fcm jpush"`
-	Platform string `json:"platform" validate:"required,oneof=ios android"`
+	Provider string `json:"provider" validate:"omitempty,oneof=apns fcm jpush huawei"`
+	Platform string `json:"platform" validate:"required,oneof=ios android ohos"`
 	Token    string `json:"token" validate:"required,min=1,max=512"`
 }
 
@@ -75,14 +77,18 @@ func RegisterPushDevice(req component.BetterRequest[RegisterPushDeviceReq]) comp
 	}
 	provider := req.Params.Provider
 	if provider == "" {
-		if req.Params.Platform == "ios" {
+		switch req.Params.Platform {
+		case "ohos":
+			provider = "huawei"
+		case "ios":
 			provider = "apns"
-		} else {
+		default:
 			provider = "fcm"
 		}
 	}
 	if (req.Params.Platform == "ios" && provider != "apns") ||
-		(req.Params.Platform == "android" && provider == "apns") {
+		(req.Params.Platform == "android" && provider != "fcm" && provider != "jpush") ||
+		(req.Params.Platform == "ohos" && provider != "huawei") {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
 	if _, err := pushDevice.UpsertCapped(req.UserId, req.Params.Platform, token, maxPushDevicesPerUser, time.Now(), provider); err != nil {

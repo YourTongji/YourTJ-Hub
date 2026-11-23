@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from model import FILES, ReleaseError, render_changelog, validate_candidate
 from test_model import candidate
-from catalog import (successful_channels, public_app_store_version, build_catalog, previous_store_builds,
+from catalog import (catalog_for_channels, successful_channels, public_app_store_version, build_catalog, previous_store_builds,
                      candidate_content_digest, serialize_catalog, MAX_CATALOG_BYTES)
 
 
@@ -317,3 +317,24 @@ class CatalogReceiptTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HarmonyCatalogTests(unittest.TestCase):
+    def test_channel_partition_preserves_legacy_decoders_and_coverage(self):
+        catalog = {'schemaVersion': 1, 'historyCoverage': {
+            'source': 'github-release-receipts', 'publishedAt': '2026-11-19T00:00:00Z',
+            'byChannel': {channel: {'completeFromBuild': 108, 'throughBuild': 108, 'coveredBuilds': [108]}
+                          for channel in ['android', 'harmony-apptest']}},
+            'releases': [{'version': '1.0.19', 'buildNumber': 108,
+                'channels': ['android', 'harmony-apptest'], 'highlights': [{
+                    'id': 'shared', 'title': 'Update', 'summary': 'Shared improvement', 'kind': 'fix',
+                    'platforms': ['android', 'harmony-apptest']}],
+                'breaking': [], 'requiredActions': [], 'testflightNotes': []}]}
+        legacy = catalog_for_channels(catalog, {'android', 'ios-app-store', 'ios-testflight'})
+        harmony = catalog_for_channels(catalog, {'harmony-apptest'})
+        self.assertNotIn('harmony-apptest', json.dumps(legacy))
+        self.assertEqual(legacy['releases'][0]['highlights'][0]['platforms'], ['android'])
+        self.assertEqual(harmony['releases'][0]['channels'], ['harmony-apptest'])
+        self.assertEqual(harmony['releases'][0]['highlights'][0]['platforms'], ['harmony-apptest'])
+        self.assertEqual(set(harmony['historyCoverage']['byChannel']), {'harmony-apptest'})
+        self.assertEqual(catalog['releases'][0]['channels'], ['android', 'harmony-apptest'])

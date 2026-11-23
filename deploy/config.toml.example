@@ -49,6 +49,8 @@ android_package_name = "tj.yourtj.forum_app"
 # SHA-256 signing-certificate fingerprints, colon-separated or compact hex.
 # Include every supported signing certificate, such as debug and Play signing.
 android_sha256_cert_fingerprints = []
+# HarmonyAppProvision app-identifier; enable only after verifying the signed app.
+harmony_app_identifier = ""
 
 [db]
 migration = "on"
@@ -109,6 +111,10 @@ environment = ""
 [push.fcm]
 credentials_path = ""
 project_id = ""
+
+# HarmonyOS Push Kit：服务账号 JSON 仅留在服务端，空路径关闭通道。
+[push.huawei]
+credentials_path = ""
 
 # Wiki GitHub 唯一真实源（可选）：配置后 wiki 内容由仓库同步（只读投影），
 # 编辑/审核/历史/贡献者全部走 GitHub PR。repo 留空 = 不启用。

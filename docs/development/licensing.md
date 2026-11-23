@@ -68,7 +68,10 @@ GPLv3 允许收费分发，但交付 GPL 软件时，须提供对应版本的完
 | `apps/mobile/packages/ui_kit/assets/LICENSE-lucide.txt` | ISC；Feather 衍生图标按文件内 MIT 声明授权 |
 | `apps/mobile/packages/ui_kit/assets/LICENSE-reicon.txt` | MIT |
 | `apps/mobile/packages/ui_kit/assets/LICENSE-simple-icons.txt` | CC0 1.0 Universal |
+| `apps/mobile/third_party/flutter_quill/LICENSE` | MIT |
+| `apps/mobile/third_party/sqlite3/LICENSE` | MIT；内置 SQLite3MultipleCiphers 2.5.0 的版权与许可声明保留于 `assets/sqlite3mc/` 的 amalgamation 源文件，版本来源见同目录 `README.md` |
 | `apps/mobile/third_party/home_widget/LICENSE` | BSD 3-Clause |
+| `apps/mobile/third_party/flutter_math_fork/LICENSE` | Apache-2.0；内置 KaTeX 字体保留 `lib/katex_fonts/LICENSE` 中的 MIT 许可 |
 | `apps/gooseforum/app/console/stickerpresets/preset_stickers/LICENSE-EmojiPackage.txt` | Apache-2.0 |
 | `apps/gooseforum/app/console/stickerpresets/preset_stickers/LICENSE-WXMemeStickers.txt` | MIT |
 | `apps/gooseforum/app/console/stickerpresets/preset_stickers/LICENSE-flowerhd.txt` | CC BY 4.0 |

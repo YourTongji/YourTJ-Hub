@@ -2,9 +2,11 @@ name: Mobile Release Catalog
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
 
 permissions:
-  contents: write
+  contents: read
   deployments: read
 
 concurrency:
@@ -13,16 +15,42 @@ concurrency:
   queue: max
 
 jobs:
-  refresh:
-    if: github.ref == 'refs/heads/main'
+  request:
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
+    permissions: {contents: read, actions: write}
+    steps:
+      - env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: gh workflow run mobile-release-catalog.yml --ref main
+  refresh:
+    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    permissions: {contents: write, deployments: write, actions: read}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+      - name: Reconcile Huawei approval against original package receipts
+        id: harmony
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HARMONY_IMPORT_INITIAL: 'true'
+          HARMONY_SERVICE_ACCOUNT_JSON: ${{ secrets.HARMONY_SERVICE_ACCOUNT_JSON }}
+        run: python3 scripts/release/harmony_reconcile.py
+      - name: Refresh continuous dev availability
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/dev_delivery.py status
       - name: Refresh receipt-backed catalog from trusted main
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/release/workflow.py publish-catalog
+      - name: Report Huawei reconciliation failure after catalog publication
+        if: ${{ !cancelled() && steps.harmony.outcome == 'failure' }}
+        run: |
+          echo '::error::Huawei reconciliation failed; inspect reconciliation and catalog refresh steps before retrying.'
+          exit 1

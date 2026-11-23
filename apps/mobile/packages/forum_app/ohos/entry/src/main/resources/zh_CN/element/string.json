@@ -1,0 +1,96 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "YourTJ"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "YourTJ"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "YourTJ"
+    },
+    {
+      "name": "widget_next",
+      "value": "下一节"
+    },
+    {
+      "name": "widget_today",
+      "value": "今日课表"
+    },
+    {
+      "name": "widget_timeline",
+      "value": "课程时间线"
+    },
+    {
+      "name": "widget_todayLabel",
+      "value": "今天"
+    },
+    {
+      "name": "widget_tomorrow",
+      "value": "明天"
+    },
+    {
+      "name": "widget_inClass",
+      "value": "正在上课"
+    },
+    {
+      "name": "widget_noneUpcoming",
+      "value": "近期暂无课程安排"
+    },
+    {
+      "name": "widget_stale",
+      "value": "课表可能已更新"
+    },
+    {
+      "name": "widget_signedOut",
+      "value": "请登录并绑定同济账号"
+    },
+    {
+      "name": "widget_unbound",
+      "value": "绑定同济账号后显示课表"
+    },
+    {
+      "name": "widget_authorizationRequired",
+      "value": "校园授权已失效，请打开 YourTJ 重新授权"
+    },
+    {
+      "name": "widget_needsRefresh",
+      "value": "需要更新课表"
+    },
+    {
+      "name": "widget_refresh",
+      "value": "打开 YourTJ 刷新课表"
+    },
+    {
+      "name": "widget_noClasses",
+      "value": "暂无课程安排"
+    },
+    {
+      "name": "widget_viewFull",
+      "value": "打开 YourTJ 查看完整课表"
+    },
+    {
+      "name": "widget_updated",
+      "value": "更新于 %s %s"
+    },
+    {
+      "name": "widget_switchToday",
+      "value": "切换到今天"
+    },
+    {
+      "name": "widget_switchTomorrow",
+      "value": "切换到明天"
+    },
+    {
+      "name": "widget_section",
+      "value": "%s节"
+    },
+    {
+      "name": "clipboard_read_reason",
+      "value": "将文字或图片粘贴到编辑器。"
+    }
+  ]
+}

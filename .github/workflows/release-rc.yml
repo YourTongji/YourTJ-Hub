@@ -5,7 +5,7 @@ on:
       candidate:
         description: Optional already-prepared request; empty prepares a new RC
         type: string
-      scope: {description: 'RC platforms', type: choice, options: [mobile, web, android, ios], default: mobile}
+      scope: {description: 'RC platforms', type: choice, options: [mobile, web, android, ios, harmonyos], default: mobile}
       source: {description: 'Fixed main-history SHA; main resolves once', type: string, default: main}
       version: {description: 'Optional final X.Y.Z', type: string}
       bump: {description: 'Version increment', type: choice, options: [patch, minor, major], default: patch}
@@ -32,7 +32,7 @@ jobs:
       source: ${{ inputs.source }}
       version: ${{ inputs.version }}
       bump: ${{ inputs.bump }}
-      ios_destination: ${{ inputs.ios_destination }}
+      ios_destination: ${{ (inputs.scope == 'ios' || inputs.scope == 'mobile') && inputs.ios_destination || 'testflight' }}
       draft_notes: ${{ inputs.draft_notes }}
       existing_release: ${{ inputs.existing_release }}
     secrets: inherit
@@ -107,8 +107,20 @@ jobs:
       tag: ${{ needs.identity.outputs.tag }}
       rc_build: true
     secrets: inherit
+  harmonyos:
+    needs: identity
+    if: ${{ !cancelled() && needs.identity.result == 'success' && contains(fromJSON(needs.identity.outputs.platforms), 'harmonyos') }}
+    uses: ./.github/workflows/release-harmony.yml
+    with:
+      candidate: ${{ needs.identity.outputs.candidate }}
+      source: ${{ needs.identity.outputs.source }}
+      version: ${{ needs.identity.outputs.version }}
+      number: ${{ needs.identity.outputs.number }}
+      display_build: ${{ needs.identity.outputs.display }}
+      rc_build: true
+    secrets: inherit
   ready:
-    needs: [identity, android, ios, web]
+    needs: [identity, android, ios, web, harmonyos]
     if: always() && needs.identity.result == 'success' && needs.identity.outputs.metadata_only != 'true'
     runs-on: ubuntu-latest
     environment: mobile-release

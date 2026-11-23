@@ -12,9 +12,10 @@ from controller import load_candidate
 from github import git, run
 from model import CHANGELOG, ID, MAX_CHANGELOG_GROUP, digest, require
 
-CHANNELS = ("android", "ios-app-store", "ios-testflight")
+CHANNELS = ("android", "ios-app-store", "ios-testflight", "harmony-apptest")
 CHANNEL_PLATFORMS = {
     "android": {"android"},
+    "harmony-apptest": {"harmony-apptest"},
     "ios-app-store": {"ios", "ios-app-store"},
     "ios-testflight": {"ios", "ios-testflight"},
 }
@@ -32,9 +33,9 @@ MAX_LOOKUP_BYTES = 1024 * 1024
 
 
 def candidate_paths():
-    paths = git("ls-tree", "-r", "--name-only", "HEAD", "--", "releases/requests").splitlines()
+    paths = git("ls-tree", "-r", "--name-only", "HEAD", "--", "releases/requests", "releases/history/mobile-1.0.18-36").splitlines()
     return {path.split("/")[2]: path.rsplit("/", 1)[0] for path in paths
-            if path.startswith("releases/requests/") and path.endswith("/manifest.json")}
+            if path.startswith(("releases/requests/", "releases/history/")) and path.endswith("/manifest.json")}
 
 
 def public_app_store_version():
@@ -72,6 +73,14 @@ def successful_channels(github, store_version=None, verified_store_builds=()):
                 continue
             details = payload.get("details") if isinstance(payload, dict) else None
             availability = details.get("availability") if isinstance(details, dict) else None
+            if channel == "harmony-apptest" and availability != "APPROVED":
+                continue
+            if channel == "harmony-apptest":
+                require(isinstance(details.get("appSha256"), str)
+                        and re.fullmatch(r"[0-9a-f]{64}", details["appSha256"])
+                        and re.fullmatch(r"[0-9]+", str(details.get("versionId", "")))
+                        and re.fullmatch(r"[0-9]+", str(details.get("packageId", ""))),
+                        "Harmony history needs its approved original APP/package receipt")
             if channel == "android" and availability != "available":
                 continue
             if channel == "ios-testflight" and availability != "APPROVED":
@@ -127,18 +136,22 @@ def newer_store_correction(first, second):
     return newest
 
 
-def build_catalog(github, published_at=None, verified_store_builds=()):
+def build_catalog(github, published_at=None, verified_store_builds=(), channels=CHANNELS):
     paths = candidate_paths()
     receipts = successful_channels(github, public_app_store_version(), verified_store_builds)
     by_build = {}
     for candidate_id, receipt_channels in receipts.items():
-        channels = set(receipt_channels)
+        selected = set(receipt_channels) & set(channels)
+        if not selected:
+            continue
+        receipt_channels = {channel: receipt_channels[channel] for channel in selected}
+        selected_channels = selected
         require(candidate_id in paths, "Successful mobile receipt has no merged reviewed release request")
         with tempfile.TemporaryDirectory() as temporary:
             manifest, folder = load_published_candidate(candidate_id, Path(temporary))
-            require(set(channels) <= set(manifest["channels"]), "Receipt includes an unapproved release channel")
+            require(selected_channels <= set(manifest["channels"]), "Receipt includes an unapproved release channel")
             # Every successful deployment is tied to the immutable candidate bytes by its binding.
-            for channel in sorted(channels):
+            for channel in sorted(selected_channels):
                 receipt = receipt_channels[channel]
                 payload = receipt["payload"]
                 require(payload.get("candidateId") == candidate_id and payload.get("channel") == channel,
@@ -160,7 +173,7 @@ def build_catalog(github, published_at=None, verified_store_builds=()):
             record = by_build.setdefault((manifest["version"], manifest["buildNumber"]),
                                          {"version": manifest["version"], "buildNumber": manifest["buildNumber"],
                                           "channelCandidates": {}})
-            for channel in channels:
+            for channel in selected_channels:
                 existing = record["channelCandidates"].get(channel)
                 if existing is not None and existing[0]["candidateId"] != manifest["candidateId"]:
                     require(channel == "ios-app-store", "Two successful release candidates claim the same build/channel")
@@ -271,18 +284,40 @@ def previous_store_builds(github, release):
             if "ios-app-store" in release.get("channels", []) and release.get("buildNumber") in covered}
 
 
+def catalog_for_channels(catalog, channels):
+    """Partition one receipt-backed catalog so old clients never see an unknown channel."""
+    releases = []
+    for release in catalog['releases']:
+        selected = set(release['channels']) & set(channels)
+        if not selected:
+            continue
+        item = release | {'channels': sorted(selected)}
+        for group in ('highlights', 'breaking', 'requiredActions'):
+            item[group] = [note | {'platforms': sorted(set(note['platforms']) & selected)}
+                           for note in release[group] if set(note['platforms']) & selected]
+        item['testflightNotes'] = release['testflightNotes'] if 'ios-testflight' in selected else []
+        releases.append(item)
+    coverage = catalog['historyCoverage']
+    return catalog | {'releases': releases, 'historyCoverage': coverage | {
+        'byChannel': {key: value for key, value in coverage['byChannel'].items() if key in channels}}}
+
+
 def publish_catalog(github):
     release = github.api("releases/tags/mobile-notes", missing=True)
     verified_store = previous_store_builds(github, release) if release else set()
-    catalog = build_catalog(github, verified_store_builds=verified_store)
-    content = serialize_catalog(catalog)
-    require(len(content.encode("utf-8")) <= MAX_CATALOG_BYTES, "Release catalog exceeds the client byte limit")
+    catalogs = {}
     with tempfile.TemporaryDirectory() as temporary:
-        path = Path(temporary) / "releases.json"
-        path.write_text(content, encoding="utf-8")
+        files = []
+        for filename, channels in [('releases.json', set(CHANNELS) - {'harmony-apptest'}),
+                                   ('releases-harmony.json', {'harmony-apptest'})]:
+            catalog = build_catalog(github, verified_store_builds=verified_store, channels=channels)
+            catalogs[filename] = catalog
+            path = Path(temporary) / filename
+            path.write_text(serialize_catalog(catalog_for_channels(catalog, channels)), encoding="utf-8")
+            files.append(str(path))
         if release is None:
             github.api("releases", method="POST", data={"tag_name": "mobile-notes", "name": "Mobile release notes",
                         "body": "Display-only catalog derived from reviewed release candidates and successful channel receipts.",
                         "draft": False, "prerelease": True})
-        run("gh", "release", "upload", "mobile-notes", str(path), "--repo", github.repository, "--clobber")
-    return catalog
+        run("gh", "release", "upload", "mobile-notes", *files, "--repo", github.repository, "--clobber")
+    return catalogs['releases.json']

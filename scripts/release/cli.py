@@ -24,7 +24,7 @@ def parser():
         cmd = sub.add_parser(name)
         cmd.add_argument("--json", action="store_true", help="stable schemaVersion=1 JSON output")
         if name in {"plan", "prepare", "doctor", 'rc'}:
-            cmd.add_argument("--scope", choices=["web", "android", "ios", "mobile"], default='mobile' if name == 'rc' else 'web')
+            cmd.add_argument("--scope", choices=["web", "android", "ios", "harmonyos", "mobile"], default='mobile' if name == 'rc' else 'web')
         if name in {"plan", "prepare", 'rc'}:
             cmd.add_argument('--version', default='', help='Optional final X.Y.Z, including a replacement RC of an unpublished version')
             cmd.add_argument("--source", default="main", help="main or full SHA already in main history")
@@ -36,7 +36,7 @@ def parser():
         if name == 'dev':
             cmd.add_argument('--source', default='', help='Current dev SHA; empty resolves dev once')
         if name == "retry":
-            cmd.add_argument("--channel", choices=["web", "android", "android-alias", "ios-testflight", "ios-app-store"], required=True)
+            cmd.add_argument("--channel", choices=["web", "android", "android-alias", "ios-testflight", "ios-app-store", "harmony-apptest"], required=True)
         if name == "promote-ios":
             cmd.add_argument("--release", required=True, help="existing candidate ID")
             cmd.add_argument("--to", choices=["app-store"], default="app-store")

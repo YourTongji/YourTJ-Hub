@@ -224,3 +224,16 @@ dispatch、延长数据新鲜度阈值或把外部跟进自动化变成采集器
 - [Cloudflare Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
 - [GitHub dispatch 权限](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)
 - [GitHub token 触发 workflow_dispatch](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)
+
+### 原生鸿蒙统计与版本目录
+
+生产原生鸿蒙复用移动端的有限公开页面统计：`browser=yourtj-app`、`os=HarmonyOS`，
+不上传账号、页面内容、原始路由参数或持久设备标识。debug、dev、Web 不参与生产统计。
+设备采集白名单将精确的 `HarmonyOS` 映射为 `harmonyos`；沿用设备 → 系统 → 浏览器/应用的
+既有图表、配色和四语言标签。鸿蒙和 YourTJ App 节点不会因占比低而折叠；实际节点只在有数据时出现，
+不伪造访问量。只更新 status 不能使旧鸿蒙客户端开始上报，需安装包含该埋点的新生产包。
+
+`/mobile/releases-harmony.json` 与既有 `/mobile/releases.json` 使用相同的缓存、大小限制和
+错误策略，各自代理 GitHub `mobile-notes` 发布中的固定资产；不接受外部 URL。
+旧 Android/iOS 目录不加入鸿蒙渠道，避免旧解析器拒绝整个目录。来源和审核状态核对由
+[移动发布流程](mobile-releases.md#harmonyos-app-test)负责，status 不自行生成发布事实。

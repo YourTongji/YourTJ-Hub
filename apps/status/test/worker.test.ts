@@ -70,7 +70,7 @@ it('keeps the Worker read-only and preview storage isolated', () => {
   expect(config.vars.STATUS_ENABLED).toBe('false')
   expect(config.r2_buckets[0].bucket_name).not.toBe(production.r2_buckets[0].bucket_name)
   expect(production.routes).toEqual([{ pattern: 'status.yourtj.de', custom_domain: true }])
-  expect(config.assets.run_worker_first).toEqual(['/api/*', '/mobile/releases.json'])
+  expect(config.assets.run_worker_first).toEqual(['/api/*', '/mobile/releases.json', '/mobile/releases-harmony.json'])
 })
 
 it('serves the mobile release catalog proxy without touching snapshot storage', async () => {

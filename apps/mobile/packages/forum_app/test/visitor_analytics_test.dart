@@ -53,7 +53,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('only official Android/iOS release builds can collect', () {
+  test('only official supported native release builds can collect', () {
     bool allowed({
       String base = 'https://f.yourtj.de',
       bool release = true,
@@ -79,6 +79,52 @@ void main() {
     expect(allowed(release: false), isFalse);
     expect(allowed(web: true), isFalse);
     expect(allowed(platform: TargetPlatform.macOS), isFalse);
+  });
+
+  test('HarmonyOS production visits use a distinct coarse OS category', () {
+    for (final platform in TargetPlatform.values.where(
+      (p) => p.name == 'ohos',
+    )) {
+      expect(visitorAnalyticsOs(platform), 'HarmonyOS');
+      expect(
+        visitorAnalyticsAvailable(
+          apiBaseUrl: 'https://f.yourtj.de',
+          release: true,
+          web: false,
+          platform: platform,
+        ),
+        isTrue,
+      );
+      expect(
+        visitorAnalyticsAvailable(
+          apiBaseUrl: 'https://dev.yourtj.de',
+          release: true,
+          web: false,
+          platform: platform,
+        ),
+        isFalse,
+      );
+    }
+  });
+
+  test('HarmonyOS page views share the private-data boundary', () async {
+    final adapter = _Adapter();
+    final analytics = VisitorAnalytics(
+      os: 'HarmonyOS',
+      transport: Dio()..httpClientAdapter = adapter,
+    );
+    addTearDown(analytics.dispose);
+    analytics.setActive(true);
+    analytics.visit(Uri.parse('/campus?token=private'), tablet: false);
+    analytics.visit(Uri.parse('/p/123?q=private'), tablet: false);
+    await adapter.waitForRequests(1);
+    expect(adapter.requests.single.data['payload']['os'], 'HarmonyOS');
+    expect(adapter.requests.single.data['payload']['browser'], 'yourtj-app');
+    expect(adapter.requests.single.data['payload']['url'], '/app/topic');
+    expect(
+      jsonEncode(adapter.requests.single.data),
+      isNot(contains('private')),
+    );
   });
 
   test('maps public route categories and excludes private screens', () {

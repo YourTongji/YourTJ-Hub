@@ -128,3 +128,17 @@ it.each([
   const response = await serveSnapshot(new Request('https://status.example.com/api/status'), store, incomplete, now)
   expect((await response.json()).result.devices).toEqual({ state: 'unconfigured', data: null })
 })
+
+
+it('keeps a small native HarmonyOS flow identifiable without exposing raw labels', async () => {
+  const data = await fetchReport(upstream([
+    { device: 'mobile', os: 'HarmonyOS', browser: 'yourtj-app', visitors: 1 },
+    { device: 'mobile', os: 'Android OS', browser: 'chrome', visitors: 999 },
+  ], 1000))
+  expect(data.rows.find(row => row.browser === 'yourtj-app')).toEqual({
+    device: 'mobile', os: 'harmonyos', browser: 'yourtj-app', visitors: 1,
+  })
+  const graph = deviceGraph(data, 800, ['device', 'os', 'browser'])
+  expect(graph.nodes.find(node => node.id === 'os:harmonyos')?.value).toBe(1)
+  expect(graph.links.some(link => link.id === 'os:harmonyos/browser:yourtj-app')).toBe(true)
+})

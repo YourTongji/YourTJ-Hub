@@ -1,4 +1,4 @@
-const SOURCE = 'https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-notes/releases.json'
+const SOURCE = 'https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-notes/'
 const REDIRECT_HOST = 'release-assets.githubusercontent.com'
 const MAX_BYTES = 1024 * 1024
 const CACHE_CONTROL = 'public, max-age=300, s-maxage=900, stale-if-error=86400'
@@ -32,7 +32,8 @@ async function readBounded(response: Response): Promise<Uint8Array> {
 export async function serveMobileReleases(request: Request, fetcher: typeof fetch = fetch): Promise<Response> {
   if (request.method !== 'GET') return new Response(null, { status: 405, headers: { Allow: 'GET', 'Cache-Control': 'no-store' } })
   try {
-    let url = new URL(SOURCE)
+    const harmony = new URL(request.url).pathname === '/mobile/releases-harmony.json'
+    let url = new URL(SOURCE + (harmony ? 'releases-harmony.json' : 'releases.json'))
     let upstream: Response
     const signal = AbortSignal.timeout(8000)
     for (let redirects = 0; ; redirects++) {

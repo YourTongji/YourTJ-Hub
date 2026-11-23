@@ -15,6 +15,10 @@ def applicable(path, channel):
         return False
     if path.startswith("apps/mobile/store/"):
         return False
+    if channel == "harmony-apptest" and any(part in path for part in ("/ios/", "/android/")):
+        return False
+    if channel != "harmony-apptest" and "/ohos/" in path:
+        return False
     if channel == "android" and "/ios/" in path:
         return False
     if channel.startswith("ios-") and "/android/" in path:
@@ -64,7 +68,9 @@ def collect(manifest, github):
         base = baseline["sourceSha"]
         if base is None:
             base = git("hash-object", "-t", "tree", "--stdin")
-            uncertainties.append(f"{channel}: first distribution has no prior baseline; review initial-release claims")
+            uncertainties.append(f"{channel}: no comparable mainline release baseline; review initial-release claims"
+                                 if channel == 'harmony-apptest' else
+                                 f"{channel}: first distribution has no prior baseline; review initial-release claims")
         else:
             git("merge-base", "--is-ancestor", base, source)
         # --no-renames exposes both sides of moves, including moves across platform boundaries.

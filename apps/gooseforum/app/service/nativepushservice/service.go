@@ -103,29 +103,30 @@ func (c FCMConfig) Enabled() bool {
 
 // Channels 是实例当前生效的原生推送通道集合。
 type Channels struct {
-	APNs  APNsConfig
-	FCM   FCMConfig
-	JPush JPushConfig
+	APNs   APNsConfig
+	FCM    FCMConfig
+	JPush  JPushConfig
+	Huawei HuaweiConfig
 }
 
 // LoadChannels 读取全部原生推送通道配置。
 func LoadChannels() Channels {
-	return Channels{APNs: LoadAPNsConfig(), FCM: LoadFCMConfig(), JPush: LoadJPushConfig()}
+	return Channels{APNs: LoadAPNsConfig(), FCM: LoadFCMConfig(), JPush: LoadJPushConfig(), Huawei: LoadHuaweiConfig()}
 }
 
 // Enabled 返回是否存在至少一条已启用通道。
 func (c Channels) Enabled() bool {
-	return c.APNs.Enabled() || c.FCM.Enabled() || c.JPush.Enabled()
+	return c.APNs.Enabled() || c.FCM.Enabled() || c.JPush.Enabled() || c.Huawei.Enabled()
 }
 
 // LogConfigStatus 在 serve 启动时输出原生推送通道状态。
 func LogConfigStatus() {
 	ch := LoadChannels()
 	if !ch.Enabled() {
-		slog.Info("nativepush: disabled (no [push.apns] / [push.fcm] / [push.jpush] configured)")
+		slog.Info("nativepush: disabled (no [push.apns] / [push.fcm] / [push.jpush] / [push.huawei] configured)")
 		return
 	}
-	slog.Info("nativepush: enabled", "apns", ch.APNs.Enabled(), "fcm", ch.FCM.Enabled(), "jpush", ch.JPush.Enabled())
+	slog.Info("nativepush: enabled", "apns", ch.APNs.Enabled(), "fcm", ch.FCM.Enabled(), "jpush", ch.JPush.Enabled(), "huawei", ch.Huawei.Enabled())
 }
 
 // PushTask 是 outbox 任务负载：定位一条通知行。
@@ -269,6 +270,16 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		}
 	}
 
+	var huaweiAuth *huaweiAuthorization
+	if ch.Huawei.Enabled() {
+		auth, err := authorizeHuawei(ch.Huawei)
+		if err != nil {
+			slog.Warn("nativepush: huawei authorization failed", "userId", payload.UserId, "reason", "provider_init_failed")
+		} else {
+			huaweiAuth = auth
+		}
+	}
+
 	var sent, deleted int
 	for _, dev := range devices {
 		if dev == nil || dev.UserId != payload.UserId || dev.Token == "" {
@@ -298,6 +309,12 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 				continue
 			}
 			sendErr = sendJPush(ctx, ch.JPush, dev.Token, msg)
+
+		case "huawei":
+			if huaweiAuth == nil {
+				continue
+			}
+			sendErr = sendHuawei(ctx, huaweiAuth, dev.Token, msg)
 
 		default:
 			continue

@@ -113,7 +113,8 @@ class _StartupExperienceState extends State<StartupExperience>
     final mobile =
         !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS);
+            defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform.name == 'ohos');
     if (!mobile || _reducedMotion) {
       startupBrandCovering.value = false;
       _finished = true;

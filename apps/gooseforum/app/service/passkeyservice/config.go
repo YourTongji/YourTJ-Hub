@@ -20,29 +20,31 @@ var appleTeamIDPattern = regexp.MustCompile(`^[A-Z0-9]{10}$`)
 // opaque origins are derived from configured signing-certificate SHA-256
 // fingerprints so the allowlist and Digital Asset Links document cannot drift.
 type Config struct {
-	Enabled             bool
-	RPID                string
-	DisplayName         string
-	WebOrigins          []string
-	AndroidOrigins      []string
-	AppleTeamID         string
-	AppleBundleID       string
-	AndroidPackageName  string
-	AndroidFingerprints []string
-	LocalEnvironment    bool
+	Enabled              bool
+	RPID                 string
+	DisplayName          string
+	WebOrigins           []string
+	AndroidOrigins       []string
+	AppleTeamID          string
+	AppleBundleID        string
+	AndroidPackageName   string
+	AndroidFingerprints  []string
+	HarmonyAppIdentifier string
+	LocalEnvironment     bool
 }
 
 func LoadConfig() (Config, error) {
 	cfg := Config{
-		Enabled:             preferences.GetBool("passkeys.enabled", false),
-		RPID:                strings.TrimSpace(preferences.GetString("passkeys.rp_id", "")),
-		DisplayName:         strings.TrimSpace(preferences.GetString("passkeys.display_name", "YourTJ")),
-		WebOrigins:          cleanStrings(preferences.GetStringSlice("passkeys.web_origins")),
-		AppleTeamID:         strings.TrimSpace(preferences.GetString("passkeys.apple_team_id", "")),
-		AppleBundleID:       strings.TrimSpace(preferences.GetString("passkeys.ios_bundle_id", "tj.yourtj.forumApp")),
-		AndroidPackageName:  strings.TrimSpace(preferences.GetString("passkeys.android_package_name", "tj.yourtj.forum_app")),
-		AndroidFingerprints: cleanStrings(preferences.GetStringSlice("passkeys.android_sha256_cert_fingerprints")),
-		LocalEnvironment:    strings.EqualFold(preferences.GetString("app.env", "production"), "local"),
+		Enabled:              preferences.GetBool("passkeys.enabled", false),
+		RPID:                 strings.TrimSpace(preferences.GetString("passkeys.rp_id", "")),
+		DisplayName:          strings.TrimSpace(preferences.GetString("passkeys.display_name", "YourTJ")),
+		WebOrigins:           cleanStrings(preferences.GetStringSlice("passkeys.web_origins")),
+		AppleTeamID:          strings.TrimSpace(preferences.GetString("passkeys.apple_team_id", "")),
+		AppleBundleID:        strings.TrimSpace(preferences.GetString("passkeys.ios_bundle_id", "tj.yourtj.forumApp")),
+		AndroidPackageName:   strings.TrimSpace(preferences.GetString("passkeys.android_package_name", "tj.yourtj.forum_app")),
+		AndroidFingerprints:  cleanStrings(preferences.GetStringSlice("passkeys.android_sha256_cert_fingerprints")),
+		HarmonyAppIdentifier: strings.TrimSpace(preferences.GetString("passkeys.harmony_app_identifier", "")),
+		LocalEnvironment:     strings.EqualFold(preferences.GetString("app.env", "production"), "local"),
 	}
 	for _, fingerprint := range cfg.AndroidFingerprints {
 		origin, err := androidOrigin(fingerprint)

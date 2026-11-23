@@ -95,12 +95,13 @@ class _SiteInfoWorkspaceState extends State<_SiteInfoWorkspace> {
       key: const ValueKey('site-info-directory'),
       padding: const EdgeInsets.fromLTRB(12, 20, 12, 24),
       children: [
-        if (supportsMobileReleaseNotes) ...[
+        if (supportsMobileUpdates)
           entry(
             symbol: 'download',
             label: l10n.updateCheck,
             onTap: () => appUpdateHostKey.currentState?.check(force: true),
           ),
+        if (supportsMobileReleaseNotes) ...[
           entry(
             symbol: 'history',
             label: l10n.releaseNotesHistory,

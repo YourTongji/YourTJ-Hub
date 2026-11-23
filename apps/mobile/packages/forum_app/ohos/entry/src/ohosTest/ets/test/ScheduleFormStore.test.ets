@@ -1,0 +1,107 @@
+import { describe, it, expect } from '@ohos/hypium';
+import { common } from '@kit.AbilityKit';
+import { ScheduleProjection } from '../../../main/ets/widget/ScheduleData';
+import { ScheduleCardData, cardData, refreshCards, widgetPreferences } from '../../../main/ets/widget/ScheduleFormStore';
+
+class FormTestError extends Error {
+  code: number;
+  constructor(code: number) { super('Synthetic form failure'); this.code = code; }
+}
+
+// Run only on the isolated test device; restore every shared value after the check.
+export default function scheduleFormStoreTest(context: common.UIAbilityContext): void {
+  describe('ScheduleFormStore', () => {
+    it('isolatesFailedFormsAndFiltersRequestedKind', 0, async () => {
+      const store = widgetPreferences(context);
+      const oldIds = store.getSync('form_ids', null);
+      const ids = ['review-invalid', 'review-next', 'review-today'];
+      const oldKinds = ids.map(id => store.getSync(`form_kind_${id}`, null));
+      const updated: string[] = [];
+      try {
+        store.putSync('form_ids', ids);
+        store.putSync(`form_kind_${ids[0]}`, 'nextClass');
+        store.putSync(`form_kind_${ids[1]}`, 'nextClass');
+        store.putSync(`form_kind_${ids[2]}`, 'today');
+        await refreshCards(context, 'nextClass', async (id: string, _data: ScheduleCardData): Promise<void> => {
+          updated.push(id);
+          if (id === ids[0]) throw new FormTestError(16501001);
+        });
+        expect(updated.join(',')).assertEqual('review-invalid,review-next');
+        expect((store.getSync('form_ids', []) as string[]).includes(ids[0])).assertFalse();
+        expect(store.hasSync(`form_kind_${ids[0]}`)).assertFalse();
+        updated.length = 0;
+        await refreshCards(context, '', async (id: string, _data: ScheduleCardData): Promise<void> => {
+          updated.push(id);
+          if (id === ids[1]) throw new FormTestError(16500050);
+        });
+        expect(updated.join(',')).assertEqual('review-next,review-today');
+        expect((store.getSync('form_ids', []) as string[]).includes(ids[1])).assertTrue();
+      } finally {
+        if (oldIds === null) store.deleteSync('form_ids'); else store.putSync('form_ids', oldIds);
+        for (let i = 0; i < ids.length; i++) {
+          if (oldKinds[i] === null) store.deleteSync(`form_kind_${ids[i]}`);
+          else store.putSync(`form_kind_${ids[i]}`, oldKinds[i]);
+        }
+      }
+    });
+    it('distinguishesUnknownDaysAndClearsPrivateCourses', 0, () => {
+      const store = widgetPreferences(context);
+      const projectionKey = 'schedule_widget_projection';
+      const emptyKey = 'schedule_widget_empty_state';
+      const toggleKey = 'form_tomorrow_test';
+      const oldProjection = store.getSync(projectionKey, null);
+      const oldEmpty = store.getSync(emptyKey, null);
+      const oldToggle = store.getSync(toggleKey, null);
+      const now = Date.parse('2026-11-07T08:00:00+08:00');
+      try {
+        const projection: ScheduleProjection = {
+          schemaVersion: 2, timezone: 'Asia/Shanghai',
+          identity: { siteKey: 'test', accountScope: 'test', bindingRevision: 'test' },
+          generatedAt: '2026-11-07T08:00:00+08:00',
+          days: [{ date: '2026-11-08', week: 10, kind: 'normal', courses: [{
+            stableId: 'test-course', name: 'Sample course', teacher: '', room: '', campus: '',
+            startAt: '2026-11-08T09:00:00+08:00', endAt: '2026-11-08T10:00:00+08:00',
+            colorSlot: 1, startSection: 1, endSection: 2
+          }] }]
+        };
+        store.putSync(projectionKey, JSON.stringify(projection));
+        store.putSync(toggleKey, true);
+        const data = cardData(context, 'timeline', 'test', now);
+        expect(data.todayKnown).assertFalse();
+        expect(data.tomorrowKnown).assertTrue();
+        expect(data.tomorrowCourses.length).assertEqual(1);
+        expect(data.showTomorrow).assertTrue();
+        for (const kind of ['nextClass', 'today', 'timeline']) {
+          const populated = cardData(context, kind, 'test', now + 86400000);
+          expect(populated.kind).assertEqual(kind);
+          expect(populated.todayKnown).assertTrue();
+          expect(populated.todayCourses.length).assertEqual(1);
+          expect(populated.courseName).assertEqual('Sample course');
+          expect(populated.courseTime).assertEqual('09:00–10:00');
+          expect(populated.showTomorrow).assertEqual(kind === 'timeline');
+        }
+        const expired = cardData(context, 'timeline', 'test', now + 8 * 86400000);
+        expect(expired.status).assertEqual('stale');
+        expect(expired.tomorrowCourses.length).assertEqual(0);
+        store.deleteSync(projectionKey);
+        store.putSync(emptyKey, 'signedOut');
+        const cleared = cardData(context, 'timeline', 'test', now);
+        expect(cleared.status).assertEqual('signedOut');
+        expect(cleared.generatedAt).assertEqual('');
+        expect(cleared.tomorrowCourses.length).assertEqual(0);
+        for (const kind of ['nextClass', 'today', 'timeline']) {
+          const signedOut = cardData(context, kind, 'test', now + 86400000);
+          expect(signedOut.status).assertEqual('signedOut');
+          expect(signedOut.courseName).assertEqual('');
+          expect(signedOut.courseTime).assertEqual('');
+          expect(signedOut.todayCourses.length).assertEqual(0);
+          expect(signedOut.tomorrowCourses.length).assertEqual(0);
+        }
+      } finally {
+        if (oldProjection === null) store.deleteSync(projectionKey); else store.putSync(projectionKey, oldProjection);
+        if (oldEmpty === null) store.deleteSync(emptyKey); else store.putSync(emptyKey, oldEmpty);
+        if (oldToggle === null) store.deleteSync(toggleKey); else store.putSync(toggleKey, oldToggle);
+      }
+    });
+  });
+}

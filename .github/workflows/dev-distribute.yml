@@ -65,6 +65,7 @@ jobs:
       actions: read
       deployments: write
       pull-requests: read
+      checks: read
   status:
     needs: [admit, web, mobile]
     if: always() && needs.admit.outputs.eligible == 'true'
