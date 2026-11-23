@@ -48,8 +48,7 @@ func runBackfillImages(cmd *cobra.Command, args []string) error {
 		if len(topic.ImageUrls) == len(images) && strings.Join(topic.ImageUrls, "|") == strings.Join(images, "|") {
 			continue
 		}
-		topic.ImageUrls = images
-		if err := topics.Save(topic); err != nil {
+		if err := topics.UpdateImageURLs(topic.Id, images); err != nil {
 			failed++
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "save failed topic %d: %v\n", topic.Id, err)
 			continue

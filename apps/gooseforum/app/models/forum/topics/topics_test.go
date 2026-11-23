@@ -3,6 +3,7 @@ package topics
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -268,6 +269,96 @@ func TestTopicRepositoryParity(t *testing.T) {
 	}
 	if got := Get(10); got.ReplyCount != 2 || got.LastPostId != 100 || got.LastPostedAt == nil || !got.LastPostedAt.Equal(previousPostedAt) {
 		t.Fatalf("after DecrementPostFast() topic=%#v", got)
+	}
+}
+
+// TestUpdateImageURLsPreservesConcurrentTopicFields models a stale topic snapshot
+// followed by a committed reply and counter updates before image backfill.
+// Only image_urls may change; rolling post_seq back would reuse post_no 2.
+func TestUpdateImageURLsPreservesConcurrentTopicFields(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}, &posts.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	const topicID uint64 = 9300000000011
+	const firstPostID uint64 = 9300000000012
+	const secondPostID uint64 = 9300000000013
+	const thirdPostID uint64 = 9300000000014
+	t.Cleanup(func() {
+		conn.Unscoped().Where("topic_id = ?", topicID).Delete(&posts.Entity{})
+		conn.Unscoped().Where("id = ?", topicID).Delete(&Entity{})
+	})
+	updatedAt := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
+	topic := Entity{
+		Id: topicID, FirstPostId: firstPostID, PostSeq: 1,
+		PostCount: 1, ReplyCount: 1, Status: 1,
+		ProcessStatus: ProcessStatusNormal, VisibilityStatus: VisibilityActive,
+		UpdatedAt: updatedAt,
+	}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatal(err)
+	}
+	firstPost := posts.Entity{Id: firstPostID, TopicId: topicID, PostNo: 1}
+	if err := conn.Create(&firstPost).Error; err != nil {
+		t.Fatal(err)
+	}
+	var staleSnapshot Entity
+	if err := conn.First(&staleSnapshot, topicID).Error; err != nil {
+		t.Fatal(err)
+	}
+	seq, err := ReservePostSequence(topicID)
+	if err != nil || seq != 2 {
+		t.Fatalf("reserve second post: seq=%d err=%v", seq, err)
+	}
+	secondPost := posts.Entity{Id: secondPostID, TopicId: topicID, PostNo: seq}
+	if err := conn.Create(&secondPost).Error; err != nil {
+		t.Fatal(err)
+	}
+	lastPostedAt := updatedAt.Add(48 * time.Hour)
+	if err := IncrementPostFast(topicID, []Poster{{UserID: 42}}, secondPostID, lastPostedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Table("topics").Where("id = ?", topicID).Updates(map[string]any{
+		"like_count": uint64(5),
+		"view_count": uint64(8),
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	var before Entity
+	if err := conn.First(&before, topicID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if before.PostSeq != 2 || before.LastPostId != secondPostID {
+		t.Fatalf("reply did not advance topic state: %#v", before)
+	}
+	images := []string{"https://example.com/first.png", "https://example.com/second.png"}
+	if err := UpdateImageURLs(staleSnapshot.Id, images); err != nil {
+		t.Fatalf("image-only backfill: %v", err)
+	}
+	var after Entity
+	if err := conn.First(&after, topicID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(after.ImageUrls, images) {
+		t.Fatalf("image_urls roundtrip = %#v, want %#v", after.ImageUrls, images)
+	}
+	if after.PostSeq != before.PostSeq || after.PostCount != before.PostCount ||
+		after.ReplyCount != before.ReplyCount || after.LastPostId != before.LastPostId ||
+		after.LikeCount != before.LikeCount || after.ViewCount != before.ViewCount ||
+		!slices.Equal(after.Posters, before.Posters) ||
+		(after.LastPostedAt == nil || before.LastPostedAt == nil ||
+			!after.LastPostedAt.Equal(*before.LastPostedAt)) {
+		t.Fatalf("backfill overwrote concurrent fields: before=%#v after=%#v", before, after)
+	}
+	if !after.UpdatedAt.Equal(before.UpdatedAt) {
+		t.Fatalf("backfill changed updated_at: before=%v after=%v", before.UpdatedAt, after.UpdatedAt)
+	}
+	seq, err = ReservePostSequence(topicID)
+	if err != nil || seq != 3 {
+		t.Fatalf("next post number after backfill: seq=%d err=%v", seq, err)
+	}
+	if err := conn.Create(&posts.Entity{Id: thirdPostID, TopicId: topicID, PostNo: seq}).Error; err != nil {
+		t.Fatalf("post_no after backfill must not violate idx_posts_topic_no: %v", err)
 	}
 }
 

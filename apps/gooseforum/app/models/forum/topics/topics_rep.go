@@ -40,6 +40,17 @@ func Save(entity *Entity) error {
 	return builder().Save(entity).Error
 }
 
+// UpdateImageURLs updates only the derived image list during backfill.
+// The command reads topic snapshots before users may reply/react; never Save
+// those snapshots, or post_seq and concurrent counts could be rolled back.
+// This derived-data repair intentionally leaves updated_at unchanged so that
+// old topics are not moved to the top of the default feed.
+func UpdateImageURLs(id uint64, imageURLs []string) error {
+	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"image_urls": jsonopt.Encode(imageURLs),
+	}).Error
+}
+
 // SaveTx 事务内保存话题（含首帖/末帖指针字段回写）。
 func SaveTx(tx *gorm.DB, entity *Entity) error {
 	return tx.Table(tableName).Save(entity).Error
