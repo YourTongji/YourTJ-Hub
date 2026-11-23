@@ -272,7 +272,6 @@ func TestTopicRepositoryParity(t *testing.T) {
 	}
 }
 
-
 // TestUpdateImageURLsPreservesConcurrentTopicFields models a stale topic snapshot
 // followed by a committed reply and counter updates before image backfill.
 // Only image_urls may change; rolling post_seq back would reuse post_no 2.
