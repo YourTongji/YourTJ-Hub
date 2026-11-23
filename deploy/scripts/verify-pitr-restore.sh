@@ -3,7 +3,8 @@
 #
 # 安全边界:
 #   - 绝不触碰线上 yourtj-postgres 容器、pgdata 卷或 yourtj_main 库
-#   - 恢复阶段写入临时 0700 目录；验证阶段以 --network=none 隔离启动临时 PG 容器
+#   - 恢复与 WAL 回放写入独立 0700 临时目录；临时 PG 容器不映射宿主机端口、不接入业务 compose 网络
+#     （仅保留出站网络供 pgBackRest archive-get 从 R2 拉取 WAL 完成回放）
 #   - 退出时 trap 自动删除临时容器与临时目录
 #
 # usage: verify-pitr-restore.sh [--target-time "YYYY-MM-DD HH:MM:SS+08"] [--skip-restic] [--allow-empty]

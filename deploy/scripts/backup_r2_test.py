@@ -107,9 +107,15 @@ class BackupScriptsTest(unittest.TestCase):
     def test_verify_pitr_restore_script_invariants(self):
         text = (SCRIPTS_DIR / "verify-pitr-restore.sh").read_text(encoding="utf-8")
         self.assertNotIn("max_connections=20", text)
+        self.assertNotIn("--network=none", text)
         self.assertIn("public.anonymous_bindings", text)
         self.assertIn("owner_id", text)
         self.assertNotIn("anonymous_identity_bindings", text)
+
+    def test_compose_archive_command_defaults_fail_closed(self):
+        compose = (REPO_ROOT / "deploy/docker-compose.yaml").read_text(encoding="utf-8")
+        self.assertNotIn("PG_ARCHIVE_COMMAND:-/bin/true", compose)
+        self.assertIn("PG_ARCHIVE_COMMAND:-/bin/false", compose)
 
     def test_backup_db_pg_creates_0600_gzip_and_rotates(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -412,29 +418,35 @@ PY
                 )
 
             # Healthy case
-            ok_res = run_health(f"on|100|0|{now - 300}|0|{now}", now - 3600)
+            ok_cmd = "/usr/local/bin/pgbackrest-archive-push.sh %p"
+            ok_res = run_health(f"on|100|0|{now - 300}|0|{now}|{ok_cmd}", now - 3600)
             self.assertEqual(ok_res.returncode, 0, ok_res.stderr + ok_res.stdout)
             self.assertIn("[ok] WAL archiving healthy", ok_res.stdout)
             self.assertIn("[ok] latest pgbackrest backup", ok_res.stdout)
             self.assertIn("[ok] latest restic snapshot", ok_res.stdout)
 
             # Failing archive_mode=off
-            off_res = run_health(f"off|0|0|0|0|{now}", now - 3600)
+            off_res = run_health(f"off|0|0|0|0|{now}|{ok_cmd}", now - 3600)
             self.assertNotEqual(off_res.returncode, 0)
             self.assertIn("archive_mode is 'off'", off_res.stderr)
 
             # Failing active archiver error (last_failed >= last_archived)
-            err_res = run_health(f"on|100|2|{now - 600}|{now - 60}|{now}", now - 3600)
+            err_res = run_health(f"on|100|2|{now - 600}|{now - 60}|{now}|{ok_cmd}", now - 3600)
             self.assertNotEqual(err_res.returncode, 0)
             self.assertIn("WAL archiver failing", err_res.stderr)
 
             # Failing stale pgBackRest backup (> 36h)
-            stale_res = run_health(f"on|100|0|{now - 300}|0|{now}", now - 40 * 3600)
+            stale_res = run_health(f"on|100|0|{now - 300}|0|{now}|{ok_cmd}", now - 40 * 3600)
             self.assertNotEqual(stale_res.returncode, 0)
             self.assertIn("limit 36h", stale_res.stderr)
 
+            # Failing archive_command=/bin/true even when archiver reports healthy counts
+            noop_res = run_health(f"on|100|0|{now - 300}|0|{now}|/bin/true", now - 3600)
+            self.assertNotEqual(noop_res.returncode, 0)
+            self.assertIn("archive_command", noop_res.stderr)
+
             # Failing pg_wal backlog (> 1024 MB)
-            wal_res = run_health(f"on|100|0|{now - 300}|0|{now}", now - 3600, wal_kb=1500 * 1024)
+            wal_res = run_health(f"on|100|0|{now - 300}|0|{now}|{ok_cmd}", now - 3600, wal_kb=1500 * 1024)
             self.assertNotEqual(wal_res.returncode, 0)
             self.assertIn("pg_wal size", wal_res.stderr)
 

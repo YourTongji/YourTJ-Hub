@@ -89,16 +89,18 @@ else
   fail "could not read pg_wal size from container $PG_CONTAINER"
 fi
 
-# 3. PostgreSQL archive_mode + pg_stat_archiver
+# 3. PostgreSQL archive_mode + archive_command + pg_stat_archiver
 if [ "${PGBACKREST_ENABLED:-true}" = "true" ]; then
   ARCHIVE_ROW="$(docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d postgres -tAF '|' -c \
-    "SELECT current_setting('archive_mode'), archived_count, failed_count, coalesce(extract(epoch from last_archived_time)::bigint, 0), coalesce(extract(epoch from last_failed_time)::bigint, 0), extract(epoch from now())::bigint FROM pg_stat_archiver;" 2>/dev/null || true)"
+    "SELECT current_setting('archive_mode'), archived_count, failed_count, coalesce(extract(epoch from last_archived_time)::bigint, 0), coalesce(extract(epoch from last_failed_time)::bigint, 0), extract(epoch from now())::bigint, current_setting('archive_command') FROM pg_stat_archiver;" 2>/dev/null || true)"
   if [ -z "$ARCHIVE_ROW" ]; then
     fail "failed to query pg_stat_archiver from $PG_CONTAINER"
   else
-    IFS='|' read -r arch_mode arch_cnt fail_cnt last_ok_ep last_fail_ep now_ep <<< "$ARCHIVE_ROW"
+    IFS='|' read -r arch_mode arch_cnt fail_cnt last_ok_ep last_fail_ep now_ep arch_cmd <<< "$ARCHIVE_ROW"
     if [ "$arch_mode" != "on" ]; then
       fail "PostgreSQL archive_mode is '$arch_mode' (expected 'on')"
+    elif [[ "$arch_cmd" != *pgbackrest* ]]; then
+      fail "PostgreSQL archive_command does not invoke pgbackrest (got '$arch_cmd')"
     elif [ "$arch_cnt" -le 0 ] || [ "$last_ok_ep" -le 0 ]; then
       fail "PostgreSQL has never archived a WAL segment (archived_count=$arch_cnt failed_count=$fail_cnt)"
     else

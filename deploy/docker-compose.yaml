@@ -79,8 +79,10 @@ services:
       - archive_mode=${PG_ARCHIVE_MODE:-off}
       - -c
       - archive_timeout=${PG_ARCHIVE_TIMEOUT:-300}
+      # Fail-closed default: ignored when archive_mode=off, fails WAL archiving instead of
+      # silently discarding WAL if PG_ARCHIVE_MODE=on is set without PG_ARCHIVE_COMMAND.
       - -c
-      - archive_command=${PG_ARCHIVE_COMMAND:-/bin/true}
+      - archive_command=${PG_ARCHIVE_COMMAND:-/bin/false}
       - -c
       - log_min_duration_statement=${PG_LOG_MIN_DURATION_MS:-500}
       - -c
