@@ -30,8 +30,8 @@ archive-async=n
 start-fast=y
 
 # Retention: 2 weekly full backups (>=14 days PITR window) + 7 differential backups.
-# When using a no-delete R2 token, manage expiration with R2 Bucket Lifecycle instead
-# and keep repo1-retention-full=9999999 so pgBackRest does not attempt deletes.
+# Always let pgBackRest manage expiration (do NOT enable age-based R2 bucket lifecycle
+# rules on a pgBackRest or restic bucket, which can delete shared metadata or pack files).
 repo1-retention-full=2
 repo1-retention-diff=7
 repo1-retention-full-type=count

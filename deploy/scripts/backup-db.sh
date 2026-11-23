@@ -84,10 +84,14 @@ if [ "$(db_mode)" = "postgres" ]; then
     echo "backup-db: pg_dump failed for $PG_DB" >&2
     exit 1
   fi
-  # 清理旧 PG 备份(兼容历史未压缩 .sql 与新 .sql.gz, 每库保留 KEEP 份)
-  ls -1t "$BACKUP_DIR"/pg-"${PG_DB}"-*.sql.gz "$BACKUP_DIR"/pg-"${PG_DB}"-*.sql 2>/dev/null \
-    | tail -n +$((KEEP + 1)) \
-    | xargs -r rm -f
+  # 清理旧 PG 备份(兼容历史未压缩 .sql 与新 .sql.gz, 每库保留 KEEP 份;
+  # nullglob 避免无历史 .sql 文件时未匹配 glob 让 ls 返回 2 中断备份)
+  shopt -s nullglob
+  PG_BACKUPS=( "$BACKUP_DIR"/pg-"${PG_DB}"-*.sql.gz "$BACKUP_DIR"/pg-"${PG_DB}"-*.sql )
+  shopt -u nullglob
+  if [ "${#PG_BACKUPS[@]}" -gt "$KEEP" ]; then
+    ls -1t "${PG_BACKUPS[@]}" | tail -n +$((KEEP + 1)) | xargs -r rm -f
+  fi
   echo "backup-db: $INSTANCE pg backups done (keep $KEEP)"
   exit 0
 fi
@@ -113,6 +117,11 @@ backup_one "$DB_DIR/file.db" "file"
 
 # 清理旧备份(任一标签), 每个标签保留 KEEP 份
 for label in sqlite file; do
-  ls -1t "$BACKUP_DIR"/"${label}"-*.db 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f
+  shopt -s nullglob
+  LABEL_BACKUPS=( "$BACKUP_DIR"/"${label}"-*.db )
+  shopt -u nullglob
+  if [ "${#LABEL_BACKUPS[@]}" -gt "$KEEP" ]; then
+    ls -1t "${LABEL_BACKUPS[@]}" | tail -n +$((KEEP + 1)) | xargs -r rm -f
+  fi
 done
 echo "backup-db: $INSTANCE backups done (keep $KEEP per label)"

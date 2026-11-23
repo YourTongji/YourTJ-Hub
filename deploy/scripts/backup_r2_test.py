@@ -34,6 +34,83 @@ class BackupScriptsTest(unittest.TestCase):
             self.assertNotEqual(res.returncode, 0)
             self.assertIn("config missing or empty", res.stderr)
 
+    def test_pgbackrest_archive_push_uses_configured_stanza_from_conf(self):
+        script = REPO_ROOT / "services/postgres-backup/pgbackrest-archive-push.sh"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            conf = root / "pgbackrest.conf"
+            conf.write_text("[global]\nrepo1-type=s3\n\n[custom-prod]\npg1-path=/data\n", encoding="utf-8")
+            mock_bin = root / "bin"
+            mock_bin.mkdir()
+            pgb_log = root / "pgbackrest.log"
+            write_exec(mock_bin / "pgbackrest", f"#!/usr/bin/env sh\necho \"$*\" > '{pgb_log}'\n")
+            res = subprocess.run(
+                ["sh", str(script), "pg_wal/000000010000000000000001"],
+                env={
+                    "PATH": f"{mock_bin}:{os.environ['PATH']}",
+                    "PGBACKREST_CONFIG": str(conf),
+                },
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("--stanza=custom-prod archive-push pg_wal/000000010000000000000001", pgb_log.read_text(encoding="utf-8"))
+
+    def test_backup_db_pg_succeeds_without_legacy_sql_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "main").mkdir(parents=True)
+            (root / "main/config.toml").write_text(
+                '[db.default]\nconnection = "postgres"\n'
+                'url = "host=postgres user=yourtj dbname=yourtj_main port=5432 sslmode=disable"\n',
+                encoding="utf-8",
+            )
+            mock_bin = root / "bin"
+            mock_bin.mkdir()
+            write_exec(mock_bin / "docker", "#!/usr/bin/env bash\necho '-- pg_dump ok'\n")
+            res = subprocess.run(
+                ["bash", str(SCRIPTS_DIR / "backup-db.sh"), "main"],
+                env={"PATH": f"{mock_bin}:{os.environ['PATH']}", "YOURTJ_ROOT": str(root), "KEEP": "7"},
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res.returncode, 0, res.stderr + res.stdout)
+            files = list((root / "snapshots/main").iterdir())
+            self.assertEqual(len(files), 1)
+            self.assertTrue(files[0].name.endswith(".sql.gz"))
+
+    def test_backup_r2_releases_lock_when_staging_mktemp_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            backup_dir = root / "backup"
+            backup_dir.mkdir(parents=True)
+            r2_env = backup_dir / "r2.env"
+            r2_env.write_text(
+                "R2_ACCOUNT_ID=acct\nR2_BUCKET=bkt\nR2_ACCESS_KEY_ID=ak\n"
+                "R2_SECRET_ACCESS_KEY=sk\nRESTIC_PASSWORD=pw\n",
+                encoding="utf-8",
+            )
+            res = subprocess.run(
+                ["bash", str(SCRIPTS_DIR / "backup-r2.sh")],
+                env={
+                    "PATH": os.environ["PATH"],
+                    "YOURTJ_ROOT": str(root),
+                    "R2_ENV_FILE": str(r2_env),
+                    "TMPDIR": str(root / "missing-tmpdir"),
+                },
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(res.returncode, 0)
+            self.assertFalse((backup_dir / ".backup-r2.lock").exists())
+
+    def test_verify_pitr_restore_script_invariants(self):
+        text = (SCRIPTS_DIR / "verify-pitr-restore.sh").read_text(encoding="utf-8")
+        self.assertNotIn("max_connections=20", text)
+        self.assertIn("public.anonymous_bindings", text)
+        self.assertIn("owner_id", text)
+        self.assertNotIn("anonymous_identity_bindings", text)
+
     def test_backup_db_pg_creates_0600_gzip_and_rotates(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
@@ -236,6 +313,7 @@ exit 0
             self.assertIn("REPO=s3:https://acct123.r2.cloudflarestorage.com/yourtj-backups/restic", rlog)
             self.assertIn("ARGS=backup ", rlog)
             self.assertIn("ARGS=forget ", rlog)
+            self.assertIn("--group-by host,tags", rlog)
 
             staged = staged_files.read_text(encoding="utf-8")
             self.assertIn("postgres/yourtj_main.dump", staged)

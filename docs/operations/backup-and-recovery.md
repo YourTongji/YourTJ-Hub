@@ -49,9 +49,14 @@ Local disk guardrails on small hosts (1.6 GiB RAM / 40 GiB disk):
    openssl rand -base64 32   # PGBACKREST_CIPHER_PASS
    openssl rand -base64 32   # RESTIC_PASSWORD
    ```
-4. Optional ransomware hardening: configure an R2 Bucket Lifecycle rule (e.g. expire objects after
-   45–60 days) and set `RESTIC_SKIP_PRUNE=true` in `/opt/yourtj/backup/r2.env` if you restrict the
-   host token from deleting objects (and keep a separate admin token offline for periodic pruning).
+4. **Retention & deletion safety**: **never** enable age-based R2 Bucket Lifecycle object
+   expiration on a `restic` or `pgBackRest` bucket — `restic` deduplicates across snapshots and
+   keeps repository config/key objects indefinitely, so age-based object deletion can corrupt the
+   entire repository. Always let repository-aware retention tooling handle pruning
+   (`pgBackRest` `repo1-retention-*` and `restic forget --group-by host,tags --prune`). If you
+   want ransomware isolation, set `RESTIC_SKIP_PRUNE=true` on the host and run periodic `forget
+   --prune` from an offline admin workstation using a separate admin R2 token (or replicate the
+   bucket to a second account/provider).
 
 ## 2. One-time server bootstrap
 

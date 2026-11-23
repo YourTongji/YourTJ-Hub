@@ -105,12 +105,11 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   exit 1
 fi
 
-STAGE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/yourtj-r2-stage.XXXXXX")"
-chmod 0700 "$STAGE_DIR"
+STAGE_DIR=""
 
 on_exit() {
   local rc=$?
-  rm -rf "$STAGE_DIR"
+  [ -n "$STAGE_DIR" ] && rm -rf "$STAGE_DIR"
   rmdir "$LOCK_DIR" 2>/dev/null || true
   if [ "$rc" -ne 0 ]; then
     log "FAILED (exit=$rc)"
@@ -119,6 +118,9 @@ on_exit() {
   exit "$rc"
 }
 trap on_exit EXIT
+
+STAGE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/yourtj-r2-stage.XXXXXX")"
+chmod 0700 "$STAGE_DIR"
 
 PG_USER="${POSTGRES_USER:-}"
 if [ -z "$PG_USER" ] && [ -f "$ROOT/.env" ]; then
@@ -237,6 +239,7 @@ if [ "$SKIP_RESTIC" -eq 0 ]; then
   if [ "${RESTIC_SKIP_PRUNE:-false}" != "true" ]; then
     log "applying restic retention policy (daily=${RESTIC_KEEP_DAILY:-14} weekly=${RESTIC_KEEP_WEEKLY:-8} monthly=${RESTIC_KEEP_MONTHLY:-6})"
     restic forget \
+      --group-by host,tags \
       --host "${RESTIC_HOST_TAG:-yourtj-prod}" \
       --tag yourtj-main \
       --keep-daily "${RESTIC_KEEP_DAILY:-14}" \

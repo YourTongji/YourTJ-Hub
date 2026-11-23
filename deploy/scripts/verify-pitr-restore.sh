@@ -82,7 +82,8 @@ docker run --rm \
 
 # Boot restored data directory with archive_mode=off and restore_command enabled only during WAL replay.
 # Network is needed during replay so pgBackRest archive-get can pull WAL segments from R2;
-# ports are never published to the host.
+# ports are never published to the host. Preserve the primary's max_connections so physical
+# WAL recovery does not stall on a lower connection limit.
 echo "[verify-pitr] starting isolated verification container $VERIFY_CONTAINER"
 docker run -d \
   --name "$VERIFY_CONTAINER" \
@@ -91,8 +92,7 @@ docker run -d \
   "$POSTGRES_IMAGE" \
   postgres \
   -c archive_mode=off \
-  -c shared_buffers=64MB \
-  -c max_connections=20 >/dev/null
+  -c shared_buffers=64MB >/dev/null
 
 READY=0
 for _ in $(seq 1 60); do
@@ -125,17 +125,20 @@ if [ "$ALLOW_EMPTY" -eq 0 ] && { [ "$u_cnt" -le 0 ] || [ "$t_cnt" -le 0 ] || [ "
   exit 1
 fi
 
-# Verify anonymous identity uniqueness invariants when the table is present
+# Verify anonymous identity tables exist and satisfy uniqueness invariants (see docs/operations/anonymous-identity.md)
 docker exec -i -u postgres "$VERIFY_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 DO $$
 DECLARE dup_owner bigint; dup_uid bigint;
 BEGIN
-  IF to_regclass('public.anonymous_identity_bindings') IS NOT NULL THEN
-    SELECT count(*) INTO dup_owner FROM (SELECT user_id FROM anonymous_identity_bindings GROUP BY user_id HAVING count(*) > 1) s;
-    SELECT count(*) INTO dup_uid FROM (SELECT persona_uid FROM anonymous_identity_bindings GROUP BY persona_uid HAVING count(*) > 1) s;
-    IF dup_owner > 0 OR dup_uid > 0 THEN
-      RAISE EXCEPTION 'anonymous_identity_bindings uniqueness violation: dup_owner=%, dup_uid=%', dup_owner, dup_uid;
-    END IF;
+  IF to_regclass('public.anonymous_personas') IS NULL
+     OR to_regclass('public.anonymous_bindings') IS NULL
+     OR to_regclass('public.anonymous_reveal_audits') IS NULL THEN
+    RAISE EXCEPTION 'missing required anonymous identity tables in restored database';
+  END IF;
+  SELECT count(*) INTO dup_owner FROM (SELECT owner_id FROM anonymous_bindings GROUP BY owner_id HAVING count(*) > 1) s;
+  SELECT count(*) INTO dup_uid FROM (SELECT persona_uid FROM anonymous_bindings GROUP BY persona_uid HAVING count(*) > 1) s;
+  IF dup_owner > 0 OR dup_uid > 0 THEN
+    RAISE EXCEPTION 'anonymous_bindings uniqueness violation: dup_owner=%, dup_uid=%', dup_owner, dup_uid;
   END IF;
 END $$;
 SQL
