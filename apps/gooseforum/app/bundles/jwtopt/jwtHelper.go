@@ -7,11 +7,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/spf13/cast"
+)
+
+const (
+	// DefaultValidTime is the default sliding idle lifetime of a session token (30 days).
+	DefaultValidTime = 30 * 24 * time.Hour
+	// DefaultRefreshInterval throttles sliding renewal so an active session rotates
+	// at most once per 24 hours instead of on every request or only in the final 24h.
+	DefaultRefreshInterval = 24 * time.Hour
+	// DefaultMaxSessionLifetime caps how long a single login session can stay alive
+	// through sliding renewal (180 days). Setting jwtopt.maxSessionLifetime = 0 disables the cap.
+	DefaultMaxSessionLifetime = 180 * 24 * time.Hour
 )
 
 var (
@@ -22,8 +34,52 @@ var (
 	// first-use capture. Rotating the key therefore requires a process restart
 	// so all surfaces switch together; see docs/operations/deployment.md.
 	signingKey = preferences.GetString("app.signingKey")
-	validTime  = time.Duration(preferences.GetInt64("jwtopt.validTime", 86400*7)) * time.Second
 )
+
+// ValidTime returns the configured sliding token/session lifetime (default 30 days).
+func ValidTime() time.Duration {
+	secs := preferences.GetInt64("jwtopt.validTime", int64(DefaultValidTime/time.Second))
+	if secs <= 0 {
+		return DefaultValidTime
+	}
+	return time.Duration(secs) * time.Second
+}
+
+// RefreshInterval returns the minimum gain/throttle interval between sliding refreshes
+// (default 24 hours), clamped to at most half of ValidTime so short-TTL configurations
+// can still slide before expiry.
+func RefreshInterval() time.Duration {
+	valid := ValidTime()
+	secs := preferences.GetInt64("jwtopt.refreshInterval", int64(DefaultRefreshInterval/time.Second))
+	interval := DefaultRefreshInterval
+	if secs > 0 {
+		interval = time.Duration(secs) * time.Second
+	}
+	if half := valid / 2; half > 0 && interval > half {
+		return half
+	}
+	return interval
+}
+
+// MaxSessionLifetime returns the configured absolute lifetime cap for a single
+// session (default 180 days). Zero disables the absolute cap.
+func MaxSessionLifetime() time.Duration {
+	secs := preferences.GetInt64("jwtopt.maxSessionLifetime", int64(DefaultMaxSessionLifetime/time.Second))
+	if secs < 0 {
+		return DefaultMaxSessionLifetime
+	}
+	return time.Duration(secs) * time.Second
+}
+
+// InitialSessionLifetime returns the lifetime for a newly issued session,
+// bounded by MaxSessionLifetime when enabled.
+func InitialSessionLifetime() time.Duration {
+	valid := ValidTime()
+	if maxLife := MaxSessionLifetime(); maxLife > 0 && maxLife < valid {
+		return maxLife
+	}
+	return valid
+}
 
 // DefaultSigningKey is the legacy built-in fallback that was used when
 // app.signingKey was missing. It is kept here ONLY as a known-bad value to
@@ -83,12 +139,12 @@ func Std() *JWT {
 
 // CreateNewTokenDefault creates an access token with the configured lifetime.
 func CreateNewTokenDefault(userId uint64) (string, error) {
-	return CreateNewTokenWithVersion(userId, 0, validTime)
+	return CreateNewTokenWithVersion(userId, 0, ValidTime())
 }
 
 // CreateNewTokenDefaultWithVersion creates an access token with the configured lifetime and token version.
 func CreateNewTokenDefaultWithVersion(userId, tokenVersion uint64) (string, error) {
-	return CreateNewTokenWithVersion(userId, tokenVersion, validTime)
+	return CreateNewTokenWithVersion(userId, tokenVersion, ValidTime())
 }
 
 // CreateNewToken creates an access token with expireTime.
@@ -118,7 +174,7 @@ func CreateSessionToken(userId, tokenVersion uint64) (token string, jti string, 
 		UserId:           userId,
 		TokenVersion:     tokenVersion,
 		Jti:              jti,
-		RegisteredClaims: GetBaseRegisteredClaims(validTime),
+		RegisteredClaims: GetBaseRegisteredClaims(InitialSessionLifetime()),
 	}
 	token, err = Std().CreateToken(cc)
 	if err != nil {
@@ -165,7 +221,91 @@ func GenerateJti() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// VerifyTokenWithFresh verifies tokenStr and refreshes it when it is close to expiry.
+// RefreshTokenIfNeeded evaluates whether an already-parsed, valid token should
+// slide forward. When sessionCreatedAt is non-zero and MaxSessionLifetime() > 0,
+// the refreshed expiry is capped at sessionCreatedAt + MaxSessionLifetime().
+// Refreshing preserves jti and purpose and does not mutate claims.
+func RefreshTokenIfNeeded(tokenStr string, claims *CustomClaims, sessionCreatedAt time.Time) (newToken string, expiresAt time.Time, refreshed bool, err error) {
+	nextToken, exp, didRefresh, _, err := RefreshSessionTokenIfNeeded(tokenStr, claims, sessionCreatedAt, time.Time{})
+	return nextToken, exp, didRefresh, err
+}
+
+// RefreshSessionTokenIfNeeded evaluates whether a validated session token should
+// slide forward, distinguishing a server-side DB extension (needsPersist=true)
+// from an older client catching up to an already-persisted session expiry
+// (needsPersist=false). Refreshing preserves jti and purpose and never mutates claims.
+func RefreshSessionTokenIfNeeded(tokenStr string, claims *CustomClaims, sessionCreatedAt, persistedExpiresAt time.Time) (newToken string, expiresAt time.Time, refreshed bool, needsPersist bool, err error) {
+	if claims == nil {
+		return "", time.Time{}, false, false, ErrTokenInvalid
+	}
+	eTime, err := claims.GetExpirationTime()
+	if err != nil || eTime == nil {
+		return tokenStr, time.Time{}, false, false, err
+	}
+	now := time.Now()
+	currentExp := eTime.Time
+	valid := ValidTime()
+	interval := RefreshInterval()
+
+	targetExp := now.Add(valid)
+	var hardDeadline time.Time
+	if maxLife := MaxSessionLifetime(); maxLife > 0 && !sessionCreatedAt.IsZero() {
+		hardDeadline = sessionCreatedAt.Add(maxLife)
+		if !hardDeadline.After(now) {
+			return "", time.Time{}, false, false, ErrTokenInvalid
+		}
+		if targetExp.After(hardDeadline) {
+			targetExp = hardDeadline
+		}
+	}
+	// JWT NumericDate has second precision; truncate before comparing so
+	// sub-second differences at hardDeadline never trigger repeated refreshes.
+	targetExp = targetExp.Truncate(time.Second)
+	minFinalGain := min(time.Minute, interval/2)
+	if minFinalGain < time.Second {
+		minFinalGain = time.Second
+	}
+
+	persistedExp := currentExp
+	if !persistedExpiresAt.IsZero() {
+		persistedExp = persistedExpiresAt.Truncate(time.Second)
+		if !hardDeadline.IsZero() && persistedExp.After(hardDeadline) {
+			persistedExp = hardDeadline.Truncate(time.Second)
+		}
+	}
+
+	dbGain := targetExp.Sub(persistedExp)
+	needDBExtend := dbGain >= interval || (persistedExp.Sub(now) <= interval && dbGain >= minFinalGain)
+
+	desiredExp := targetExp
+	if needDBExtend {
+		needsPersist = true
+	} else {
+		// Persisted session expiry is already within the throttle window: only
+		// issue a catch-up JWT when this client's token lags behind the DB row.
+		if persistedExp.Sub(currentExp) < minFinalGain {
+			return tokenStr, currentExp, false, false, nil
+		}
+		desiredExp = persistedExp
+		needsPersist = false
+	}
+	if !desiredExp.After(now) {
+		return tokenStr, currentExp, false, false, nil
+	}
+	nextClaims := *claims
+	nextClaims.RegisteredClaims = jwt.RegisteredClaims{
+		NotBefore: jwt.NewNumericDate(now.Add(-10 * time.Second)),
+		ExpiresAt: jwt.NewNumericDate(desiredExp),
+		Issuer:    "GooseForum",
+	}
+	signed, err := Std().CreateToken(nextClaims)
+	if err != nil {
+		return "", time.Time{}, false, false, err
+	}
+	return signed, desiredExp, true, needsPersist, nil
+}
+
+// VerifyTokenWithFresh verifies tokenStr and refreshes it when it is eligible to slide.
 func VerifyTokenWithFresh(tokenStr string) (userId uint64, newToken string, err error) {
 	claims, newToken, err := VerifyTokenWithFreshClaims(tokenStr)
 	if err != nil {
@@ -174,19 +314,26 @@ func VerifyTokenWithFresh(tokenStr string) (userId uint64, newToken string, err 
 	return claims.UserId, newToken, nil
 }
 
-// VerifyTokenWithFreshClaims verifies tokenStr and returns claims, refreshing close-to-expiry tokens.
+// VerifyTokenWithFreshClaims verifies tokenStr and returns claims, sliding tokens
+// once at least RefreshInterval() has elapsed relative to ValidTime().
 // Refreshing preserves jti and purpose so the underlying session record stays stable.
 func VerifyTokenWithFreshClaims(tokenStr string) (*CustomClaims, string, error) {
 	claims, err := Std().ParseToken(tokenStr)
 	if err != nil {
 		return nil, "", err
 	}
-	eTime, err := claims.GetExpirationTime()
-	if err == nil && time.Now().Add(time.Second*86400*1).After(eTime.Time) {
-		claims.RegisteredClaims = GetBaseRegisteredClaims(validTime)
-		tokenStr, err = Std().CreateToken(*claims)
+	nextToken, expiresAt, refreshed, err := RefreshTokenIfNeeded(tokenStr, claims, time.Time{})
+	if err != nil {
+		return nil, "", err
 	}
-	return claims, tokenStr, err
+	if refreshed {
+		claims.RegisteredClaims = jwt.RegisteredClaims{
+			NotBefore: jwt.NewNumericDate(time.Now().Add(-10 * time.Second)),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			Issuer:    "GooseForum",
+		}
+	}
+	return claims, nextToken, nil
 }
 
 // VerifyToken verifies tokenStr and returns the user ID.
@@ -211,7 +358,7 @@ func GetGinAccessToken(c *gin.Context) string {
 
 // TokenSetting writes the refreshed token to headers and cookies.
 func TokenSetting(c *gin.Context, newToken string) {
-	TokenSettingWithMaxAge(c, newToken, validTime)
+	TokenSettingWithMaxAge(c, newToken, InitialSessionLifetime())
 }
 
 // TokenSettingWithMaxAge writes the token with an explicit cookie max age.

@@ -28,6 +28,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pkservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
@@ -111,8 +112,9 @@ func registerJobs() {
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "5 3 * * *", "err", err)
 	entryID, err = scheduler.AddFunc("6 3 * * *", upCmd(func() {
-		// 清理过期的 OIDC authorization request 和 access token 记录
+		// 清理过期的 OIDC authorization request、access token 与人类会话记录
 		oidcservice.CleanupExpired()
+		sessionservice.CleanupExpired()
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "6 3 * * *", "err", err)
 	entryID, err = scheduler.AddFunc("7 3 * * *", upCmd(func() {

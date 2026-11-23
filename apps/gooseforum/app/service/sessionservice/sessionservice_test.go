@@ -5,6 +5,8 @@ import (
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
@@ -180,8 +182,11 @@ func TestTouchExpiry(t *testing.T) {
 	setupTestDB(t)
 
 	_ = Create(100, "jti-touch", "ua", "1.1.1.1")
-	future := time.Now().Add(30 * 24 * time.Hour)
-	TouchExpiry("jti-touch", future)
+	future := time.Now().Add(40 * 24 * time.Hour).Truncate(time.Second)
+	persisted, err := TouchExpiry("jti-touch", future)
+	if err != nil || !persisted {
+		t.Fatalf("TouchExpiry() = (%t, %v), want (true, nil)", persisted, err)
+	}
 	entity := GetValidByJti("jti-touch")
 	if entity == nil {
 		t.Fatal("session should still exist")
@@ -191,19 +196,101 @@ func TestTouchExpiry(t *testing.T) {
 	}
 }
 
+func TestTouchExpiryIsMonotonicAndRejectsMissingOrExpired(t *testing.T) {
+	setupTestDB(t)
+
+	if err := Create(100, "jti-mono", "ua", "1.1.1.1"); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(45 * 24 * time.Hour).Truncate(time.Second)
+	earlier := time.Now().Add(35 * 24 * time.Hour).Truncate(time.Second)
+
+	persisted, err := TouchExpiry("jti-mono", later)
+	if err != nil || !persisted {
+		t.Fatalf("TouchExpiry(later) = (%t, %v), want (true, nil)", persisted, err)
+	}
+	// Out-of-order earlier expiry must not shorten the persisted deadline, while
+	// still reporting persisted=true because the live row already covers earlier.
+	persisted, err = TouchExpiry("jti-mono", earlier)
+	if err != nil || !persisted {
+		t.Fatalf("TouchExpiry(earlier) = (%t, %v), want (true, nil)", persisted, err)
+	}
+	entity := GetValidByJti("jti-mono")
+	if entity == nil || !entity.ExpiresAt.Equal(later) {
+		t.Fatalf("out-of-order write shortened expiresAt: got %+v, want %v", entity, later)
+	}
+
+	// Missing/revoked jti must report persisted=false.
+	persisted, err = TouchExpiry("jti-missing", later)
+	if err != nil || persisted {
+		t.Fatalf("TouchExpiry(missing) = (%t, %v), want (false, nil)", persisted, err)
+	}
+}
+
+func TestTouchExpiryDoesNotResurrectExpiredSession(t *testing.T) {
+	setupTestDB(t)
+
+	if err := Create(100, "jti-dead", "ua", "1.1.1.1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := userSessions.UpdateExpiresAtByJti("jti-dead", time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	persisted, err := TouchExpiry("jti-dead", time.Now().Add(30*24*time.Hour))
+	if err != nil || persisted {
+		t.Fatalf("TouchExpiry(expired) = (%t, %v), want (false, nil)", persisted, err)
+	}
+	if GetValidByJti("jti-dead") != nil {
+		t.Fatal("TouchExpiry must not resurrect an already-expired session")
+	}
+}
+
 func TestCleanupExpired(t *testing.T) {
 	setupTestDB(t)
+
+	prevMax := preferences.GetInt64("jwtopt.maxSessionLifetime", int64(jwtopt.DefaultMaxSessionLifetime/time.Second))
+	preferences.Set("jwtopt.maxSessionLifetime", int64(180*86400))
+	t.Cleanup(func() { preferences.Set("jwtopt.maxSessionLifetime", prevMax) })
 
 	if err := Create(100, "jti-expired", "ua", "1.1.1.1"); err != nil {
 		t.Fatal(err)
 	}
-	// Force expiry into the past.
+	if err := Create(100, "jti-over-cap", "ua", "1.1.1.2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Create(100, "jti-live-cap", "ua", "1.1.1.3"); err != nil {
+		t.Fatal(err)
+	}
+	// Force idle expiry into the past.
 	if err := userSessions.UpdateExpiresAtByJti("jti-expired", time.Now().Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
+	// Force created_at beyond maxSessionLifetime while expires_at is still in the future.
+	if err := db.Connect().Exec("UPDATE user_sessions SET created_at = ? WHERE jti = ?",
+		time.Now().Add(-181*24*time.Hour), "jti-over-cap").Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if GetValidByJti("jti-over-cap") != nil {
+		t.Fatal("session past maxSessionLifetime must not be returned as valid")
+	}
+	list, err := List(100)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(list) != 1 || list[0].Jti != "jti-live-cap" {
+		t.Fatalf("List() = %+v, want only jti-live-cap", list)
+	}
+
 	CleanupExpired()
-	if GetValidByJti("jti-expired") != nil {
-		t.Fatal("expired session should have been cleaned up")
+	if userSessions.GetByJti("jti-expired") != nil {
+		t.Fatal("idle-expired session should have been cleaned up")
+	}
+	if userSessions.GetByJti("jti-over-cap") != nil {
+		t.Fatal("max-lifetime-expired session should have been cleaned up")
+	}
+	if GetValidByJti("jti-live-cap") == nil {
+		t.Fatal("live session should survive cleanup")
 	}
 }
 

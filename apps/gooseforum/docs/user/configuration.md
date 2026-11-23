@@ -44,13 +44,16 @@ port = 5234                     # 监听端口
 
 ```toml
 [jwtopt]
-signingKey = "your-random-signing-key"  # JWT 签名密钥
-validTime = 604800                      # Token 有效期（秒）
+validTime = 2592000                     # 单次签发/续期后的空闲有效期（秒，默认 30 天）
+refreshInterval = 86400                 # 滑动续期节流间隔（秒，默认 24 小时）
+maxSessionLifetime = 15552000           # 单会话绝对最长生存期（秒，默认 180 天；0 表示不限）
 ```
 
 **配置说明：**
-- `signingKey`: JWT 签名密钥，系统会自动生成随机密钥。**修改此值会导致所有已登录用户退出登录**
-- `validTime`: Token 有效期，默认 604800 秒（7天）
+- JWT 签名密钥统一配置在 `[app].signingKey`（系统会自动生成随机密钥；**修改此值会导致所有已登录用户退出登录**）
+- `validTime`: 会话令牌空闲有效期，默认 2592000 秒（30 天）
+- `refreshInterval`: 滑动续期最小间隔，默认 86400 秒（24 小时）；活跃会话距上次签发超过该间隔时自动续期，避免每次请求重复写库
+- `maxSessionLifetime`: 单个登录会话的绝对最长生存期，默认 15552000 秒（180 天），从 `user_sessions.created_at` 起算；设为 `0` 关闭绝对上限
 
 ### [db] 数据库配置
 

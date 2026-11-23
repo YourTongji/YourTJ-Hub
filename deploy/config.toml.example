@@ -29,7 +29,12 @@ gzip = true
 trusted_proxies = ["127.0.0.1", "::1"]
 
 [jwtopt]
-validTime = 604800
+# 单次签发/续期后的空闲有效期（秒，默认 30 天）
+validTime = 2592000
+# 滑动续期节流间隔（秒，默认 24 小时；活跃会话每天最多续签一次）
+refreshInterval = 86400
+# 单个登录会话的绝对最长生存期（秒，默认 180 天；0 表示不设绝对上限）
+maxSessionLifetime = 15552000
 
 # WebAuthn passkeys (forum relying party; disabled until each deployment has
 # verified domain ownership and installed app signing identities).

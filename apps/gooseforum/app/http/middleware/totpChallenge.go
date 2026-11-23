@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	jwt "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 )
 
 // TOTPChallengeAuth 校验两步验证 challenge token：仅接受
@@ -22,7 +22,7 @@ func TOTPChallengeAuth(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	claims, _, err := jwt.VerifyTokenWithFreshClaims(token)
+	claims, err := jwt.Std().ParseToken(token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		c.Abort()

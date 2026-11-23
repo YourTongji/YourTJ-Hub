@@ -9,17 +9,32 @@ import (
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"gorm.io/gorm"
 )
 
-// sessionLifetime mirrors jwtopt.validTime so session records stay in sync
-// with token expiry (default 7 days).
+// sessionLifetime mirrors jwtopt.InitialSessionLifetime so session records stay
+// in sync with token expiry (default 30 days, bounded by maxSessionLifetime).
 func sessionLifetime() time.Duration {
-	return time.Duration(preferences.GetInt64("jwtopt.validTime", 86400*7)) * time.Second
+	return jwtopt.InitialSessionLifetime()
+}
+
+func isWithinMaxLifetime(createdAt, now time.Time) bool {
+	maxLife := jwtopt.MaxSessionLifetime()
+	if maxLife <= 0 || createdAt.IsZero() {
+		return true
+	}
+	return createdAt.Add(maxLife).After(now)
+}
+
+func maxLifetimeCutoff(now time.Time) time.Time {
+	if maxLife := jwtopt.MaxSessionLifetime(); maxLife > 0 {
+		return now.Add(-maxLife)
+	}
+	return time.Time{}
 }
 
 // Create persists a new session record for a freshly issued jti.
@@ -49,13 +64,14 @@ func CreateWithDB(tx *gorm.DB, userID uint64, jti string, userAgent string, ip s
 }
 
 // GetValidByJti returns a non-expired session for jti, or nil.
-// Used by the auth middleware to reject revoked or challenge-only tokens.
+// Used by the auth middleware to reject revoked, expired, or challenge-only tokens.
 func GetValidByJti(jti string) *userSessions.Entity {
 	entity := userSessions.GetByJti(jti)
 	if entity == nil {
 		return nil
 	}
-	if entity.ExpiresAt.Before(time.Now()) {
+	now := time.Now()
+	if !entity.ExpiresAt.After(now) || !isWithinMaxLifetime(entity.CreatedAt, now) {
 		return nil
 	}
 	return entity
@@ -70,21 +86,34 @@ func CheckLiveContext(ctx context.Context, userID uint64, jti string) (bool, err
 	if err != nil {
 		return false, err
 	}
-	return entity.UserId == userID && entity.ExpiresAt.After(time.Now()), nil
+	now := time.Now()
+	return entity.UserId == userID && entity.ExpiresAt.After(now) && isWithinMaxLifetime(entity.CreatedAt, now), nil
 }
 
-// TouchExpiry extends the session record expiry to match a refreshed token.
-func TouchExpiry(jti string, expiresAt time.Time) {
-	entity := userSessions.GetByJti(jti)
-	if entity == nil {
-		return
+// TouchExpiry monotonically extends the live session row to at least expiresAt.
+// It returns (true, nil) when the update persisted or when the live row already
+// covers expiresAt; it returns (false, err) on DB errors and (false, nil) when
+// the session row was concurrently revoked, idle-expired, or past its cap.
+func TouchExpiry(jti string, expiresAt time.Time) (bool, error) {
+	now := time.Now()
+	rows, err := userSessions.ExtendExpiresAtByJtiIfLive(jti, expiresAt, now)
+	if err != nil {
+		return false, err
 	}
-	_ = userSessions.UpdateExpiresAtByJti(jti, expiresAt)
+	if rows > 0 {
+		return true, nil
+	}
+	entity := GetValidByJti(jti)
+	if entity == nil {
+		return false, nil
+	}
+	return !entity.ExpiresAt.Before(expiresAt), nil
 }
 
-// List returns the user's sessions, newest first.
+// List returns the user's active sessions, newest first.
 func List(userID uint64) ([]userSessions.Entity, error) {
-	return userSessions.ListByUserID(userID)
+	now := time.Now()
+	return userSessions.ListActiveByUserID(userID, now, maxLifetimeCutoff(now))
 }
 
 // RevokeByJti deletes one session owned by the user, keyed by its jti.
@@ -118,9 +147,10 @@ func RevokeAllAndInvalidate(userID uint64) error {
 	return nil
 }
 
-// CleanupExpired removes expired session rows (cheap housekeeping on issue).
+// CleanupExpired removes idle-expired and max-lifetime-expired session rows.
 func CleanupExpired() {
-	_ = userSessions.DeleteExpired()
+	now := time.Now()
+	_ = userSessions.DeleteExpiredBefore(now, maxLifetimeCutoff(now))
 }
 
 // MaskIP hides the last octet of an IPv4 address and the interface ID of IPv6.

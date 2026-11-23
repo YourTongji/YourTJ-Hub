@@ -26,7 +26,7 @@ func GetByJti(jti string) *Entity {
 // GetByJtiContext preserves database errors for long-lived stream validation.
 func GetByJtiContext(ctx context.Context, jti string) (*Entity, error) {
 	var entity Entity
-	err := dbconnect.ConnectContext(ctx).Model(&Entity{}).Select(fieldUserId, fieldExpiresAt).
+	err := dbconnect.ConnectContext(ctx).Model(&Entity{}).Select(fieldUserId, fieldExpiresAt, fieldCreatedAt).
 		Where(fieldJti, jti).First(&entity).Error
 	if err != nil {
 		return nil, err
@@ -46,14 +46,34 @@ func DeleteByID(userID uint64, id uint64) error {
 
 // ListByUserID 获取用户全部会话，按创建时间倒序
 func ListByUserID(userID uint64) ([]Entity, error) {
+	return ListActiveByUserID(userID, time.Now(), time.Time{})
+}
+
+// ListActiveByUserID returns sessions for userID that have not expired and,
+// when minCreatedAt is non-zero, were created after minCreatedAt.
+func ListActiveByUserID(userID uint64, now time.Time, minCreatedAt time.Time) ([]Entity, error) {
 	var entities []Entity
-	err := builder().Where(fieldUserId, userID).Where(fieldExpiresAt+" > ?", time.Now()).Order(fieldCreatedAt + " desc").Find(&entities).Error
+	q := builder().Where(fieldUserId, userID).Where(fieldExpiresAt+" > ?", now)
+	if !minCreatedAt.IsZero() {
+		q = q.Where(fieldCreatedAt+" > ?", minCreatedAt)
+	}
+	err := q.Order(fieldCreatedAt + " desc").Find(&entities).Error
 	return entities, err
 }
 
 // DeleteExpired 清理已过期会话
 func DeleteExpired() error {
-	return builder().Where(fieldExpiresAt+" < ?", time.Now()).Delete(&Entity{}).Error
+	return DeleteExpiredBefore(time.Now(), time.Time{})
+}
+
+// DeleteExpiredBefore removes sessions whose idle expiry passed or whose
+// creation time predates minCreatedAt (absolute lifetime cap).
+func DeleteExpiredBefore(now time.Time, minCreatedAt time.Time) error {
+	q := builder().Where(fieldExpiresAt+" < ?", now)
+	if !minCreatedAt.IsZero() {
+		q = builder().Where(fieldExpiresAt+" < ? OR "+fieldCreatedAt+" <= ?", now, minCreatedAt)
+	}
+	return q.Delete(&Entity{}).Error
 }
 
 // DeleteAllByUserIDWithDB deletes every session of the user through the supplied database handle.
@@ -64,4 +84,15 @@ func DeleteAllByUserIDWithDB(conn *gorm.DB, userID uint64) error {
 // UpdateExpiresAtByJti 更新会话过期时间（续签时保持同一会话）
 func UpdateExpiresAtByJti(jti string, expiresAt time.Time) error {
 	return builder().Where(fieldJti, jti).Update(fieldExpiresAt, expiresAt).Error
+}
+
+// ExtendExpiresAtByJtiIfLive monotonically extends expires_at only while the
+// session is still live and its persisted expiry is earlier than expiresAt.
+func ExtendExpiresAtByJtiIfLive(jti string, expiresAt time.Time, now time.Time) (int64, error) {
+	result := builder().
+		Where(fieldJti, jti).
+		Where(fieldExpiresAt+" > ?", now).
+		Where(fieldExpiresAt+" < ?", expiresAt).
+		Update(fieldExpiresAt, expiresAt)
+	return result.RowsAffected, result.Error
 }
