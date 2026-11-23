@@ -1,0 +1,46 @@
+# pgBackRest configuration for Cloudflare R2 (rendered to /opt/yourtj/backup/pgbackrest/pgbackrest.conf).
+# Keep mode 0600 owned by the postgres container UID/GID (70:70 on postgres:16-alpine).
+# Never commit populated credentials or cipher passphrases.
+
+[global]
+repo1-type=s3
+repo1-s3-bucket=REPLACE_R2_BUCKET
+repo1-s3-endpoint=REPLACE_R2_ACCOUNT_ID.r2.cloudflarestorage.com
+repo1-s3-region=auto
+repo1-s3-uri-style=path
+repo1-s3-key=REPLACE_R2_ACCESS_KEY_ID
+repo1-s3-key-secret=REPLACE_R2_SECRET_ACCESS_KEY
+repo1-path=/pgbackrest
+
+# Client-side AES-256 encryption: R2 only stores ciphertext.
+# Store REPLACE_PGBACKREST_CIPHER_PASS offline in your password manager.
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass=REPLACE_PGBACKREST_CIPHER_PASS
+
+# Cloudflare R2 tuning and 1.6 GiB VM memory guardrails:
+# - repo1-bundle reduces Class A object operations on R2
+# - repo1-block enables block-level incremental backups
+# - compress-type=lz4 + process-max=1 keeps RAM usage low (~20-40 MB)
+# - archive-async=n avoids extra local spool usage on a 40 GB disk
+repo1-bundle=y
+repo1-block=y
+compress-type=lz4
+process-max=1
+archive-async=n
+start-fast=y
+
+# Retention: 2 weekly full backups (>=14 days PITR window) + 7 differential backups.
+# Always let pgBackRest manage expiration (do NOT enable age-based R2 bucket lifecycle
+# rules on a pgBackRest or restic bucket, which can delete shared metadata or pack files).
+repo1-retention-full=2
+repo1-retention-diff=7
+repo1-retention-full-type=count
+
+log-level-console=warn
+log-level-file=info
+log-path=/var/log/pgbackrest
+
+[main]
+pg1-path=/var/lib/postgresql/data
+pg1-port=5432
+pg1-user=REPLACE_POSTGRES_USER

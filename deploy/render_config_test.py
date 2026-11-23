@@ -220,6 +220,23 @@ for instance_name, expected in [("dev", False), ("main", True)]:
     rendered_flag = tomllib.loads(rc.render("enabled = {{SEARCH_MAINTENANCE_ENABLED}}", flags))
     check_eq(f"{instance_name} maintenance renders a TOML bool", expected, rendered_flag["enabled"])
 
+# Per-instance local SQLite backup retention: main keeps 3 local copies; dev disables redundant file.db backups.
+for instance_name, want_enabled, want_keep in [("main", True, 3), ("dev", False, 1)]:
+    instance = rc.load_instance(instance_name, rc.DEFAULT_INSTANCES_DIR)
+    bvals, _ = rc.build_values(instance_name, instance, {}, {"DB_BACKUP_SQLITE", "DB_BACKUP_KEEP"}, set())
+    check_eq(f"{instance_name} db.backupSqlite", want_enabled, bvals["DB_BACKUP_SQLITE"])
+    check_eq(f"{instance_name} db.keep", want_keep, bvals["DB_BACKUP_KEEP"])
+    rendered_b = tomllib.loads(rc.render("backupSqlite = {{DB_BACKUP_SQLITE}}\nkeep = {{DB_BACKUP_KEEP}}", bvals))
+    check_eq(f"{instance_name} rendered backupSqlite", want_enabled, rendered_b["backupSqlite"])
+    check_eq(f"{instance_name} rendered keep", want_keep, rendered_b["keep"])
+for bad_keep in (0, -1, True, "3"):
+    expect_exit(
+        f"invalid db_backup.keep ({bad_keep!r}) rejected",
+        lambda bad_keep=bad_keep: rc.build_values(
+            "main", {**fake_instance, "db_backup": {"keep": bad_keep}}, {}, {"DB_BACKUP_KEEP"}, set()
+        ),
+    )
+
 # Real instance metadata must preserve enabled feeds across deployments.
 # Feed ranking/for_you/metrics come from instances/*.json
 # (main: ranking #1307, for_you+metrics #1308 — both instances currently True).
@@ -509,8 +526,9 @@ def render_deployed_config(env_name, dbname, extra):
             return tomllib.loads(f.read())
 
 
-def check_sqlite_daily_backup(label, db, dbname):
-    for key, want in SQLITE_DAILY_BACKUP.items():
+def check_sqlite_daily_backup(label, db, dbname, backup_sqlite=True, keep=3):
+    expected = {**SQLITE_DAILY_BACKUP, "backupSqlite": backup_sqlite, "keep": keep}
+    for key, want in expected.items():
         check_eq(f"{label} db.{key}", want, db[key])
     check_eq(f"{label} db.default.connection", "postgres", db["default"]["connection"])
     check_eq(
@@ -536,13 +554,13 @@ def check_sqlite_daily_backup(label, db, dbname):
         )
 
 
-for env_name, dbname, extra in (
-    ("main", "yourtj_main", {"GH_CLIENT_ID": "gh-id", "GH_CLIENT_SECRET": "gh-secret"}),
-    ("dev", "yourtj_dev", {}),
+for env_name, dbname, extra, want_sqlite, want_keep in (
+    ("main", "yourtj_main", {"GH_CLIENT_ID": "gh-id", "GH_CLIENT_SECRET": "gh-secret"}, True, 3),
+    ("dev", "yourtj_dev", {}, False, 1),
 ):
     rendered = render_deployed_config(env_name, dbname, extra)
     if rendered is not None:
-        check_sqlite_daily_backup(env_name, rendered["db"], dbname)
+        check_sqlite_daily_backup(env_name, rendered["db"], dbname, backup_sqlite=want_sqlite, keep=want_keep)
 
 with open(os.path.join(HERE, "config.toml.example"), encoding="utf-8") as example_file:
     example_cfg = tomllib.loads(example_file.read())

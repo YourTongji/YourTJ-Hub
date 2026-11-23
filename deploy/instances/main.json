@@ -6,6 +6,10 @@
   ],
   "pg_dbname": "yourtj_main",
   "search_maintenance_enabled": true,
+  "db_backup": {
+    "backup_sqlite": true,
+    "keep": 3
+  },
   "feed": {
     "ranking_enabled": true,
     "for_you_enabled": true,

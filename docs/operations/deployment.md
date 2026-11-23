@@ -275,13 +275,18 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
     .config.sha256
     storage/
   snapshots/
-    main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
+    main/pg-*.sql.gz      # pre-deploy gzipped pg_dump backups (0600, keep 7) — PostgreSQL 部署
+  backup/
+    r2.env                # Cloudflare R2 异地备份与加密口令（0600，仅宿主机维护，不入库）
+    pgbackrest/           # pgBackRest 配置（0600，挂载给 yourtj-postgres 做连续 WAL 归档与 PITR）
 
-应用按 `[db]` 的 `backupSqlite`、`backupDir` 和 `keep` 做 SQLite 日备份。main 与 dev 的渲染配置都是 `backupSqlite = true`、`backupDir = "./storage/databasebackup/"`、`keep = 3`。`keep` 是成功备份的保留份数。这和 `backup-db.sh` 部署前 `pg_dump` 的 7 份保留各自独立。
+应用按 `[db]` 的 `backupSqlite`、`backupDir` 和 `keep` 做 SQLite 日备份。`main` 渲染为 `backupSqlite = true`、`keep = 3`（保留本地 `file.db` 兜底）；`dev` 渲染为 `backupSqlite = false`、`keep = 1`（dev 每次部署均从 main 覆盖同步，无需重复本地备份）。这和 `backup-db.sh` 部署前 `pg_dump` 的 7 份保留各自独立。
 
 `sync-db-from-main.sh` 把 main 的数据库同步到 dev。同步前不复制旧 dev 库，也不写入 `snapshots/dev-prev`。同步范围、校验，以及停止 dev 服务的时机保持不变。
 
 dev 部署工作流从 `main` 检出渲染这份配置，并安装 `sync-db-from-main.sh`。这两处改动进入该检出后，随后的 dev 部署才会用到它们。生产部署同样从 `main` 检出渲染配置。
+
+生产主库的连续 WAL 归档、PITR 与 Cloudflare R2 加密异地容灾见 [Database backup, WAL archiving & disaster recovery](backup-and-recovery.md)。
 
 ## Branch model & CI/CD
 
@@ -337,7 +342,7 @@ Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得�
 
 | Secret | Environments | 用途 |
 |---|---|---|
-| `VM_HOST` / `VM_USER` / `VM_SSH_KEY` / `VM_SSH_PORT` | both | SSH 到部署机（当前同一台 43.108.84.213） |
+| `VM_HOST` / `VM_USER` / `VM_SSH_KEY` / `VM_SSH_PORT` | both | SSH 到部署机（从运维密库或云控制台读取，不在公开文档记录源站 IP） |
 | `PG_DSN` | both | `[db.default].url`（key=value 或 URL DSN；main=your**tj_main**，dev=your**tj_dev**；含库密码，勿外泄） |
 | `SIGNING_KEY` | both | `[app].signingKey`（**必须与现网一致**；轮换即全线登出 + TOTP/重置链接失效） |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | both（可选） | `[webpush]` VAPID 密钥对（生成：`yourtj-hub webpush-keys`，见下方 Config & run）；为空 = Web Push 通道关闭；**dev 保持空**（快照同步的订阅/任务行绝不外发推送） |
@@ -635,10 +640,15 @@ instance:
 
 - `backup-db.sh` / `sync-db-from-main.sh` auto-detect the main-db mode from each instance's
   `config.toml`:
-  - SQLite: use the SQLite `.backup` API (unchanged legacy path).
-  - PostgreSQL: `backup-db.sh` runs `pg_dump` into `snapshots/<instance>/pg-<db>-<ts>.sql`;
+  - SQLite: use the SQLite `.backup` API (unchanged legacy path, mode `0600`).
+  - PostgreSQL: `backup-db.sh` runs `pg_dump | gzip` into `snapshots/<instance>/pg-<db>-<ts>.sql.gz`
+    (mode `0600`, verified with `gzip -t`);
     `sync-db-from-main.sh` drops/recreates `yourtj_dev` and pipes
-    `pg_dump -d yourtj_main | psql -d yourtj_dev` (dev is a clean one-way snapshot of main).
+    `pg_dump -d yourtj_main | psql -v ON_ERROR_STOP=1 -d yourtj_dev` (`set -euo pipefail`, dev is a
+    clean one-way snapshot of main).
+  - For continuous WAL archiving, PITR, and offsite encrypted backups of both PostgreSQL and
+    `file.db`/keys to Cloudflare R2, use `backup-r2.sh` and see
+    [backup-and-recovery.md](backup-and-recovery.md).
   - PostgreSQL mode copies main's `file.db` to dev, because `[db.file]` remains SQLite even when the main database is PostgreSQL.
 - Manual equivalent inside the postgres container:
   ```bash
@@ -947,7 +957,7 @@ end = "2026-01-18"
 
 ## 服务器迁移 runbook（旧机 → 新机）
 
-旧生产服务器（20.205.27.178, 1Panel）迁移到新机（43.108.84.213, Docker Compose + GHCR）的完整步骤。
+旧生产服务器（1Panel）迁移到新机（Docker Compose + GHCR）的完整步骤。
 **原则：signingKey 必须原样复制，绝不重新生成**（否则全部会话 / TOTP / 重置链接失效，fail-closed）。
 
 ### 0. 前置
@@ -960,12 +970,12 @@ end = "2026-01-18"
   1Panel 承担（自管 nginx 容器已移除, 不再有 :80 与 openresty 冲突的问题）。
 - **GHCR 包可见性**：首次 build-image 推送后，GitHub Packages → `yourtj-hub` → Settings →
   Change visibility → **Public**（默认 private，服务器匿名 pull 会 401）。
-- 备份密钥：`~/Documents/YourTJ_Korean.pem`（新机 SSH PEM）。
+- 备份 SSH 私钥妥善保存在运维本地受限路径（如 `<ssh-key.pem>`，不写入公开文档）。
 
 ### 1. 新机初始化
 
 ```bash
-ssh -i ~/Documents/YourTJ_Korean.pem root@43.108.84.213
+ssh -i <ssh-key.pem> root@<new-host>
 mkdir -p /opt/yourtj && cd /opt/yourtj
 # 从仓库拷贝 deploy/ 目录后:
 sudo bash deploy/scripts/init-server.sh https://f.yourtj.de https://dev.yourtj.de
@@ -990,8 +1000,8 @@ docker compose exec -T postgres sh -c 'pg_dump -U yourtj -d yourtj_main' > /tmp/
 docker compose exec -T postgres sh -c 'pg_dump -U yourtj -d yourtj_dev' > /tmp/yourtj_dev.sql
 
 # 旧机 → 新机: 直传
-scp -i ~/Documents/YourTJ_Korean.pem /tmp/yourtj_main.sql /tmp/yourtj_dev.sql \
-  root@43.108.84.213:/tmp/
+scp -i <ssh-key.pem> /tmp/yourtj_main.sql /tmp/yourtj_dev.sql \
+  root@<new-host>:/tmp/
 
 # 新机: 导入(在 postgres 容器内)
 docker compose exec -T postgres sh -c 'psql -U yourtj -d yourtj_main' < /tmp/yourtj_main.sql
@@ -1007,11 +1017,11 @@ docker compose exec -T postgres sh -c 'psql -U yourtj -d yourtj_dev' < /tmp/your
 sqlite3 /opt/yourtj/main/storage/database/file.db ".backup '/tmp/main-file.db'"
 sqlite3 /opt/yourtj/dev/storage/database/file.db ".backup '/tmp/dev-file.db'"
 # 或直接复用旧机已有的 backup-db.sh(它已做一致性快照):
-#   /opt/yourtj/scripts/backup-db.sh main && scp ... root@<旧机>:/opt/yourtj/snapshots/main/file-*.db /tmp/main-file.db
+#   /opt/yourtj/scripts/backup-db.sh main && scp ... root@<old-host>:/opt/yourtj/snapshots/main/file-*.db /tmp/main-file.db
 
 # 旧机 → 新机
-scp -i ~/Documents/YourTJ_Korean.pem /tmp/main-file.db /tmp/dev-file.db \
-  root@43.108.84.213:/tmp/
+scp -i <ssh-key.pem> /tmp/main-file.db /tmp/dev-file.db \
+  root@<new-host>:/tmp/
 
 # 新机: 安装 + 属主必须是容器内 app uid(1000), 否则附件写入报权限错误
 install -m 0664 /tmp/main-file.db /opt/yourtj/main/storage/database/file.db
@@ -1026,8 +1036,8 @@ OIDC 设置（含 signing_key_file PEM）、一系统同步 Cookie 密文等，�
 
 ```bash
 # 旧机: 完整拷贝两个 config.toml 与 OIDC 密钥文件
-scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/main/config.toml /tmp/main-config.toml
-scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/config.toml /tmp/dev-config.toml
+scp -i <ssh-key.pem> root@<old-host>:/opt/yourtj/main/config.toml /tmp/main-config.toml
+scp -i <ssh-key.pem> root@<old-host>:/opt/yourtj/dev/config.toml /tmp/dev-config.toml
 # 若 [oidc] signing_key_file 启用, 一并拷贝对应 PEM
 
 # 新机: 用旧配置覆盖, 然后 reconcile 以下部署相关键:
@@ -1035,8 +1045,8 @@ scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/config.toml /
 #   - [server] trusted_proxies: 1Panel 本机回源 → ["127.0.0.1", "::1"]
 #   - [meilisearch] masterkey: 与 /opt/yourtj/.env 的 MEILI_MASTER_KEY 一致
 #   - [server] url: 保持 https://f.yourtj.de / https://dev.yourtj.de
-install -m 0644 /tmp/main-config.toml /opt/yourtj/main/config.toml
-install -m 0644 /tmp/dev-config.toml /opt/yourtj/dev/config.toml
+install -m 0640 /tmp/main-config.toml /opt/yourtj/main/config.toml
+install -m 0640 /tmp/dev-config.toml /opt/yourtj/dev/config.toml
 ```
 
 ### 4. 首次部署 + 健康检查
@@ -1059,8 +1069,8 @@ curl -fsS -H "Host: f.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 反�
 1. **Cloudflare SSL/TLS 模式**：新旧机均由 1Panel 反代终止 TLS（保持与旧机一致的
    模式，如 Full (strict)：Cloudflare → origin 走 HTTPS:443）。论坛容器只监听
    127.0.0.1 回源端口，不直接暴露 80/443。
-2. **DNS**：`f.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）
-   改为新机 IP（43.108.84.213）。
+2. **DNS**：`f.yourtj.de` / `dev.yourtj.de` 的 A 记录从 `<old-host>`
+   改为 `<new-host>`。
 3. 等 TTL 过后从外网验证 `https://f.yourtj.de` 与 `https://dev.yourtj.de` 可达、
    登录/发帖/附件/搜索 spot-check。
 4. **观察期（≥7 天）内旧机保持运行**；确认稳定后退役旧机（`docker compose down`，保留数据快照）。

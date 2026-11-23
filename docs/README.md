@@ -91,6 +91,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [RC and confirmed releases](operations/releases.md)
 - [Continuous dev delivery](operations/release-cycles.md)
 - [Deployment & release](operations/deployment.md)
+- [Database backup, WAL archiving & disaster recovery (Cloudflare R2)](operations/backup-and-recovery.md)
 - [Host security maintenance](operations/host-security.md)
 - [1Panel OpenResty security maintenance](operations/proxy-security.md)
 - [Agent events and external runners](operations/agents.md)

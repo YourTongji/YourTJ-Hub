@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # backup-db.sh — 实例部署前数据库一致性备份, 保留最近 KEEP 份。
-# 主库模式自动检测: SQLite(.backup) 或 PostgreSQL(pg_dump)。
+# 主库模式自动检测: SQLite(.backup) 或 PostgreSQL(pg_dump + gzip, 0600 受限权限)。
 # usage: backup-db.sh [instance]
 set -euo pipefail
+umask 077
 
 ROOT="${YOURTJ_ROOT:-/opt/yourtj}"
 INSTANCE="${1:-main}"
 KEEP="${KEEP:-7}"
+PG_CONTAINER="${PG_CONTAINER:-yourtj-postgres}"
 DB_DIR="$ROOT/$INSTANCE/storage/database"
 BACKUP_DIR="$ROOT/snapshots/$INSTANCE"
 TS="$(date +%Y%m%d_%H%M%S)"
@@ -17,6 +19,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/pgdsn.sh"
 
 mkdir -p "$BACKUP_DIR"
+chmod 0700 "$BACKUP_DIR"
+
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/yourtj-backup-${INSTANCE}.XXXXXX")"
+chmod 0700 "$TMP_DIR"
+trap 'rm -rf "$TMP_DIR"' EXIT
 
 # 检测主库模式: 读 config.toml [db.default] connection
 db_mode() {
@@ -40,11 +47,20 @@ pg_dbname() {
   pg_dsn_dbname "$url"
 }
 
+pg_user() {
+  local user="${POSTGRES_USER:-}"
+  if [ -z "$user" ] && [ -f "$ROOT/.env" ]; then
+    user="$(grep -E '^POSTGRES_USER=' "$ROOT/.env" | head -1 | cut -d= -f2- || true)"
+  fi
+  echo "${user:-yourtj}"
+}
+
 if [ "$(db_mode)" = "postgres" ]; then
   # 解析失败时 pg_dbname 已输出错误并返回非零(set -e 下即终止),
   # 与 sync-db-from-main.sh 的 pg_dbname || exit 1 语义一致。
   PG_DB="$(pg_dbname)" || exit 1
-  TMP="/tmp/backup-${PG_DB}-$$.sql"
+  PG_USER="$(pg_user)"
+  TMP="$TMP_DIR/backup-${PG_DB}.sql.gz"
   # 脱敏 flag 是备份的前置依赖: 脚本缺失/执行失败/输出为空都必须硬失败。
   # 进程替换(< <(...))里的失败不会触发 set -e, 会静默产出未脱敏备份(issue #1284)。
   FEED_PRIVACY="$SCRIPT_DIR/feed-privacy.py"
@@ -52,17 +68,30 @@ if [ "$(db_mode)" = "postgres" ]; then
   FEED_FLAGS_RAW="$(python3 "$FEED_PRIVACY" --pg-flags)" || { echo "backup-db: feed-privacy.py 提取脱敏 flag 失败" >&2; exit 1; }
   [ -n "$FEED_FLAGS_RAW" ] || { echo "backup-db: feed-privacy.py 返回空脱敏 flag" >&2; exit 1; }
   FEED_PG_FLAGS=()
-  while IFS= read -r flag; do FEED_PG_FLAGS+=("$flag"); done <<< "$FEED_FLAGS_RAW"
-  if docker exec yourtj-postgres pg_dump "${FEED_PG_FLAGS[@]}" -U yourtj -d "$PG_DB" > "$TMP"; then
-    mv -f "$TMP" "$BACKUP_DIR/pg-${PG_DB}-${TS}.sql"
-    echo "backup-db: $INSTANCE pg dump ($PG_DB) backed up"
+  while IFS= read -r flag; do
+    [ -n "$flag" ] && FEED_PG_FLAGS+=("$flag")
+  done <<< "$FEED_FLAGS_RAW"
+
+  if docker exec "$PG_CONTAINER" pg_dump "${FEED_PG_FLAGS[@]}" -U "$PG_USER" -d "$PG_DB" | gzip -c > "$TMP"; then
+    if [ ! -s "$TMP" ] || ! gzip -t "$TMP"; then
+      echo "backup-db: pg_dump produced empty or invalid gzip for $PG_DB" >&2
+      exit 1
+    fi
+    chmod 0600 "$TMP"
+    mv -f "$TMP" "$BACKUP_DIR/pg-${PG_DB}-${TS}.sql.gz"
+    echo "backup-db: $INSTANCE pg dump ($PG_DB) backed up (gzip, 0600)"
   else
     echo "backup-db: pg_dump failed for $PG_DB" >&2
-    rm -f "$TMP"
     exit 1
   fi
-  # 清理旧 PG 备份(每库保留 KEEP 份)
-  ls -1t "$BACKUP_DIR"/pg-"${PG_DB}"-*.sql 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f
+  # 清理旧 PG 备份(兼容历史未压缩 .sql 与新 .sql.gz, 每库保留 KEEP 份;
+  # nullglob 避免无历史 .sql 文件时未匹配 glob 让 ls 返回 2 中断备份)
+  shopt -s nullglob
+  PG_BACKUPS=( "$BACKUP_DIR"/pg-"${PG_DB}"-*.sql.gz "$BACKUP_DIR"/pg-"${PG_DB}"-*.sql )
+  shopt -u nullglob
+  if [ "${#PG_BACKUPS[@]}" -gt "$KEEP" ]; then
+    ls -1t "${PG_BACKUPS[@]}" | tail -n +$((KEEP + 1)) | xargs -r rm -f
+  fi
   echo "backup-db: $INSTANCE pg backups done (keep $KEEP)"
   exit 0
 fi
@@ -75,10 +104,11 @@ fi
 backup_one() {
   local db="$1" label="$2"
   [ -f "$db" ] || { echo "backup-db: $db not found, skip"; return 0; }
-  TMP="/tmp/backup-${label}-$$.db"
-  sqlite3 "$db" ".backup '$TMP'" || { echo "backup-db: $label snapshot failed" >&2; rm -f "$TMP"; exit 1; }
-  python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$TMP" || { echo "backup-db: $label 脱敏失败" >&2; rm -f "$TMP"; exit 1; }
-  mv -f "$TMP" "$BACKUP_DIR/${label}-${TS}.db"
+  local tmp="$TMP_DIR/backup-${label}.db"
+  sqlite3 "$db" ".backup '$tmp'" || { echo "backup-db: $label snapshot failed" >&2; exit 1; }
+  python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$tmp" || { echo "backup-db: $label 脱敏失败" >&2; exit 1; }
+  chmod 0600 "$tmp"
+  mv -f "$tmp" "$BACKUP_DIR/${label}-${TS}.db"
   echo "backup-db: $label backed up"
 }
 
@@ -87,6 +117,11 @@ backup_one "$DB_DIR/file.db" "file"
 
 # 清理旧备份(任一标签), 每个标签保留 KEEP 份
 for label in sqlite file; do
-  ls -1t "$BACKUP_DIR"/"${label}"-*.db 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f
+  shopt -s nullglob
+  LABEL_BACKUPS=( "$BACKUP_DIR"/"${label}"-*.db )
+  shopt -u nullglob
+  if [ "${#LABEL_BACKUPS[@]}" -gt "$KEEP" ]; then
+    ls -1t "${LABEL_BACKUPS[@]}" | tail -n +$((KEEP + 1)) | xargs -r rm -f
+  fi
 done
 echo "backup-db: $INSTANCE backups done (keep $KEEP per label)"

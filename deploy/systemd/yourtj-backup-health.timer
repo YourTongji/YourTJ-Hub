@@ -1,0 +1,10 @@
+[Unit]
+Description=Check YourTJ WAL archiving and R2 backup freshness every 30 minutes
+
+[Timer]
+OnBootSec=5m
+OnUnitActiveSec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
