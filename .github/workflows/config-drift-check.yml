@@ -22,6 +22,8 @@ jobs:
     environment: ${{ matrix.env == 'main' && 'production' || 'dev' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       # 期望值在 runner 上从仓库 instances JSON 读取（服务器不需要 python）
       - name: Read expected values from instances JSON
@@ -52,10 +54,9 @@ jobs:
           script: |
             set -e
             RUN_DIR=/tmp/yourtj-drift-${{ github.run_id }}-${{ matrix.env }}
+            trap 'rm -rf "$RUN_DIR"' EXIT
             install -m 0755 "$RUN_DIR/verify-instance.sh" /opt/yourtj/scripts/verify-instance.sh
             install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
             EXPECT_SERVER_URL="${{ steps.expected.outputs.exp_server_url }}" \
             EXPECT_DBNAME="${{ steps.expected.outputs.exp_dbname }}" \
               /opt/yourtj/scripts/verify-instance.sh ${{ matrix.env }}
-            # 清理本 run 上传的临时脚本
-            rm -rf "$RUN_DIR"

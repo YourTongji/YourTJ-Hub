@@ -11,6 +11,9 @@ on:
           - dev
           - main
 
+permissions:
+  contents: read
+
 concurrency:
   # 与同实例 code deploy 串行, 防 config.prev 单槽互相覆盖
   group: instance-mutate-${{ github.event.inputs.env }}
@@ -26,6 +29,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Render ${{ github.event.inputs.env }} config
         uses: ./.github/actions/render-config
@@ -80,9 +85,8 @@ jobs:
           script: |
             set -e
             RUN_DIR=/tmp/yourtj-deploy-${{ github.run_id }}
+            trap 'rm -rf "$RUN_DIR"' EXIT
             install -m 0755 "$RUN_DIR/apply-config.sh" /opt/yourtj/scripts/apply-config.sh
             # apply-config.sh: 备份 → 原子替换 → force-recreate 重挂 → 健康检查 → 失败恢复
             /opt/yourtj/scripts/apply-config.sh ${{ github.event.inputs.env }} \
               "$RUN_DIR/config-${{ github.event.inputs.env }}.toml"
-            # 清理本 run 上传的临时文件（含明文渲染 config）
-            rm -rf "$RUN_DIR"

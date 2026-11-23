@@ -2,11 +2,21 @@
 # 用法: docker compose up -d [main|dev]
 # 镜像来自 GHCR(CI 构建推送, 服务器匿名 pull), 环境变量来自 /opt/yourtj/.env(见 init-server.sh)
 # 公网 TLS 由 1Panel 反代终止, 回源到宿主机 MAIN_PORT/DEV_PORT; 后端容器只绑 127.0.0.1。
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
 services:
   main:
     image: ${IMAGE_REPO:-ghcr.io/yourtongji/yourtj-hub}:${MAIN_TAG:-latest}
     container_name: yourtj-main
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
     ports:
       - "127.0.0.1:${MAIN_PORT:-5234}:5234"
     volumes:
@@ -26,6 +36,9 @@ services:
     image: ${IMAGE_REPO:-ghcr.io/yourtongji/yourtj-hub}:${DEV_TAG:-latest}
     container_name: yourtj-dev
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
     ports:
       - "127.0.0.1:${DEV_PORT:-5235}:5234"
     volumes:
@@ -42,15 +55,43 @@ services:
       start_period: 10s
 
   postgres:
-    image: postgres:16-alpine
+    # 默认沿用官方 postgres:16-alpine；启用 Cloudflare R2 WAL 归档时在 .env 设为
+    # POSTGRES_IMAGE=yourtj-postgres-backup:16-alpine（见 services/postgres-backup）并开启 PG_ARCHIVE_MODE=on。
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     container_name: yourtj-postgres
     restart: unless-stopped
+    logging: *default-logging
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - wal_compression=lz4
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - max_wal_size=${PG_MAX_WAL_SIZE:-512MB}
+      - -c
+      - min_wal_size=80MB
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-768MB}
+      - -c
+      - archive_mode=${PG_ARCHIVE_MODE:-off}
+      - -c
+      - archive_timeout=${PG_ARCHIVE_TIMEOUT:-300}
+      - -c
+      - archive_command=${PG_ARCHIVE_COMMAND:-/bin/true}
+      - -c
+      - log_min_duration_statement=${PG_LOG_MIN_DURATION_MS:-500}
+      - -c
+      - log_statement=${PG_LOG_STATEMENT:-ddl}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-yourtj}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ${PGBACKREST_CONF_DIR:-./backup/pgbackrest}:/etc/pgbackrest:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yourtj}"]
       interval: 10s
@@ -61,6 +102,7 @@ services:
     image: getmeili/meilisearch:v1.47.1
     container_name: yourtj-meilisearch
     restart: unless-stopped
+    logging: *default-logging
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
       MEILI_NO_ANALYTICS: "true"

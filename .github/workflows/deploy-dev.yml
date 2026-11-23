@@ -180,6 +180,7 @@ jobs:
           script: |
             set -e
             RUN_DIR=/tmp/yourtj-deploy-${{ github.run_id }}
+            trap 'rm -rf "$RUN_DIR"' EXIT
             # 0. 同步仓库最新脚本到服务器(install 保证可执行位)。
             #    sync-db-from-main.sh source pgdsn.sh, 必须一并下发, 否则
             #    set -e 下 source 失败阻断部署(review W2)。
@@ -198,8 +199,6 @@ jobs:
             #    CONFIG_FILE 携带渲染 config: 与镜像同一回滚事务原子替换
             IMAGE_KEEP_N=3 CONFIG_FILE="$RUN_DIR/config-dev.toml" \
               /opt/yourtj/scripts/deploy.sh dev dev-${{ needs.gate.outputs.sha }} 5235
-            # 3. 部署成功/失败后清理本 run 上传的临时文件(含明文渲染 config)
-            rm -rf "$RUN_DIR"
       - name: Record continuous dev web deployment
         if: inputs.continuous && success()
         env:

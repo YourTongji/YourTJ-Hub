@@ -53,9 +53,9 @@ android_sha256_cert_fingerprints = {{PASSKEY_ANDROID_SHA256_CERT_FINGERPRINTS}}
 
 [db]
 migration = "on"
-backupSqlite = true
+backupSqlite = {{DB_BACKUP_SQLITE}}
 backupDir = "./storage/databasebackup/"
-keep = 3
+keep = {{DB_BACKUP_KEEP}}
 spec = "0 3 * * *"
 
 [db.default]

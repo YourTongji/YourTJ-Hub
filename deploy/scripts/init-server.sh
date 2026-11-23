@@ -16,7 +16,9 @@ if ! command -v sqlite3 >/dev/null 2>&1; then
 fi
 
 # 2. 目录结构
-mkdir -p "$ROOT"/{scripts,snapshots,main/storage,dev/storage}
+mkdir -p "$ROOT"/{scripts,snapshots,backup/pgbackrest,main/storage,dev/storage}
+chmod 0700 "$ROOT/backup" "$ROOT/snapshots"
+chmod 0750 "$ROOT/backup/pgbackrest"
 
 # 3. 复制 compose / 配置模板 / 脚本(源=目标时跳过)
 copy_if_diff() {

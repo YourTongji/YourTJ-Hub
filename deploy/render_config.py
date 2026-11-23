@@ -42,7 +42,9 @@ import urllib.parse
 TOKEN_RE = re.compile(r"\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}")
 
 # 由实例 JSON 提供的非敏感 token；其余 token 一律视为 secret（从环境变量读取）。
-INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINTENANCE_ENABLED", "FEED_RANKING_ENABLED", "FEED_FOR_YOU_ENABLED", "FEED_METRICS_ENABLED", "FEED_ROLLOUT_PERCENT", "FEED_EXPERIMENT_PERIOD", "FEED_EXPERIMENT_SALT",
+INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINTENANCE_ENABLED",
+                   "DB_BACKUP_SQLITE", "DB_BACKUP_KEEP",
+                   "FEED_RANKING_ENABLED", "FEED_FOR_YOU_ENABLED", "FEED_METRICS_ENABLED", "FEED_ROLLOUT_PERCENT", "FEED_EXPERIMENT_PERIOD", "FEED_EXPERIMENT_SALT",
                    # Passkey relying-party identity is public (the forum serves it from the
                    # well-known association documents), so it is reviewed in instances JSON.
                    "PASSKEY_ENABLED", "PASSKEY_RP_ID", "PASSKEY_DISPLAY_NAME", "PASSKEY_WEB_ORIGINS",
@@ -203,9 +205,15 @@ def validate_pg_dsn(values, instance):
 def build_values(env, instance, environ, tokens, allow_empty):
     """组装 token → 值。返回 (values, summary)；空必需值即失败。"""
     passkeys = instance.get("passkeys", {})
+    db_backup = instance.get("db_backup", {})
+    db_backup_keep = db_backup.get("keep", 3 if env == "main" else 1)
+    if isinstance(db_backup_keep, bool) or not isinstance(db_backup_keep, int) or db_backup_keep < 1:
+        raise SystemExit(f"render: db_backup.keep must be an integer >= 1 (got {db_backup_keep!r})")
     instance_token_map = {
         "SERVER_URL": str(instance["server_url"]),
         "SEARCH_MAINTENANCE_ENABLED": instance.get("search_maintenance_enabled") is True,
+        "DB_BACKUP_SQLITE": db_backup.get("backup_sqlite", env == "main") is True,
+        "DB_BACKUP_KEEP": db_backup_keep,
         "OIDC_ISSUER": str(instance["server_url"]).rstrip("/") + "/api/oauth",
         "TRUSTED_PROXIES": list(instance["trusted_proxies"]),
         "FEED_RANKING_ENABLED": instance.get("feed", {}).get("ranking_enabled", False),
