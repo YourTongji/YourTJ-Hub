@@ -83,9 +83,31 @@ func TestBackfillImagesPartialSaveFailure(t *testing.T) {
 	failSave := true
 	attempts := 0
 	if err := conn.Callback().Update().Before("gorm:update").Register(callback, func(tx *gorm.DB) {
-		if topic, ok := tx.Statement.Dest.(*topics.Entity); ok && (topic.Id == ids[0] || topic.Id == ids[1]) {
+		if tx.Statement.Table != "topics" {
+			return
+		}
+		updates, ok := tx.Statement.Dest.(map[string]any)
+		if !ok || len(updates) != 1 {
+			return
+		}
+		if _, ok := updates["image_urls"]; !ok {
+			return
+		}
+		where, ok := tx.Statement.Clauses["WHERE"].Expression.(clause.Where)
+		if !ok {
+			return
+		}
+		for _, condition := range where.Exprs {
+			expr, ok := condition.(clause.Expr)
+			if !ok || expr.SQL != "id = ?" || len(expr.Vars) != 1 {
+				continue
+			}
+			id, ok := expr.Vars[0].(uint64)
+			if !ok || !slices.Contains(ids, id) {
+				continue
+			}
 			attempts++
-			if failSave && topic.Id == ids[1] {
+			if failSave && id == ids[1] {
 				_ = tx.AddError(errors.New("injected save failure"))
 			}
 		}
