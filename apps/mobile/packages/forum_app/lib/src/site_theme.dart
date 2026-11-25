@@ -95,7 +95,12 @@ class SiteThemeController extends Notifier<SiteThemeState> {
       // 无本地存储（测试/权限异常）时按默认值继续。
     }
     if (!_current(revision)) return;
-    _apply(available: state.available, following: following, themes: cached);
+    final hasCached = cached != null && cached.isNotEmpty;
+    _apply(
+      available: state.available || hasCached,
+      following: following,
+      themes: cached,
+    );
 
     // 后台刷新：失败静默保留缓存态。
     try {
@@ -108,6 +113,8 @@ class SiteThemeController extends Notifier<SiteThemeState> {
           : const {};
       if (themes.isNotEmpty) {
         _persistCache(themes, revision);
+      } else {
+        _clearPersistedCache(revision);
       }
       _apply(
         available: payload.enabled && themes.isNotEmpty,
@@ -147,6 +154,18 @@ class SiteThemeController extends Notifier<SiteThemeState> {
       });
     } catch (_) {
       // 持久化失败不影响本次会话。
+    }
+  }
+
+  Future<void> _clearPersistedCache(int revision) async {
+    try {
+      await _enqueue(() async {
+        final prefs = await SharedPreferences.getInstance();
+        if (!_current(revision)) return;
+        await prefs.remove(_cacheKey);
+      });
+    } catch (_) {
+      // 清理失败不影响本次会话。
     }
   }
 

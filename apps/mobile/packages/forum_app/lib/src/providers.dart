@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:auth/auth.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'offline/drift_cache.dart';
 import 'offline/campus_snapshot_store.dart';
@@ -430,6 +432,7 @@ final fileRepositoryProvider = Provider<FileRepository>((ref) {
 });
 
 final linkPreviewRepositoryProvider = Provider<LinkPreviewRepository>((ref) {
+  ref.watch(offlineCacheEpochProvider);
   return LinkPreviewRepository(ref.watch(apiClientProvider));
 });
 
@@ -442,11 +445,29 @@ final pkRepositoryProvider = Provider<PkRepository>((ref) {
 });
 
 final courseRepositoryProvider = Provider<CourseRepository>((ref) {
-  return CourseRepository(ref.watch(apiClientProvider));
+  ref.watch(offlineCacheEpochProvider);
+  ref.watch(
+    cacheClearEpochProvider.select(
+      (epochs) => epochs[CacheCategory.forum] ?? 0,
+    ),
+  );
+  return CourseRepository(
+    ref.watch(apiClientProvider),
+    cacheTtl: const Duration(minutes: 2),
+  );
 });
 
 final wikiRepositoryProvider = Provider<WikiRepository>((ref) {
-  return WikiRepository(ref.watch(apiClientProvider));
+  ref.watch(offlineCacheEpochProvider);
+  ref.watch(
+    cacheClearEpochProvider.select(
+      (epochs) => epochs[CacheCategory.forum] ?? 0,
+    ),
+  );
+  return WikiRepository(
+    ref.watch(apiClientProvider),
+    cacheTtl: const Duration(minutes: 5),
+  );
 });
 
 final themeRepositoryProvider = Provider<ThemeRepository>((ref) {
@@ -466,11 +487,52 @@ final contentRepositoryProvider = Provider<ContentRepository>(
   (ref) => ContentRepository(ref.watch(apiClientProvider)),
 );
 
-/// Site/session-scoped sticker resolution; a new account never inherits assets.
+const String _officialStickersCachePrefix = 'official_stickers_cache_v1:';
+
+/// Site/session-scoped sticker resolution with origin-scoped SWR disk cache for
+/// the public official catalog; a new account never inherits personal assets.
 final stickerLibraryProvider = Provider<StickerLibrary>((ref) {
   ref.watch(offlineCacheEpochProvider);
+  final client = ref.watch(apiClientProvider);
+  final origin = Uri.tryParse(client.baseUrl)?.origin ?? client.baseUrl;
+  final cacheKey = '$_officialStickersCachePrefix$origin';
   final library = StickerLibrary(
-    StickerRepository(ref.watch(apiClientProvider)),
+    StickerRepository(client),
+    readCached: () async {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(cacheKey);
+      if (raw == null) return null;
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final savedAtMs = decoded['savedAt'] as int?;
+      final list = decoded['items'] as List<dynamic>?;
+      if (savedAtMs == null || list == null) return null;
+      final items = list
+          .map(
+            (e) => StickerItemPayload.fromJson(
+              Map<String, dynamic>.from(e as Map),
+            ),
+          )
+          .where((item) => item.isOfficial && item.isAvailable)
+          .toList(growable: false);
+      return (
+        items: items,
+        savedAt: DateTime.fromMillisecondsSinceEpoch(savedAtMs, isUtc: true),
+      );
+    },
+    writeCached: (items, savedAt) async {
+      final prefs = await SharedPreferences.getInstance();
+      final official = items
+          .where((item) => item.isOfficial && item.isAvailable)
+          .map((item) => item.toJson())
+          .toList(growable: false);
+      await prefs.setString(
+        cacheKey,
+        jsonEncode({
+          'savedAt': savedAt.toUtc().millisecondsSinceEpoch,
+          'items': official,
+        }),
+      );
+    },
   );
   ref.onDispose(library.dispose);
   return library;

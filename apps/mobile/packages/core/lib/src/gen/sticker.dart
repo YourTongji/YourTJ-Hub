@@ -42,6 +42,16 @@ class StickerItemPayload {
         isEnabled: json['isEnabled'] as bool? ?? true,
         reviewStatus: json['reviewStatus'] as String? ?? 'approved',
       );
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'url': url,
+    'displayName': displayName,
+    'pack': pack,
+    'isOfficial': isOfficial,
+    'isEnabled': isEnabled,
+    'reviewStatus': reviewStatus,
+  };
 }
 
 /// 官方表情包分组（GET /api/forum/sticker-packs，按管理端排序，只含有启用表情的包）。
@@ -128,6 +138,7 @@ class StickerSaveRequest {
 /// 压缩包导入的单条失败原因（zip 包内某条目未被导入的原因）。
 class StickerImportIssuePayload {
   const StickerImportIssuePayload({required this.name, required this.reason});
+
   /// Complete ZIP entry path, single image filename, or `...` for the entry cap.
   final String name;
   final String reason;

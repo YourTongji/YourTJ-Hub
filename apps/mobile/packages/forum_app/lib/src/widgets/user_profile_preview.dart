@@ -1,4 +1,5 @@
 import 'user_decoration.dart';
+import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -28,11 +29,31 @@ typedef _CachedUserCard = ({
   int sessionEpoch,
 });
 
-final _userCardPreviewCache = <int, _CachedUserCard>{};
+const int _maxPreviewCacheEntries = 100;
+final LinkedHashMap<int, _CachedUserCard> _userCardPreviewCache =
+    LinkedHashMap<int, _CachedUserCard>();
 const _previewCacheTtl = Duration(seconds: 60);
+
+_CachedUserCard? _readPreviewCache(int userId) {
+  final hit = _userCardPreviewCache.remove(userId);
+  if (hit != null) {
+    _userCardPreviewCache[userId] = hit;
+  }
+  return hit;
+}
+
+void _writePreviewCache(int userId, _CachedUserCard entry) {
+  _userCardPreviewCache.remove(userId);
+  if (_userCardPreviewCache.length >= _maxPreviewCacheEntries) {
+    _userCardPreviewCache.remove(_userCardPreviewCache.keys.first);
+  }
+  _userCardPreviewCache[userId] = entry;
+}
 
 void invalidateUserProfilePreview(int userId) =>
     _userCardPreviewCache.remove(userId);
+
+void clearUserProfilePreviewCache() => _userCardPreviewCache.clear();
 
 Future<void> showUserProfilePreview(
   BuildContext context, {
@@ -124,7 +145,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
   @override
   void initState() {
     super.initState();
-    final cached = _userCardPreviewCache[widget.userId];
+    final cached = _readPreviewCache(widget.userId);
     final sessionEpoch = ref.read(offlineCacheEpochProvider);
     final validCached = cached?.sessionEpoch == sessionEpoch ? cached : null;
     if (validCached != null) {
@@ -162,11 +183,11 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
           ref.read(offlineCacheEpochProvider) != sessionEpoch) {
         return;
       }
-      _userCardPreviewCache[widget.userId] = (
+      _writePreviewCache(widget.userId, (
         user: user,
         fetchedAt: DateTime.now(),
         sessionEpoch: sessionEpoch,
-      );
+      ));
       ref
           .read(userFollowStateProvider(widget.userId))
           .acceptServerValue(

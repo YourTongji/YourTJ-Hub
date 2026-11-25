@@ -16,6 +16,7 @@ import '../push/push_service.dart';
 import '../theme_mode.dart';
 import '../navigation_style.dart';
 import '../site_theme.dart';
+import '../widgets/user_profile_preview.dart';
 import 'cache_coordinator.dart';
 import 'device_storage.dart';
 import 'media_repository.dart';
@@ -44,6 +45,8 @@ final Provider<CacheCoordinator> cacheCoordinatorProvider =
           if (categories.contains(CacheCategory.forum)) {
             ref.invalidate(topicReturnStatesProvider);
             ref.invalidate(postReturnStatesProvider);
+            clearUserProfilePreviewCache();
+            ref.read(linkPreviewRepositoryProvider).clearCache();
           }
           if (categories.contains(CacheCategory.campus)) {
             ref.read(campusCacheEpochProvider.notifier).invalidate();
