@@ -42,13 +42,13 @@ func GetByName(name string) (entity Entity) {
 	return
 }
 
-// GetFileMetadataByName returns a row's ownership metadata without loading the
-// content BLOB. A missing name reports (nil, nil), so callers can tell "absent"
-// apart from a real query failure.
+// GetFileMetadataByName returns a row's ownership and cache metadata without
+// loading the content BLOB. A missing name reports (nil, nil), so callers can
+// tell "absent" apart from a real query failure.
 func GetFileMetadataByName(name string) (*Entity, error) {
 	var entity Entity
 	err := builder().
-		Select("id", "name", "storage_status", "user_id").
+		Select("id", "name", "storage_status", "user_id", "file_size", "updated_at").
 		Where(queryopt.Eq(fieldName, name)).
 		Take(&entity).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {

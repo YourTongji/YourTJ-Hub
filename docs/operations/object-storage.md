@@ -46,11 +46,15 @@ content keeps the existing author/reviewer preview rules; recovering or purged c
 inaccessible even to its uploader. Files without any usage record retain legacy public access.
 Read-reference query failures deny access rather than falling back to legacy behavior.
 
-All responses use `no-store`; restricted previews and denials use `private, no-store`. The exception
-is sticker market assets under `stickers/market/`: they are public, content-addressed catalog files
-and use `public, max-age=86400` ([0115](../decisions/0115-sticker-market-subscriptions.md)).
-Changing these headers cannot revoke copies already cached under the former 210-day policy.
-Rechecking permissions increases origin traffic; the reverse proxy must preserve these headers.
+Public inline image responses carry a deterministic `ETag` derived from stored file metadata
+and honor `If-None-Match` with `304 Not Modified` before reading storage bytes. Active avatars,
+active stickers and sticker market assets under `stickers/market/` ([0115](../decisions/0115-sticker-market-subscriptions.md))
+use `public, max-age=86400` because new uploads allocate new filenames; other public images
+(published post/topic/chat/cover and legacy untracked files) use `public, max-age=300` so
+withdrawals bound cached reuse to five minutes while avoiding repeat transfers within a reading
+session. Restricted previews, denials, errors and non-image attachment downloads keep
+`private, no-store` / `no-store` without `ETag`. Changing these headers cannot revoke copies
+already cached under an earlier longer policy; the reverse proxy must preserve these headers.
 This policy governs the application read route. A public bucket or `publicUrlPrefix` that bypasses
 it needs its own access controls. Referer filtering is not an authorization mechanism and is not
 implemented by this route.

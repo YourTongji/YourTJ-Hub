@@ -28,12 +28,18 @@ func gzipEnabled() bool {
 	return preferences.GetBool("server.gzip", true)
 }
 
+// Already-compressed image and font formats do not benefit from gzip and
+// must not receive a spurious Vary: Accept-Encoding header.
+var gzipExcludedExtensions = []string{
+	".png", ".gif", ".jpeg", ".jpg", ".webp", ".avif", ".ico", ".woff2",
+}
+
 func assertRouter(ginApp *gin.Engine) {
 	assetsFs, _ := resource.GetAssetsFS()
 	staticFS, _ := resource.GetStaticFS()
 	staticRoute := ginApp.Group("/")
 	if gzipEnabled() {
-		staticRoute.Use(gzip.Gzip(gzip.DefaultCompression))
+		staticRoute.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedExtensions(gzipExcludedExtensions)))
 		slog.Info("static assets gzip enabled")
 	} else {
 		slog.Info("static assets gzip disabled")
@@ -84,7 +90,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp := ginApp.Group("")
 	viewRouteApp.Use(middleware.JWTAuth)
 	if gzipEnabled() {
-		viewRouteApp.Use(gzip.Gzip(gzip.DefaultCompression))
+		viewRouteApp.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedExtensions(gzipExcludedExtensions)))
 		slog.Info("view gzip enabled")
 	} else {
 		slog.Info("view gzip disabled")
