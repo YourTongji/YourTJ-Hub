@@ -369,4 +369,78 @@ void main() {
     await tester.pump();
     expect(factories, 2);
   });
+  testWidgets(
+    'anonymous avatar.svg routes through GfMediaScope and caches public SVG across remounts',
+    (tester) async {
+      GfNetworkSvg.clearCache();
+      svg.cache.clear();
+      var loads = 0;
+      final svgBytes = Uint8List.fromList(
+        utf8.encode(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="10" fill="green"/></svg>',
+        ),
+      );
+      ImageProvider<Object> factory(
+        String url, {
+        int? width,
+        int? height,
+        ResizeImagePolicy policy = ResizeImagePolicy.exact,
+        Set<String>? allowedOrigins,
+      }) => GfBytesImage(
+        identity: 'svg-cached',
+        url: url,
+        isCurrent: () => true,
+        cachedIdentity: () => 'v1',
+        load: () async {
+          loads++;
+          return GfMediaData(svgBytes, cacheIdentity: 'v1');
+        },
+      );
+      Widget buildAvatar(Key key) => MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        home: GfMediaScope(
+          identity: 'svg-cached',
+          factory: factory,
+          child: GfAvatar(
+            key: key,
+            src: 'https://example.test/a/persona123/avatar.svg',
+            size: 40,
+          ),
+        ),
+      );
+      final trackedSvg = find.descendant(
+        of: find.byType(GfNetworkSvg),
+        matching: find.byWidgetPredicate(
+          (w) => w is SvgPicture && w.bytesLoader is SvgBytesLoader,
+        ),
+      );
+      await tester.pumpWidget(buildAvatar(const ValueKey('first')));
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+      });
+      await tester.pump();
+      expect(loads, 1);
+      expect(find.byType(GfNetworkSvg), findsOneWidget);
+      expect(trackedSvg, findsOneWidget);
+
+      // Remounting under a new key reuses the cached bytes synchronously.
+      await tester.pumpWidget(buildAvatar(const ValueKey('second')));
+      await tester.pump();
+      expect(loads, 1);
+      expect(trackedSvg, findsOneWidget);
+
+      // Clearing cache evicts tracked network SVG bytes and parsed entries
+      // without evicting unrelated bundled icon assets.
+      final beforeClear = svg.cache.count;
+      GfNetworkSvg.clearCache();
+      expect(svg.cache.count, lessThan(beforeClear));
+      await tester.pumpWidget(buildAvatar(const ValueKey('third')));
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+      });
+      await tester.pump();
+      expect(loads, 2);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }

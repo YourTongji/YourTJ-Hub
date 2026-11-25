@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_symbol.dart';
@@ -94,12 +93,11 @@ class GfAvatar extends StatelessWidget {
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
     );
     final ringWidth = ring ? 2 * borders.width : 0.0;
-    final Widget image = Uri.tryParse(src)?.path.endsWith("/avatar.svg") == true
-        ? SvgPicture.network(
-            src,
+    final Widget image = Uri.tryParse(src)?.path.endsWith('/avatar.svg') == true
+        ? SizedBox(
             width: size,
             height: size,
-            placeholderBuilder: (_) => fallback,
+            child: GfNetworkSvg(src, fallback: fallback),
           )
         : provider == null
         ? fallback
