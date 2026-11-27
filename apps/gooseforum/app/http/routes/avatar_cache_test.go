@@ -32,11 +32,12 @@ func TestAvatarFileCacheHeader(t *testing.T) {
 		name, status, cache string
 		expires             *time.Time
 		code                int
+		wantETag            bool
 	}{
-		{"active", fileUsage.UsageStatusActive, "public, max-age=300", nil, http.StatusOK},
-		{"expired", fileUsage.UsageStatusActive, "private, no-store", &expired, http.StatusNotFound},
-		{"pending", fileUsage.UsageStatusPending, "private, no-store", nil, http.StatusNotFound},
-		{"withdrawn", fileUsage.UsageStatusRecovering, "private, no-store", nil, http.StatusNotFound},
+		{"active", fileUsage.UsageStatusActive, "public, max-age=86400", nil, http.StatusOK, true},
+		{"expired", fileUsage.UsageStatusActive, "private, no-store", &expired, http.StatusNotFound, false},
+		{"pending", fileUsage.UsageStatusPending, "private, no-store", nil, http.StatusNotFound, false},
+		{"withdrawn", fileUsage.UsageStatusRecovering, "private, no-store", nil, http.StatusNotFound, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := conn.Model(&ref).Updates(map[string]any{"status": tc.status, "expires_at": tc.expires}).Error; err != nil {
@@ -46,6 +47,13 @@ func TestAvatarFileCacheHeader(t *testing.T) {
 				res := getImage(router, url, "")
 				if res.Code != tc.code || res.Header().Get("Cache-Control") != tc.cache {
 					t.Errorf("%s: status=%d cache=%q, want %d %q", url, res.Code, res.Header().Get("Cache-Control"), tc.code, tc.cache)
+				}
+				gotETag := res.Header().Get("ETag")
+				if tc.wantETag && gotETag == "" {
+					t.Errorf("%s: missing ETag on public avatar", url)
+				}
+				if !tc.wantETag && gotETag != "" {
+					t.Errorf("%s: unexpected ETag %q on private/denied avatar", url, gotETag)
 				}
 			}
 		})

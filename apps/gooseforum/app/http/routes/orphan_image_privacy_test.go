@@ -57,8 +57,8 @@ func TestOrphanUploadIsPrivateUntilPublished(t *testing.T) {
 		t.Fatal(err)
 	}
 	res := getImage(router, image, "")
-	if res.Code != http.StatusOK || res.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("public response: status=%d cache=%q", res.Code, res.Header().Get("Cache-Control"))
+	if res.Code != http.StatusOK || res.Header().Get("Cache-Control") != "public, max-age=300" || res.Header().Get("ETag") == "" {
+		t.Fatalf("public response: status=%d cache=%q etag=%q", res.Code, res.Header().Get("Cache-Control"), res.Header().Get("ETag"))
 	}
 	expired := time.Now().Add(-time.Hour)
 	if err := conn.Model(&ref).Update("expires_at", expired).Error; err != nil {
@@ -79,8 +79,8 @@ func TestLegacyUntrackedImageRemainsReadableWithoutLongCache(t *testing.T) {
 	_, router, _ := setupAIModerationContractTest(t, nil)
 	image, _ := saveContractImage(t, 0)
 	res := getImage(router, image, "")
-	if res.Code != http.StatusOK || res.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("legacy response: status=%d cache=%q", res.Code, res.Header().Get("Cache-Control"))
+	if res.Code != http.StatusOK || res.Header().Get("Cache-Control") != "public, max-age=300" || res.Header().Get("ETag") == "" {
+		t.Fatalf("legacy response: status=%d cache=%q etag=%q", res.Code, res.Header().Get("Cache-Control"), res.Header().Get("ETag"))
 	}
 }
 

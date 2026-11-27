@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
@@ -63,6 +64,43 @@ func GetFileByFileName(c *gin.Context) {
 		}
 	}
 
+	// 响应类型由存储对象名的规范化扩展名权威决定（issue #408）：对象名在入库时已按
+	// 文件头判定的真实类型改写（issue #1393），因此名字扩展名即真实类型，无需嗅探。
+	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
+	publicRead := !access.Tracked || access.Public
+	var cacheControl, etag string
+	if publicRead && ok {
+		meta, metaErr := filedata.GetFileMetadataByName(filename)
+		if metaErr != nil {
+			c.Status(http.StatusServiceUnavailable)
+			return
+		}
+		if meta == nil || meta.StorageStatus != filedata.StorageStatusReady {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":       "File not found",
+				"messageCode": component.MessagePageNotFound,
+			})
+			return
+		}
+		// Avatars and stickers use immutable unique filenames (new upload => new URL),
+		// so a one-day public lifetime plus ETag avoids repeat transfers while bounding
+		// reuse after withdrawal. Other public content images use a five-minute window
+		// with ETag revalidation so withdrawals take effect quickly.
+		if access.PublicAvatar || access.PublicSticker || (access.Public && strings.HasPrefix(referenceName, stickerservice.MarketAssetPrefix)) {
+			cacheControl = "public, max-age=86400"
+		} else {
+			cacheControl = "public, max-age=300"
+		}
+		etag = fmt.Sprintf(`"f-%d-%d-%d"`, meta.Id, meta.Size, meta.UpdatedAt.UnixNano())
+		if etagMatches(c.GetHeader("If-None-Match"), etag) {
+			c.Header("Cache-Control", cacheControl)
+			c.Header("ETag", etag)
+			c.Header("X-Content-Type-Options", "nosniff")
+			c.Status(http.StatusNotModified)
+			return
+		}
+	}
+
 	entity, err := filedata.GetFileByName(filename)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -71,18 +109,11 @@ func GetFileByFileName(c *gin.Context) {
 		})
 		return
 	}
-	// Market sticker objects are named by their content hash, so the bytes behind
-	// a public name never change. A one-day public lifetime lets Web and the app
-	// reuse them while bounding how long a withdrawn image stays cached (issue #1429).
-	if access.Public && strings.HasPrefix(referenceName, stickerservice.MarketAssetPrefix) {
-		c.Header("Cache-Control", "public, max-age=86400")
+	if cacheControl != "" {
+		c.Header("Cache-Control", cacheControl)
 	}
-	// 响应类型由存储对象名的规范化扩展名权威决定（issue #408）：对象名在入库时已按
-	// 文件头判定的真实类型改写（issue #1393），因此名字扩展名即真实类型，无需嗅探。
-	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
-	// Avatar URLs change on upload; bound reuse after withdrawal to five minutes.
-	if ok && access.PublicAvatar {
-		c.Header("Cache-Control", "public, max-age=300")
+	if etag != "" {
+		c.Header("ETag", etag)
 	}
 	if !ok {
 		// 未知/危险对象（历史残留、无扩展名等）：octet-stream + 附件下载，
@@ -101,6 +132,23 @@ func GetFileByFileName(c *gin.Context) {
 		c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": base}))
 	}
 	c.Data(http.StatusOK, contentType, entity.Data)
+}
+
+func etagMatches(ifNoneMatch, etag string) bool {
+	if ifNoneMatch == "" || etag == "" {
+		return false
+	}
+	target := strings.TrimPrefix(strings.TrimSpace(etag), "W/")
+	for _, part := range strings.Split(ifNoneMatch, ",") {
+		candidate := strings.TrimSpace(part)
+		if candidate == "*" {
+			return true
+		}
+		if strings.TrimPrefix(candidate, "W/") == target {
+			return true
+		}
+	}
+	return false
 }
 
 // previewUserID 解析授权预览的会话用户，匿名或无效令牌返回 0。只在私有读取

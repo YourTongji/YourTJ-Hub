@@ -315,8 +315,8 @@ func TestAdminStickerMarketHTTPContract(t *testing.T) {
 	}
 }
 
-// Market objects are content-addressed, so public ones may be cached for a day;
-// every other stored file keeps the default no-store policy.
+// Public market and active sticker objects use unique immutable filenames, so
+// both receive a one-day public lifetime plus ETag; pending stickers stay private.
 func TestStickerMarketFileCacheHeader(t *testing.T) {
 	conn, router := setupStickerMarketContractTest(t)
 	seedContractMarket(t, conn)
@@ -334,11 +334,11 @@ func TestStickerMarketFileCacheHeader(t *testing.T) {
 	}
 
 	response := serveAuthSecurityJSON(router, http.MethodGet, "/file/img/"+contractMarketFileA, "", "")
-	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "public, max-age=86400" {
-		t.Fatalf("market file status = %d, Cache-Control = %q", response.Code, response.Header().Get("Cache-Control"))
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "public, max-age=86400" || response.Header().Get("ETag") == "" {
+		t.Fatalf("market file status = %d, Cache-Control = %q, ETag = %q", response.Code, response.Header().Get("Cache-Control"), response.Header().Get("ETag"))
 	}
 	response = serveAuthSecurityJSON(router, http.MethodGet, "/file/img/stickers/9f1c2d3e-0000-4000-8000-0000000000aa.png", "", "")
-	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("official file status = %d, Cache-Control = %q", response.Code, response.Header().Get("Cache-Control"))
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "public, max-age=86400" || response.Header().Get("ETag") == "" {
+		t.Fatalf("official file status = %d, Cache-Control = %q, ETag = %q", response.Code, response.Header().Get("Cache-Control"), response.Header().Get("ETag"))
 	}
 }

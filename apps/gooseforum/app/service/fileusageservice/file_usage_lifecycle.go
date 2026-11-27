@@ -142,6 +142,7 @@ type ReadAccess struct {
 	Content       bool
 	Public        bool
 	PublicAvatar  bool
+	PublicSticker bool
 	Pending       bool
 	UploadOwnerID uint64
 }
@@ -161,6 +162,7 @@ func ResolveReadAccess(fileName string) (ReadAccess, error) {
 		public := ref.Status == fileUsage.UsageStatusActive && (ref.ExpiresAt == nil || ref.ExpiresAt.After(time.Now()))
 		access.Public = access.Public || public
 		access.PublicAvatar = access.PublicAvatar || public && ref.TargetType == fileUsage.TargetUser && ref.UsageType == fileUsage.UsageAvatar
+		access.PublicSticker = access.PublicSticker || public && ref.TargetType == fileUsage.TargetSticker && ref.UsageType == fileUsage.UsageSticker
 	}
 	return access, err
 }
