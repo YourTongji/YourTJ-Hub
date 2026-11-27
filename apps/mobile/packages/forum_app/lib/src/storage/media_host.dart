@@ -44,6 +44,7 @@ class _MediaHostState extends State<MediaHost> with WidgetsBindingObserver {
     cache.maximumSizeBytes = 48 * 1024 * 1024;
     cache.clear();
     cache.clearLiveImages();
+    GfNetworkSvg.clearCache();
   }
 
   void _invalidated() {

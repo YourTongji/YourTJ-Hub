@@ -140,7 +140,7 @@ migration. Migrations use versioned SQL independently of the Freezed generation 
 |---|---|
 | Visited home streams and published normal topics/reply windows | `Current`: account/origin/language-scoped reading projection, 7-day hard retention; cached content is identified while network validation restores current state. Layout viewer, email, permissions and unread totals are not persisted. Draft, processed and deleted topics are excluded. |
 | Conversation list and synchronized messages | `Current`: 30-day retention, complete empty list replaces old membership, removed conversations lose their messages; empty message deltas do not erase history. At most 50 conversations per snapshot and 200 messages per conversation, with a device-wide byte limit. Cached reads never acknowledge messages. |
-| Public images, GIFs and avatars | `Current`: one media owner, explicit HTTP eligibility, full URL and account/origin/language key; credentials are never attached. Private/no-store/no-cache and uncertain signed resources remain memory-only. |
+| Public images, GIFs and avatars | `Current`: one media owner, explicit HTTP eligibility (`public` + `max-age` on same-origin, `max-age` on external HTTPS up to 8 MiB per object, and `no-cache` with `ETag`/`Last-Modified` 304 revalidation), `(apiOrigin, full URL)` disk key; credentials are never attached to persisted responses and transport-only `Vary: Accept-Encoding` is allowed. Signed URLs, external responses without `max-age`, and revalidated `no-cache` assets retain bounded generation-scoped memory identities in `ImageCache`; private/credentialed responses remain unretained. |
 | Notifications, course metadata/reviews and Wiki | `Partial`: existing visible-page memory behavior; no new generic disk projection is authorized. |
 | Campus name, calendar, official timetable | `Current`: private allowlisted device snapshot, additionally binding-scoped; complete successful refreshes replace it atomically; previous-day snapshots refresh on Campus entry after binding verification, with manual refresh retained. |
 | Campus grades, academic summaries, school notice bodies | Page-local by default; broader durable retention needs an explicit product/privacy decision. |
@@ -154,12 +154,14 @@ before chat/send and restored only for manual retry, then removed after acknowle
 and account deletion also erase them and fence late upload callbacks; ordinary cache eviction does not.
 Picker bytes and uploads whose URL has not yet returned remain outside this recovery guarantee.
 
-`Current`: fresh public media can reuse a matching Flutter decoded frame synchronously without
-reading compressed bytes or rewriting the disk index. The repository checks HTTP expiry on every
-new resolution; an expired or missing identity follows the normal fetch/revalidation path. Decoded
-keys include origin/account/language, origin policy, generation and decode dimensions. Cache clearing,
-scope changes and memory pressure remove decoded frames; private/no-store/no-cache responses do not
-enter `ImageCache`. Disk-cache eligibility remains governed by the response headers.
+`Current`: fresh public media and eligible memory-only images can reuse a matching Flutter decoded
+frame synchronously without reading compressed bytes or rewriting the disk index; disk hit access
+timestamps flush lazily instead of rewriting `index.json` on every read. The repository checks HTTP
+expiry on every new resolution; an expired or missing identity follows the normal fetch/revalidation
+path. Decoded keys include origin/session epoch, origin policy, generation and decode dimensions.
+Cache clearing, session epoch changes and memory pressure remove decoded frames and clear the
+bounded network SVG cache; private/credentialed responses and same-origin `no-store` responses do
+not enter `ImageCache`. Disk-cache eligibility remains governed by the response headers.
 
 The managed cache target is 256 MiB: media 192 MiB, forum projections 32 MiB, chat 16 MiB,
 campus documents up to 4 MiB and 12 MiB of accounting headroom. These are cache limits, not the
@@ -169,7 +171,8 @@ The database owner checks allocated/free pages and physical files after committe
 free pages or a 64-MiB physical watermark triggers reclamation and checkpointing. Legacy non-incremental
 files are converted once. The 256-MiB value is a management target, not a byte-exact peak guarantee
 during an atomic write or migration; campus snapshots and user work are never sacrificed to force it.
-Media has a 14-day idle bound, a 32-MiB download limit and at most three active downloads. Flutter's
+Media has a 14-day idle bound, a 32-MiB download limit (8 MiB disk persistence cap for external
+origins) and at most six active downloads. Flutter's
 decoded-image cache targets 48 MiB; active animation codecs and other UI objects are additional memory.
 
 Native cache and work files use different SQLite3MultipleCiphers keys held in secure storage. Native

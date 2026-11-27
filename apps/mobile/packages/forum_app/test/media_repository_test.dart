@@ -140,7 +140,10 @@ void main() {
         throwsA(anything),
       );
       await expectLater(
-        loadWithSession(upload, scope: 'pending:0'),
+        loadWithSession(
+          '$_origin/file/img/2026/10/02/pending-unresolved.png',
+          scope: 'pending:0',
+        ),
         throwsA(anything),
       );
       http.handle = (request) async => request.uri.toString() == '$upload?r=1'
@@ -222,7 +225,7 @@ void main() {
     ]);
   });
   test(
-    'public fresh image survives repository restart and scopes stay separate',
+    'public fresh image survives repository restart and is shared across accounts/languages per origin',
     () async {
       expect(await load(), [1, 2, 3]);
       expect(await load(), [1, 2, 3]);
@@ -235,9 +238,17 @@ void main() {
       );
       expect(await load(), [1, 2, 3]);
       expect(http.requests.length, 1);
+      // Same origin, different account/language reuses public bytes without refetching.
       await load(scope: 'site:99:zh');
       await load(scope: 'site:42:de');
-      expect(http.requests.length, 3);
+      expect(http.requests.length, 1);
+      // Different API origin partitions its own cache entry.
+      await cache.load(
+        _url,
+        scopeKey: 'other:42:zh',
+        apiOrigin: 'https://other.test',
+      );
+      expect(http.requests.length, 2);
     },
   );
   for (final policy in [
@@ -263,11 +274,11 @@ void main() {
     });
   }
   test(
-    'signed URLs, cross-origin URLs and cookies are never persisted',
+    'signed URLs, userinfo and cookies are never persisted while external HTTPS images are bounded',
     () async {
       for (final url in [
         '$_url?signature=secret',
-        'https://cdn.example.test/image.gif',
+        '$_url?X-Amz-Signature=abc123',
         'https://user:secret@example.test/image.gif',
       ]) {
         await load(url: url);
@@ -280,6 +291,139 @@ void main() {
       );
       await load();
       expect(await cache.usageBytes(), 0);
+
+      // External HTTPS images with bare max-age persist up to maxExternalPersistBytes.
+      http.handle = (_) async => response(cache: 'max-age=3600');
+      await load(url: 'https://cdn.example.test/image.gif');
+      expect(await cache.usageBytes(), greaterThan(0));
+      final beforeHit = http.requests.length;
+      await load(url: 'https://cdn.example.test/image.gif');
+      expect(http.requests.length, beforeHit);
+
+      // Oversized external images remain memory-only and do not persist to disk.
+      await cache.clear();
+      cache.dispose();
+      cache = MediaRepository(
+        directory: () async => dir,
+        dio: dio,
+        now: () => now,
+        maxExternalPersistBytes: 2,
+      );
+      http.handle = (_) async => response(cache: 'max-age=3600', bytes: [1, 2, 3]);
+      await load(url: 'https://cdn.example.test/large.gif');
+      expect(await cache.usageBytes(), 0);
+      expect(
+        cache.decodedIdentity(
+          'https://cdn.example.test/large.gif',
+          scopeKey: 'site:42:zh',
+          apiOrigin: _origin,
+        ),
+        isNotNull,
+      );
+    },
+  );
+  test(
+    'Vary: Accept-Encoding is allowed while unsafe Vary headers prevent persistence',
+    () async {
+      http.handle = (_) async => response(
+        extra: {
+          'vary': ['Accept-Encoding'],
+        },
+      );
+      await load();
+      expect(await cache.usageBytes(), greaterThan(0));
+      expect(
+        cache.decodedIdentity(_url, scopeKey: 'site:42:zh', apiOrigin: _origin),
+        isNotNull,
+      );
+
+      for (final vary in ['Accept-Encoding, Cookie', 'Origin']) {
+        await cache.clear();
+        http.handle = (_) async => response(
+          extra: {
+            'vary': [vary],
+          },
+        );
+        await load();
+        expect(await cache.usageBytes(), 0);
+        expect(
+          cache.decodedIdentity(_url, scopeKey: 'site:42:zh', apiOrigin: _origin),
+          isNull,
+        );
+      }
+    },
+  );
+  test(
+    'no-cache with Last-Modified or ETag persists for 304 revalidation (e.g. Wiki assets)',
+    () async {
+      const lm = 'Wed, 21 Oct 2026 07:28:00 GMT';
+      http.handle = (_) async => response(
+        cache: 'no-cache',
+        extra: {
+          'last-modified': [lm],
+        },
+      );
+      expect(await load(), [1, 2, 3]);
+      expect(await cache.usageBytes(), greaterThan(0));
+      // Revalidated no-cache gets a short memory identity for the active viewport.
+      expect(
+        cache.decodedIdentity(_url, scopeKey: 'site:42:zh', apiOrigin: _origin),
+        isNotNull,
+      );
+      now = now.add(const Duration(seconds: 31));
+      expect(
+        cache.decodedIdentity(_url, scopeKey: 'site:42:zh', apiOrigin: _origin),
+        isNull,
+      );
+      http.handle = (_) async => response(status: 304, bytes: [], cache: 'no-cache');
+      expect(await load(), [1, 2, 3]);
+      expect(http.requests.last.headers['If-Modified-Since'], lm);
+    },
+  );
+  test(
+    'readCachedBytes returns fresh disk bytes without network and disk hits defer index rewrites',
+    () async {
+      await load();
+      final indexFile = File('${dir.path}/index.json');
+      final initialMod = await indexFile.lastModified();
+      now = now.add(const Duration(seconds: 2));
+      expect(await load(), [1, 2, 3]);
+      expect(await indexFile.lastModified(), initialMod);
+      expect(
+        await cache.readCachedBytes(_url, apiOrigin: _origin),
+        [1, 2, 3],
+      );
+      expect(http.requests.length, 1);
+      now = now.add(const Duration(minutes: 2));
+      expect(await cache.readCachedBytes(_url, apiOrigin: _origin), isNull);
+    },
+  );
+  test(
+    'a response that cannot be stored does not rewrite the index',
+    () async {
+      await load();
+      final indexFile = File('${dir.path}/index.json');
+      final index =
+          jsonDecode(await indexFile.readAsString()) as Map<String, dynamic>;
+      // Only an index rewrite drops this marker: the repository holds entries
+      // in memory after opening, so a rewrite replaces the file with that map.
+      (index['entries'] as Map<String, dynamic>)['canary'] = <String, dynamic>{
+        'bytes': 1,
+        'accessed': 0,
+        'freshUntil': 0,
+        'cacheControl': '',
+      };
+      await indexFile.writeAsString(jsonEncode(index));
+
+      http.handle = (_) async => response();
+      await load(url: '$_url?signature=secret');
+
+      final after =
+          jsonDecode(await indexFile.readAsString()) as Map<String, dynamic>;
+      expect(
+        (after['entries'] as Map<String, dynamic>).containsKey('canary'),
+        isTrue,
+      );
     },
   );
   test(
@@ -297,6 +441,32 @@ void main() {
       expect(http.requests.last.headers['If-None-Match'], '"v1"');
     },
   );
+  test('a 304 refresh does not rewrite cached image bytes', () async {
+    http.handle = (_) async => response(
+      extra: {
+        'etag': ['"v1"'],
+      },
+    );
+    await load();
+    final index =
+        jsonDecode(await File('${dir.path}/index.json').readAsString())
+            as Map<String, dynamic>;
+    final key = (index['entries'] as Map<String, dynamic>).keys.single;
+    final imageFile = File('${dir.path}/$key');
+    final pinned = DateTime.utc(2020);
+    await imageFile.setLastModified(pinned);
+
+    now = now.add(const Duration(minutes: 2));
+    http.handle = (_) async => response(
+      status: 304,
+      bytes: [],
+      extra: {
+        'etag': ['"v1"'],
+      },
+    );
+    expect(await load(), [1, 2, 3]);
+    expect((await imageFile.lastModified()).isAtSameMomentAs(pinned), isTrue);
+  });
   test('clear fences a delayed response and never refills disk', () async {
     final pending = Completer<ResponseBody>();
     http.handle = (_) => pending.future;
@@ -310,7 +480,7 @@ void main() {
     await expectation;
     expect(await cache.usageBytes(), 0);
   });
-  test('global budget evicts older scopes and idle files expire', () async {
+  test('global budget evicts older entries and idle files expire', () async {
     cache.dispose();
     cache = MediaRepository(
       directory: () => Future.value(dir),
@@ -319,11 +489,11 @@ void main() {
       budgetBytes: 6000,
     );
     http.handle = (_) async => response(bytes: List.filled(3000, 1));
-    await load(scope: 'one');
+    await load(url: '$_origin/one.gif');
     now = now.add(const Duration(seconds: 1));
-    await load(scope: 'two');
+    await load(url: '$_origin/two.gif');
     expect(await cache.usageBytes(), lessThanOrEqualTo(6000));
-    await load(scope: 'one');
+    await load(url: '$_origin/one.gif');
     expect(http.requests.length, 3);
     now = now.add(const Duration(days: 15));
     expect(await cache.usageBytes(), 0);
@@ -433,7 +603,7 @@ void main() {
     await expectLater(load(), throwsA(anything));
     expect(await cache.usageBytes(), 0);
   });
-  test('concurrent readers coalesce and at most three downloads run', () async {
+  test('concurrent readers coalesce and respect maxConcurrentDownloads', () async {
     final responses = <Completer<ResponseBody>>[];
     http.handle = (_) {
       final pending = Completer<ResponseBody>();
@@ -446,34 +616,38 @@ void main() {
       load(url: '$_origin/2'),
       load(url: '$_origin/3'),
       load(url: '$_origin/4'),
+      load(url: '$_origin/5'),
+      load(url: '$_origin/6'),
+      load(url: '$_origin/7'),
     ];
-    while (responses.length < 3) {
+    while (responses.length < 6) {
       await Future<void>.delayed(Duration.zero);
     }
-    expect(http.requests.length, 3);
+    expect(http.requests.length, 6);
     responses[0].complete(response());
-    while (responses.length < 4) {
+    while (responses.length < 7) {
       await Future<void>.delayed(Duration.zero);
     }
     for (final pending in responses.skip(1)) {
       pending.complete(response());
     }
     await Future.wait(reads);
-    expect(http.requests.length, 4);
+    expect(http.requests.length, 7);
   });
   test(
-    'pending identity is memory only and query values stay distinct',
+    'pending scope caches public images and ordinary query values stay distinct on disk',
     () async {
       await load(scope: 'pending:42');
-      expect(await cache.usageBytes(), 0);
+      expect(await cache.usageBytes(), greaterThan(0));
       await load(url: '$_url?size=100');
       await load(url: '$_url?size=200');
+      await load(url: '$_url?size=100');
       expect(http.requests.map((r) => r.uri.query), [
         '',
         'size=100',
         'size=200',
       ]);
-      expect(await cache.usageBytes(), 0);
+      expect(await cache.usageBytes(), greaterThan(0));
     },
   );
   test(

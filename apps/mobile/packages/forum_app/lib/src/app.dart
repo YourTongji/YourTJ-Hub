@@ -96,7 +96,6 @@ class GfApp extends ConsumerWidget {
               readiness: readiness,
               child: StorageGate(
                 child: _AppBusinessHosts(
-                  locale: locale,
                   child: AppConfig.preview
                       ? PreviewStatusHost(
                           child: child ?? const SizedBox.shrink(),
@@ -127,8 +126,7 @@ class GfApp extends ConsumerWidget {
 /// No business bootstrap, navigation listeners or writable feature hosts run
 /// before StorageGate has completed recovery.
 class _AppBusinessHosts extends ConsumerWidget {
-  const _AppBusinessHosts({required this.locale, required this.child});
-  final Locale? locale;
+  const _AppBusinessHosts({required this.child});
   final Widget child;
 
   @override
@@ -140,13 +138,14 @@ class _AppBusinessHosts extends ConsumerWidget {
           ? AppConfig.apiBaseUrl
           : GfApiClient.defaultBaseUrl,
     ).origin;
-    final language = resolveAppLocale(
-      locale ?? ref.watch(appLocaleProvider),
-    ).languageCode;
     final epoch = ref.watch(offlineCacheEpochProvider);
-    final mediaScope = user.isLoading || user.hasError
-        ? 'pending:$epoch'
-        : jsonEncode([origin, user.valueOrNull?.id ?? 0, language]);
+    // Public media is origin-scoped and does not vary by UI language or initial
+    // cold-start token resolution. Session changes (logout, 401, account switch,
+    // reset) advance offlineCacheEpochProvider, fencing in-flight loads and
+    // clearing decoded frames without causing a cold-start cache wipe.
+    final mediaScope = jsonEncode([origin, epoch]);
+    final canRetryPrivateUpload =
+        !user.isLoading && !user.hasError && user.valueOrNull != null;
 
     // Restore opted-in native delivery and notification navigation.
     ref.watch(pushBootstrapProvider);
@@ -165,7 +164,9 @@ class _AppBusinessHosts extends ConsumerWidget {
         repository: mediaRepository,
         scopeKey: mediaScope,
         apiOrigin: origin,
-        readAccessToken: ref.read(tokenStorageProvider).read,
+        readAccessToken: canRetryPrivateUpload
+            ? ref.read(tokenStorageProvider).read
+            : null,
         imageErrorBuilder: mediaImageFailure,
         child: MobileUpdateHost(
           key: appUpdateHostKey,

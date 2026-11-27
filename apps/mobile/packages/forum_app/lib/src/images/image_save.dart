@@ -8,6 +8,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../asset_url.dart';
 import '../providers.dart';
+import '../storage/storage_providers.dart';
 
 import 'image_gallery_saver.dart'
     if (dart.library.io) 'image_gallery_saver_io.dart';
@@ -182,6 +183,25 @@ Future<Uint8List> _downloadImageBytes(
       (imageUri.scheme != 'http' && imageUri.scheme != 'https')) {
     throw FormatException('unsupported image URL');
   }
+  final Uri apiOrigin = Uri.parse(resolveApiAssetUrl('/'));
+  ProviderContainer? container;
+  try {
+    container = ProviderScope.containerOf(context, listen: false);
+  } catch (_) {
+    container = null;
+  }
+  if (container != null) {
+    try {
+      final Uint8List? cached = await container
+          .read(mediaRepositoryProvider)
+          .readCachedBytes(resolvedUrl, apiOrigin: apiOrigin.origin);
+      if (cached != null && cached.isNotEmpty) {
+        return cached;
+      }
+    } catch (_) {
+      // Fall through to network download when cache is unavailable.
+    }
+  }
 
   final Dio dio = Dio(
     BaseOptions(
@@ -191,8 +211,7 @@ Future<Uint8List> _downloadImageBytes(
       followRedirects: false,
     ),
   );
-  final String? token = await _sessionToken(context);
-  final Uri apiOrigin = Uri.parse(resolveApiAssetUrl('/'));
+  final String? token = await _sessionToken(container);
 
   DioException? lastError;
   for (int attempt = 0; attempt < 3; attempt++) {
@@ -252,12 +271,10 @@ Future<Uint8List> _downloadImageBytes(
   throw lastError ?? StateError('image download failed');
 }
 
-Future<String?> _sessionToken(BuildContext context) async {
+Future<String?> _sessionToken(ProviderContainer? container) async {
+  if (container == null) return null;
   try {
-    return await ProviderScope.containerOf(
-      context,
-      listen: false,
-    ).read(tokenStorageProvider).read();
+    return await container.read(tokenStorageProvider).read();
   } catch (_) {
     return null;
   }
