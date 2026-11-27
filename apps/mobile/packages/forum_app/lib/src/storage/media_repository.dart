@@ -155,11 +155,14 @@ class MediaRepository extends ChangeNotifier {
   }
 
   File _file(String key) => File('${_dir!.path}/$key');
-  Future<void> _delete(String key) async {
-    _entries.remove(key);
+  /// Returns whether an index entry existed, so callers can skip an index
+  /// rewrite when only an orphan file was removed.
+  Future<bool> _delete(String key) async {
+    final existed = _entries.remove(key) != null;
     _memoryIdentities.remove(key);
     final file = _file(key);
     if (await file.exists()) await file.delete();
+    return existed;
   }
 
   void _scheduleIndexFlush() {
@@ -776,11 +779,13 @@ class MediaRepository extends ChangeNotifier {
 
       // A changed restriction revokes the previous public entry immediately,
       // even if reading the replacement subsequently fails or exceeds limits.
+      // Skip the rewrite when no entry existed: the index already matches.
       if (!persist) {
         await _locked(() async {
           _guard(generation);
-          await _delete(key);
-          await _saveIndex();
+          if (await _delete(key)) {
+            await _saveIndex();
+          }
         });
       }
       final bytes = BytesBuilder(copy: false);
@@ -811,7 +816,7 @@ class MediaRepository extends ChangeNotifier {
       var persistedOnDisk = false;
       await _locked(() async {
         _guard(generation);
-        await _delete(key);
+        final removed = await _delete(key);
         final entry = <String, dynamic>{
           'bytes': result.length,
           'accessed': _now().millisecondsSinceEpoch,
@@ -847,7 +852,7 @@ class MediaRepository extends ChangeNotifier {
           if (await _diskBytes() > budgetBytes) {
             await _trim((budgetBytes * .8).floor());
           }
-        } else {
+        } else if (removed) {
           await _saveIndex();
         }
       });

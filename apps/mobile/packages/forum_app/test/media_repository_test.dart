@@ -399,6 +399,34 @@ void main() {
     },
   );
   test(
+    'a response that cannot be stored does not rewrite the index',
+    () async {
+      await load();
+      final indexFile = File('${dir.path}/index.json');
+      final index =
+          jsonDecode(await indexFile.readAsString()) as Map<String, dynamic>;
+      // Only an index rewrite drops this marker: the repository holds entries
+      // in memory after opening, so a rewrite replaces the file with that map.
+      (index['entries'] as Map<String, dynamic>)['canary'] = <String, dynamic>{
+        'bytes': 1,
+        'accessed': 0,
+        'freshUntil': 0,
+        'cacheControl': '',
+      };
+      await indexFile.writeAsString(jsonEncode(index));
+
+      http.handle = (_) async => response();
+      await load(url: '$_url?signature=secret');
+
+      final after =
+          jsonDecode(await indexFile.readAsString()) as Map<String, dynamic>;
+      expect(
+        (after['entries'] as Map<String, dynamic>).containsKey('canary'),
+        isTrue,
+      );
+    },
+  );
+  test(
     'expired public image revalidates with ETag and a 304 reuses bytes',
     () async {
       http.handle = (_) async => response(
