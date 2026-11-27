@@ -813,18 +813,30 @@ class MediaRepository extends ChangeNotifier {
       final maxPersistSize = sameOriginChain
           ? budgetBytes
           : math.min(budgetBytes, maxExternalPersistBytes);
+      Map<String, dynamic> entryFor(int bytes) => <String, dynamic>{
+        'bytes': bytes,
+        'accessed': _now().millisecondsSinceEpoch,
+        'freshUntil': freshUntil.millisecondsSinceEpoch,
+        'cacheControl': control,
+        'etag': etag,
+        'lastModified': ?lastModified,
+      };
       var persistedOnDisk = false;
       await _locked(() async {
         _guard(generation);
+        // A 304 reuses the bytes already on disk: refresh only the metadata
+        // instead of deleting and rewriting the same file and index entry.
+        if (status == 304 &&
+            local != null &&
+            persist &&
+            local.length <= maxPersistSize) {
+          _entries[key] = entryFor(local.length);
+          persistedOnDisk = true;
+          await _saveIndex();
+          return;
+        }
         final removed = await _delete(key);
-        final entry = <String, dynamic>{
-          'bytes': result.length,
-          'accessed': _now().millisecondsSinceEpoch,
-          'freshUntil': freshUntil.millisecondsSinceEpoch,
-          'cacheControl': control,
-          'etag': etag,
-          'lastModified': ?lastModified,
-        };
+        final entry = entryFor(result.length);
         int indexSize(Map<String, Map<String, dynamic>> entries) =>
             utf8.encode(jsonEncode({'version': 1, 'entries': entries})).length;
         if (persist &&

@@ -441,6 +441,32 @@ void main() {
       expect(http.requests.last.headers['If-None-Match'], '"v1"');
     },
   );
+  test('a 304 refresh does not rewrite cached image bytes', () async {
+    http.handle = (_) async => response(
+      extra: {
+        'etag': ['"v1"'],
+      },
+    );
+    await load();
+    final index =
+        jsonDecode(await File('${dir.path}/index.json').readAsString())
+            as Map<String, dynamic>;
+    final key = (index['entries'] as Map<String, dynamic>).keys.single;
+    final imageFile = File('${dir.path}/$key');
+    final pinned = DateTime.utc(2020);
+    await imageFile.setLastModified(pinned);
+
+    now = now.add(const Duration(minutes: 2));
+    http.handle = (_) async => response(
+      status: 304,
+      bytes: [],
+      extra: {
+        'etag': ['"v1"'],
+      },
+    );
+    expect(await load(), [1, 2, 3]);
+    expect((await imageFile.lastModified()).isAtSameMomentAs(pinned), isTrue);
+  });
   test('clear fences a delayed response and never refills disk', () async {
     final pending = Completer<ResponseBody>();
     http.handle = (_) => pending.future;
