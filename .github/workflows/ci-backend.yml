@@ -22,7 +22,7 @@ jobs:
         with:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: apps/gooseforum/go.mod
           cache-dependency-path: apps/gooseforum/go.sum
@@ -37,7 +37,7 @@ jobs:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: apps/gooseforum/go.mod
       - name: Vet
@@ -80,7 +80,7 @@ jobs:
         with:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: apps/gooseforum/go.mod
       - name: Test (race detector, wiki sync concurrency)
@@ -113,7 +113,7 @@ jobs:
         with:
           ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: apps/gooseforum/go.mod
       - name: Test (PostgreSQL migration + PG-gated models)
