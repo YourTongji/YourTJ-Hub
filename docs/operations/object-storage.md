@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-19
+> Last verified: 2026-11-26
 
 ## 概述
 
@@ -49,12 +49,15 @@ Read-reference query failures deny access rather than falling back to legacy beh
 Public inline image responses carry a deterministic `ETag` derived from stored file metadata
 and honor `If-None-Match` with `304 Not Modified` before reading storage bytes. Active avatars,
 active stickers and sticker market assets under `stickers/market/` ([0115](../decisions/0115-sticker-market-subscriptions.md))
-use `public, max-age=86400` because new uploads allocate new filenames; other public images
+use `public, max-age=86400` because new uploads allocate new filenames; a withdrawn avatar or
+sticker may remain in a fresh browser or shared cache for up to that lifetime. Other public images
 (published post/topic/chat/cover and legacy untracked files) use `public, max-age=300` so
 withdrawals bound cached reuse to five minutes while avoiding repeat transfers within a reading
 session. Restricted previews, denials, errors and non-image attachment downloads keep
 `private, no-store` / `no-store` without `ETag`. Changing these headers cannot revoke copies
 already cached under an earlier longer policy; the reverse proxy must preserve these headers.
+The static and page gzip middleware excludes already-compressed image and font extensions, so those
+responses carry no `Vary: Accept-Encoding`.
 This policy governs the application read route. A public bucket or `publicUrlPrefix` that bypasses
 it needs its own access controls. Referer filtering is not an authorization mechanism and is not
 implemented by this route.

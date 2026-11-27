@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Superseded by [0134](0134-tiered-public-media-caching.md)
 Class: bug-fix
 
 ## Context and Problem Statement

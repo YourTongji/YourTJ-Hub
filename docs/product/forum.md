@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-11-12
+> Last verified: 2026-11-26
 
 ## Content and publishing
 
@@ -550,12 +550,17 @@ HTTP 429、`common.rateLimited` 和正整数秒 `Retry-After`；权限检查先�
 ## Public avatar caching
 
 `Current`: successfully served uploaded images with an active, unexpired user-avatar reference,
-including derived sizes, return `Cache-Control: public, max-age=300`. Uploading a replacement creates
-a new URL. A removed avatar may remain visible to a client with a fresh cached copy for up to five
-minutes; subsequent reads enforce the current reference state. Errors, orphan uploads, pending/private
-previews, untracked legacy images and ordinary topic images retain their existing no-store policy.
-The market-sticker cache policy is independent. See the
-[cache decision](../decisions/0125-public-avatar-cache.md).
+including derived sizes, return `Cache-Control: public, max-age=86400` and a strong `ETag`. Uploading
+a replacement creates a new URL. A removed avatar may remain visible to a client or shared cache with
+a fresh copy for up to 24 hours; subsequent reads enforce the current reference state. A matching
+`If-None-Match` returns `304 Not Modified` before the stored bytes are read.
+
+Other public images use the tiered media policy: active official stickers and `stickers/market/`
+assets use `public, max-age=86400`; published topic/reply/chat/cover images and legacy untracked
+images use `public, max-age=300` with the same `ETag` revalidation. Errors, orphan uploads,
+pending/private previews and non-image attachments keep `private, no-store` / `no-store` without an
+`ETag`. See the [media cache decision](../decisions/0134-tiered-public-media-caching.md) and the
+[object storage policy](../operations/object-storage.md#image-read-authorization-and-cache-policy).
 
 `Current`: reply windows filter other authors’ pending replies before applying their
 page limit, including initial topic windows and forward, reverse and anchored API
