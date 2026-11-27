@@ -7,10 +7,9 @@ import 'current_user.dart';
 import 'providers.dart';
 import 'server_messages.dart';
 
-// Kept in memory only, scoped to the current login epoch.
-final userBlocksProvider = FutureProvider.autoDispose<UserBlocksPayload>((
-  ref,
-) async {
+// Kept in memory only, scoped to the current login epoch (retained across
+// profile preview opens instead of auto-disposing and refetching on every tap).
+final userBlocksProvider = FutureProvider<UserBlocksPayload>((ref) async {
   ref.watch(offlineCacheEpochProvider);
   final owner = await ref.watch(currentUserProvider.future);
   if (owner == null) return const UserBlocksPayload(ownerId: 0, blocks: []);

@@ -67,9 +67,13 @@ class PrivateNotesHost extends ConsumerStatefulWidget {
 
 class _PrivateNotesHostState extends ConsumerState<PrivateNotesHost>
     with WidgetsBindingObserver {
+  static const Duration _resumeRefreshMinInterval = Duration(seconds: 60);
+  DateTime? _lastResumedRefresh;
+
   @override
   void initState() {
     super.initState();
+    _lastResumedRefresh = DateTime.now();
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -82,6 +86,12 @@ class _PrivateNotesHostState extends ConsumerState<PrivateNotesHost>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      final now = DateTime.now();
+      if (_lastResumedRefresh != null &&
+          now.difference(_lastResumedRefresh!) < _resumeRefreshMinInterval) {
+        return;
+      }
+      _lastResumedRefresh = now;
       ref.invalidate(privateNotesProvider);
     }
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../gen/sticker.dart';
@@ -118,29 +120,76 @@ class StickerRepository {
   );
 }
 
+/// Persisted snapshot of the official public sticker catalog for SWR cold start.
+typedef StickerCatalogSnapshot = ({
+  List<StickerItemPayload> items,
+  DateTime savedAt,
+});
+
 /// Cache belongs to a site/session provider; content references outlive membership.
 /// Official lists expire, failed loads remain retryable, and personal assets are
 /// resolved by stable token rather than exposed in the public library.
 class StickerLibrary extends ChangeNotifier {
-  StickerLibrary(this._repository);
+  StickerLibrary(
+    this._repository, {
+    this.readCached,
+    this.writeCached,
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
   final StickerRepository _repository;
+  final Future<StickerCatalogSnapshot?> Function()? readCached;
+  final Future<void> Function(List<StickerItemPayload> items, DateTime savedAt)?
+  writeCached;
+  final DateTime Function() _now;
+  static const Duration _freshTtl = Duration(minutes: 5);
+  static const Duration _maxDiskAge = Duration(hours: 24);
   List<StickerItemPayload>? _items;
   final Map<String, StickerItemPayload> _resolved = {};
   final Set<String> _queuedNames = {};
   Future<void>? _pendingResolution;
   Future<List<StickerItemPayload>>? _pending;
   DateTime? _loadedAt;
+  bool _cacheRestored = false;
   bool _disposed = false;
   bool get isLoaded => _items != null;
   List<StickerItemPayload> get items => List.unmodifiable(_resolved.values);
 
-  Future<List<StickerItemPayload>> load({bool refresh = false}) {
-    if (_disposed) return Future.value(const []);
+  Future<List<StickerItemPayload>> load({bool refresh = false}) async {
+    if (_disposed) return const [];
     if (!refresh &&
         _items != null &&
-        DateTime.now().difference(_loadedAt!) < const Duration(minutes: 5)) {
-      return Future.value(_items!);
+        _loadedAt != null &&
+        _now().difference(_loadedAt!) < _freshTtl) {
+      return _items!;
     }
+    if (!refresh && !_cacheRestored && _items == null && readCached != null) {
+      _cacheRestored = true;
+      try {
+        final snapshot = await readCached!();
+        if (!_disposed &&
+            snapshot != null &&
+            snapshot.items.isNotEmpty &&
+            !_now().isBefore(snapshot.savedAt) &&
+            _now().difference(snapshot.savedAt) <= _maxDiskAge &&
+            _items == null) {
+          _items = snapshot.items;
+          _loadedAt = snapshot.savedAt;
+          remember(snapshot.items);
+          if (_now().difference(snapshot.savedAt) >= _freshTtl) {
+            // Serve cached catalog immediately, then revalidate in background.
+            unawaited(
+              (_pending ??= _loadAndCache()).catchError(
+                (Object _) => _items ?? const <StickerItemPayload>[],
+              ),
+            );
+          }
+          return _items!;
+        }
+      } catch (_) {
+        // Optional disk SWR cache; fall through to network fetch.
+      }
+    }
+    if (_disposed) return const [];
     return _pending ??= _loadAndCache();
   }
 
@@ -155,9 +204,13 @@ class StickerLibrary extends ChangeNotifier {
       for (final old in _items ?? <StickerItemPayload>[]) {
         if (!currentNames.contains(old.name)) _resolved.remove(old.name);
       }
+      final savedAt = _now();
       _items = items;
-      _loadedAt = DateTime.now();
+      _loadedAt = savedAt;
       remember(items);
+      if (writeCached != null) {
+        unawaited(writeCached!(items, savedAt).catchError((Object _) {}));
+      }
       return items;
     } finally {
       _pending = null;

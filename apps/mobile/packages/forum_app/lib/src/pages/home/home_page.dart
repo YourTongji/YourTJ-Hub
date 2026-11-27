@@ -104,6 +104,7 @@ class _HomePageState extends ConsumerState<HomePage>
   String _sort = '';
   CategoryNavPayload? _category;
   String _allSort = '';
+  String? _defaultRootSort;
   final _categorySorts = <int, String>{};
   String _key(String sort, CategoryNavPayload? category) =>
       category == null ? sort : 'category:${category.id}:$sort';
@@ -377,6 +378,9 @@ class _HomePageState extends ConsumerState<HomePage>
             feed.sort.isEmpty &&
             identical(feed, _activeFeed)) {
           final actual = props.actualSort ?? props.sort;
+          if (actual.isNotEmpty) {
+            _defaultRootSort = actual;
+          }
           if (actual.isNotEmpty && !_feeds.containsKey(actual)) {
             _feeds.remove('');
             feed.sort = actual;
@@ -396,6 +400,10 @@ class _HomePageState extends ConsumerState<HomePage>
       });
       recordStartupMilestone('startup.home_data_parsed');
       _recordFirstHomeContent(props.topics.isNotEmpty);
+      final syncDefaultRoot =
+          feed.category == null &&
+          _defaultRootSort != null &&
+          requestedSort == _defaultRootSort;
       unawaited(() async {
         try {
           final scope = await cacheScopeFuture;
@@ -405,12 +413,19 @@ class _HomePageState extends ConsumerState<HomePage>
             return;
           }
           if (cache is OfflineHomeCache) {
-            await (cache as OfflineHomeCache).putHomePage(
-              accountId: scope.$1,
-              baseUrl: scope.$2,
-              sort: requestedSort,
-              payload: payload,
-            );
+            final homeCache = cache as OfflineHomeCache;
+            final sortsToPersist = <String>{
+              requestedSort,
+              if (syncDefaultRoot) '',
+            };
+            for (final sortKey in sortsToPersist) {
+              await homeCache.putHomePage(
+                accountId: scope.$1,
+                baseUrl: scope.$2,
+                sort: sortKey,
+                payload: payload,
+              );
+            }
           }
         } catch (_) {
           // Persistent SWR is optional; the network result is already visible.
@@ -899,6 +914,7 @@ class _HomePageState extends ConsumerState<HomePage>
         _interactionOverrides.clear();
         _returnedTopicOverrides.clear();
         _navigationProps = null;
+        _defaultRootSort = null;
         _dailyRanking = false;
         _categories = [];
         setState(() {});
@@ -912,6 +928,7 @@ class _HomePageState extends ConsumerState<HomePage>
         feed.cancel();
       }
       _category = null;
+      _defaultRootSort = null;
       _sort = _allSort;
       _categorySorts.clear();
       _feeds
